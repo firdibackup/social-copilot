@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
-import { InstagramSettings, type SearchParams } from './instagram-settings'
+import type { SearchParams } from '@/lib/params'
+import { InstagramSettings } from './instagram-settings'
 
 export const metadata: Metadata = { title: 'Pengaturan' }
 

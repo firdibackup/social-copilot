@@ -12,6 +12,11 @@ const TOKEN_URL = 'https://api.instagram.com/oauth/access_token'
 const GRAPH_URL = 'https://graph.instagram.com'
 const REQUEST_TIMEOUT_MS = 15_000
 const INVALID_TOKEN_CODE = 190
+/** Graph codes for unknown errors, service hiccups and rate limits: worth retrying later. */
+const TRANSIENT_CODES = new Set([1, 2, 4, 17, 32, 341, 368, 613])
+
+const CONTAINER_STATUSES = ['EXPIRED', 'ERROR', 'FINISHED', 'IN_PROGRESS', 'PUBLISHED'] as const
+export type ContainerStatus = (typeof CONTAINER_STATUSES)[number]
 
 export interface ShortLivedToken {
   accessToken: string
@@ -36,6 +41,8 @@ export class InstagramApiError extends Error {
     message: string,
     readonly code: number | null,
     readonly status: number,
+    /** Graph's own `is_transient` flag. */
+    readonly transient = false,
   ) {
     super(message)
   }
@@ -43,6 +50,16 @@ export class InstagramApiError extends Error {
   /** Expired, revoked or otherwise unusable token: the owner must reconnect. */
   get isInvalidToken(): boolean {
     return this.code === INVALID_TOKEN_CODE
+  }
+
+  /** Network failures (status 0), server errors and throttling. Anything else is a rejection. */
+  get isTransient(): boolean {
+    return (
+      this.transient ||
+      this.status === 0 ||
+      this.status >= 500 ||
+      (this.code !== null && TRANSIENT_CODES.has(this.code))
+    )
   }
 }
 
@@ -63,7 +80,12 @@ function toApiError(body: unknown, status: number): InstagramApiError {
   const source = isObject(body) ? (isObject(body.error) ? body.error : body) : {}
   const message = [source.message, source.error_message].find((value) => typeof value === 'string')
   const code = typeof source.code === 'number' ? source.code : null
-  return new InstagramApiError(typeof message === 'string' ? message : `HTTP ${status}`, code, status)
+  return new InstagramApiError(
+    typeof message === 'string' ? message : `HTTP ${status}`,
+    code,
+    status,
+    source.is_transient === true,
+  )
 }
 
 async function request(url: string | URL, init?: RequestInit): Promise<Json> {
@@ -85,6 +107,11 @@ function graphUrl(path: string, params: Record<string, string>): URL {
   const url = new URL(path, GRAPH_URL)
   url.search = new URLSearchParams(params).toString()
   return url
+}
+
+/** POSTs keep the token in the body, out of URLs. */
+function graphPost(path: string, params: Record<string, string>): Promise<Json> {
+  return request(new URL(path, GRAPH_URL), { method: 'POST', body: new URLSearchParams(params) })
 }
 
 function parsePermissions(value: unknown): string[] {
@@ -163,4 +190,33 @@ export async function fetchProfile(accessToken: string): Promise<InstagramProfil
     username: readString(body, 'username'),
     accountType: readString(body, 'account_type'),
   }
+}
+
+/** Creates a media container. `params` are the /media fields: image_url, caption, is_carousel_item, children… */
+export async function createContainer(
+  accessToken: string,
+  userId: string,
+  params: Record<string, string>,
+): Promise<string> {
+  const body = await graphPost(`/${userId}/media`, { ...params, access_token: accessToken })
+  return readString(body, 'id')
+}
+
+export async function getContainerStatus(accessToken: string, containerId: string): Promise<ContainerStatus> {
+  const body = await request(graphUrl(`/${containerId}`, { fields: 'status_code', access_token: accessToken }))
+  const status = readString(body, 'status_code')
+  const known = CONTAINER_STATUSES.find((value) => value === status)
+  if (!known) throw new InstagramApiError(`Status container tidak dikenal: ${status}`, null, 200)
+  return known
+}
+
+/** Not idempotent: a timeout here may still have published. Callers check the container status before retrying. */
+export async function publishContainer(accessToken: string, userId: string, containerId: string): Promise<string> {
+  const body = await graphPost(`/${userId}/media_publish`, { creation_id: containerId, access_token: accessToken })
+  return readString(body, 'id')
+}
+
+export async function getPermalink(accessToken: string, mediaId: string): Promise<string> {
+  const body = await request(graphUrl(`/${mediaId}`, { fields: 'permalink', access_token: accessToken }))
+  return readString(body, 'permalink')
 }

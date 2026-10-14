@@ -14,3 +14,11 @@ export function db(): SupabaseClient {
   })
   return client
 }
+
+type Result<T> = { data: T; error: null } | { data: null; error: { message: string } }
+
+/** Returns the data of a Supabase result, or throws its error as a plain Error. */
+export function unwrap<T>(result: Result<T>): T {
+  if (result.error) throw new Error(`Supabase: ${result.error.message}`)
+  return result.data
+}

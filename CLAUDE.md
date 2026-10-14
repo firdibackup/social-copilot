@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Status
 
-Phase 1 (Fondasi) is built: app shell with sidebar, Instagram OAuth connection, Supabase schema. Remaining phases, in order: Kalender + Aset + publishing worker → Buat (AI captions and images via 9Router) → Balasan (DM inbox) → Analitik. The spec is `social-copilot-prd.md`; the UI is in Bahasa Indonesia.
+Built: Fondasi (app shell, Instagram OAuth, Supabase schema) and Kalender + Aset + publishing worker (photo and carousel posts; design in `docs/superpowers/specs/2026-10-14-kalender-aset-worker-design.md`). Remaining phases, in order: Buat AI (captions and images via 9Router, added to the existing `/buat` editor) → Balasan (DM inbox) → Analitik. The spec is `social-copilot-prd.md`; the UI is in Bahasa Indonesia.
 
 ## Commands
 
@@ -15,10 +15,12 @@ npm run lint && npm run typecheck
 npm test                                 # vitest, all tests
 npx vitest run src/lib/crypto.test.ts    # one file
 npx vitest run -t 'rejects a tampered'   # one test by name
-npx supabase link --project-ref <ref>    # once, then:
-npm run db:push                          # apply supabase/migrations to the linked project
+npm run worker                           # publishing worker; separate process, reads .env.local if present
+npm run db:push -- --db-url "<postgres-url>"   # apply supabase/migrations (Supabase is self-hosted on the VPS)
 ngrok http --url=<domain>.ngrok-free.app 3000   # public URL for the Meta OAuth callback
 ```
+
+After `npm install <pkg>`, check `git diff package-lock.json`: npm 11 has dropped the `@rolldown/binding-*` optional dependencies from the lockfile here, after which vitest fails with "Cannot find native binding". Restore the lockfile and add only the new package's entries.
 
 ## Next.js 16.4 specifics
 
@@ -35,11 +37,16 @@ ngrok http --url=<domain>.ngrok-free.app 3000   # public URL for the Meta OAuth 
 - **Tokens.** Encrypted with AES-256-GCM using `TOKEN_ENCRYPTION_KEY`. Changing the key makes stored tokens unreadable, so the owner must reconnect.
 - **Logging.** Graph API GETs carry `access_token` in the query string. Never log URLs or raw fetch errors; log through `describeError()`.
 - **OAuth errors.** They reach the browser only as `?ig_error=<code>`, mapped to Indonesian messages in `src/app/(app)/pengaturan/instagram-settings.tsx`.
+- **Posts.** Tables `assets`, `posts`, `post_media`, `publish_attempts`; data access in `src/lib/posts.ts` and `src/lib/assets.ts`. Post content changes only through the `save_post()` SQL function, which swaps caption, schedule and photos in one transaction and raises `post_locked` for posts the worker owns. Status-only changes (cancel, retry, delete) are conditional updates that report whether they won.
+- **No duplicate posts.** A non-null `posts.ig_container_id` means Instagram may already have published the post, so its content stays locked. The worker saves the container id before `media_publish`, checks the container's `status_code` before any retry (`PUBLISHED` means done), and clears the id only when it is certain the post did not go out.
+- **Worker.** `src/worker/` runs apart from Next via `tsx` with `--conditions=react-server`, which makes `server-only` resolve to an empty module. It polls `claim_due_post()` (`FOR UPDATE SKIP LOCKED`; a post stuck in `publishing` for 10 minutes is reclaimed) and retries transient errors after 1/5/15/30 minutes, at most 5 attempts. In production it runs on the VPS next to Supabase under pm2 or systemd.
+- **Media.** Photos are cropped to 4:5–1.91:1, capped at 1440 px and re-encoded as JPEG in the browser (`toInstagramJpeg`) before upload. The `media` bucket is private; Meta gets signed URLs built from `NEXT_PUBLIC_SUPABASE_URL`, so that must be the public HTTPS domain, not an internal address. Signed URLs carry a token: never log them.
+- **Time.** Schedules are entered and shown in WIB (fixed +07:00, `src/lib/format.ts`); the database stores UTC.
 
 ## Rules carried from the PRD
 
 - AI output is always an editable draft. Nothing publishes or sends a DM without an explicit owner action. No bulk or unsolicited DMs, and no scraping.
-- Scheduled publishing runs in a separate worker process (planned: `npm run worker`), not the browser. Jobs are claimed atomically (`FOR UPDATE SKIP LOCKED` via a SQL function), with bounded retries and no duplicate posts.
+- Scheduled publishing runs in the worker process (`npm run worker`), never in the browser or the Next server.
 - Meta cannot fetch `localhost` media. Publish from Supabase Storage URLs.
 - 9Router is called only from server code. As of 2026-10-14 it lists no image model: `/v1/images/generations` exists but answered `No credentials for provider: openai`. An image-capable model must be configured in 9Router before the Buat phase. Verify `ROUTER_MODEL` with a live request.
 - `INSTAGRAM_ACCESS_TOKEN` in `.env.local` is a manual test token. The app does not use it.
