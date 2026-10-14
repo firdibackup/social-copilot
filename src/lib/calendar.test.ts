@@ -1,0 +1,38 @@
+import { describe, expect, it } from 'vitest'
+import { buildMonthGrid, parseMonth, shiftMonth } from './calendar'
+
+describe('buildMonthGrid', () => {
+  it('starts on Monday and pads with the neighbouring months', () => {
+    const weeks = buildMonthGrid('2026-10')
+    expect(weeks).toHaveLength(5)
+    expect(weeks[0]).toEqual(['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04'])
+    expect(weeks[4].at(-1)).toBe('2026-11-01')
+  })
+
+  it('uses six weeks when the month starts on a Sunday', () => {
+    const weeks = buildMonthGrid('2026-03')
+    expect(weeks).toHaveLength(6)
+    expect(weeks[0].at(-1)).toBe('2026-03-01')
+    expect(weeks[5][0]).toBe('2026-03-30')
+  })
+
+  it('crosses into the next year', () => {
+    expect(buildMonthGrid('2026-12').at(-1)?.at(-1)).toBe('2027-01-03')
+  })
+})
+
+describe('shiftMonth', () => {
+  it('moves across year boundaries', () => {
+    expect(shiftMonth('2026-12', 1)).toBe('2027-01')
+    expect(shiftMonth('2026-01', -1)).toBe('2025-12')
+  })
+})
+
+describe('parseMonth', () => {
+  it('accepts YYYY-MM and rejects anything else', () => {
+    expect(parseMonth('2026-10')).toBe('2026-10')
+    expect(parseMonth('2026-13')).toBeNull()
+    expect(parseMonth('oktober')).toBeNull()
+    expect(parseMonth(undefined)).toBeNull()
+  })
+})

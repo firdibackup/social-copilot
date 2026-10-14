@@ -1,13 +1,10 @@
-import type { ReactNode } from 'react'
 import { InstagramIcon } from '@/components/instagram-icon'
+import { Notice } from '@/components/notice'
 import { checkConnectionHealth, getConnection, type Connection, type ConnectionHealth } from '@/lib/connection'
 import { ConfigError, describeError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
+import { firstValue, type SearchParams } from '@/lib/params'
 import { DisconnectButton } from './disconnect-button'
-
-export type SearchParams = Record<string, string | string[] | undefined>
-
-type Tone = 'success' | 'warning' | 'error'
 
 type LoadResult =
   | { kind: 'ok'; connection: Connection | null; health: ConnectionHealth | null }
@@ -34,14 +31,6 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   BUSINESS: 'Akun Bisnis',
   MEDIA_CREATOR: 'Akun Kreator',
 }
-
-const NOTICE_CLASS: Record<Tone, string> = {
-  success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-  warning: 'border-amber-200 bg-amber-50 text-amber-800',
-  error: 'border-red-200 bg-red-50 text-red-800',
-}
-
-const firstValue = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value)
 
 async function loadInstagram(): Promise<LoadResult> {
   try {
@@ -167,13 +156,5 @@ function ConnectLink({ label }: { label: string }) {
     >
       {label}
     </a>
-  )
-}
-
-function Notice({ tone, children }: { tone: Tone; children: ReactNode }) {
-  return (
-    <p role={tone === 'success' ? 'status' : 'alert'} className={`rounded-lg border px-4 py-3 text-sm ${NOTICE_CLASS[tone]}`}>
-      {children}
-    </p>
   )
 }

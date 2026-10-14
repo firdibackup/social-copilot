@@ -9,7 +9,7 @@ import {
   type InstagramProfile,
   type LongLivedToken,
 } from './instagram'
-import { db } from './supabase'
+import { db, unwrap } from './supabase'
 
 const CONNECTION_ID = 1
 const STATE_BYTES = 32
@@ -30,6 +30,7 @@ export interface Connection {
 }
 
 interface ConnectionRow {
+  instagram_user_id: string
   username: string
   account_type: string
   access_token_enc: string
@@ -40,11 +41,6 @@ interface ConnectionRow {
 
 export class NeedsReconnectError extends Error {
   override name = 'NeedsReconnectError'
-}
-
-function unwrap<T>(result: { data: T; error: { message: string } | null }): T {
-  if (result.error) throw new Error(`Supabase: ${result.error.message}`)
-  return result.data
 }
 
 const stateCutoff = () => new Date(Date.now() - STATE_TTL_MS).toISOString()
@@ -67,7 +63,7 @@ export async function consumeOAuthState(state: string): Promise<boolean> {
 async function loadRow(): Promise<ConnectionRow | null> {
   const result = await db()
     .from('instagram_connections')
-    .select('username, account_type, access_token_enc, token_expires_at, token_refreshed_at, status')
+    .select('instagram_user_id, username, account_type, access_token_enc, token_expires_at, token_refreshed_at, status')
     .eq('id', CONNECTION_ID)
     .maybeSingle()
   return unwrap(result) as ConnectionRow | null
@@ -111,7 +107,7 @@ export async function deleteConnection(): Promise<void> {
   unwrap(await db().from('instagram_connections').delete().eq('id', CONNECTION_ID))
 }
 
-async function markNeedsReconnect(): Promise<void> {
+export async function markNeedsReconnect(): Promise<void> {
   unwrap(
     await db()
       .from('instagram_connections')
@@ -154,8 +150,13 @@ async function refreshStoredToken(currentToken: string): Promise<string> {
   }
 }
 
-/** Returns a usable access token, refreshing it first when it is close to expiry. */
-export async function getValidAccessToken(): Promise<string> {
+export interface PublishingAccount {
+  accessToken: string
+  instagramUserId: string
+}
+
+/** A usable access token and its account id, refreshing the token first when it is close to expiry. */
+export async function getPublishingAccount(): Promise<PublishingAccount> {
   const row = await loadRow()
   if (!row) throw new NeedsReconnectError('Instagram belum terhubung')
 
@@ -167,7 +168,15 @@ export async function getValidAccessToken(): Promise<string> {
   }
 
   const token = decryptToken(row.access_token_enc)
-  return shouldRefreshToken(new Date(row.token_refreshed_at), expiresAt, now) ? refreshStoredToken(token) : token
+  const accessToken = shouldRefreshToken(new Date(row.token_refreshed_at), expiresAt, now)
+    ? await refreshStoredToken(token)
+    : token
+  return { accessToken, instagramUserId: row.instagram_user_id }
+}
+
+/** Returns a usable access token, refreshing it first when it is close to expiry. */
+export async function getValidAccessToken(): Promise<string> {
+  return (await getPublishingAccount()).accessToken
 }
 
 /** Checks the stored token against Instagram. Used by the settings page. */

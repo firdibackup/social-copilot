@@ -1,14 +1,12 @@
 'use server'
 
-import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { deleteConnection } from '@/lib/connection'
 import { describeError } from '@/lib/errors'
-import { isLocalRequest } from '@/lib/tunnel-guard'
+import { assertLocalRequest } from '@/lib/local-only'
 
 export async function disconnectInstagram(): Promise<void> {
-  // Server actions are POSTs to the page route, so check here too rather than trusting proxy.ts alone.
-  if (!isLocalRequest(await headers())) throw new Error('Tidak diizinkan')
+  await assertLocalRequest()
 
   const outcome = await deleteConnection().then(
     () => 'ig=disconnected',

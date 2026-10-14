@@ -1,13 +1,20 @@
 import type { Metadata } from 'next'
-import { ComingSoon } from '@/components/coming-soon'
+import { Suspense } from 'react'
+import type { SearchParams } from '@/lib/params'
+import { CalendarView } from './calendar-view'
 
 export const metadata: Metadata = { title: 'Kalender' }
 
-export default function KalenderPage() {
+interface KalenderPageProps {
+  searchParams: Promise<SearchParams>
+}
+
+export default function KalenderPage({ searchParams }: KalenderPageProps) {
   return (
-    <ComingSoon
-      title="Kalender"
-      description="Jadwal posting akan tampil di sini setelah tahap Kalender selesai dibangun."
-    />
+    <div className="space-y-6">
+      <Suspense fallback={<p className="text-sm text-zinc-500">Memuat kalender…</p>}>
+        <CalendarView searchParams={searchParams} />
+      </Suspense>
+    </div>
   )
 }

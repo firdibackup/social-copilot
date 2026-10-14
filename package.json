@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "db:push": "supabase db push"
+    "db:push": "supabase db push",
+    "worker": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx src/worker/index.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",
@@ -18,7 +19,8 @@
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "tsx": "^4.23.15"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",

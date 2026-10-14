@@ -100,7 +100,9 @@ Semua state tampilan ada di URL.
   - Bisa difilter per status dan tanggal.
 - **Badge "Terlambat"**: muncul kalau status `scheduled` dan `coalesce(next_attempt_at, scheduled_at)` sudah lewat lebih dari 5 menit.
 
-### Editor: `/buat` (baru) dan `/buat/[id]`
+### Editor: `/buat` (baru) dan `/buat?id=<id>`
+
+Editor memakai query string, bukan segmen `/buat/[id]`, supaya polanya sama dengan halaman Pengaturan dan cukup satu file halaman.
 
 - **Media:**
   - Foto dipilih dari Aset atau diunggah langsung. Maksimal 10, urutannya diatur dengan tombol naik dan turun.
