@@ -1,0 +1,45 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Status
+
+Phase 1 (Fondasi) is built: app shell with sidebar, Instagram OAuth connection, Supabase schema. Remaining phases, in order: Kalender + Aset + publishing worker → Buat (AI captions and images via 9Router) → Balasan (DM inbox) → Analitik. The spec is `social-copilot-prd.md`; the UI is in Bahasa Indonesia.
+
+## Commands
+
+```bash
+npm run dev                              # http://localhost:3000 (/ redirects to /kalender)
+npm run build                            # also validates Cache Components rules
+npm run lint && npm run typecheck
+npm test                                 # vitest, all tests
+npx vitest run src/lib/crypto.test.ts    # one file
+npx vitest run -t 'rejects a tampered'   # one test by name
+npx supabase link --project-ref <ref>    # once, then:
+npm run db:push                          # apply supabase/migrations to the linked project
+ngrok http --url=<domain>.ngrok-free.app 3000   # public URL for the Meta OAuth callback
+```
+
+## Next.js 16.4 specifics
+
+- This Next version differs from training data. Read the bundled guides in `node_modules/next/dist/docs/` before writing Next code (see `AGENTS.md`).
+- `cacheComponents` and `partialPrefetching` are on. Request-time reads (Supabase, `searchParams`, `headers()`, current time) must sit inside `<Suspense>`. Call `await connection()` before reads that can resolve without an uncached fetch, or the result gets prerendered at build time (this happened to the sidebar status when Supabase env was empty). In the `npm run build` route table, pages with live data should show ◐, not ○.
+- `src/proxy.ts` replaces `middleware.ts`.
+
+## Architecture
+
+- **No owner login yet; the tunnel guard is the security boundary.** `src/proxy.ts` uses `src/lib/tunnel-guard.ts`. Through ngrok, only `PUBLIC_PATHS` respond (currently the OAuth callback) and everything else returns 404. The guard relies on ngrok forwarding its own `Host`, so never start ngrok with `--host-header=rewrite`. New public endpoints, such as the Meta DM webhook, must be added to `PUBLIC_PATHS`. Local-only route handlers and server actions re-check `isLocalRequest()` themselves rather than trusting the proxy. Real owner auth is required before any public deploy.
+- **Server-only code.** Modules in `src/lib` that touch secrets `import 'server-only'`. Vitest aliases that import to a stub (`vitest.config.mts`).
+- **Data access.** `db()` in `src/lib/supabase.ts` is the service-role client. Tables have RLS on with no policies, so the publishable key can read nothing. Schema changes go in new files under `supabase/migrations/`.
+- **Instagram connection.** Lives in `src/lib/connection.ts`: a singleton `instagram_connections` row (`id = 1`, enforced by a CHECK) plus one-time `oauth_states`. Raw HTTP to Instagram is in `src/lib/instagram.ts`. Anything that calls Instagram gets its token from `getValidAccessToken()`, which decrypts it, refreshes it lazily (when older than 24 hours and within 7 days of expiry), and flips status to `needs_reconnect` on Graph error 190.
+- **Tokens.** Encrypted with AES-256-GCM using `TOKEN_ENCRYPTION_KEY`. Changing the key makes stored tokens unreadable, so the owner must reconnect.
+- **Logging.** Graph API GETs carry `access_token` in the query string. Never log URLs or raw fetch errors; log through `describeError()`.
+- **OAuth errors.** They reach the browser only as `?ig_error=<code>`, mapped to Indonesian messages in `src/app/(app)/pengaturan/instagram-settings.tsx`.
+
+## Rules carried from the PRD
+
+- AI output is always an editable draft. Nothing publishes or sends a DM without an explicit owner action. No bulk or unsolicited DMs, and no scraping.
+- Scheduled publishing runs in a separate worker process (planned: `npm run worker`), not the browser. Jobs are claimed atomically (`FOR UPDATE SKIP LOCKED` via a SQL function), with bounded retries and no duplicate posts.
+- Meta cannot fetch `localhost` media. Publish from Supabase Storage URLs.
+- 9Router is called only from server code. As of 2026-10-14 it lists no image model: `/v1/images/generations` exists but answered `No credentials for provider: openai`. An image-capable model must be configured in 9Router before the Buat phase. Verify `ROUTER_MODEL` with a live request.
+- `INSTAGRAM_ACCESS_TOKEN` in `.env.local` is a manual test token. The app does not use it.
