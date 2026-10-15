@@ -10,6 +10,7 @@ import { CAPTION_MAX_HASHTAGS, CAPTION_MAX_LENGTH, CAPTION_MAX_MENTIONS, inspect
 import { toWibInput } from '@/lib/format'
 import type { Post } from '@/lib/posts'
 import { savePostAction, type SaveState } from './actions'
+import { AiAssistant } from './ai-assistant'
 
 const MAX_MEDIA = 10
 const EDITABLE_STATUSES = new Set(['draft', 'scheduled', 'failed', 'cancelled'])
@@ -149,6 +150,8 @@ export function PostEditor({ post, library: initialLibrary, defaultSchedule }: P
               <Count value={counts.mentions} max={CAPTION_MAX_MENTIONS} label="mention" />
             </p>
           </section>
+
+          {editable && <AiAssistant caption={caption} photoCount={media.length} onCaptionChange={setCaption} />}
 
           <section className="space-y-2">
             <label htmlFor="scheduledAt" className="text-sm font-medium text-zinc-900">
