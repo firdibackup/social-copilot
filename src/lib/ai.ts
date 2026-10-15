@@ -143,3 +143,83 @@ export function buildMessages(request: AiRequest): ChatMessage[] {
     { role: 'user', content: taskPrompt(request) },
   ]
 }
+
+const MAX_CAPTIONS = 3
+const MAX_IDEAS = 5
+const MAX_NEW_HASHTAGS = 10
+const SNIPPET_LENGTH = 120
+
+/** The model answered, but not with the JSON asked for. `snippet` is the start of its answer. */
+export class AiOutputError extends Error {
+  override name = 'AiOutputError'
+
+  constructor(readonly snippet: string) {
+    super(`Jawaban AI tidak bisa dibaca: ${snippet}`)
+  }
+}
+
+const truncate = (text: string, max: number) => Array.from(text).slice(0, max).join('')
+
+function snippetOf(content: string): string {
+  const flat = content.replace(/\s+/g, ' ').trim()
+  return lengthOf(flat) > SNIPPET_LENGTH ? `${truncate(flat, SNIPPET_LENGTH)}…` : flat
+}
+
+/** Takes the outermost `{…}`, so ```json fences or a sentence around the object don't matter. */
+function readJson(content: string): Json | null {
+  const start = content.indexOf('{')
+  const end = content.lastIndexOf('}')
+  if (start === -1 || end < start) return null
+  try {
+    const value: unknown = JSON.parse(content.slice(start, end + 1))
+    return isObject(value) ? value : null
+  } catch {
+    return null
+  }
+}
+
+/** Trimmed, non-empty, distinct strings, at most `max` of them. */
+function cleanList(value: unknown, max: number): string[] {
+  if (!Array.isArray(value)) return []
+  const items = value.filter((item): item is string => typeof item === 'string').map((item) => item.trim())
+  return [...new Set(items.filter(Boolean))].slice(0, max)
+}
+
+/** New tags only, normalized to `#word`, and no more than the caption has room for. */
+function newHashtags(caption: string, suggested: unknown): string[] {
+  const used = findHashtags(caption)
+  const seen = new Set(used.map((tag) => tag.toLowerCase()))
+  const room = Math.max(0, Math.min(MAX_NEW_HASHTAGS, CAPTION_MAX_HASHTAGS - used.length))
+  const tags: string[] = []
+  for (const text of cleanList(suggested, Number.POSITIVE_INFINITY)) {
+    const tag = `#${text.replace(/[^\p{L}\p{N}_]/gu, '')}`
+    if (tag === '#' || seen.has(tag.toLowerCase())) continue
+    seen.add(tag.toLowerCase())
+    tags.push(tag)
+  }
+  return tags.slice(0, room)
+}
+
+function optionsFrom(request: AiRequest, json: Json): string[] {
+  switch (request.task) {
+    case 'captions':
+      return cleanList(json.captions, MAX_CAPTIONS)
+    case 'ideas':
+      // An idea becomes the topic field, so it must fit there.
+      return cleanList(json.ideas, MAX_IDEAS).map((idea) => truncate(idea, TOPIC_MAX_LENGTH))
+    case 'rewrite':
+      return cleanList([json.caption], 1)
+    case 'hashtags': {
+      const tags = newHashtags(request.caption, json.hashtags)
+      return tags.length > 0 ? [tags.join(' ')] : []
+    }
+  }
+}
+
+/** The options to show the owner. A 200 can carry a provider notice instead of JSON, so only parsed JSON counts. */
+export function parseOptions(request: AiRequest, content: string): string[] {
+  const json = readJson(content)
+  const options = json ? optionsFrom(request, json) : []
+  if (options.length === 0) throw new AiOutputError(snippetOf(content))
+  return options
+}

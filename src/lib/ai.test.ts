@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildMessages, parseAiRequest } from './ai'
+import { AiOutputError, buildMessages, parseAiRequest, parseOptions } from './ai'
 import type { AiRequest, Brief } from './ai-options'
 
 const BRIEF: Brief = {
@@ -89,5 +89,73 @@ describe('buildMessages', () => {
 
     expect(user.content).toContain('"""\nHalo semua\n"""')
     expect(user.content).toContain('ajakan bertindak')
+  })
+})
+
+const thrown = (run: () => unknown): unknown => {
+  try {
+    run()
+  } catch (error) {
+    return error
+  }
+  return null
+}
+
+describe('parseOptions', () => {
+  const json = '{"captions": ["Satu", "Dua"]}'
+
+  it('reads plain, fenced and wrapped JSON', () => {
+    expect(parseOptions(CAPTIONS, json)).toEqual(['Satu', 'Dua'])
+    expect(parseOptions(CAPTIONS, `\`\`\`json\n${json}\n\`\`\``)).toEqual(['Satu', 'Dua'])
+    expect(parseOptions(CAPTIONS, `Berikut hasilnya:\n${json}`)).toEqual(['Satu', 'Dua'])
+  })
+
+  it('turns a provider notice sent with status 200 into an AiOutputError', () => {
+    const notice =
+      'Gemini 3.5 Flash is no longer available. Please switch to Gemini 3.7 Flash in the latest version of Antigravity.'
+
+    const error = thrown(() => parseOptions(CAPTIONS, notice))
+
+    expect(error).toBeInstanceOf(AiOutputError)
+    expect(error).toMatchObject({ snippet: notice })
+  })
+
+  it('keeps the first 120 characters of a long answer', () => {
+    expect(thrown(() => parseOptions(CAPTIONS, 'x'.repeat(500)))).toMatchObject({ snippet: `${'x'.repeat(120)}…` })
+  })
+
+  it('rejects the wrong shape and lists with nothing usable', () => {
+    expect(() => parseOptions(CAPTIONS, '{"caption": "Satu"}')).toThrow(AiOutputError)
+    expect(() => parseOptions(CAPTIONS, '{"captions": ["", "  ", 3]}')).toThrow(AiOutputError)
+  })
+
+  it('trims, drops duplicates and keeps at most three captions', () => {
+    const answer = JSON.stringify({ captions: [' Satu ', 'Satu', 'Dua', 'Tiga', 'Empat'] })
+
+    expect(parseOptions(CAPTIONS, answer)).toEqual(['Satu', 'Dua', 'Tiga'])
+  })
+
+  it('cuts ideas to the topic limit, so Jadikan topik always passes validation', () => {
+    const ideas = parseOptions({ task: 'ideas', brief: BRIEF }, JSON.stringify({ ideas: ['😀'.repeat(400)] }))
+
+    expect(Array.from(ideas[0])).toHaveLength(300)
+  })
+
+  it('returns a rewrite as one option', () => {
+    expect(parseOptions({ task: 'rewrite', style: 'singkat', caption: 'Halo' }, '{"caption": " Hai "}')).toEqual(['Hai'])
+  })
+
+  it('normalizes hashtags and leaves out the ones already in the caption', () => {
+    const request: AiRequest = { task: 'hashtags', caption: 'Ngopi dulu #KopiSusu' }
+    const answer = JSON.stringify({ hashtags: ['#kopisusu', 'gula aren', '#Promo-Weekend', '#', '#GulaAren'] })
+
+    expect(parseOptions(request, answer)).toEqual(['#gulaaren #PromoWeekend'])
+  })
+
+  it('adds no more hashtags than the caption has room for', () => {
+    const caption = Array.from({ length: 27 }, (_, index) => `#ada${index}`).join(' ')
+    const answer = JSON.stringify({ hashtags: ['#a', '#b', '#c', '#d', '#e'] })
+
+    expect(parseOptions({ task: 'hashtags', caption }, answer)).toEqual(['#a #b #c'])
   })
 })
