@@ -113,6 +113,7 @@ Normalisasi:
 - `parseOptions(request, content)` membaca JSON dari jawaban (toleran terhadap pagar dan teks di sekitarnya), memvalidasi bentuknya, dan menormalisasi hasilnya. Kalau gagal, fungsi melempar `AiOutputError`.
 - `runAiTask(request)`:
   - Menghitung baris `ai_generations` dalam 24 jam terakhir. Kalau sudah 100 atau lebih, fungsi melempar `AiLimitError` tanpa memanggil AI.
+  - Kalau hitungan tidak terbaca, AI tidak dipanggil. Untuk request `HEAD` yang dibalas 404 (tabel belum dimigrasi), postgrest-js mengembalikan `count: null` tanpa error, dan nilai itu tidak boleh dianggap 0.
   - Setelah itu memanggil `chatCompletion` dan `parseOptions`.
   - Setiap permintaan yang lolos cek batas dicatat sebagai `ok` atau `failed`, termasuk yang gagal sebelum sampai ke 9Router karena konfigurasi belum lengkap. Kalau pencatatan gagal, hasil tetap dikembalikan dan kegagalannya hanya masuk log server.
 - `aiErrorMessage(error)` memetakan error ke pesan untuk owner:
@@ -149,7 +150,7 @@ Komponen `src/app/(app)/buat/ai-assistant.tsx` dipasang di `post-editor.tsx` set
 - **Saat AI berjalan:** semua tombol AI nonaktif, dan teks "AI sedang menulis…" diumumkan lewat `aria-live`.
 - **Hasil:** satu daftar kartu. Teks ditampilkan apa adanya (`whitespace-pre-wrap`), dengan tombol sesuai tabel di atas. Hasil baru menggantikan hasil lama.
 - **Urungkan:** setelah caption diganti atau ditambah, muncul "Caption diganti. **Urungkan**" yang mengembalikan caption sebelumnya. Hanya satu langkah.
-- **Enter:** Enter di `<input>` dalam panel dicegah. Panel berada di dalam form post, jadi Enter bisa men-submit form dengan tombol pertamanya, yaitu **Jadwalkan**.
+- **Form terpisah:** panel dirender di dalam form post, tetapi field-nya milik form kosong tersendiri (`AI_FORM_ID`, lewat atribut `form`) yang dirender editor di luar form post. Tanpa itu, Enter di Audiens men-submit post dengan tombol **Jadwalkan**. Selain itu, reset form oleh React setelah simpan membuat dropdown kembali ke pilihan pertama, padahal state masih menyimpan pilihan owner. Kedua masalah ini ditemukan saat uji di browser.
 - **Error:** server action yang melempar error (koneksi putus, build berganti) ditampilkan sebagai "Permintaan terputus. Coba lagi."
 
 ## Keamanan

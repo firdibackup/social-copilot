@@ -1,7 +1,7 @@
 'use client'
 
 import { Sparkles } from 'lucide-react'
-import { useState, type KeyboardEvent } from 'react'
+import { useState } from 'react'
 import { Notice } from '@/components/notice'
 import {
   AUDIENCE_MAX_LENGTH,
@@ -36,10 +36,12 @@ const BUTTON =
 
 const entries = <K extends string>(choices: Record<K, string>) => Object.entries(choices) as [K, string][]
 
-/** The panel sits inside the post form: Enter in a text input would submit it with its first button, Jadwalkan. */
-function blockImplicitSubmit(event: KeyboardEvent<HTMLElement>) {
-  if (event.key === 'Enter' && event.target instanceof HTMLInputElement) event.preventDefault()
-}
+/**
+ * The panel renders inside the post form, but its fields belong to this empty form (rendered by PostEditor outside
+ * the post form) through the `form` attribute. Otherwise Enter in Audiens would submit the post with Jadwalkan,
+ * and the reset after a save would show the dropdowns' first options while state kept the owner's choice.
+ */
+export const AI_FORM_ID = 'asisten-ai'
 
 interface AiAssistantProps {
   caption: string
@@ -89,7 +91,7 @@ export function AiAssistant({ caption, photoCount, onCaptionChange }: AiAssistan
   }
 
   return (
-    <details onKeyDown={blockImplicitSubmit} className="rounded-xl border border-zinc-200 bg-zinc-50">
+    <details className="rounded-xl border border-zinc-200 bg-zinc-50">
       <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium text-zinc-900">
         <Sparkles size={16} aria-hidden="true" />
         Asisten AI
@@ -101,6 +103,7 @@ export function AiAssistant({ caption, photoCount, onCaptionChange }: AiAssistan
           <label className={LABEL}>
             Topik
             <textarea
+              form={AI_FORM_ID}
               rows={2}
               maxLength={TOPIC_MAX_LENGTH}
               value={topic}
@@ -112,7 +115,12 @@ export function AiAssistant({ caption, photoCount, onCaptionChange }: AiAssistan
           <div className="grid gap-3 sm:grid-cols-3">
             <label className={LABEL}>
               Tujuan
-              <select value={goal} onChange={(event) => setGoal(event.target.value as Goal)} className={FIELD}>
+              <select
+                form={AI_FORM_ID}
+                value={goal}
+                onChange={(event) => setGoal(event.target.value as Goal)}
+                className={FIELD}
+              >
                 {entries(GOALS).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
@@ -122,7 +130,12 @@ export function AiAssistant({ caption, photoCount, onCaptionChange }: AiAssistan
             </label>
             <label className={LABEL}>
               Nada
-              <select value={tone} onChange={(event) => setTone(event.target.value as Tone)} className={FIELD}>
+              <select
+                form={AI_FORM_ID}
+                value={tone}
+                onChange={(event) => setTone(event.target.value as Tone)}
+                className={FIELD}
+              >
                 {entries(TONES).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
@@ -133,6 +146,7 @@ export function AiAssistant({ caption, photoCount, onCaptionChange }: AiAssistan
             <label className={LABEL}>
               Audiens <span className="font-normal text-zinc-500">(opsional)</span>
               <input
+                form={AI_FORM_ID}
                 value={audience}
                 maxLength={AUDIENCE_MAX_LENGTH}
                 onChange={(event) => setAudience(event.target.value)}

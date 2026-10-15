@@ -10,7 +10,7 @@ import { CAPTION_MAX_HASHTAGS, CAPTION_MAX_LENGTH, CAPTION_MAX_MENTIONS, inspect
 import { toWibInput } from '@/lib/format'
 import type { Post } from '@/lib/posts'
 import { savePostAction, type SaveState } from './actions'
-import { AiAssistant } from './ai-assistant'
+import { AI_FORM_ID, AiAssistant } from './ai-assistant'
 
 const MAX_MEDIA = 10
 const EDITABLE_STATUSES = new Set(['draft', 'scheduled', 'failed', 'cancelled'])
@@ -214,6 +214,7 @@ export function PostEditor({ post, library: initialLibrary, defaultSchedule }: P
           </div>
         </aside>
       </form>
+      <form id={AI_FORM_ID} onSubmit={(event) => event.preventDefault()} />
 
       <dialog
         ref={pickerRef}
