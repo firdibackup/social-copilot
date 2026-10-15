@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Status
 
-Built: Fondasi (app shell, Instagram OAuth, Supabase schema) and Kalender + Aset + publishing worker (photo and carousel posts; design in `docs/superpowers/specs/2026-10-14-kalender-aset-worker-design.md`). Remaining phases, in order: Buat AI (captions and images via 9Router, added to the existing `/buat` editor) → Balasan (DM inbox) → Analitik. The spec is `social-copilot-prd.md`; the UI is in Bahasa Indonesia.
+Built: Fondasi (app shell, Instagram OAuth, Supabase schema), Kalender + Aset + publishing worker (photo and carousel posts; design in `docs/superpowers/specs/2026-10-14-kalender-aset-worker-design.md`), and Buat AI for text (captions, ideas, rewrites and hashtags in the `/buat` editor; design in `docs/superpowers/specs/2026-10-16-buat-ai-design.md`). Remaining phases, in order: Balasan (DM inbox) → Analitik. AI images in Buat wait for an image model in 9Router. The spec is `social-copilot-prd.md`; the UI is in Bahasa Indonesia.
 
 ## Commands
 
@@ -42,11 +42,12 @@ After `npm install <pkg>`, check `git diff package-lock.json`: npm 11 has droppe
 - **Worker.** `src/worker/` runs apart from Next via `tsx` with `--conditions=react-server`, which makes `server-only` resolve to an empty module. It polls `claim_due_post()` (`FOR UPDATE SKIP LOCKED`; a post stuck in `publishing` for 10 minutes is reclaimed) and retries transient errors after 1/5/15/30 minutes, at most 5 attempts. In production it runs on the VPS next to Supabase under pm2 or systemd.
 - **Media.** Photos are cropped to 4:5–1.91:1, capped at 1440 px and re-encoded as JPEG in the browser (`toInstagramJpeg`) before upload. The `media` bucket is private; Meta gets signed URLs built from `NEXT_PUBLIC_SUPABASE_URL`, so that must be the public HTTPS domain, not an internal address. Signed URLs carry a token: never log them.
 - **Time.** Schedules are entered and shown in WIB (fixed +07:00, `src/lib/format.ts`); the database stores UTC.
+- **AI.** `src/lib/nine-router.ts` is the raw HTTP client. `src/lib/ai.ts` validates requests, builds the prompts, reads the answers, logs every request to `ai_generations` and enforces `DAILY_LIMIT` (100 per rolling 24 hours, counted from that table). Choices shared with the editor live in `src/lib/ai-options.ts`. Requests must send `stream: false`, or 9Router answers with SSE. A 200 can carry a provider notice instead of an answer, so only JSON that passes `parseOptions` counts as success. The `/buat` panel (`ai-assistant.tsx`) sits inside the post form and blocks Enter in its inputs, which would otherwise submit the form with its first button, Jadwalkan.
 
 ## Rules carried from the PRD
 
 - AI output is always an editable draft. Nothing publishes or sends a DM without an explicit owner action. No bulk or unsolicited DMs, and no scraping.
 - Scheduled publishing runs in the worker process (`npm run worker`), never in the browser or the Next server.
 - Meta cannot fetch `localhost` media. Publish from Supabase Storage URLs.
-- 9Router is called only from server code. As of 2026-10-14 it lists no image model: `/v1/images/generations` exists but answered `No credentials for provider: openai`. An image-capable model must be configured in 9Router before the Buat phase. Verify `ROUTER_MODEL` with a live request.
+- 9Router is called only from server code. As of 2026-10-16 `/v1/models` lists no image model (`/v1/images/generations` answered `No credentials for provider: openai` on 2026-10-14), so AI images wait until one is configured. The PRD names the `Hermes-daily` combo, but on 2026-10-16 it answered every request with "Gemini 3.5 Flash is no longer available…", so `ROUTER_MODEL` is `cc/claude-haiku-4-5-20251001`. Verify a new `ROUTER_MODEL` with a live request; the tests mock 9Router.
 - `INSTAGRAM_ACCESS_TOKEN` in `.env.local` is a manual test token. The app does not use it.
