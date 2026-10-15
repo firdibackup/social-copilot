@@ -8,7 +8,18 @@ const nextConfig: NextConfig = {
     serverActions: { bodySizeLimit: "9mb" },
   },
   async redirects() {
-    return [{ source: "/", destination: "/kalender", permanent: false }];
+    return [
+      {
+        source: "/",
+        destination: "/kalender",
+        permanent: false,
+        // Instagram's OAuth return lands on `/`; src/proxy.ts hands it to the callback route.
+        missing: [
+          { type: "query", key: "code" },
+          { type: "query", key: "error" },
+        ],
+      },
+    ];
   },
   turbopack: {
     rules: {
