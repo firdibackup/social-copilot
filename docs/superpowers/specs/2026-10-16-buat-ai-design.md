@@ -92,6 +92,7 @@ Normalisasi:
   - Instruksi tugas dan format JSON, lalu data brief per baris.
   - Teks dari owner (topik dan caption) diapit `"""`.
   - Caption diminta 2–4 paragraf pendek, sekitar 300–700 karakter sebelum hashtag, dengan pembuka yang menarik, CTA sesuai tujuan, dan 3–8 hashtag di baris terakhir.
+  - Prompt caption dan ide diakhiri pengingat "Hanya pakai fakta dari brief di atas…". Saat larangan itu hanya ada di system prompt, Haiku tetap menulis "stok terbatas".
 
 ## Server
 

@@ -89,6 +89,10 @@ const REWRITE_INSTRUCTIONS: Record<RewriteStyle, string> = {
   cta: 'Tambahkan satu ajakan bertindak (CTA) yang jelas di akhir isi caption, sebelum hashtag. Jangan ubah bagian lain.',
 }
 
+/** Repeated last in the brief prompts: Haiku still invented "stok terbatas" with the rule only in the system prompt. */
+const ONLY_BRIEF_FACTS =
+  'Hanya pakai fakta dari brief di atas. Jangan menambah klaim seperti stok terbatas, promo terbatas, atau kualitas premium.'
+
 /** Owner text goes between triple quotes, apart from the instructions. */
 const quote = (text: string) => `"""\n${text}\n"""`
 
@@ -104,6 +108,8 @@ function describeBrief(brief: Brief): string {
     `Nada: ${TONES[brief.tone]}`,
     `Audiens: ${brief.audience || 'umum'}`,
     `Format post: ${photoFormat(brief.photoCount)}`,
+    '',
+    ONLY_BRIEF_FACTS,
   ].join('\n')
 }
 

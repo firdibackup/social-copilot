@@ -119,6 +119,14 @@ describe('buildMessages', () => {
     expect(user).toContain('Audiens: umum')
   })
 
+  it('ends caption and idea prompts with the no-invented-claims reminder, where the model weighs it most', () => {
+    for (const task of ['captions', 'ideas'] as const) {
+      const user = buildMessages({ task, brief: BRIEF })[1].content
+
+      expect(user.trimEnd()).toMatch(/Hanya pakai fakta dari brief di atas\.[^\n]*$/)
+    }
+  })
+
   it('quotes the caption to rewrite', () => {
     const [, user] = buildMessages({ task: 'rewrite', style: 'cta', caption: 'Halo semua' })
 
