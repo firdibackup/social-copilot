@@ -77,6 +77,7 @@ Normalisasi:
 
 - Semua string di-trim. String kosong dan duplikat dibuang.
 - Hashtag dibentuk ulang menjadi `#` diikuti huruf, angka, atau garis bawah, dengan pola yang sama seperti penghitung caption. Hashtag yang sudah ada di caption dibuang (tanpa membedakan huruf besar kecil). Jumlahnya dipotong ke `min(10, 30 − hashtag yang ada)`.
+- Ide dipotong ke 300 karakter, supaya **Jadikan topik** selalu lolos validasi Topik.
 - Jawaban yang bukan JSON, bentuknya salah, atau kosong setelah normalisasi dianggap gagal. Pesan error menampilkan 120 karakter pertama jawaban itu.
 
 ### Prompt
@@ -96,7 +97,7 @@ Normalisasi:
 
 ### `src/lib/nine-router.ts`
 
-- `chatCompletion(messages)` mengirim `POST {ROUTER_API_BASE_URL}/chat/completions` dengan isi `{ model: ROUTER_MODEL, messages, stream: false, max_tokens: 4096 }`, lalu mengembalikan isi jawaban dan model yang menjawab.
+- `chatCompletion(messages)` mengirim `POST {ROUTER_API_BASE_URL}/chat/completions` dengan isi `{ model: ROUTER_MODEL, messages, stream: false, max_tokens: 4096 }`, lalu mengembalikan teks jawaban.
 - Timeout 60 detik, karena combo bisa mencoba beberapa provider berurutan.
 - **`RouterApiError(message, status)`:**
   - Status 0 berarti gangguan jaringan atau timeout. Pesannya hanya nama error, tanpa URL.
@@ -112,7 +113,7 @@ Normalisasi:
 - `runAiTask(request)`:
   - Menghitung baris `ai_generations` dalam 24 jam terakhir. Kalau sudah 100 atau lebih, fungsi melempar `AiLimitError` tanpa memanggil AI.
   - Setelah itu memanggil `chatCompletion` dan `parseOptions`.
-  - Setiap panggilan yang sampai ke 9Router dicatat sebagai `ok` atau `failed`. Kalau pencatatan gagal, hasil tetap dikembalikan dan kegagalannya hanya masuk log server.
+  - Setiap permintaan yang lolos cek batas dicatat sebagai `ok` atau `failed`, termasuk yang gagal sebelum sampai ke 9Router karena konfigurasi belum lengkap. Kalau pencatatan gagal, hasil tetap dikembalikan dan kegagalannya hanya masuk log server.
 - `aiErrorMessage(error)` memetakan error ke pesan untuk owner:
 
 | Error | Pesan |
@@ -120,12 +121,13 @@ Normalisasi:
 | `ConfigError` | Konfigurasi AI belum lengkap: … |
 | `AiLimitError` | Batas 100 permintaan AI per 24 jam sudah tercapai. Coba lagi nanti. |
 | Status 0 | Layanan AI tidak bisa dihubungi atau terlalu lama menjawab. Coba lagi. |
+| 200 tanpa isi | Jawaban AI kosong. Coba lagi, atau ganti ROUTER_MODEL kalau terus terjadi. |
 | 401, 403 | API key 9Router ditolak. Periksa ROUTER_API_KEY di .env.local. |
 | 404 | Model AI tidak ditemukan. Periksa ROUTER_MODEL di .env.local. |
 | 429 | Kuota AI sedang habis. Coba lagi beberapa menit lagi. |
 | ≥ 500 | Layanan AI sedang bermasalah. Coba lagi nanti. |
 | 4xx lainnya | Permintaan ditolak layanan AI (HTTP …). Periksa ROUTER_MODEL di .env.local. |
-| `AiOutputError` | Jawaban AI tidak bisa dibaca: "…". Coba lagi, atau ganti ROUTER_MODEL kalau terus terjadi. |
+| `AiOutputError` | Jawaban AI tidak bisa dibaca ("…"). Coba lagi, atau ganti ROUTER_MODEL kalau terus terjadi. |
 | Lainnya | AI gagal dijalankan: database tidak bisa diakses. Periksa Supabase dan migrasi terbaru. |
 
 ### `src/app/(app)/buat/ai-actions.ts`
@@ -186,7 +188,7 @@ Komponen `src/app/(app)/buat/ai-assistant.tsx` dipasang di `post-editor.tsx` set
   - Keempat aksi berhasil, termasuk Pakai, Urungkan, dan Jadikan topik.
   - Caption hasil AI tersimpan sebagai draft.
   - Enter di Audiens tidak menjadwalkan post.
-- `ROUTER_MODEL=Hermes-daily` menampilkan pesan "Jawaban AI tidak bisa dibaca: "Gemini 3.5 Flash…"".
+- `ROUTER_MODEL=Hermes-daily` menampilkan pesan "Jawaban AI tidak bisa dibaca ("Gemini 3.5 Flash…")".
 - Hasil `npm run build`: `/buat` tetap ◐.
 
 ## Urutan pengerjaan
@@ -212,6 +214,6 @@ Komponen `src/app/(app)/buat/ai-assistant.tsx` dipasang di `post-editor.tsx` set
 ## Batasan yang diketahui
 
 - Selama AI menulis, server action lain dari tab yang sama (Simpan, Jadwalkan) menunggu giliran.
-- Batas harian menghitung semua permintaan yang sampai ke 9Router, termasuk yang gagal.
+- Batas harian menghitung semua permintaan yang lolos cek batas, termasuk yang gagal.
 - Kualitas dan panjang caption bergantung pada model. Haiku kadang menambah klaim yang tidak ada di brief, jadi owner tetap perlu membaca hasilnya sebelum memakai.
 - Hasil AI yang belum dipakai hilang kalau editor ditutup. Hasil itu hanya tersimpan di `ai_generations`.
