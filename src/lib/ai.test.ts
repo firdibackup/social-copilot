@@ -14,7 +14,7 @@ import { ConfigError } from './errors'
 import { chatCompletion, RouterApiError } from './nine-router'
 
 const database = vi.hoisted(() => ({
-  recent: 0,
+  recent: 0 as number | null,
   insertError: null as { message: string } | null,
   inserted: [] as unknown[],
 }))
@@ -224,6 +224,18 @@ describe('runAiTask', () => {
     await expect(runAiTask(CAPTIONS)).rejects.toThrow(AiLimitError)
     expect(chatCompletion).not.toHaveBeenCalled()
     expect(database.inserted).toEqual([])
+  })
+
+  it('refuses to ask the model when the request count cannot be read', async () => {
+    // postgrest-js turns a HEAD 404 with no body (the table is not migrated yet) into no error and no count.
+    database.recent = null
+
+    const error = await runAiTask(CAPTIONS).then(() => null, (caught: unknown) => caught)
+
+    expect(chatCompletion).not.toHaveBeenCalled()
+    expect(aiErrorMessage(error)).toBe(
+      'AI gagal dijalankan: database tidak bisa diakses. Periksa Supabase dan migrasi terbaru.',
+    )
   })
 
   it('returns the options and logs the request', async () => {

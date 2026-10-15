@@ -258,8 +258,11 @@ async function countRecentRequests(): Promise<number> {
     .from('ai_generations')
     .select('id', { count: 'exact', head: true })
     .gt('created_at', since)
-  if (error) throw new Error(`Supabase: ${error.message}`)
-  return count ?? 0
+  // A HEAD 404 (table not migrated) comes back with no error and no count; reading it as 0 would skip the limit.
+  if (error || count === null) {
+    throw new Error(`Supabase: ${error?.message || 'jumlah permintaan AI tidak terbaca; sudah menjalankan migrasi ai_generations?'}`)
+  }
+  return count
 }
 
 async function logGeneration(row: GenerationLog): Promise<void> {
