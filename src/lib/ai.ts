@@ -10,7 +10,10 @@ import {
   type RewriteStyle,
 } from './ai-options'
 import { CAPTION_MAX_HASHTAGS, CAPTION_MAX_LENGTH, findHashtags } from './caption'
-import type { ChatMessage } from './nine-router'
+import { env } from './env'
+import { ConfigError, describeError } from './errors'
+import { chatCompletion, RouterApiError, type ChatMessage } from './nine-router'
+import { db, unwrap } from './supabase'
 
 const MAX_PHOTOS = 10
 
@@ -222,4 +225,84 @@ export function parseOptions(request: AiRequest, content: string): string[] {
   const options = json ? optionsFrom(request, json) : []
   if (options.length === 0) throw new AiOutputError(snippetOf(content))
   return options
+}
+
+/** Requests per rolling 24 hours. 9Router's providers run on the owner's own subscriptions. */
+export const DAILY_LIMIT = 100
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** The owner reached DAILY_LIMIT. */
+export class AiLimitError extends Error {
+  override name = 'AiLimitError'
+}
+
+interface GenerationLog {
+  task: AiRequest['task']
+  input: AiRequest
+  output: string[] | null
+  model: string
+  status: 'ok' | 'failed'
+  error: string | null
+  duration_ms: number
+}
+
+async function countRecentRequests(): Promise<number> {
+  const since = new Date(Date.now() - DAY_MS).toISOString()
+  const { count, error } = await db()
+    .from('ai_generations')
+    .select('id', { count: 'exact', head: true })
+    .gt('created_at', since)
+  if (error) throw new Error(`Supabase: ${error.message}`)
+  return count ?? 0
+}
+
+async function logGeneration(row: GenerationLog): Promise<void> {
+  try {
+    unwrap(await db().from('ai_generations').insert(row))
+  } catch (error) {
+    // The owner still gets the answer; only the usage log misses a row.
+    console.error('[ai] gagal mencatat permintaan:', describeError(error))
+  }
+}
+
+/** Checks the daily limit, asks the model, and logs the request whatever its outcome. */
+export async function runAiTask(request: AiRequest): Promise<string[]> {
+  const model = env('ROUTER_MODEL')
+  if ((await countRecentRequests()) >= DAILY_LIMIT) {
+    throw new AiLimitError(`Batas ${DAILY_LIMIT} permintaan per 24 jam tercapai`)
+  }
+
+  const startedAt = Date.now()
+  const log = (result: Pick<GenerationLog, 'output' | 'status' | 'error'>) =>
+    logGeneration({ task: request.task, input: request, model, duration_ms: Date.now() - startedAt, ...result })
+
+  try {
+    const options = parseOptions(request, await chatCompletion(buildMessages(request)))
+    await log({ output: options, status: 'ok', error: null })
+    return options
+  } catch (error) {
+    await log({ output: null, status: 'failed', error: describeError(error) })
+    throw error
+  }
+}
+
+function routerErrorMessage(status: number): string {
+  if (status === 0) return 'Layanan AI tidak bisa dihubungi atau terlalu lama menjawab. Coba lagi.'
+  if (status === 200) return 'Jawaban AI kosong. Coba lagi, atau ganti ROUTER_MODEL kalau terus terjadi.'
+  if (status === 401 || status === 403) return 'API key 9Router ditolak. Periksa ROUTER_API_KEY di .env.local.'
+  if (status === 404) return 'Model AI tidak ditemukan. Periksa ROUTER_MODEL di .env.local.'
+  if (status === 429) return 'Kuota AI sedang habis. Coba lagi beberapa menit lagi.'
+  if (status >= 500) return 'Layanan AI sedang bermasalah. Coba lagi nanti.'
+  return `Permintaan ditolak layanan AI (HTTP ${status}). Periksa ROUTER_MODEL di .env.local.`
+}
+
+/** Owner-facing text for anything runAiTask throws. Provider details stay in the server log. */
+export function aiErrorMessage(error: unknown): string {
+  if (error instanceof ConfigError) return `Konfigurasi AI belum lengkap: ${error.message}.`
+  if (error instanceof AiLimitError) return `Batas ${DAILY_LIMIT} permintaan AI per 24 jam sudah tercapai. Coba lagi nanti.`
+  if (error instanceof AiOutputError) {
+    return `Jawaban AI tidak bisa dibaca ("${error.snippet}"). Coba lagi, atau ganti ROUTER_MODEL kalau terus terjadi.`
+  }
+  if (error instanceof RouterApiError) return routerErrorMessage(error.status)
+  return 'AI gagal dijalankan: database tidak bisa diakses. Periksa Supabase dan migrasi terbaru.'
 }

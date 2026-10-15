@@ -1,6 +1,41 @@
-import { describe, expect, it } from 'vitest'
-import { AiOutputError, buildMessages, parseAiRequest, parseOptions } from './ai'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  AiLimitError,
+  aiErrorMessage,
+  AiOutputError,
+  buildMessages,
+  DAILY_LIMIT,
+  parseAiRequest,
+  parseOptions,
+  runAiTask,
+} from './ai'
 import type { AiRequest, Brief } from './ai-options'
+import { ConfigError } from './errors'
+import { chatCompletion, RouterApiError } from './nine-router'
+
+const database = vi.hoisted(() => ({
+  recent: 0,
+  insertError: null as { message: string } | null,
+  inserted: [] as unknown[],
+}))
+
+vi.mock('./supabase', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./supabase')>()),
+  db: () => ({
+    from: () => ({
+      select: () => ({ gt: async () => ({ count: database.recent, error: null }) }),
+      insert: async (row: unknown) => {
+        database.inserted.push(row)
+        return { data: null, error: database.insertError }
+      },
+    }),
+  }),
+}))
+
+vi.mock('./nine-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./nine-router')>()),
+  chatCompletion: vi.fn(),
+}))
 
 const BRIEF: Brief = {
   topic: 'Promo kopi susu gula aren 20%',
@@ -157,5 +192,97 @@ describe('parseOptions', () => {
     const answer = JSON.stringify({ hashtags: ['#a', '#b', '#c', '#d', '#e'] })
 
     expect(parseOptions({ task: 'hashtags', caption }, answer)).toEqual(['#a #b #c'])
+  })
+})
+
+describe('runAiTask', () => {
+  beforeEach(() => {
+    vi.stubEnv('ROUTER_MODEL', 'test-model')
+    database.recent = 0
+    database.insertError = null
+    database.inserted = []
+    vi.mocked(chatCompletion).mockReset()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.restoreAllMocks()
+  })
+
+  it('stops at the daily limit without asking the model', async () => {
+    database.recent = DAILY_LIMIT
+
+    await expect(runAiTask(CAPTIONS)).rejects.toThrow(AiLimitError)
+    expect(chatCompletion).not.toHaveBeenCalled()
+    expect(database.inserted).toEqual([])
+  })
+
+  it('returns the options and logs the request', async () => {
+    vi.mocked(chatCompletion).mockResolvedValue('{"captions": ["Satu"]}')
+
+    await expect(runAiTask(CAPTIONS)).resolves.toEqual(['Satu'])
+    expect(database.inserted).toEqual([
+      expect.objectContaining({
+        task: 'captions',
+        input: CAPTIONS,
+        output: ['Satu'],
+        model: 'test-model',
+        status: 'ok',
+        error: null,
+      }),
+    ])
+  })
+
+  it('logs a failure and rethrows it', async () => {
+    vi.mocked(chatCompletion).mockRejectedValue(new RouterApiError('rate limited', 429))
+
+    await expect(runAiTask(CAPTIONS)).rejects.toMatchObject({ status: 429 })
+    expect(database.inserted).toEqual([
+      expect.objectContaining({ status: 'failed', output: null, error: 'RouterApiError: rate limited' }),
+    ])
+  })
+
+  it('logs an unreadable answer as a failure', async () => {
+    vi.mocked(chatCompletion).mockResolvedValue('Gemini 3.5 Flash is no longer available.')
+
+    await expect(runAiTask(CAPTIONS)).rejects.toThrow(AiOutputError)
+    expect(database.inserted).toEqual([expect.objectContaining({ status: 'failed' })])
+  })
+
+  it('still returns the options when the log insert fails', async () => {
+    database.insertError = { message: 'relation "ai_generations" does not exist' }
+    vi.mocked(chatCompletion).mockResolvedValue('{"captions": ["Satu"]}')
+
+    await expect(runAiTask(CAPTIONS)).resolves.toEqual(['Satu'])
+    expect(console.error).toHaveBeenCalled()
+  })
+})
+
+describe('aiErrorMessage', () => {
+  it.each([
+    [
+      new ConfigError('ROUTER_API_KEY belum diisi di .env.local'),
+      'Konfigurasi AI belum lengkap: ROUTER_API_KEY belum diisi di .env.local.',
+    ],
+    [new AiLimitError('limit'), 'Batas 100 permintaan AI per 24 jam sudah tercapai. Coba lagi nanti.'],
+    [
+      new AiOutputError('Gemini 3.5 Flash is no longer available.'),
+      'Jawaban AI tidak bisa dibaca ("Gemini 3.5 Flash is no longer available."). Coba lagi, atau ganti ROUTER_MODEL kalau terus terjadi.',
+    ],
+    [new RouterApiError('x', 0), 'Layanan AI tidak bisa dihubungi atau terlalu lama menjawab. Coba lagi.'],
+    [new RouterApiError('x', 200), 'Jawaban AI kosong. Coba lagi, atau ganti ROUTER_MODEL kalau terus terjadi.'],
+    [new RouterApiError('x', 401), 'API key 9Router ditolak. Periksa ROUTER_API_KEY di .env.local.'],
+    [new RouterApiError('x', 403), 'API key 9Router ditolak. Periksa ROUTER_API_KEY di .env.local.'],
+    [new RouterApiError('x', 404), 'Model AI tidak ditemukan. Periksa ROUTER_MODEL di .env.local.'],
+    [new RouterApiError('x', 429), 'Kuota AI sedang habis. Coba lagi beberapa menit lagi.'],
+    [new RouterApiError('x', 503), 'Layanan AI sedang bermasalah. Coba lagi nanti.'],
+    [new RouterApiError('x', 400), 'Permintaan ditolak layanan AI (HTTP 400). Periksa ROUTER_MODEL di .env.local.'],
+    [
+      new Error('Supabase: fetch failed'),
+      'AI gagal dijalankan: database tidak bisa diakses. Periksa Supabase dan migrasi terbaru.',
+    ],
+  ])('maps %s', (error, message) => {
+    expect(aiErrorMessage(error)).toBe(message)
   })
 })
