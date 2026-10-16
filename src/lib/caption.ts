@@ -5,6 +5,11 @@ export const CAPTION_MAX_MENTIONS = 20
 const HASHTAG = /#[\p{L}\p{N}_]+/gu
 const MENTION = /@[A-Za-z0-9._]+/g
 
+/** Hashtags as Instagram counts them, in order of appearance. */
+export function findHashtags(caption: string): string[] {
+  return caption.match(HASHTAG) ?? []
+}
+
 export interface CaptionInfo {
   length: number
   hashtags: number
@@ -16,7 +21,7 @@ export interface CaptionInfo {
 export function inspectCaption(caption: string): CaptionInfo {
   // Code points, like Postgres char_length, so the counter agrees with the database CHECK.
   const length = Array.from(caption).length
-  const hashtags = caption.match(HASHTAG)?.length ?? 0
+  const hashtags = findHashtags(caption).length
   const mentions = caption.match(MENTION)?.length ?? 0
 
   const errors: string[] = []
