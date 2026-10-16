@@ -220,3 +220,40 @@ export async function getPermalink(accessToken: string, mediaId: string): Promis
   const body = await request(graphUrl(`/${mediaId}`, { fields: 'permalink', access_token: accessToken }))
   return readString(body, 'permalink')
 }
+
+export interface CustomerProfile {
+  username: string | null
+  name: string | null
+}
+
+const optionalString = (value: unknown) => (typeof value === 'string' && value !== '' ? value : null)
+
+/** Profile of someone who has messaged the account. `igsid` is the sender id from the webhook. */
+export async function fetchCustomerProfile(accessToken: string, igsid: string): Promise<CustomerProfile> {
+  const body = await request(graphUrl(`/${igsid}`, { fields: 'username,name', access_token: accessToken }))
+  return { username: optionalString(body.username), name: optionalString(body.name) }
+}
+
+/**
+ * Sends a text DM and returns its message id, which the webhook echo carries as `mid`. Meta only accepts it
+ * within 24 hours of the customer's last message.
+ */
+export async function sendDirectMessage(
+  accessToken: string,
+  userId: string,
+  recipientId: string,
+  text: string,
+): Promise<string> {
+  const body = await request(new URL(`/${userId}/messages`, GRAPH_URL), {
+    method: 'POST',
+    headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ recipient: { id: recipientId }, message: { text } }),
+  })
+  return readString(body, 'message_id')
+}
+
+/** Asks Meta to send this account's DMs to the app's webhook. Safe to repeat. */
+export async function subscribeToMessages(accessToken: string): Promise<void> {
+  const body = await graphPost('/me/subscribed_apps', { subscribed_fields: 'messages', access_token: accessToken })
+  if (body.success !== true) throw new InstagramApiError('Instagram tidak mengonfirmasi langganan DM', null, 200)
+}

@@ -17,6 +17,12 @@ const timeFormat = new Intl.DateTimeFormat('id-ID', {
   timeZone: DEFAULT_TIMEZONE,
 })
 
+const shortDateFormat = new Intl.DateTimeFormat('id-ID', {
+  day: 'numeric',
+  month: 'short',
+  timeZone: DEFAULT_TIMEZONE,
+})
+
 // ponytail: fixed +07:00 works because WIB has no DST; switch to Intl offsets once the timezone is a setting.
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
 const WIB_INPUT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/
@@ -29,6 +35,11 @@ export function formatDateTime(date: Date): string {
 /** e.g. "07.00" */
 export function formatTime(date: Date): string {
   return timeFormat.format(date)
+}
+
+/** e.g. "13 Des" */
+export function formatShortDate(date: Date): string {
+  return shortDateFormat.format(date)
 }
 
 const shiftToWib = (date: Date) => new Date(date.getTime() + WIB_OFFSET_MS).toISOString()

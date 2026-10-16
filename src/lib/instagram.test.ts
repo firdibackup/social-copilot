@@ -6,9 +6,12 @@ import {
   createContainer,
   exchangeCodeForToken,
   exchangeForLongLivedToken,
+  fetchCustomerProfile,
   fetchProfile,
   getContainerStatus,
   publishContainer,
+  sendDirectMessage,
+  subscribeToMessages,
 } from './instagram'
 
 const REDIRECT_URI = 'https://social-copilot.ngrok-free.app/api/auth/instagram/callback'
@@ -221,5 +224,55 @@ describe('InstagramApiError.isTransient', () => {
 
     expect(error).toBeInstanceOf(InstagramApiError)
     expect((error as InstagramApiError).isTransient).toBe(true)
+  })
+})
+
+describe('sendDirectMessage', () => {
+  it('posts JSON with a bearer token and returns the message id', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ recipient_id: '9012', message_id: 'mid-1' }))
+
+    await expect(sendDirectMessage('token-1', '1784', '9012', 'Halo!')).resolves.toBe('mid-1')
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toBe('https://graph.instagram.com/1784/messages')
+    expect(init?.method).toBe('POST')
+    expect(init?.headers).toMatchObject({ authorization: 'Bearer token-1', 'content-type': 'application/json' })
+    expect(JSON.parse(String(init?.body))).toEqual({ recipient: { id: '9012' }, message: { text: 'Halo!' } })
+  })
+
+  it('surfaces a Graph rejection', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: { message: 'outside the allowed window', code: 10 } }, 400))
+
+    await expect(sendDirectMessage('token-1', '1784', '9012', 'Halo!')).rejects.toMatchObject({ code: 10 })
+  })
+})
+
+describe('fetchCustomerProfile', () => {
+  it('reads username and name, leaving missing ones null', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ username: 'budi', id: '9012' }))
+
+    await expect(fetchCustomerProfile('token-1', '9012')).resolves.toEqual({ username: 'budi', name: null })
+    const url = new URL(String(fetchMock.mock.calls[0][0]))
+    expect(url.pathname).toBe('/9012')
+    expect(url.searchParams.get('fields')).toBe('username,name')
+  })
+})
+
+describe('subscribeToMessages', () => {
+  it('subscribes the account to the messages field', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true }))
+
+    await subscribeToMessages('token-1')
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toBe('https://graph.instagram.com/me/subscribed_apps')
+    expect(Object.fromEntries(init?.body as URLSearchParams)).toEqual({
+      subscribed_fields: 'messages',
+      access_token: 'token-1',
+    })
+  })
+
+  it('fails when Meta does not confirm', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: false }))
+
+    await expect(subscribeToMessages('token-1')).rejects.toBeInstanceOf(InstagramApiError)
   })
 })

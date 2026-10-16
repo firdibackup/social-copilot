@@ -2,7 +2,7 @@ const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
 const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1'])
 
 /** Paths Meta must reach through the public tunnel. Everything else is local-only. */
-const PUBLIC_PATHS = new Set(['/api/auth/instagram/callback'])
+const PUBLIC_PATHS = new Set(['/api/auth/instagram/callback', '/api/webhooks/instagram'])
 
 const isLoopbackHost = (host: string) => LOOPBACK_HOSTNAMES.has(host.trim().toLowerCase().replace(/:\d+$/, ''))
 

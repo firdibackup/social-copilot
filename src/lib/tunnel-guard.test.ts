@@ -42,8 +42,9 @@ describe('isLocalRequest', () => {
 describe('isAllowedRequest', () => {
   const tunnel = headers({ host: NGROK_HOST, 'x-forwarded-for': PUBLIC_IP })
 
-  it('lets the Instagram OAuth callback through the tunnel', () => {
+  it('lets the Instagram OAuth callback and the DM webhook through the tunnel', () => {
     expect(isAllowedRequest(tunnel, '/api/auth/instagram/callback')).toBe(true)
+    expect(isAllowedRequest(tunnel, '/api/webhooks/instagram')).toBe(true)
   })
 
   it('blocks dashboard pages and the OAuth start route through the tunnel', () => {

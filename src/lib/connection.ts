@@ -80,6 +80,11 @@ export async function getConnection(): Promise<Connection | null> {
   }
 }
 
+/** The connected account's id, which webhooks carry as `entry.id`. Null when nothing is connected. */
+export async function getConnectedAccountId(): Promise<string | null> {
+  return (await loadRow())?.instagram_user_id ?? null
+}
+
 export async function saveConnection(
   profile: InstagramProfile,
   token: LongLivedToken,
