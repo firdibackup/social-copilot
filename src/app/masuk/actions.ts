@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { authClient } from '@/lib/auth'
+import { grantFreePeriod, paymentsEnabled } from '@/lib/billing'
 import { describeError } from '@/lib/errors'
 import { safeNext } from '@/lib/params'
 
@@ -50,7 +51,16 @@ export async function signUp(_previous: AuthState, formData: FormData): Promise<
   }
   // Without auto confirm, Supabase would wait for an email link; there is no SMTP to send one.
   if (!data.session) return { error: 'Akun dibuat, tapi belum aktif. Hubungi admin Social Copilot.', email }
-  redirect('/langganan')
+  if (paymentsEnabled()) redirect('/langganan')
+  // Testing without payments: the new user is subscribed at once and goes straight to connecting Instagram.
+  const granted = await grantFreePeriod(data.session.user.id).then(
+    () => true,
+    (error: unknown) => {
+      console.error('[auth] periode gratis gagal dibuat:', describeError(error))
+      return false
+    },
+  )
+  redirect(granted ? '/pengaturan#instagram' : '/langganan')
 }
 
 export async function signOut(): Promise<void> {

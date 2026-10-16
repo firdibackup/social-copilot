@@ -97,6 +97,20 @@ export async function listPayments(userId: string): Promise<Payment[]> {
 }
 
 /**
+ * Payments go through Mayar only once MAYAR_ENABLED=true. Until then (testing) every period is free: users get one
+ * when they sign up and another from /langganan whenever they ask.
+ */
+export const paymentsEnabled = () => process.env.MAYAR_ENABLED?.trim() === 'true'
+
+/** One free period, stacked after any the user already has like a paid one. */
+export async function grantFreePeriod(userId: string): Promise<void> {
+  const { id } = unwrap(
+    await db().from('payments').insert({ user_id: userId, amount: 0, status: 'pending' }).select('id').single(),
+  ) as { id: string }
+  unwrap(await db().rpc('activate_payment', { p_id: id, p_days: PLAN.days }))
+}
+
+/**
  * The checkout link for one more period. A pending link that is still payable is handed out again, so a user who
  * clicks twice pays once. The row is written before Mayar is asked, so every link a user can open has a row.
  */

@@ -4,7 +4,14 @@ import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import { Notice } from '@/components/notice'
 import { requireUser } from '@/lib/auth'
-import { getCurrentPeriod, getUsage, listPayments, syncPendingPayments, type PaymentStatus } from '@/lib/billing'
+import {
+  getCurrentPeriod,
+  getUsage,
+  listPayments,
+  paymentsEnabled,
+  syncPendingPayments,
+  type PaymentStatus,
+} from '@/lib/billing'
 import { formatRupiah, PLAN, TASK_CREDITS } from '@/lib/billing-options'
 import { getConnection } from '@/lib/connection'
 import { describeError, loadErrorMessage } from '@/lib/errors'
@@ -72,6 +79,7 @@ async function Subscription({ searchParams }: LanggananPageProps) {
   }
 
   const { period, usage, payments, instagram } = data
+  const paying = paymentsEnabled()
   const justPaid = firstValue(params.bayar) === 'selesai'
   // First payment: the next step is connecting Instagram.
   if (justPaid && period && !instagram) redirect('/pengaturan#instagram')
@@ -79,6 +87,9 @@ async function Subscription({ searchParams }: LanggananPageProps) {
 
   return (
     <div className="space-y-6">
+      {!paying && (
+        <Notice tone="warning">Mode uji coba: pembayaran belum aktif, jadi setiap periode {PLAN.days} hari gratis.</Notice>
+      )}
       {firstValue(params.gagal) === 'bayar' && (
         <Notice tone="error">Halaman pembayaran gagal dibuat. Coba lagi sebentar lagi.</Notice>
       )}
@@ -110,7 +121,7 @@ async function Subscription({ searchParams }: LanggananPageProps) {
           </div>
           <form action={startCheckoutAction}>
             <button type="submit" className={PRIMARY_BUTTON}>
-              Perpanjang {PLAN.days} hari · {formatRupiah(PLAN.priceIdr)}
+              Perpanjang {PLAN.days} hari · {paying ? formatRupiah(PLAN.priceIdr) : 'gratis'}
             </button>
           </form>
         </section>
@@ -134,7 +145,7 @@ async function Subscription({ searchParams }: LanggananPageProps) {
           <div className="flex flex-wrap items-center gap-3">
             <form action={startCheckoutAction}>
               <button type="submit" className={PRIMARY_BUTTON}>
-                {waiting ? 'Lanjutkan pembayaran' : 'Bayar dengan Mayar'}
+                {!paying ? `Aktifkan ${PLAN.days} hari gratis` : waiting ? 'Lanjutkan pembayaran' : 'Bayar dengan Mayar'}
               </button>
             </form>
             {waiting && (

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { confirmPayment, startCheckout } from './billing'
+import { confirmPayment, grantFreePeriod, startCheckout } from './billing'
 import { createPaymentRequest, getPaymentRequest, MayarApiError } from './mayar'
 
 /** A query builder that records each call and resolves to the next queued result for any table. */
@@ -129,5 +129,18 @@ describe('confirmPayment', () => {
     await confirmPayment({ ...PENDING, status: 'paid' }, NOW)
     await confirmPayment({ ...PENDING, mayar_id: null }, NOW)
     expect(getPaymentRequest).not.toHaveBeenCalled()
+  })
+})
+
+describe('grantFreePeriod', () => {
+  it('records a free payment and activates it like a paid one, so it stacks after the current period', async () => {
+    fake.results.push(ok({ id: 'pay-free' }))
+    fake.rpc.mockResolvedValue({ data: true, error: null })
+
+    await grantFreePeriod(USER)
+
+    expect(step('payments', 'insert')[0][0]).toEqual({ user_id: USER, amount: 0, status: 'pending' })
+    expect(fake.rpc).toHaveBeenCalledWith('activate_payment', { p_id: 'pay-free', p_days: 30 })
+    expect(createPaymentRequest).not.toHaveBeenCalled()
   })
 })
