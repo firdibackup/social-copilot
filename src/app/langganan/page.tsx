@@ -12,7 +12,7 @@ import {
   syncPendingPayments,
   type PaymentStatus,
 } from '@/lib/billing'
-import { formatRupiah, PLAN, TASK_CREDITS } from '@/lib/billing-options'
+import { contentCost, formatRupiah, PLAN } from '@/lib/billing-options'
 import { getConnection } from '@/lib/connection'
 import { describeError, loadErrorMessage } from '@/lib/errors'
 import { formatDateTime, formatShortDate } from '@/lib/format'
@@ -137,8 +137,8 @@ async function Subscription({ searchParams }: LanggananPageProps) {
             <li>1 akun Instagram Business atau Creator</li>
             <li>Jadwal post dan carousel, inbox DM dengan template balasan</li>
             <li>
-              Kuota AI per periode: sekitar {Math.floor(PLAN.credits / TASK_CREDITS.image)} gambar, atau sekitar{' '}
-              {Math.floor(PLAN.credits / TASK_CREDITS.captions)} kali buat caption
+              Kuota AI per periode: sekitar {Math.floor(PLAN.credits / contentCost(3))} konten 3 slide (caption dan
+              gambarnya), atau {Math.floor(PLAN.credits / contentCost(1))} konten 1 gambar
             </li>
             <li>Prabayar, tanpa perpanjangan otomatis</li>
           </ul>

@@ -1,10 +1,13 @@
 import 'server-only'
 import { signMediaUrls } from './assets'
+import { truncate } from './brand-options'
+import type { ContentPlan } from './content-ai'
+import type { ContentRequest } from './content-options'
 import type { PostStatus } from './post-status'
 import { db, unwrap } from './supabase'
 
 const POST_FIELDS =
-  'id, caption, status, scheduled_at, published_at, attempt_count, next_attempt_at, last_error, ig_container_id, ig_permalink'
+  'id, title, caption, status, scheduled_at, published_at, attempt_count, next_attempt_at, last_error, ig_container_id, ig_permalink'
 const MEDIA_FIELDS = 'post_media(position, assets(id, storage_path, width, height))'
 const LIST_LIMIT = 200
 
@@ -12,6 +15,8 @@ export type AttemptOutcome = 'published' | 'retry' | 'failed'
 
 export interface PostMedia {
   assetId: string
+  /** Its place in post_media; there can be gaps until the post is saved again. */
+  position: number
   url: string
   width: number
   height: number
@@ -19,6 +24,8 @@ export interface PostMedia {
 
 export interface Post {
   id: string
+  /** Short name for lists; may be empty, see postLabel. */
+  title: string
   caption: string
   status: PostStatus
   scheduledAt: Date | null
@@ -59,6 +66,7 @@ interface MediaRow {
 
 interface PostRow {
   id: string
+  title: string
   caption: string
   status: PostStatus
   scheduled_at: string | null
@@ -89,6 +97,7 @@ async function toPosts(rows: PostRow[], coverOnly: boolean): Promise<Post[]> {
   let urlIndex = 0
   return withMedia.map(({ row, media }) => ({
     id: row.id,
+    title: row.title,
     caption: row.caption,
     status: row.status,
     scheduledAt: toDate(row.scheduled_at),
@@ -100,6 +109,7 @@ async function toPosts(rows: PostRow[], coverOnly: boolean): Promise<Post[]> {
     permalink: row.ig_permalink,
     media: media.map((item) => ({
       assetId: item.assets.id,
+      position: item.position,
       url: urls[urlIndex++],
       width: item.assets.width,
       height: item.assets.height,
@@ -201,6 +211,95 @@ export async function deletePost(userId: string, id: string): Promise<boolean> {
     await db().from('posts').delete().eq('id', id).eq('user_id', userId).neq('status', 'publishing').select('id'),
   )
   return rows.length === 1
+}
+
+const LABEL_MAX_LENGTH = 80
+
+/** What a list calls a post: its title, else its caption's first line. */
+export function postLabel(post: Pick<Post, 'title' | 'caption'>): string {
+  const label = post.title || post.caption.split('\n', 1)[0].trim()
+  return label ? truncate(label, LABEL_MAX_LENGTH) : 'Tanpa judul'
+}
+
+/** A post in Buat's list: not published yet, so still worth opening in the editor. */
+export interface ContentListItem {
+  id: string
+  label: string
+  status: PostStatus
+  scheduledAt: Date | null
+  coverUrl: string | null
+  /** Photos plus slides still being made. */
+  slideCount: number
+  /** Slides still waiting or being made. */
+  inProgress: number
+}
+
+const WORK_STATUSES: PostStatus[] = ['draft', 'scheduled', 'failed', 'cancelled']
+// ponytail: the 50 most recently changed posts; paginate if the list outgrows them.
+const CONTENT_LIST_LIMIT = 50
+
+interface ContentListRow {
+  id: string
+  title: string
+  caption: string
+  status: PostStatus
+  scheduled_at: string | null
+  post_media: { position: number; assets: { storage_path: string } }[]
+  post_slides: { status: string }[]
+}
+
+/** Most recently changed first. */
+export async function listContentPosts(userId: string): Promise<ContentListItem[]> {
+  const rows = unwrap(
+    await db()
+      .from('posts')
+      .select('id, title, caption, status, scheduled_at, post_media(position, assets(storage_path)), post_slides(status)')
+      .eq('user_id', userId)
+      .in('status', WORK_STATUSES)
+      .order('updated_at', { ascending: false })
+      .limit(CONTENT_LIST_LIMIT)
+      .overrideTypes<ContentListRow[], { merge: false }>(),
+  )
+  const covers = rows.map((row) => [...row.post_media].sort((a, b) => a.position - b.position)[0]?.assets.storage_path)
+  const urls = await signMediaUrls(covers.filter((path): path is string => Boolean(path)))
+  let urlIndex = 0
+  return rows.map((row, index) => {
+    const unfinished = row.post_slides.filter((slide) => slide.status !== 'ready')
+    return {
+      id: row.id,
+      label: postLabel(row),
+      status: row.status,
+      scheduledAt: toDate(row.scheduled_at),
+      coverUrl: covers[index] ? urls[urlIndex++] : null,
+      slideCount: row.post_media.length + unfinished.length,
+      inProgress: unfinished.filter((slide) => slide.status === 'pending' || slide.status === 'generating').length,
+    }
+  })
+}
+
+/** A reference the user doesn't have. The message is safe to show. */
+export class ContentError extends Error {
+  override name = 'ContentError'
+}
+
+/** The draft of an AI post with its slides waiting for their images, in one transaction (see create_content). */
+export async function createContentPost(userId: string, request: ContentRequest, plan: ContentPlan): Promise<string> {
+  const { data, error } = await db().rpc('create_content', {
+    p_user_id: userId,
+    p_title: plan.title,
+    p_caption: plan.caption,
+    p_slides: plan.slides.map((slide) => ({
+      headline: slide.headline,
+      scene: slide.scene,
+      format: request.format,
+      reference_id: request.referenceId,
+      include_logo: request.includeLogo,
+    })),
+    p_idea_id: request.ideaId,
+  })
+  if (error?.message === 'invalid_reference') throw new ContentError('Referensi brand tidak ditemukan.')
+  if (error) throw new Error(`Supabase: ${error.message}`)
+  return data as string
 }
 
 /** Copies caption and photos into a new draft. Returns the new id, or null when the post is gone. */

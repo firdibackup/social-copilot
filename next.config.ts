@@ -19,6 +19,8 @@ const nextConfig: NextConfig = {
           { type: "query", key: "error" },
         ],
       },
+      // Studio became part of Buat.
+      { source: "/studio", destination: "/buat", permanent: true },
     ];
   },
   turbopack: {

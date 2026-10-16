@@ -54,6 +54,27 @@ export function wibDateKey(date: Date): string {
   return shiftToWib(date).slice(0, 10)
 }
 
+const SUGGESTED_TIME = '19:00'
+const MIN_LEAD_MS = 30 * 60 * 1000
+const DAY_MS = 24 * 60 * 60 * 1000
+
+export interface Slot {
+  /** `datetime-local` value, in WIB. */
+  value: string
+  label: string
+}
+
+/**
+ * The publish time the editor offers in one click: 19.00 WIB today, or tomorrow once that is less than 30 minutes
+ * away. ponytail: a fixed evening slot; use the account's own best hours once Analitik reads them.
+ */
+export function suggestedSlot(now: Date): Slot {
+  const today = wibDateKey(now)
+  const tonight = new Date(`${today}T${SUGGESTED_TIME}:00+07:00`)
+  if (tonight.getTime() - now.getTime() >= MIN_LEAD_MS) return { value: `${today}T${SUGGESTED_TIME}`, label: 'Hari ini 19.00' }
+  return { value: `${wibDateKey(new Date(tonight.getTime() + DAY_MS))}T${SUGGESTED_TIME}`, label: 'Besok 19.00' }
+}
+
 /** Reads a `datetime-local` value as WIB. Rejects malformed or impossible dates such as 31 February. */
 export function parseWibInput(value: string): Date | null {
   if (!WIB_INPUT.test(value)) return null

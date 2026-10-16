@@ -7,6 +7,7 @@ import { describeError } from '@/lib/errors'
 import { parseWibInput } from '@/lib/format'
 import { isUuid } from '@/lib/params'
 import { cancelPost, deletePost, duplicatePost, PostLockedError, retryPost, savePost } from '@/lib/posts'
+import { hasSlidesInProgress } from '@/lib/slides'
 
 const MAX_MEDIA = 10
 /** Lets "schedule for this minute" through despite the round trip. */
@@ -44,6 +45,8 @@ export async function savePostAction(_previous: SaveState, formData: FormData): 
 
   let savedId: string
   try {
+    // save_post replaces the photo list, which would drop an AI slide that lands meanwhile.
+    if (isUuid(id) && (await hasSlidesInProgress(userId, id))) return { error: 'Tunggu semua slide selesai dibuat.' }
     savedId = await savePost(userId, {
       id: isUuid(id) ? id : null,
       caption,

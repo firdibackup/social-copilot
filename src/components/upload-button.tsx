@@ -3,7 +3,7 @@
 import { ImagePlus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useRef, useState } from 'react'
-import { uploadAsset, type UploadResult } from '@/app/(app)/aset/actions'
+import { uploadAsset, type UploadResult } from '@/app/(app)/(halaman)/aset/actions'
 import type { Asset } from '@/lib/assets'
 import { toInstagramJpeg } from '@/lib/image'
 

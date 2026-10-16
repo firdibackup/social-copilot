@@ -88,6 +88,17 @@ export async function createAsset(userId: string, file: Blob, width: number, hei
   return { id: insert.data.id, url, width, height }
 }
 
+/** The stored JPEG of one of the user's photos, or null when it is gone. */
+export async function loadAssetBytes(userId: string, assetId: string): Promise<Uint8Array | null> {
+  const row = unwrap(
+    await db().from('assets').select('storage_path').eq('id', assetId).eq('user_id', userId).maybeSingle(),
+  ) as Pick<AssetRow, 'storage_path'> | null
+  if (!row) return null
+  const { data, error } = await bucket().download(row.storage_path)
+  if (error) throw new Error(`Supabase Storage: ${error.message}`)
+  return new Uint8Array(await data.arrayBuffer())
+}
+
 /** Deletes the row first: if a post still uses the photo, the foreign key stops it before the file is gone. */
 export async function deleteAsset(userId: string, id: string): Promise<void> {
   const result = await db().from('assets').delete().eq('id', id).eq('user_id', userId).select('storage_path')

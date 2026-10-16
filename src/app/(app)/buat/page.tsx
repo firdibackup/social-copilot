@@ -3,20 +3,24 @@ import Link from 'next/link'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
 import { Notice } from '@/components/notice'
-import { PostStatusBadge } from '@/components/post-status-badge'
-import { requireActiveUser } from '@/lib/auth'
+import { remainingCredits } from '@/lib/ai'
 import { listAssets } from '@/lib/assets'
+import { requireActiveUser } from '@/lib/auth'
+import { formatCreditShare, TASK_CREDITS } from '@/lib/billing-options'
+import { getBrandKit, listReferences } from '@/lib/brand'
 import { getConnection } from '@/lib/connection'
 import { describeError, loadErrorMessage } from '@/lib/errors'
-import { formatDateTime, formatTime, parseWibInput } from '@/lib/format'
+import { suggestedSlot } from '@/lib/format'
+import { getIdea, listIdeas } from '@/lib/ideas'
 import { firstValue, isUuid, type SearchParams } from '@/lib/params'
-import { getPost, type Post } from '@/lib/posts'
-import { PostActions } from './post-actions'
-import { PostEditor } from './post-editor'
+import { getPost, listContentPosts } from '@/lib/posts'
+import { listUnfinishedSlides, type SlideRecord } from '@/lib/slides'
+import { ContentEditor } from './content-editor'
+import { ContentList } from './content-list'
+import type { SlideView } from './post-mockup'
+import { StatusNote } from './status-note'
 
 export const metadata: Metadata = { title: 'Buat' }
-
-const DEFAULT_TIME = '09:00'
 
 const OK_MESSAGES: Record<string, string> = {
   draft: 'Draft tersimpan.',
@@ -40,68 +44,81 @@ interface BuatPageProps {
 
 export default function BuatPage({ searchParams }: BuatPageProps) {
   return (
-    <Suspense fallback={<p className="text-sm text-zinc-500">Memuat editor…</p>}>
-      <EditorLoader searchParams={searchParams} />
+    <Suspense fallback={<p className="p-6 text-sm text-ink-muted">Memuat…</p>}>
+      <Workspace searchParams={searchParams} />
     </Suspense>
   )
 }
 
-async function EditorLoader({ searchParams }: BuatPageProps) {
+const toView = (slide: SlideRecord): SlideView => ({
+  id: slide.id,
+  position: slide.position,
+  format: slide.format,
+  status: slide.status === 'ready' ? 'generating' : slide.status,
+  error: slide.error,
+  stale: slide.stale,
+})
+
+/**
+ * Two columns: the post list and ideas, and the editor. `?id=` opens a post, `?ide=` starts a new one from an idea,
+ * `?baru=1` starts an empty one. On a phone only one column shows at a time.
+ */
+async function Workspace({ searchParams }: BuatPageProps) {
   const params = await searchParams
   await connection()
   const userId = await requireActiveUser()
   const id = firstValue(params.id)
+  const ideaParam = firstValue(params.ide)
+  const postId = isUuid(id) ? id : null
 
-  let loaded
+  let data
   try {
-    const [post, library, account] = await Promise.all([
-      isUuid(id) ? getPost(userId, id) : null,
-      listAssets(userId),
+    const [posts, ideas, post, slides, idea, instagram, kit, references, library, credits] = await Promise.all([
+      listContentPosts(userId),
+      listIdeas(userId),
+      postId ? getPost(userId, postId) : null,
+      postId ? listUnfinishedSlides(userId, postId) : [],
+      !postId && isUuid(ideaParam) ? getIdea(userId, ideaParam) : null,
       getConnection(userId),
+      getBrandKit(userId),
+      listReferences(userId),
+      listAssets(userId),
+      // Shown as a hint only; every request checks the credits again.
+      remainingCredits(userId).then(
+        (left) => left.remaining,
+        () => null,
+      ),
     ])
-    loaded = { post, library, instagramReady: account?.status === 'active' }
+    data = { posts, ideas, post, slides, idea, instagram, kit, references, library, credits }
   } catch (error) {
     console.error('[buat] gagal memuat:', describeError(error))
-    return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
-  }
-
-  const { post, library, instagramReady } = loaded
-  if (id && !post) {
     return (
-      <div className="space-y-3">
-        <Notice tone="error">Post tidak ditemukan. Mungkin sudah dihapus.</Notice>
-        <Link href="/kalender?tampilan=daftar" className="text-sm text-zinc-600 underline">
-          Kembali ke daftar post
-        </Link>
+      <div className="p-6">
+        <Notice tone="warning">{loadErrorMessage(error)}</Notice>
       </div>
     )
   }
 
+  const { posts, ideas, post, slides, idea, instagram, kit, references, library, credits } = data
+  const editing = Boolean(postId || idea || firstValue(params.baru))
   const ok = OK_MESSAGES[firstValue(params.ok) ?? '']
   const failed = FAILED_MESSAGES[firstValue(params.gagal) ?? '']
-  const day = firstValue(params.tanggal)
-  const defaultSchedule = day && parseWibInput(`${day}T${DEFAULT_TIME}`) ? `${day}T${DEFAULT_TIME}` : ''
+  const instagramReady = instagram?.status === 'active'
 
-  return (
-    <div className="space-y-6">
+  const notices = (
+    <>
       {ok && <Notice tone="success">{ok}</Notice>}
       {failed && <Notice tone="error">{failed}</Notice>}
-      <PostHeader post={post} instagramReady={instagramReady} />
-      <PostEditor key={post?.id ?? 'baru'} post={post} library={library} defaultSchedule={defaultSchedule} />
-      {post && <PostActions id={post.id} status={post.status} isLocked={post.isLocked} />}
-    </div>
-  )
-}
-
-function PostHeader({ post, instagramReady }: { post: Post | null; instagramReady: boolean }) {
-  return (
-    <header className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">{post ? 'Edit post' : 'Post baru'}</h1>
-        {post && <PostStatusBadge status={post.status} />}
-      </div>
+      {id && !post && (
+        <Notice tone="error">
+          Post tidak ditemukan. Mungkin sudah dihapus.{' '}
+          <Link href="/buat" className="underline">
+            Buat konten baru
+          </Link>
+        </Notice>
+      )}
       {post && <StatusNote post={post} />}
-      {!instagramReady && post?.status !== 'published' && (
+      {post && !instagramReady && post.status !== 'published' && (
         <Notice tone="warning">
           Instagram belum tersambung atau perlu disambungkan ulang. Post tetap bisa dijadwalkan, tetapi akan gagal terbit
           sampai akun disambungkan di{' '}
@@ -111,56 +128,38 @@ function PostHeader({ post, instagramReady }: { post: Post | null; instagramRead
           .
         </Notice>
       )}
-    </header>
-  )
-}
-
-function StatusNote({ post }: { post: Post }) {
-  const lockedNote = (
-    <Notice tone="warning">
-      Status percobaan terakhir belum pasti, jadi isi post dikunci agar tidak terbit dua kali. Pilih Coba lagi (worker
-      memeriksa Instagram dulu) atau Duplikat untuk mengedit salinannya.
-    </Notice>
+    </>
   )
 
-  switch (post.status) {
-    case 'scheduled':
-      if (post.lastError && post.nextAttemptAt) {
-        return (
-          <Notice tone="warning">
-            Percobaan ke-{post.attemptCount} gagal: {post.lastError.replace(/[^.!?]$/, '$&.')} Dicoba lagi pukul{' '}
-            {formatTime(post.nextAttemptAt)} WIB.
-          </Notice>
-        )
-      }
-      return post.scheduledAt ? (
-        <p className="text-sm text-zinc-600">Terbit {formatDateTime(post.scheduledAt)}.</p>
-      ) : null
-    case 'publishing':
-      return <p className="text-sm text-zinc-600">Worker sedang menerbitkan post ini.</p>
-    case 'published':
-      return (
-        <p className="text-sm text-zinc-600">
-          Terbit {post.publishedAt ? formatDateTime(post.publishedAt) : ''}.{' '}
-          {post.permalink ? (
-            <a href={post.permalink} target="_blank" rel="noreferrer" className="font-medium text-zinc-900 underline">
-              Lihat di Instagram
-            </a>
-          ) : (
-            'Link Instagram tidak tersedia.'
-          )}
-        </p>
-      )
-    case 'failed':
-      return (
-        <div className="space-y-2">
-          <Notice tone="error">{post.lastError ?? 'Post gagal terbit.'}</Notice>
-          {post.isLocked && lockedNote}
-        </div>
-      )
-    case 'cancelled':
-      return post.isLocked ? lockedNote : null
-    default:
-      return null
-  }
+  return (
+    <div className="flex h-full min-h-0">
+      <ContentList
+        posts={posts}
+        ideas={ideas}
+        selectedId={post?.id ?? null}
+        selectedIdeaId={idea?.id ?? null}
+        ideasCost={formatCreditShare(TASK_CREDITS.content_ideas)}
+        className={editing ? 'hidden md:flex' : 'flex'}
+      />
+      <section aria-label="Editor" className={`min-h-0 min-w-0 flex-1 flex-col ${editing ? 'flex' : 'hidden md:flex'}`}>
+        <ContentEditor
+          key={post?.id ?? `baru-${idea?.id ?? ''}`}
+          post={post}
+          slides={slides.map(toView)}
+          idea={idea}
+          account={{ username: instagram?.username ?? null, avatarUrl: kit.logoUrl }}
+          references={references.map((reference) => ({
+            id: reference.id,
+            url: reference.url,
+            label: reference.sourceLabel || 'Referensi',
+          }))}
+          hasLogo={kit.logoUrl !== null}
+          credits={credits}
+          slot={suggestedSlot(new Date())}
+          library={library}
+          notices={notices}
+        />
+      </section>
+    </div>
+  )
 }

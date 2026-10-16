@@ -1,25 +1,29 @@
-/** Choices and limits of Gambar AI, shared by the generator and the server. */
+/** Choices and limits of AI slides, shared by the editor and the server. */
 
+/**
+ * `size` is what 9Router is asked for; `width` × `height` is what gets stored and published, whatever size the
+ * provider actually returns (src/lib/slide-image.ts crops to it). 1.91:1 is left out: its 1536 px would exceed
+ * Instagram's 1440 px width for no use a carousel needs.
+ */
 export const IMAGE_FORMATS = {
-  '4:5': { label: 'Portrait 4:5', size: '1088x1360', aspect: '4:5 portrait' },
-  '1:1': { label: 'Persegi 1:1', size: '1024x1024', aspect: '1:1 square' },
-  '1.91:1': { label: 'Landscape 1.91:1', size: '1536x800', aspect: '1.91:1 landscape' },
+  '4:5': { label: 'Portrait 4:5', size: '1088x1360', aspect: '4:5 portrait', width: 1080, height: 1350 },
+  '1:1': { label: 'Persegi 1:1', size: '1024x1024', aspect: '1:1 square', width: 1080, height: 1080 },
 } as const
 
 export type ImageFormat = keyof typeof IMAGE_FORMATS
 
+/** Own keys only: `'toString' in IMAGE_FORMATS` is true. */
+export const isImageFormat = (value: unknown): value is ImageFormat =>
+  typeof value === 'string' && Object.hasOwn(IMAGE_FORMATS, value)
+
 export const MAX_SLIDES = 10
 export const SCENE_MAX_LENGTH = 1000
 export const HEADLINE_MAX_LENGTH = 150
-/** The planner reads a topic or a whole caption. */
-export const CONTENT_MAX_LENGTH = 2200
-/** A generated JPEG sent back as the slide 1 reference is a few hundred KB; this leaves room and stops abuse. */
-export const PREVIOUS_IMAGE_MAX_LENGTH = 1_500_000
 
 export interface Slide {
   /** Written into the image exactly; empty means no text at all. */
   headline: string
-  /** What the image shows, in the owner's words. */
+  /** What the image shows. */
   scene: string
 }
 
@@ -30,17 +34,8 @@ export interface ImageInput extends Slide {
   includeLogo: boolean
   /** Slide 1 as a data URL, so later slides keep its look. */
   previousImage: string | null
+  /** The slide's own image when the owner edits it: everything the edit doesn't ask for stays. */
+  currentImage: string | null
   /** Position in a carousel, when there is one. */
   slide: { index: number; count: number } | null
-}
-
-export type GenerateResult = { image: string; skipped: string[] } | { error: string }
-/** `warning` when the credits left can't pay for every slide's image. */
-export type PlanResult = { slides: Slide[]; warning?: string } | { error: string }
-
-/** What the generator needs from the brand kit to offer references. */
-export interface GeneratorOptions {
-  references: { id: string; url: string; label: string }[]
-  hasLogo: boolean
-  brandName: string
 }
