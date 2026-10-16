@@ -35,7 +35,8 @@ export interface ImageInput extends Slide {
 }
 
 export type GenerateResult = { image: string; skipped: string[] } | { error: string }
-export type PlanResult = { slides: Slide[] } | { error: string }
+/** `warning` when the credits left can't pay for every slide's image. */
+export type PlanResult = { slides: Slide[]; warning?: string } | { error: string }
 
 /** What the generator needs from the brand kit to offer references. */
 export interface GeneratorOptions {

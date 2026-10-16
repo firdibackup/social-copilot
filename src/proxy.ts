@@ -1,14 +1,17 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-/** Pages and endpoints reachable without a session: sign in and up, the privacy page Meta links to, Meta's webhook. */
-const PUBLIC_PATHS = new Set(['/masuk', '/daftar', '/privasi', '/api/webhooks/instagram'])
+/** Meta's DM webhook and Mayar's payment webhook: they send no cookies, so they skip the session round trip. */
+const WEBHOOKS = new Set(['/api/webhooks/instagram', '/api/webhooks/mayar'])
+/** Pages reachable without a session: sign in and up, and the privacy page Meta links to. */
+const PUBLIC_PATHS = new Set(['/masuk', '/daftar', '/privasi'])
 /** Signed-in users who open these go to the app instead. */
 const AUTH_PAGES = new Set(['/masuk', '/daftar'])
 
 /**
  * Refreshes the Supabase session on every request and sends visitors without one to /masuk. Pages and server
- * actions still check the session themselves (requireUser); this only keeps the redirects in one place.
+ * actions still check the session themselves (requireUser, requireActiveUser); this only keeps the redirects in
+ * one place.
  */
 export async function proxy(request: NextRequest) {
   const { pathname, search, searchParams } = request.nextUrl
@@ -17,8 +20,7 @@ export async function proxy(request: NextRequest) {
   if (pathname === '/' && (searchParams.has('code') || searchParams.has('error'))) {
     return NextResponse.rewrite(new URL(`/api/auth/instagram/callback${search}`, request.url))
   }
-  // Meta sends no cookies: skip the session round trip.
-  if (pathname === '/api/webhooks/instagram') return NextResponse.next()
+  if (WEBHOOKS.has(pathname)) return NextResponse.next()
 
   // The response that carries refreshed session cookies. setAll replaces it, so only the last one is returned.
   let response = NextResponse.next({ request })

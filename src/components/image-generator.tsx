@@ -109,8 +109,9 @@ export function ImageGenerator({ formId, sourceText = '', room, saveLabel, onSav
     setNotice(null)
     const result: PlanResult = await planSlidesAction(content).catch(() => ({ error: FAILED }))
     setPlanning(false)
-    if ('error' in result) setNotice({ tone: 'error', text: result.error })
-    else setSlides(result.slides.map((slide) => newSlide(slide)))
+    if ('error' in result) return setNotice({ tone: 'error', text: result.error })
+    setSlides(result.slides.map((slide) => newSlide(slide)))
+    if (result.warning) setNotice({ tone: 'warning', text: result.warning })
   }
 
   /** Returns the image, so a run can hand slide 1 to the slides after it. */

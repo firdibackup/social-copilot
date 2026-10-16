@@ -4,7 +4,7 @@ import { connection } from 'next/server'
 import { MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
 import { LateBadge, PostStatusBadge, STATUS_DOT_CLASS } from '@/components/post-status-badge'
-import { requireUser } from '@/lib/auth'
+import { requireActiveUser } from '@/lib/auth'
 import { buildMonthGrid, formatDay, formatMonth, parseMonth, shiftMonth } from '@/lib/calendar'
 import { describeError, loadErrorMessage } from '@/lib/errors'
 import { formatDateTime, formatTime, parseWibInput, wibDateKey } from '@/lib/format'
@@ -36,7 +36,7 @@ function listHref(status?: PostStatus, day?: string): string {
 export async function CalendarView({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
   await connection()
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   const now = new Date()
   const isList = firstValue(params.tampilan) === 'daftar'
 

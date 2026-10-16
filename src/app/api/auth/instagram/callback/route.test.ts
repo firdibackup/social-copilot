@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { currentUser } from '@/lib/auth'
+import { currentPeriod, currentUser } from '@/lib/auth'
 import { AccountTakenError, consumeOAuthState, saveConnection } from '@/lib/connection'
 import { exchangeCodeForToken, exchangeForLongLivedToken, fetchProfile } from '@/lib/instagram'
 import { GET } from './route'
 
-vi.mock('@/lib/auth', () => ({ currentUser: vi.fn() }))
+vi.mock('@/lib/auth', () => ({ currentPeriod: vi.fn(), currentUser: vi.fn() }))
 vi.mock('@/lib/connection', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/connection')>()),
   consumeOAuthState: vi.fn(),
@@ -17,6 +17,7 @@ vi.mock('@/lib/instagram', () => ({
 }))
 
 const USER = 'user-1'
+const PERIOD = { start: new Date('2026-10-01'), end: new Date('2026-10-31'), activeUntil: new Date('2026-10-31') }
 const PROFILE = { userId: '17841400000000001', username: 'creator.test', accountType: 'MEDIA_CREATOR' }
 const LONG_TOKEN = { accessToken: 'long-token', expiresAt: new Date('2026-12-13T00:00:00Z') }
 
@@ -33,6 +34,7 @@ describe('GET /api/auth/instagram/callback', () => {
     vi.resetAllMocks()
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.mocked(currentUser).mockResolvedValue({ id: USER, email: 'owner@example.com' })
+    vi.mocked(currentPeriod).mockResolvedValue(PERIOD)
     vi.mocked(consumeOAuthState).mockResolvedValue(true)
     vi.mocked(saveConnection).mockResolvedValue()
     vi.mocked(exchangeCodeForToken).mockResolvedValue({
@@ -61,6 +63,13 @@ describe('GET /api/auth/instagram/callback', () => {
     vi.mocked(currentUser).mockResolvedValue(null)
 
     expect(redirectTarget(await callback('code=abc&state=s1'))).toEqual({ path: 'http://localhost:3000/masuk', params: {} })
+    expect(consumeOAuthState).not.toHaveBeenCalled()
+  })
+
+  it('sends a user without an active subscription to Langganan, without touching the state', async () => {
+    vi.mocked(currentPeriod).mockResolvedValue(null)
+
+    expect(redirectTarget(await callback('code=abc&state=s1')).path).toBe('http://localhost:3000/langganan')
     expect(consumeOAuthState).not.toHaveBeenCalled()
   })
 

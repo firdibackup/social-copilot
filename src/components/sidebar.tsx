@@ -3,6 +3,7 @@
 import {
   CalendarDays,
   ChartNoAxesColumn,
+  CreditCard,
   Image as ImageIcon,
   Images,
   LogOut,
@@ -43,11 +44,13 @@ const ICON_STROKE = 1.75
 
 interface SidebarProps {
   instagramStatus: ReactNode
+  /** How much of the period's AI credits is spent. */
+  subscriptionStatus: ReactNode
   /** The signed-in user's email. */
   account: ReactNode
 }
 
-export function Sidebar({ instagramStatus, account }: SidebarProps) {
+export function Sidebar({ instagramStatus, subscriptionStatus, account }: SidebarProps) {
   const pathname = usePathname()
 
   return (
@@ -67,6 +70,13 @@ export function Sidebar({ instagramStatus, account }: SidebarProps) {
           <span className="min-w-0">
             <span className="block">Instagram</span>
             {instagramStatus}
+          </span>
+        </Link>
+        <Link href="/langganan" className={`${ITEM_CLASS} ${IDLE_CLASS} items-start`}>
+          <CreditCard size={ICON_SIZE} strokeWidth={ICON_STROKE} className="mt-0.5 shrink-0 text-zinc-500" />
+          <span className="min-w-0">
+            <span className="block">Langganan</span>
+            {subscriptionStatus}
           </span>
         </Link>
       </div>

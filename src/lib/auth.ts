@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { cache } from 'react'
+import { getCurrentPeriod, type Period } from './billing'
 import { env } from './env'
 
 export interface SessionUser {
@@ -43,4 +44,17 @@ export async function requireUser(): Promise<string> {
   const user = await currentUser()
   if (!user) redirect('/masuk')
   return user.id
+}
+
+/** The current period of the signed-in user, or null. Cached per request like the session. */
+export const currentPeriod = cache(async (userId: string): Promise<Period | null> => getCurrentPeriod(userId))
+
+/**
+ * The signed-in user's id, for everything behind the subscription: the app pages, their actions and the OAuth
+ * routes. Without a paid period covering now, the user goes to /langganan.
+ */
+export async function requireActiveUser(): Promise<string> {
+  const userId = await requireUser()
+  if (!(await currentPeriod(userId))) redirect('/langganan')
+  return userId
 }

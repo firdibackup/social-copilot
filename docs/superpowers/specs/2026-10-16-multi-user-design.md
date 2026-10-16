@@ -1,6 +1,6 @@
 # Social Copilot jadi SaaS: multi-user (Fase 1) dan Langganan (Fase 2)
 
-Tanggal: 16 Oktober 2026. Status: Fase 1 dibangun di branch `feat/multi-user`. Fase 2 dirancang dan belum dibangun.
+Tanggal: 16 Oktober 2026. Status: Fase 1 dibangun di branch `feat/multi-user`, Fase 2 di `feat/langganan`. Keduanya sudah lolos test unit dan uji migrasi di PGlite, tapi belum diuji terhadap Supabase dan Mayar sandbox yang sebenarnya.
 
 ## Latar belakang
 
@@ -65,7 +65,7 @@ Migrasi `20261016040000_multi_user.sql`:
   - user lain hanya bisa menyambung setelah **App Review (Advanced Access)** dan **Business Verification**;
   - sebelum itu, akun IG mereka harus ditambahkan sebagai Instagram Tester.
 
-## Fase 2: Langganan Mayar + kuota bulanan (rancangan)
+## Fase 2: Langganan Mayar + kuota bulanan (dibangun)
 
 ### Model
 Langganan diturunkan dari tabel `payments`, tanpa tabel `subscriptions`:
@@ -95,7 +95,15 @@ Langganan diturunkan dari tabel `payments`, tanpa tabel `subscriptions`:
   - setelah daftar, user diarahkan ke sini.
 - Sidebar menampilkan kuota %. Banner muncul saat sisa ≤ 3 hari.
 - Worker menggagalkan post milik user yang langganannya habis, dengan pesan "Perpanjang lalu Coba lagi". DM tetap disimpan.
-- Ketentuan di `/privasi`: harga, prabayar, tanpa perpanjangan otomatis, kuota tidak terbawa, dan kebijakan refund (diputuskan owner).
+- Ketentuan di `/privasi`: harga, prabayar, tanpa perpanjangan otomatis, kuota tidak terbawa, dan refund hanya kalau layanan tidak bisa dipakai karena kesalahan Social Copilot. Kalimat refund ini usulan; owner yang memutuskan.
+- Rencana slide di Studio memberi peringatan kalau sisa kredit tidak cukup untuk semua gambar. Slide masih bisa dihapus sebelum gambar dibuat.
+
+### Belum diverifikasi
+- Field di payload webhook Mayar yang menyebut payment request (dugaan `data.productId`).
+- Nilai status payment request yang lunas (dugaan `paid`).
+- Base URL sandbox (`api.mayar.io` menurut dokumentasi).
+
+Ketiganya dipastikan dengan satu pembayaran di sandbox dan `GET /hl/v2/webhook/history`.
 
 ## Ditunda
 - Fase 3: Buat Konten terpadu.

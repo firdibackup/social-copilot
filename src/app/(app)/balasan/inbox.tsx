@@ -2,7 +2,7 @@ import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { connection } from 'next/server'
 import { Notice } from '@/components/notice'
-import { requireUser } from '@/lib/auth'
+import { requireActiveUser } from '@/lib/auth'
 import { getConnection } from '@/lib/connection'
 import {
   getConversation,
@@ -79,7 +79,7 @@ async function loadThread(userId: string, igsid: string, now: Date): Promise<Thr
 export async function Inbox({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
   await connection()
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   const now = new Date()
   const filter: Filter = firstValue(params.filter) === 'semua' ? 'semua' : 'belum'
   const selectedId = firstValue(params.c)

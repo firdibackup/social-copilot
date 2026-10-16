@@ -1,7 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { requireUser } from '@/lib/auth'
+import { requireActiveUser } from '@/lib/auth'
 import { inspectCaption } from '@/lib/caption'
 import { describeError } from '@/lib/errors'
 import { parseWibInput } from '@/lib/format'
@@ -21,7 +21,7 @@ type Intent = 'draft' | 'schedule' | 'now'
 const isIntent = (value: unknown): value is Intent => value === 'draft' || value === 'schedule' || value === 'now'
 
 export async function savePostAction(_previous: SaveState, formData: FormData): Promise<SaveState> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   const intent = formData.get('intent')
   if (!isIntent(intent)) return { error: 'Aksi tidak dikenal.' }
 
@@ -65,7 +65,7 @@ async function runPostAction(
   code: string,
   action: (userId: string, id: string) => Promise<boolean>,
 ) {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   const id = formData.get('id')
   if (!isUuid(id)) redirect('/kalender')
 
@@ -85,7 +85,7 @@ export async function retryPostAction(formData: FormData): Promise<void> {
 }
 
 export async function duplicatePostAction(formData: FormData): Promise<void> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   const id = formData.get('id')
   if (!isUuid(id)) redirect('/kalender')
 
@@ -97,7 +97,7 @@ export async function duplicatePostAction(formData: FormData): Promise<void> {
 }
 
 export async function deletePostAction(formData: FormData): Promise<void> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   const id = formData.get('id')
   if (!isUuid(id)) redirect('/kalender')
 

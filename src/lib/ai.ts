@@ -9,11 +9,14 @@ import {
   type Brief,
   type RewriteStyle,
 } from './ai-options'
+import { creditsUsed, getCurrentPeriod, type Period } from './billing'
+import { PLAN, TASK_CREDITS } from './billing-options'
 import { getBrandContext } from './brand'
 import type { BrandContext } from './brand-options'
 import { CAPTION_MAX_HASHTAGS, CAPTION_MAX_LENGTH, findHashtags } from './caption'
 import { env } from './env'
 import { ConfigError, describeError } from './errors'
+import { formatShortDate } from './format'
 import { chatCompletion, RouterApiError, type ChatMessage } from './nine-router'
 import { db, unwrap } from './supabase'
 
@@ -256,21 +259,18 @@ export function parseOptions(request: AiRequest, content: string): string[] {
   return options
 }
 
-/** Requests per rolling 24 hours. 9Router's providers run on the owner's own subscriptions. */
-export const DAILY_LIMIT = 100
-const DAY_MS = 24 * 60 * 60 * 1000
-
-/** The user reached DAILY_LIMIT. */
+/** No paid period covers now, or its credits are spent. The message is safe to show to the user. */
 export class AiLimitError extends Error {
   override name = 'AiLimitError'
 }
 
-/** Every kind of 9Router request; all of them count towards DAILY_LIMIT. */
+/** Every kind of 9Router request; each costs TASK_CREDITS of the period's PLAN.credits. */
 export type LoggedTask = AiRequest['task'] | 'brand_profile' | 'brand_visual' | 'image' | 'image_plan'
 
 interface GenerationLog {
   user_id: string
   task: LoggedTask
+  credits: number
   /** Never image data: it would bloat the table. */
   input: unknown
   output: unknown
@@ -280,19 +280,20 @@ interface GenerationLog {
   duration_ms: number
 }
 
-async function countRecentRequests(userId: string): Promise<number> {
-  const since = new Date(Date.now() - DAY_MS).toISOString()
-  const { count, error } = await db()
-    .from('ai_generations')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .gt('created_at', since)
-  // A HEAD 404 (table not migrated) comes back with no error and no count; reading it as 0 would skip the limit.
-  if (error || count === null) {
-    throw new Error(`Supabase: ${error?.message || 'jumlah permintaan AI tidak terbaca; sudah menjalankan migrasi ai_generations?'}`)
-  }
-  return count
+export interface Credits {
+  remaining: number
+  period: Period
 }
+
+/** Credits left in the user's current period. A count that can't be read throws, so AI stops rather than runs free. */
+export async function remainingCredits(userId: string): Promise<Credits> {
+  const period = await getCurrentPeriod(userId)
+  if (!period) throw new AiLimitError('Langganan tidak aktif. Aktifkan di menu Langganan untuk memakai AI.')
+  return { remaining: Math.max(0, PLAN.credits - (await creditsUsed(userId, period.start))), period }
+}
+
+export const quotaSpentMessage = (period: Period) =>
+  `Kuota AI periode ini habis. Kuota baru mulai ${formatShortDate(period.end)}, atau perpanjang di menu Langganan.`
 
 async function logGeneration(row: GenerationLog): Promise<void> {
   try {
@@ -310,7 +311,11 @@ interface LogOptions<T> {
   logOutput?: (result: T) => unknown
 }
 
-/** Checks the user's daily limit, runs `ask`, and logs the request with its result (the output) whatever the outcome. */
+/**
+ * Checks the user's credits, runs `ask`, and logs the request with its result (the output) and its cost whatever
+ * the outcome. A failed request costs nothing.
+ * ponytail: two requests at once can both pass the check and overspend by one request; lock per user if it matters.
+ */
 export async function runLogged<T>(
   userId: string,
   task: LoggedTask,
@@ -319,20 +324,21 @@ export async function runLogged<T>(
   options: LogOptions<T> = {},
 ): Promise<T> {
   const model = options.model ?? env('ROUTER_MODEL')
-  if ((await countRecentRequests(userId)) >= DAILY_LIMIT) {
-    throw new AiLimitError(`Batas ${DAILY_LIMIT} permintaan per 24 jam tercapai`)
-  }
+  const cost = TASK_CREDITS[task]
+  const { remaining, period } = await remainingCredits(userId)
+  if (cost > remaining) throw new AiLimitError(quotaSpentMessage(period))
 
   const startedAt = Date.now()
-  const log = (result: Pick<GenerationLog, 'output' | 'status' | 'error'>) =>
+  const log = (result: Pick<GenerationLog, 'output' | 'status' | 'error' | 'credits'>) =>
     logGeneration({ user_id: userId, task, input, model, duration_ms: Date.now() - startedAt, ...result })
 
   try {
     const result = await ask()
-    await log({ output: options.logOutput ? options.logOutput(result) : result, status: 'ok', error: null })
+    const output = options.logOutput ? options.logOutput(result) : result
+    await log({ output, status: 'ok', error: null, credits: cost })
     return result
   } catch (error) {
-    await log({ output: null, status: 'failed', error: describeError(error) })
+    await log({ output: null, status: 'failed', error: describeError(error), credits: 0 })
     throw error
   }
 }
@@ -370,7 +376,7 @@ function routerErrorMessage(status: number): string {
 /** Owner-facing text for anything runAiTask throws. Provider details stay in the server log. */
 export function aiErrorMessage(error: unknown): string {
   if (error instanceof ConfigError) return `Konfigurasi AI belum lengkap: ${error.message}.`
-  if (error instanceof AiLimitError) return `Batas ${DAILY_LIMIT} permintaan AI per 24 jam sudah tercapai. Coba lagi nanti.`
+  if (error instanceof AiLimitError) return error.message
   if (error instanceof AiOutputError) {
     return `Jawaban AI tidak bisa dibaca ("${error.snippet}"). Coba lagi, atau ganti ROUTER_MODEL kalau terus terjadi.`
   }

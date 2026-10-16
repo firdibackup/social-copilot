@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
 import { Notice } from '@/components/notice'
-import { requireUser } from '@/lib/auth'
+import { requireActiveUser } from '@/lib/auth'
 import { getBrandKit, listReferences, VISUAL_REFERENCE_LIMIT } from '@/lib/brand'
 import { getConnection } from '@/lib/connection'
 import { describeError, loadErrorMessage } from '@/lib/errors'
@@ -31,7 +31,7 @@ export default function BrandPage() {
 
 async function BrandStudio() {
   await connection()
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   let data
   try {
     const [kit, references, instagram, facebook] = await Promise.all([

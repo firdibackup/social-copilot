@@ -19,7 +19,6 @@ vi.mock('./supabase', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./supabase')>()),
   db: () => ({
     from: () => ({
-      select: () => ({ eq: () => ({ gt: async () => ({ count: 0, error: null }) }) }),
       insert: async (row: unknown) => {
         database.inserted.push(row)
         return { data: null, error: null }
@@ -36,6 +35,10 @@ vi.mock('./brand', async (importOriginal) => ({
   loadLogoImage: vi.fn(),
 }))
 
+vi.mock('./billing', () => ({
+  creditsUsed: async () => 0,
+  getCurrentPeriod: async () => ({ start: new Date('2026-10-01'), end: new Date('2026-10-31'), activeUntil: new Date('2026-10-31') }),
+}))
 vi.mock('./nine-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./nine-router')>()),
   generateImage: vi.fn(),

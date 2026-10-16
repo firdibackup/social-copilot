@@ -1,5 +1,5 @@
 import { Notice } from '@/components/notice'
-import { requireUser } from '@/lib/auth'
+import { requireActiveUser } from '@/lib/auth'
 import { ConfigError, describeError } from '@/lib/errors'
 import { getFacebookConnection, type FacebookConnection } from '@/lib/facebook-connection'
 import { firstValue, type SearchParams } from '@/lib/params'
@@ -41,7 +41,7 @@ async function loadFacebook(userId: string): Promise<LoadResult> {
 /** Facebook Login exists only for Business Discovery: reading other accounts' posts as design references. */
 export async function FacebookSettings({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
-  const result = await loadFacebook(await requireUser())
+  const result = await loadFacebook(await requireActiveUser())
   const success = SUCCESS_MESSAGES[firstValue(params.fb) ?? '']
   const errorCode = firstValue(params.fb_error)
   const error = errorCode ? (ERROR_MESSAGES[errorCode] ?? UNKNOWN_ERROR) : undefined

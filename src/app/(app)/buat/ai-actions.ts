@@ -1,7 +1,7 @@
 'use server'
 
 import { aiErrorMessage, parseAiRequest, runAiTask } from '@/lib/ai'
-import { requireUser } from '@/lib/auth'
+import { requireActiveUser } from '@/lib/auth'
 import type { AiRequest, AiResult } from '@/lib/ai-options'
 import { describeError } from '@/lib/errors'
 
@@ -10,7 +10,7 @@ import { describeError } from '@/lib/errors'
  * `input` is typed for the editor's sake: a server action's body is untrusted, so it is validated as unknown.
  */
 export async function generateAction(input: AiRequest): Promise<AiResult> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   const parsed = parseAiRequest(input)
   if ('error' in parsed) return parsed
 

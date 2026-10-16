@@ -1,5 +1,5 @@
 import { connection } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireActiveUser } from '@/lib/auth'
 import { getConnection } from '@/lib/connection'
 import { describeError } from '@/lib/errors'
 
@@ -28,7 +28,7 @@ export function StatusLine({ tone, label }: Status) {
 async function loadStatus(): Promise<Status> {
   // Always read at request time; otherwise a failure before the query gets prerendered into the static shell.
   await connection()
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   try {
     const current = await getConnection(userId)
     if (!current) return { tone: 'muted', label: 'Belum terhubung' }

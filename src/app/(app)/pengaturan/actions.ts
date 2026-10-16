@@ -1,13 +1,13 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { requireUser } from '@/lib/auth'
+import { requireActiveUser } from '@/lib/auth'
 import { deleteConnection } from '@/lib/connection'
 import { describeError } from '@/lib/errors'
 import { deleteFacebookConnection } from '@/lib/facebook-connection'
 
 export async function disconnectInstagram(): Promise<void> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
 
   const outcome = await deleteConnection(userId).then(
     () => 'ig=disconnected',
@@ -20,7 +20,7 @@ export async function disconnectInstagram(): Promise<void> {
 }
 
 export async function disconnectFacebook(): Promise<void> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
 
   const outcome = await deleteFacebookConnection(userId).then(
     () => 'fb=disconnected',

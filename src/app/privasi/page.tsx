@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
+import { formatRupiah, PLAN } from '@/lib/billing-options'
 
 export const metadata: Metadata = { title: 'Kebijakan Privasi' }
 
@@ -73,6 +74,10 @@ export default function PrivasiPage() {
             balasan DM.
           </li>
           <li>
+            <strong>Mayar:</strong> email dan nominal tagihan, untuk memproses pembayaran langganan. Data kartu atau
+            rekening Anda diproses Mayar dan tidak pernah sampai ke {APP_NAME}.
+          </li>
+          <li>
             <strong>Penyedia AI melalui 9Router:</strong> topik, caption, informasi brand, dan gambar referensi yang
             dimasukkan pengguna dikirim untuk membuat draf. Isi DM tidak pernah dikirim ke layanan AI.
           </li>
@@ -103,6 +108,19 @@ export default function PrivasiPage() {
           <li>
             Pemakaian mengikuti Ketentuan Platform Meta, Ketentuan Penggunaan Instagram, dan Pedoman Komunitas
             Instagram. Spam, pesan massal, dan pesan yang tidak diminta dilarang.
+          </li>
+          <li>
+            Langganan {formatRupiah(PLAN.priceIdr)} per {PLAN.days} hari, dibayar di muka melalui Mayar. Tidak ada
+            perpanjangan otomatis: akses berhenti di akhir periode sampai diperpanjang, dan post terjadwal tidak
+            diterbitkan selama langganan tidak aktif.
+          </li>
+          <li>
+            Setiap periode memberi kuota AI {PLAN.credits.toLocaleString('id-ID')} kredit. Sisa kuota tidak terbawa ke
+            periode berikutnya.
+          </li>
+          <li>
+            Pembayaran yang sudah diterima tidak dapat dikembalikan, kecuali layanan tidak bisa dipakai karena kesalahan
+            dari pihak {APP_NAME}.
           </li>
           <li>Layanan disediakan apa adanya, tanpa jaminan apa pun.</li>
           <li>Perubahan kebijakan dan ketentuan diumumkan dengan memperbarui halaman ini dan tanggal berlakunya.</li>

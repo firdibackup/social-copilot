@@ -7,7 +7,7 @@ export default function DaftarPage() {
   return (
     <AuthCard
       title="Buat akun"
-      description="Setelah daftar, hubungkan satu akun Instagram Business atau Creator."
+      description="Setelah daftar dan berlangganan, hubungkan satu akun Instagram Business atau Creator."
     >
       <AuthForm mode="daftar" />
     </AuthCard>

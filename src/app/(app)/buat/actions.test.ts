@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PostLockedError, savePost } from '@/lib/posts'
 import { savePostAction } from './actions'
 
-vi.mock('@/lib/auth', () => ({ requireUser: vi.fn(async () => USER) }))
+vi.mock('@/lib/auth', () => ({ requireActiveUser: vi.fn(async () => USER) }))
 vi.mock('@/lib/posts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/posts')>()),
   savePost: vi.fn(),

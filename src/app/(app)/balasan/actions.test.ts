@@ -5,7 +5,7 @@ import { InstagramApiError, sendDirectMessage } from '@/lib/instagram'
 import { saveTemplateAction, saveVariablesAction, sendReply } from './actions'
 
 vi.mock('next/cache', () => ({ refresh: vi.fn() }))
-vi.mock('@/lib/auth', () => ({ requireUser: vi.fn(async () => 'user-1') }))
+vi.mock('@/lib/auth', () => ({ requireActiveUser: vi.fn(async () => 'user-1') }))
 vi.mock('@/lib/connection', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/connection')>()),
   getPublishingAccount: vi.fn(),

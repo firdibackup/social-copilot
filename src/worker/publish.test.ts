@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { signMediaUrls } from '@/lib/assets'
+import { getCurrentPeriod } from '@/lib/billing'
 import { getPublishingAccount, markNeedsReconnect, NeedsReconnectError } from '@/lib/connection'
 import { createContainer, getContainerStatus, getPermalink, InstagramApiError, publishContainer } from '@/lib/instagram'
 import {
@@ -16,6 +17,7 @@ import {
 import { processPost } from './publish'
 
 vi.mock('@/lib/assets', () => ({ signMediaUrls: vi.fn() }))
+vi.mock('@/lib/billing', () => ({ getCurrentPeriod: vi.fn() }))
 vi.mock('@/lib/connection', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/connection')>()),
   getPublishingAccount: vi.fn(),
@@ -60,6 +62,7 @@ describe('processPost', () => {
     vi.resetAllMocks()
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.mocked(startAttempt).mockResolvedValue(7)
+    vi.mocked(getCurrentPeriod).mockResolvedValue({ start: NOW, end: minutesFromNow(60), activeUntil: minutesFromNow(60) })
     vi.mocked(getPublishingAccount).mockResolvedValue({ accessToken: 'token', instagramUserId: 'ig1' })
     vi.mocked(getMediaPaths).mockResolvedValue(['a.jpg'])
     vi.mocked(signMediaUrls).mockResolvedValue(['https://media.test/a.jpg?token=x'])
@@ -200,6 +203,16 @@ describe('processPost', () => {
 
     expect(createContainer).not.toHaveBeenCalled()
     expect(markFailed).toHaveBeenCalledWith('p1', expect.stringContaining('Sambungkan ulang'), false)
+  })
+
+  it('fails the post of a user whose subscription ended, keeping its container for a later retry', async () => {
+    vi.mocked(getCurrentPeriod).mockResolvedValue(null)
+
+    await processPost(post({ igContainerId: 'c0' }), NOW)
+
+    expect(getCurrentPeriod).toHaveBeenCalledWith('user-1', NOW)
+    expect(getPublishingAccount).not.toHaveBeenCalled()
+    expect(markFailed).toHaveBeenCalledWith('p1', expect.stringContaining('Langganan berakhir'), false)
   })
 
   it('skips a post more than an hour late on its first attempt', async () => {

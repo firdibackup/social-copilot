@@ -2,7 +2,7 @@
 
 import { refresh } from 'next/cache'
 import { aiErrorMessage } from '@/lib/ai'
-import { requireUser } from '@/lib/auth'
+import { requireActiveUser } from '@/lib/auth'
 import {
   addReference,
   deleteReference,
@@ -66,7 +66,7 @@ async function instagramErrorMessage(userId: string, error: unknown, context: st
 }
 
 export async function saveBrandAction(input: unknown): Promise<ActionError> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   const parsed = parseBrandFields(input)
   if ('error' in parsed) return parsed.error
   try {
@@ -114,7 +114,7 @@ async function readInstagram(userId: string): Promise<Read<NonNullable<ProfileSo
 
 /** Reads the sources and asks the AI for a profile draft. Nothing is saved: the form shows the draft. */
 export async function analyzeProfileAction(websiteUrl: unknown, includeInstagram: unknown): Promise<ProfileResult> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   const url = text(websiteUrl)
   if (!url && includeInstagram !== true) return { error: 'Isi alamat website atau centang akun Instagram dulu.' }
 
@@ -145,7 +145,7 @@ export async function analyzeProfileAction(websiteUrl: unknown, includeInstagram
 
 /** Receives a JPEG prepared in the browser (see toReferenceJpeg) and its palette. */
 export async function uploadReferenceAction(formData: FormData): Promise<ActionError> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   const file = formData.get('file')
   if (!(file instanceof Blob)) return 'File tidak ditemukan.'
   if (file.size === 0 || file.size > MAX_IMAGE_BYTES) return 'Ukuran gambar harus di bawah 8 MB.'
@@ -180,7 +180,7 @@ export type PostsResult = { account: PostsAccount; posts: InstagramPost[] } | { 
 
 /** The connected account's newest posts, to pick references from. */
 export async function listOwnPostsAction(): Promise<PostsResult> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   try {
     const token = await getValidAccessToken(userId)
     const [profile, posts] = await Promise.all([fetchOwnProfile(token), fetchRecentMedia(token, POSTS_LIMIT)])
@@ -211,7 +211,7 @@ async function discoveryErrorMessage(userId: string, error: unknown, username: s
 
 /** Another Business or Creator account's newest posts, through Business Discovery. */
 export async function discoverPostsAction(input: unknown): Promise<PostsResult> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   const username = parseInstagramUsername(text(input))
   if (!username) return { error: 'Tulis username Instagram, mis. @namaakun, atau tempel link profilnya.' }
   try {
@@ -249,7 +249,7 @@ export type ImportResult = { imported: number; failed: string[] } | { error: str
 
 /** Downloads the chosen images into the brand bucket. The page computes their palettes afterwards. */
 export async function importReferencesAction(items: unknown): Promise<ImportResult> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   const parsed = Array.isArray(items) ? items.map(parseImportItem) : []
   if (parsed.length === 0 || parsed.length > MAX_IMPORT || parsed.some((item) => item === null)) {
     return { error: `Pilih 1–${MAX_IMPORT} gambar.` }
@@ -299,7 +299,7 @@ function parsePatch(value: unknown): ReferencePatch | string {
 
 /** No refresh: the card already shows what was typed, and palettes arrive in a batch the page refreshes once. */
 export async function updateReferenceAction(id: unknown, changes: unknown): Promise<ActionError> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   if (!isUuid(id)) return 'Referensi tidak ditemukan.'
   const patch = parsePatch(changes)
   if (typeof patch === 'string') return patch
@@ -312,7 +312,7 @@ export async function updateReferenceAction(id: unknown, changes: unknown): Prom
 }
 
 export async function deleteReferenceAction(id: unknown): Promise<ActionError> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   if (!isUuid(id)) return 'Referensi tidak ditemukan.'
   try {
     await deleteReference(userId, id)
@@ -328,7 +328,7 @@ export type VisualResult = { visualStyle: string; used: number; skipped: number 
 
 /** Vision analysis of the newest references. Descriptions are saved; the style guide only fills the form. */
 export async function analyzeVisualAction(): Promise<VisualResult> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   let selection
   try {
     selection = await loadVisualReferences(userId)
@@ -381,7 +381,7 @@ async function storeLogo(userId: string, bytes: Uint8Array): Promise<ActionError
 }
 
 export async function uploadLogoAction(formData: FormData): Promise<ActionError> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   const file = formData.get('file')
   if (!(file instanceof Blob)) return 'File tidak ditemukan.'
   if (file.size === 0 || file.size > MAX_LOGO_BYTES) return 'Ukuran logo harus di bawah 2 MB.'
@@ -390,7 +390,7 @@ export async function uploadLogoAction(formData: FormData): Promise<ActionError>
 
 /** One of the logo candidates the website analysis offered. */
 export async function logoFromUrlAction(url: unknown): Promise<ActionError> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   const address = text(url)
   if (!isHttpUrl(address)) return 'Alamat logo tidak valid.'
   try {
@@ -404,7 +404,7 @@ export async function logoFromUrlAction(url: unknown): Promise<ActionError> {
 }
 
 export async function removeLogoAction(): Promise<ActionError> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   try {
     await removeLogo(userId)
   } catch (error) {

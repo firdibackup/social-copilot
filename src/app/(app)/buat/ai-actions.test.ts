@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runAiTask } from '@/lib/ai'
 import type { AiRequest, Brief } from '@/lib/ai-options'
-import { requireUser } from '@/lib/auth'
+import { requireActiveUser } from '@/lib/auth'
 import { RouterApiError } from '@/lib/nine-router'
 import { generateAction } from './ai-actions'
 
-vi.mock('@/lib/auth', () => ({ requireUser: vi.fn() }))
+vi.mock('@/lib/auth', () => ({ requireActiveUser: vi.fn() }))
 vi.mock('@/lib/ai', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/ai')>()),
   runAiTask: vi.fn(),
@@ -16,7 +16,7 @@ const REQUEST: AiRequest = { task: 'captions', brief: BRIEF }
 
 describe('generateAction', () => {
   beforeEach(() => {
-    vi.mocked(requireUser).mockReset().mockResolvedValue('user-1')
+    vi.mocked(requireActiveUser).mockReset().mockResolvedValue('user-1')
     vi.mocked(runAiTask).mockReset()
     vi.spyOn(console, 'error').mockImplementation(() => {})
   })
@@ -33,7 +33,7 @@ describe('generateAction', () => {
   })
 
   it('refuses visitors without a session', async () => {
-    vi.mocked(requireUser).mockRejectedValue(new Error('NEXT_REDIRECT /masuk'))
+    vi.mocked(requireActiveUser).mockRejectedValue(new Error('NEXT_REDIRECT /masuk'))
 
     await expect(generateAction(REQUEST)).rejects.toThrow('NEXT_REDIRECT')
     expect(runAiTask).not.toHaveBeenCalled()

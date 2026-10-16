@@ -1,4 +1,5 @@
 import { signMediaUrls } from '@/lib/assets'
+import { getCurrentPeriod } from '@/lib/billing'
 import { getPublishingAccount, markNeedsReconnect, NeedsReconnectError } from '@/lib/connection'
 import { describeError } from '@/lib/errors'
 import { createContainer, getContainerStatus, getPermalink, InstagramApiError, publishContainer } from '@/lib/instagram'
@@ -22,6 +23,7 @@ const LATE_LIMIT_MS = 60 * 60 * 1000
 const RECONNECT_MESSAGE = 'Sambungkan ulang Instagram di Pengaturan, lalu pilih Coba lagi.'
 const LATE_MESSAGE = 'Terlewat lebih dari 60 menit dari jadwal. Pilih Coba lagi untuk menerbitkan sekarang.'
 const PROCESSING_MESSAGE = 'Instagram masih memproses foto.'
+const EXPIRED_MESSAGE = 'Langganan berakhir. Perpanjang di menu Langganan, lalu pilih Coba lagi.'
 
 /** The post certainly did not go out and should not be retried. */
 class PublishFailed extends Error {
@@ -63,6 +65,8 @@ async function publish(post: ClaimedPost, now: Date): Promise<void> {
   if (post.attemptCount === 1 && now.getTime() - post.scheduledAt.getTime() > LATE_LIMIT_MS) {
     throw new PublishFailed(LATE_MESSAGE, false)
   }
+  // Any container stays: after renewing, Coba lagi asks Instagram about it before publishing again.
+  if (!(await getCurrentPeriod(post.userId, now))) throw new PublishFailed(EXPIRED_MESSAGE, false)
   const { accessToken, instagramUserId } = await getPublishingAccount(post.userId)
 
   // An earlier attempt left a container: Instagram may already have published it.

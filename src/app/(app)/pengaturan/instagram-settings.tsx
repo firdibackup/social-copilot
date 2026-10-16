@@ -1,6 +1,6 @@
 import { InstagramIcon } from '@/components/instagram-icon'
 import { Notice } from '@/components/notice'
-import { requireUser } from '@/lib/auth'
+import { requireActiveUser } from '@/lib/auth'
 import { checkConnectionHealth, getConnection, type Connection, type ConnectionHealth } from '@/lib/connection'
 import { ConfigError, describeError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
@@ -56,7 +56,7 @@ interface InstagramSettingsProps {
 
 export async function InstagramSettings({ searchParams }: InstagramSettingsProps) {
   const params = await searchParams
-  const result = await loadInstagram(await requireUser())
+  const result = await loadInstagram(await requireActiveUser())
   const success = SUCCESS_MESSAGES[firstValue(params.ig) ?? '']
   const errorCode = firstValue(params.ig_error)
   const error = errorCode ? (ERROR_MESSAGES[errorCode] ?? UNKNOWN_ERROR) : undefined

@@ -1,11 +1,11 @@
-import { requireUser } from '@/lib/auth'
+import { requireActiveUser } from '@/lib/auth'
 import { createOAuthState } from '@/lib/connection'
 import { settingsUrl } from '@/lib/env'
 import { describeError } from '@/lib/errors'
 import { buildAuthorizeUrl } from '@/lib/instagram'
 
 export async function GET(): Promise<Response> {
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   try {
     return Response.redirect(buildAuthorizeUrl(await createOAuthState(userId)), 303)
   } catch (error) {

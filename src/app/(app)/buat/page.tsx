@@ -4,7 +4,7 @@ import { connection } from 'next/server'
 import { Suspense } from 'react'
 import { Notice } from '@/components/notice'
 import { PostStatusBadge } from '@/components/post-status-badge'
-import { requireUser } from '@/lib/auth'
+import { requireActiveUser } from '@/lib/auth'
 import { listAssets } from '@/lib/assets'
 import { getConnection } from '@/lib/connection'
 import { describeError, loadErrorMessage } from '@/lib/errors'
@@ -49,7 +49,7 @@ export default function BuatPage({ searchParams }: BuatPageProps) {
 async function EditorLoader({ searchParams }: BuatPageProps) {
   const params = await searchParams
   await connection()
-  const userId = await requireUser()
+  const userId = await requireActiveUser()
   const id = firstValue(params.id)
 
   let loaded

@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { currentUser } from '@/lib/auth'
+import { currentPeriod, currentUser } from '@/lib/auth'
 import { consumeOAuthState, getConnectedAccountId } from '@/lib/connection'
 import { exchangeFacebookCode, exchangeForLongLivedUserToken, fetchInstagramPages } from '@/lib/facebook'
 import { saveFacebookConnection } from '@/lib/facebook-connection'
 import { GET } from './route'
 
-vi.mock('@/lib/auth', () => ({ currentUser: vi.fn() }))
+vi.mock('@/lib/auth', () => ({ currentPeriod: vi.fn(), currentUser: vi.fn() }))
 vi.mock('@/lib/connection', () => ({ consumeOAuthState: vi.fn(), getConnectedAccountId: vi.fn() }))
 vi.mock('@/lib/facebook-connection', () => ({ saveFacebookConnection: vi.fn() }))
 vi.mock('@/lib/facebook', async (importOriginal) => ({
@@ -16,6 +16,7 @@ vi.mock('@/lib/facebook', async (importOriginal) => ({
 }))
 
 const USER = 'user-1'
+const PERIOD = { start: new Date('2026-10-01'), end: new Date('2026-10-31'), activeUntil: new Date('2026-10-31') }
 const PAGE = {
   pageId: 'p1',
   pageName: 'Kopi Sinar',
@@ -35,6 +36,7 @@ describe('GET /api/auth/facebook/callback', () => {
     vi.resetAllMocks()
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.mocked(currentUser).mockResolvedValue({ id: USER, email: 'owner@example.com' })
+    vi.mocked(currentPeriod).mockResolvedValue(PERIOD)
     vi.mocked(consumeOAuthState).mockResolvedValue(true)
     vi.mocked(getConnectedAccountId).mockResolvedValue('17841400000000001')
     vi.mocked(exchangeFacebookCode).mockResolvedValue('short-token')
