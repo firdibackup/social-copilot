@@ -5,6 +5,7 @@ import { getCurrentPeriod } from './billing'
 const session = vi.hoisted(() => ({ userId: null as string | null }))
 
 vi.mock('next/headers', () => ({ cookies: async () => ({ getAll: () => [], set: () => {} }) }))
+vi.mock('next/server', () => ({ connection: async () => {} }))
 vi.mock('next/navigation', () => ({
   redirect: (url: string) => {
     throw new Error(`REDIRECT ${url}`)

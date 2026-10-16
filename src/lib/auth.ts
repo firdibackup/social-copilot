@@ -2,6 +2,7 @@ import 'server-only'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { connection } from 'next/server'
 import { cache } from 'react'
 import { getCurrentPeriod, type Period } from './billing'
 import { env } from './env'
@@ -33,6 +34,8 @@ export async function authClient() {
 
 /** The signed-in user, or null. getClaims verifies the token; getSession would trust the cookie as it is. */
 export const currentUser = cache(async (): Promise<SessionUser | null> => {
+  // Checking the token's expiry reads the clock, which Cache Components refuse during a prerender.
+  await connection()
   const { data } = await (await authClient()).auth.getClaims()
   const claims = data?.claims
   if (!claims?.sub) return null
