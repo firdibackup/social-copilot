@@ -1,7 +1,8 @@
 'use client'
 
-import { ArrowLeft, ArrowRight, Check, ImagePlus, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ImagePlus, WandSparkles, X } from 'lucide-react'
 import { useActionState, useRef, useState, type MouseEvent } from 'react'
+import { ImageGenerator } from '@/components/image-generator'
 import { MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
 import { UploadButton } from '@/components/upload-button'
@@ -39,6 +40,7 @@ export function PostEditor({ post, library: initialLibrary, defaultSchedule }: P
   )
   const [library, setLibrary] = useState(initialLibrary)
   const [caption, setCaption] = useState(post?.caption ?? '')
+  const [imagesOpened, setImagesOpened] = useState(false)
   const [state, formAction, pending] = useActionState<SaveState, FormData>(savePostAction, { error: null })
   const pickerRef = useRef<HTMLDialogElement>(null)
 
@@ -152,6 +154,30 @@ export function PostEditor({ post, library: initialLibrary, defaultSchedule }: P
           </section>
 
           {editable && <AiAssistant caption={caption} photoCount={media.length} onCaptionChange={setCaption} />}
+
+          {editable && (
+            <details
+              onToggle={(event) => event.currentTarget.open && setImagesOpened(true)}
+              className="rounded-xl border border-zinc-200 bg-zinc-50"
+            >
+              <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium text-zinc-900">
+                <WandSparkles size={16} aria-hidden="true" />
+                Gambar AI
+              </summary>
+              <div className="border-t border-zinc-200 p-4">
+                {/* Mounted on first open: it loads the brand references from the server. */}
+                {imagesOpened && (
+                  <ImageGenerator
+                    formId={AI_FORM_ID}
+                    sourceText={caption}
+                    room={MAX_MEDIA - media.length}
+                    saveLabel="Pakai di post"
+                    onSaved={addUploaded}
+                  />
+                )}
+              </div>
+            </details>
+          )}
 
           <section className="space-y-2">
             <label htmlFor="scheduledAt" className="text-sm font-medium text-zinc-900">

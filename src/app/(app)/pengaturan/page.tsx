@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import type { SearchParams } from '@/lib/params'
+import { FacebookSettings } from './facebook-settings'
 import { InstagramSettings } from './instagram-settings'
 
 export const metadata: Metadata = { title: 'Pengaturan' }
@@ -20,6 +21,11 @@ export default function PengaturanPage({ searchParams }: PengaturanPageProps) {
         fallback={<p className="rounded-xl border border-zinc-200 p-6 text-sm text-zinc-500">Memuat koneksi Instagram…</p>}
       >
         <InstagramSettings searchParams={searchParams} />
+      </Suspense>
+      <Suspense
+        fallback={<p className="rounded-xl border border-zinc-200 p-6 text-sm text-zinc-500">Memuat koneksi Facebook…</p>}
+      >
+        <FacebookSettings searchParams={searchParams} />
       </Suspense>
     </div>
   )

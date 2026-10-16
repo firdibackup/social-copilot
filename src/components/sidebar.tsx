@@ -4,7 +4,9 @@ import {
   CalendarDays,
   ChartNoAxesColumn,
   Image as ImageIcon,
+  Images,
   MessageCircle,
+  Palette,
   Settings,
   WandSparkles,
   type LucideIcon,
@@ -24,9 +26,11 @@ interface NavItem {
 const NAV_ITEMS: readonly NavItem[] = [
   { href: '/kalender', label: 'Kalender', icon: CalendarDays },
   { href: '/buat', label: 'Buat', icon: WandSparkles },
+  { href: '/studio', label: 'Studio', icon: Images },
   { href: '/balasan', label: 'Balasan', icon: MessageCircle },
   { href: '/analitik', label: 'Analitik', icon: ChartNoAxesColumn, isComingSoon: true },
   { href: '/aset', label: 'Aset', icon: ImageIcon },
+  { href: '/brand', label: 'Brand', icon: Palette },
   { href: '/pengaturan', label: 'Pengaturan', icon: Settings },
 ]
 

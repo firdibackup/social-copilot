@@ -7,7 +7,9 @@ import {
   exchangeCodeForToken,
   exchangeForLongLivedToken,
   fetchCustomerProfile,
+  fetchOwnProfile,
   fetchProfile,
+  fetchRecentMedia,
   getContainerStatus,
   publishContainer,
   sendDirectMessage,
@@ -274,5 +276,39 @@ describe('subscribeToMessages', () => {
     fetchMock.mockResolvedValue(jsonResponse({ success: false }))
 
     await expect(subscribeToMessages('token-1')).rejects.toBeInstanceOf(InstagramApiError)
+  })
+})
+
+describe('fetchOwnProfile', () => {
+  it('returns the name and bio, empty when Instagram leaves them out', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ username: 'kopisinar', biography: 'Ngopi santai', id: '1' }))
+
+    await expect(fetchOwnProfile('token')).resolves.toEqual({ username: 'kopisinar', name: '', biography: 'Ngopi santai' })
+    expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('fields')).toBe('username,name,biography')
+  })
+})
+
+describe('fetchRecentMedia', () => {
+  it('keeps posts with a still image: photos, a carousel cover and a video thumbnail', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: [
+          { id: '1', media_type: 'IMAGE', media_url: 'https://cdn/1.jpg', caption: 'Halo', permalink: 'https://ig/p/1' },
+          { id: '2', media_type: 'CAROUSEL_ALBUM', media_url: 'https://cdn/2.jpg' },
+          { id: '3', media_type: 'VIDEO', media_url: 'https://cdn/3.mp4', thumbnail_url: 'https://cdn/3.jpg' },
+          { id: '4', media_type: 'VIDEO', media_url: 'https://cdn/4.mp4' },
+        ],
+      }),
+    )
+
+    const posts = await fetchRecentMedia('token', 12)
+
+    expect(posts.map((post) => [post.id, post.imageUrl])).toEqual([
+      ['1', 'https://cdn/1.jpg'],
+      ['2', 'https://cdn/2.jpg'],
+      ['3', 'https://cdn/3.jpg'],
+    ])
+    expect(posts[0]).toEqual({ id: '1', caption: 'Halo', imageUrl: 'https://cdn/1.jpg', permalink: 'https://ig/p/1' })
+    expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('limit')).toBe('12')
   })
 })

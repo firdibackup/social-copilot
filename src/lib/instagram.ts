@@ -66,8 +66,9 @@ export class InstagramApiError extends Error {
 type Json = Record<string, unknown>
 
 const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null
+const optionalString = (value: unknown) => (typeof value === 'string' && value !== '' ? value : null)
 
-function readString(source: Json, key: string): string {
+export function readString(source: Json, key: string): string {
   const value = source[key]
   if (typeof value !== 'string' || value === '') {
     throw new InstagramApiError(`Respons Instagram tanpa ${key}`, null, 200)
@@ -88,7 +89,8 @@ function toApiError(body: unknown, status: number): InstagramApiError {
   )
 }
 
-async function request(url: string | URL, init?: RequestInit): Promise<Json> {
+/** One Graph call. graph.facebook.com answers in the same shape, so `facebook.ts` uses it too. */
+export async function request(url: string | URL, init?: RequestInit): Promise<Json> {
   const response = await fetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }).catch(
     (error: unknown) => {
       // Network errors can echo the URL, which carries the token; keep only the error type.
@@ -192,6 +194,53 @@ export async function fetchProfile(accessToken: string): Promise<InstagramProfil
   }
 }
 
+export interface OwnProfile {
+  username: string
+  name: string
+  biography: string
+}
+
+/** The connected account's own name and bio, for the brand kit. */
+export async function fetchOwnProfile(accessToken: string): Promise<OwnProfile> {
+  const body = await request(graphUrl('/me', { fields: 'username,name,biography', access_token: accessToken }))
+  return {
+    username: readString(body, 'username'),
+    name: optionalString(body.name) ?? '',
+    biography: optionalString(body.biography) ?? '',
+  }
+}
+
+/** A post offered as a design reference. `imageUrl` is a signed CDN link: never log it. */
+export interface InstagramPost {
+  id: string
+  caption: string
+  imageUrl: string
+  permalink: string | null
+}
+
+/** Posts with a still image. A carousel's `media_url` is its first slide; a video needs `thumbnail_url`. */
+export function toPosts(data: unknown): InstagramPost[] {
+  if (!Array.isArray(data)) return []
+  return data.flatMap((item): InstagramPost[] => {
+    if (!isObject(item) || typeof item.id !== 'string') return []
+    const imageUrl = optionalString(item.media_type === 'VIDEO' ? item.thumbnail_url : item.media_url)
+    if (!imageUrl) return []
+    return [{ id: item.id, caption: optionalString(item.caption) ?? '', imageUrl, permalink: optionalString(item.permalink) }]
+  })
+}
+
+/** The connected account's newest posts. */
+export async function fetchRecentMedia(accessToken: string, limit: number): Promise<InstagramPost[]> {
+  const body = await request(
+    graphUrl('/me/media', {
+      fields: 'id,caption,media_type,media_url,thumbnail_url,permalink',
+      limit: String(limit),
+      access_token: accessToken,
+    }),
+  )
+  return toPosts(body.data)
+}
+
 /** Creates a media container. `params` are the /media fields: image_url, caption, is_carousel_item, children… */
 export async function createContainer(
   accessToken: string,
@@ -225,8 +274,6 @@ export interface CustomerProfile {
   username: string | null
   name: string | null
 }
-
-const optionalString = (value: unknown) => (typeof value === 'string' && value !== '' ? value : null)
 
 /** Profile of someone who has messaged the account. `igsid` is the sender id from the webhook. */
 export async function fetchCustomerProfile(accessToken: string, igsid: string): Promise<CustomerProfile> {

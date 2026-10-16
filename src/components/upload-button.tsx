@@ -7,7 +7,8 @@ import { uploadAsset, type UploadResult } from '@/app/(app)/aset/actions'
 import type { Asset } from '@/lib/assets'
 import { toInstagramJpeg } from '@/lib/image'
 
-async function prepareAndUpload(file: File): Promise<UploadResult> {
+/** Crops and re-encodes for Instagram in the browser, then stores it in Aset. Also used for AI images. */
+export async function prepareAndUpload(file: File): Promise<UploadResult> {
   let prepared
   try {
     prepared = await toInstagramJpeg(file)

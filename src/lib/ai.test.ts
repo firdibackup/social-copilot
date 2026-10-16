@@ -10,6 +10,8 @@ import {
   runAiTask,
 } from './ai'
 import type { AiRequest, Brief } from './ai-options'
+import { getBrandContext } from './brand'
+import type { BrandContext } from './brand-options'
 import { ConfigError } from './errors'
 import { chatCompletion, RouterApiError } from './nine-router'
 
@@ -36,6 +38,19 @@ vi.mock('./nine-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./nine-router')>()),
   chatCompletion: vi.fn(),
 }))
+
+vi.mock('./brand', () => ({ getBrandContext: vi.fn() }))
+
+const BRAND: BrandContext = {
+  name: 'Kopi Sinar',
+  category: 'Kedai kopi',
+  description: '',
+  audience: 'pekerja muda di Bandung',
+  voice: 'Santai, pakai "kak"',
+  wordsUse: '',
+  wordsAvoid: 'murah',
+  facts: '- Buka 08.00–22.00 WIB',
+}
 
 const BRIEF: Brief = {
   topic: 'Promo kopi susu gula aren 20%',
@@ -133,6 +148,30 @@ describe('buildMessages', () => {
     expect(user.content).toContain('"""\nHalo semua\n"""')
     expect(user.content).toContain('ajakan bertindak')
   })
+
+  it('puts the filled brand fields first and quotes the brand facts', () => {
+    const user = buildMessages(CAPTIONS, BRAND)[1].content
+
+    expect(user).toMatch(/^Tentang brand/)
+    expect(user).toContain('Nama: Kopi Sinar')
+    expect(user).toContain('Gaya bahasa: Santai, pakai "kak"')
+    expect(user).toContain('Hindari kata atau gaya ini: murah')
+    expect(user).toContain('Fakta brand yang boleh dipakai:\n"""\n- Buka 08.00–22.00 WIB\n"""')
+    expect(user).not.toContain('Deskripsi:')
+  })
+
+  it('lets brand facts count as facts and fills an empty audience from the brand', () => {
+    const user = buildMessages({ task: 'ideas', brief: { ...BRIEF, audience: '' } }, BRAND)[1].content
+
+    expect(user).toContain('Audiens: pekerja muda di Bandung')
+    expect(user.trimEnd()).toMatch(/Hanya pakai fakta dari brief dan fakta brand di atas\.[^\n]*$/)
+  })
+
+  it('keeps the brief-only reminder when the brand has no facts', () => {
+    const user = buildMessages(CAPTIONS, { ...BRAND, facts: '' })[1].content
+
+    expect(user.trimEnd()).toMatch(/Hanya pakai fakta dari brief di atas\.[^\n]*$/)
+  })
 })
 
 const thrown = (run: () => unknown): unknown => {
@@ -210,6 +249,7 @@ describe('runAiTask', () => {
     database.insertError = null
     database.inserted = []
     vi.mocked(chatCompletion).mockReset()
+    vi.mocked(getBrandContext).mockReset().mockResolvedValue(null)
     vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
@@ -268,6 +308,23 @@ describe('runAiTask', () => {
 
     await expect(runAiTask(CAPTIONS)).rejects.toThrow(AiOutputError)
     expect(database.inserted).toEqual([expect.objectContaining({ status: 'failed' })])
+  })
+
+  it('sends the saved brand kit with the request', async () => {
+    vi.mocked(getBrandContext).mockResolvedValue(BRAND)
+    vi.mocked(chatCompletion).mockResolvedValue('{"captions": ["Satu"]}')
+
+    await runAiTask(CAPTIONS)
+
+    expect(vi.mocked(chatCompletion).mock.calls[0][0][1].content).toContain('Nama: Kopi Sinar')
+  })
+
+  it('still writes captions when the brand kit cannot be read', async () => {
+    vi.mocked(getBrandContext).mockRejectedValue(new Error('relation "brand_kit" does not exist'))
+    vi.mocked(chatCompletion).mockResolvedValue('{"captions": ["Satu"]}')
+
+    await expect(runAiTask(CAPTIONS)).resolves.toEqual(['Satu'])
+    expect(vi.mocked(chatCompletion).mock.calls[0][0][1].content).not.toContain('Tentang brand')
   })
 
   it('still returns the options when the log insert fails', async () => {

@@ -42,14 +42,18 @@ describe('isLocalRequest', () => {
 describe('isAllowedRequest', () => {
   const tunnel = headers({ host: NGROK_HOST, 'x-forwarded-for': PUBLIC_IP })
 
-  it('lets the Instagram OAuth callback and the DM webhook through the tunnel', () => {
+  it('lets the OAuth callbacks, the DM webhook and the privacy policy through the tunnel', () => {
     expect(isAllowedRequest(tunnel, '/api/auth/instagram/callback')).toBe(true)
+    expect(isAllowedRequest(tunnel, '/api/auth/facebook/callback')).toBe(true)
     expect(isAllowedRequest(tunnel, '/api/webhooks/instagram')).toBe(true)
+    expect(isAllowedRequest(tunnel, '/privasi')).toBe(true)
   })
 
-  it('blocks dashboard pages and the OAuth start route through the tunnel', () => {
+  it('blocks dashboard pages and the OAuth start routes through the tunnel', () => {
     expect(isAllowedRequest(tunnel, '/pengaturan')).toBe(false)
+    expect(isAllowedRequest(tunnel, '/brand')).toBe(false)
     expect(isAllowedRequest(tunnel, '/api/auth/instagram/start')).toBe(false)
+    expect(isAllowedRequest(tunnel, '/api/auth/facebook/start')).toBe(false)
     expect(isAllowedRequest(tunnel, '/api/auth/instagram/callback/../start')).toBe(false)
   })
 

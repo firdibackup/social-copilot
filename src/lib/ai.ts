@@ -9,6 +9,8 @@ import {
   type Brief,
   type RewriteStyle,
 } from './ai-options'
+import { getBrandContext } from './brand'
+import type { BrandContext } from './brand-options'
 import { CAPTION_MAX_HASHTAGS, CAPTION_MAX_LENGTH, findHashtags } from './caption'
 import { env } from './env'
 import { ConfigError, describeError } from './errors'
@@ -90,55 +92,73 @@ const REWRITE_INSTRUCTIONS: Record<RewriteStyle, string> = {
 }
 
 /** Repeated last in the brief prompts: Haiku still invented "stok terbatas" with the rule only in the system prompt. */
-const ONLY_BRIEF_FACTS =
-  'Hanya pakai fakta dari brief di atas. Jangan menambah klaim seperti stok terbatas, promo terbatas, atau kualitas premium.'
+const NO_INVENTED_CLAIMS = 'Jangan menambah klaim seperti stok terbatas, promo terbatas, atau kualitas premium.'
 
 /** Owner text goes between triple quotes, apart from the instructions. */
-const quote = (text: string) => `"""\n${text}\n"""`
+export const quote = (text: string) => `"""\n${text}\n"""`
 
 function photoFormat(count: number): string {
   if (count === 0) return 'belum ada foto'
   return count === 1 ? 'foto tunggal' : `carousel ${count} foto`
 }
 
-function describeBrief(brief: Brief): string {
+function describeBrief(brief: Brief, brand: BrandContext | null): string {
+  const allowed = brand?.facts ? 'brief dan fakta brand di atas' : 'brief di atas'
   return [
     `Topik:\n${quote(brief.topic)}`,
     `Tujuan: ${GOALS[brief.goal]}`,
     `Nada: ${TONES[brief.tone]}`,
-    `Audiens: ${brief.audience || 'umum'}`,
+    `Audiens: ${brief.audience || brand?.audience || 'umum'}`,
     `Format post: ${photoFormat(brief.photoCount)}`,
     '',
-    ONLY_BRIEF_FACTS,
+    `Hanya pakai fakta dari ${allowed}. ${NO_INVENTED_CLAIMS}`,
   ].join('\n')
 }
 
-function taskPrompt(request: AiRequest): string {
+const BRAND_LINES: [keyof BrandContext, string][] = [
+  ['name', 'Nama'],
+  ['category', 'Kategori'],
+  ['description', 'Deskripsi'],
+  ['audience', 'Audiens utama'],
+  ['voice', 'Gaya bahasa'],
+  ['wordsUse', 'Kata atau frasa khas'],
+  ['wordsAvoid', 'Hindari kata atau gaya ini'],
+]
+
+/** The brand kit as prompt text. Facts are owner text, so they are quoted. */
+export function describeBrand(brand: BrandContext): string {
+  const lines = BRAND_LINES.filter(([field]) => brand[field]).map(([field, label]) => `${label}: ${brand[field]}`)
+  if (brand.facts) lines.push(`Fakta brand yang boleh dipakai:\n${quote(brand.facts)}`)
+  return ['Tentang brand (ikuti gaya bahasanya; nada di brief menyesuaikan post ini):', ...lines, '', ''].join('\n')
+}
+
+function taskPrompt(request: AiRequest, brand: BrandContext | null): string {
+  const about = brand ? describeBrand(brand) : ''
   switch (request.task) {
     case 'captions':
       return [
-        `Tugas: tulis 3 variasi caption dengan sudut pandang berbeda. ${CAPTION_SHAPE}`,
+        `${about}Tugas: tulis 3 variasi caption dengan sudut pandang berbeda. ${CAPTION_SHAPE}`,
         'Format JSON: {"captions": ["…", "…", "…"]}',
         '',
-        describeBrief(request.brief),
+        describeBrief(request.brief, brand),
       ].join('\n')
     case 'ideas':
       return [
-        'Tugas: beri 5 ide post Instagram yang berbeda-beda untuk topik di bawah. Setiap ide berupa satu kalimat yang cukup jelas untuk dijadikan topik caption.',
+        `${about}Tugas: beri 5 ide post Instagram yang berbeda-beda untuk topik di bawah. Setiap ide berupa satu kalimat yang cukup jelas untuk dijadikan topik caption.`,
         'Format JSON: {"ideas": ["…", "…", "…", "…", "…"]}',
         '',
-        describeBrief(request.brief),
+        describeBrief(request.brief, brand),
       ].join('\n')
     case 'rewrite':
       return [
-        `Tugas: ${REWRITE_INSTRUCTIONS[request.style]} Pertahankan fakta, mention, dan hashtag yang ada.`,
+        `${about}Tugas: ${REWRITE_INSTRUCTIONS[request.style]} Pertahankan fakta, mention, dan hashtag yang ada.`,
         'Format JSON: {"caption": "…"}',
         '',
         `Caption:\n${quote(request.caption)}`,
       ].join('\n')
     case 'hashtags':
       return [
-        'Tugas: sarankan 10 hashtag relevan untuk caption di bawah, campuran hashtag populer dan spesifik. Jangan ulangi hashtag yang sudah ada di caption.',
+        `${about}Tugas: sarankan 10 hashtag relevan untuk caption di bawah, campuran hashtag populer dan spesifik. Jangan ulangi hashtag yang sudah ada di caption.`,
         'Format JSON: {"hashtags": ["#…"]}',
         '',
         `Caption:\n${quote(request.caption)}`,
@@ -146,10 +166,13 @@ function taskPrompt(request: AiRequest): string {
   }
 }
 
-export function buildMessages(request: AiRequest): ChatMessage[] {
+type TextMessage = ChatMessage & { content: string }
+
+/** `brand` is the saved brand kit's text, or null when it is empty. */
+export function buildMessages(request: AiRequest, brand: BrandContext | null = null): TextMessage[] {
   return [
     { role: 'system', content: SYSTEM_PROMPT },
-    { role: 'user', content: taskPrompt(request) },
+    { role: 'user', content: taskPrompt(request, brand) },
   ]
 }
 
@@ -169,13 +192,13 @@ export class AiOutputError extends Error {
 
 const truncate = (text: string, max: number) => Array.from(text).slice(0, max).join('')
 
-function snippetOf(content: string): string {
+export function snippetOf(content: string): string {
   const flat = content.replace(/\s+/g, ' ').trim()
   return lengthOf(flat) > SNIPPET_LENGTH ? `${truncate(flat, SNIPPET_LENGTH)}…` : flat
 }
 
 /** Takes the outermost `{…}`, so ```json fences or a sentence around the object don't matter. */
-function readJson(content: string): Json | null {
+export function readJson(content: string): Json | null {
   const start = content.indexOf('{')
   const end = content.lastIndexOf('}')
   if (start === -1 || end < start) return null
@@ -242,10 +265,14 @@ export class AiLimitError extends Error {
   override name = 'AiLimitError'
 }
 
+/** Every kind of 9Router request; all of them count towards DAILY_LIMIT. */
+export type LoggedTask = AiRequest['task'] | 'brand_profile' | 'brand_visual' | 'image' | 'image_plan'
+
 interface GenerationLog {
-  task: AiRequest['task']
-  input: AiRequest
-  output: string[] | null
+  task: LoggedTask
+  /** Never image data: it would bloat the table. */
+  input: unknown
+  output: unknown
   model: string
   status: 'ok' | 'failed'
   error: string | null
@@ -274,25 +301,55 @@ async function logGeneration(row: GenerationLog): Promise<void> {
   }
 }
 
-/** Checks the daily limit, asks the model, and logs the request whatever its outcome. */
-export async function runAiTask(request: AiRequest): Promise<string[]> {
-  const model = env('ROUTER_MODEL')
+interface LogOptions<T> {
+  /** Defaults to ROUTER_MODEL. */
+  model?: string
+  /** What the log keeps of the result; an image would bloat the table. */
+  logOutput?: (result: T) => unknown
+}
+
+/** Checks the daily limit, runs `ask`, and logs the request with its result (the output) whatever the outcome. */
+export async function runLogged<T>(
+  task: LoggedTask,
+  input: unknown,
+  ask: () => Promise<T>,
+  options: LogOptions<T> = {},
+): Promise<T> {
+  const model = options.model ?? env('ROUTER_MODEL')
   if ((await countRecentRequests()) >= DAILY_LIMIT) {
     throw new AiLimitError(`Batas ${DAILY_LIMIT} permintaan per 24 jam tercapai`)
   }
 
   const startedAt = Date.now()
   const log = (result: Pick<GenerationLog, 'output' | 'status' | 'error'>) =>
-    logGeneration({ task: request.task, input: request, model, duration_ms: Date.now() - startedAt, ...result })
+    logGeneration({ task, input, model, duration_ms: Date.now() - startedAt, ...result })
 
   try {
-    const options = parseOptions(request, await chatCompletion(buildMessages(request)))
-    await log({ output: options, status: 'ok', error: null })
-    return options
+    const result = await ask()
+    await log({ output: options.logOutput ? options.logOutput(result) : result, status: 'ok', error: null })
+    return result
   } catch (error) {
     await log({ output: null, status: 'failed', error: describeError(error) })
     throw error
   }
+}
+
+/** Captions still work when the brand kit can't be read; they are just not on-brand. */
+async function loadBrandContext(): Promise<BrandContext | null> {
+  try {
+    return await getBrandContext()
+  } catch (error) {
+    console.error('[ai] brand kit gagal dimuat, lanjut tanpa brand:', describeError(error))
+    return null
+  }
+}
+
+/** Asks the model for the editor's options, with the brand kit in the prompt. */
+export async function runAiTask(request: AiRequest): Promise<string[]> {
+  return runLogged(request.task, request, async () => {
+    const brand = await loadBrandContext()
+    return parseOptions(request, await chatCompletion(buildMessages(request, brand)))
+  })
 }
 
 function routerErrorMessage(status: number): string {
@@ -300,6 +357,8 @@ function routerErrorMessage(status: number): string {
   if (status === 200) return 'Jawaban AI kosong. Coba lagi, atau ganti ROUTER_MODEL kalau terus terjadi.'
   if (status === 401 || status === 403) return 'API key 9Router ditolak. Periksa ROUTER_API_KEY di .env.local.'
   if (status === 404) return 'Model AI tidak ditemukan. Periksa ROUTER_MODEL di .env.local.'
+  // nginx in front of 9Router answers this above client_max_body_size (1 MB by default).
+  if (status === 413) return 'Permintaan ke 9Router terlalu besar. Kurangi atau perkecil gambar referensi.'
   if (status === 429) return 'Kuota AI sedang habis. Coba lagi beberapa menit lagi.'
   if (status >= 500) return 'Layanan AI sedang bermasalah. Coba lagi nanti.'
   return `Permintaan ditolak layanan AI (HTTP ${status}). Periksa ROUTER_MODEL di .env.local.`
