@@ -1,3 +1,5 @@
+import { paletteOf } from './palette'
+
 /** Meta's feed limits: JPEG only, at most 8 MB, aspect ratio 4:5 to 1.91:1, at most 1440 px wide. */
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024
 const MAX_WIDTH = 1440
@@ -33,6 +35,19 @@ export function isJpeg(bytes: Uint8Array): boolean {
   return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
 }
 
+export type ImageType = 'image/jpeg' | 'image/png' | 'image/webp'
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+const ascii = (bytes: Uint8Array, start: number, end: number) => String.fromCharCode(...bytes.subarray(start, end))
+
+/** What the bytes really are, whatever the file name or Content-Type claims. Null for anything else. */
+export function imageType(bytes: Uint8Array): ImageType | null {
+  if (isJpeg(bytes)) return 'image/jpeg'
+  if (bytes.length >= 8 && PNG_SIGNATURE.every((byte, index) => bytes[index] === byte)) return 'image/png'
+  if (bytes.length >= 12 && ascii(bytes, 0, 4) === 'RIFF' && ascii(bytes, 8, 12) === 'WEBP') return 'image/webp'
+  return null
+}
+
 export interface PreparedImage {
   blob: Blob
   width: number
@@ -58,4 +73,36 @@ export async function toInstagramJpeg(file: File): Promise<PreparedImage> {
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY))
   if (!blob) throw new Error('Foto gagal dikonversi ke JPEG')
   return { blob, width: fit.width, height: fit.height }
+}
+
+/**
+ * Instagram's own width. References travel to 9Router as data URLs under a 1 MB request limit
+ * (see VISUAL_BODY_BUDGET), so smaller files let more of them into one analysis.
+ */
+const REFERENCE_MAX_EDGE = 1080
+const REFERENCE_QUALITY = 0.85
+
+export interface PreparedReference {
+  blob: Blob
+  palette: string[]
+}
+
+/** Browser only: a design reference as JPEG, uncropped and at most 1080 px on the long edge, with its palette. */
+export async function toReferenceJpeg(file: File): Promise<PreparedReference> {
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, REFERENCE_MAX_EDGE / Math.max(bitmap.width, bitmap.height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('Canvas tidak tersedia di browser ini')
+  context.fillStyle = '#ffffff'
+  context.fillRect(0, 0, canvas.width, canvas.height)
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  const palette = paletteOf(bitmap)
+  bitmap.close()
+
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', REFERENCE_QUALITY))
+  if (!blob) throw new Error('Gambar gagal dikonversi ke JPEG')
+  return { blob, palette }
 }

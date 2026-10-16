@@ -4,17 +4,18 @@ import {
   aiErrorMessage,
   AiOutputError,
   buildMessages,
-  DAILY_LIMIT,
   parseAiRequest,
   parseOptions,
   runAiTask,
 } from './ai'
 import type { AiRequest, Brief } from './ai-options'
+import { creditsUsed, getCurrentPeriod } from './billing'
+import { getBrandContext } from './brand'
+import type { BrandContext } from './brand-options'
 import { ConfigError } from './errors'
 import { chatCompletion, RouterApiError } from './nine-router'
 
 const database = vi.hoisted(() => ({
-  recent: 0 as number | null,
   insertError: null as { message: string } | null,
   inserted: [] as unknown[],
 }))
@@ -23,7 +24,6 @@ vi.mock('./supabase', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./supabase')>()),
   db: () => ({
     from: () => ({
-      select: () => ({ gt: async () => ({ count: database.recent, error: null }) }),
       insert: async (row: unknown) => {
         database.inserted.push(row)
         return { data: null, error: database.insertError }
@@ -36,6 +36,20 @@ vi.mock('./nine-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./nine-router')>()),
   chatCompletion: vi.fn(),
 }))
+
+vi.mock('./brand', () => ({ getBrandContext: vi.fn() }))
+vi.mock('./billing', () => ({ creditsUsed: vi.fn(), getCurrentPeriod: vi.fn() }))
+
+const BRAND: BrandContext = {
+  name: 'Kopi Sinar',
+  category: 'Kedai kopi',
+  description: '',
+  audience: 'pekerja muda di Bandung',
+  voice: 'Santai, pakai "kak"',
+  wordsUse: '',
+  wordsAvoid: 'murah',
+  facts: '- Buka 08.00–22.00 WIB',
+}
 
 const BRIEF: Brief = {
   topic: 'Promo kopi susu gula aren 20%',
@@ -133,6 +147,30 @@ describe('buildMessages', () => {
     expect(user.content).toContain('"""\nHalo semua\n"""')
     expect(user.content).toContain('ajakan bertindak')
   })
+
+  it('puts the filled brand fields first and quotes the brand facts', () => {
+    const user = buildMessages(CAPTIONS, BRAND)[1].content
+
+    expect(user).toMatch(/^Tentang brand/)
+    expect(user).toContain('Nama: Kopi Sinar')
+    expect(user).toContain('Gaya bahasa: Santai, pakai "kak"')
+    expect(user).toContain('Hindari kata atau gaya ini: murah')
+    expect(user).toContain('Fakta brand yang boleh dipakai:\n"""\n- Buka 08.00–22.00 WIB\n"""')
+    expect(user).not.toContain('Deskripsi:')
+  })
+
+  it('lets brand facts count as facts and fills an empty audience from the brand', () => {
+    const user = buildMessages({ task: 'ideas', brief: { ...BRIEF, audience: '' } }, BRAND)[1].content
+
+    expect(user).toContain('Audiens: pekerja muda di Bandung')
+    expect(user.trimEnd()).toMatch(/Hanya pakai fakta dari brief dan fakta brand di atas\.[^\n]*$/)
+  })
+
+  it('keeps the brief-only reminder when the brand has no facts', () => {
+    const user = buildMessages(CAPTIONS, { ...BRAND, facts: '' })[1].content
+
+    expect(user.trimEnd()).toMatch(/Hanya pakai fakta dari brief di atas\.[^\n]*$/)
+  })
 })
 
 const thrown = (run: () => unknown): unknown => {
@@ -203,13 +241,22 @@ describe('parseOptions', () => {
   })
 })
 
+const USER = 'user-1'
+const PERIOD = {
+  start: new Date('2026-10-01T00:00:00Z'),
+  end: new Date('2026-10-31T00:00:00Z'),
+  activeUntil: new Date('2026-10-31T00:00:00Z'),
+}
+
 describe('runAiTask', () => {
   beforeEach(() => {
     vi.stubEnv('ROUTER_MODEL', 'test-model')
-    database.recent = 0
+    vi.mocked(getCurrentPeriod).mockReset().mockResolvedValue(PERIOD)
+    vi.mocked(creditsUsed).mockReset().mockResolvedValue(0)
     database.insertError = null
     database.inserted = []
     vi.mocked(chatCompletion).mockReset()
+    vi.mocked(getBrandContext).mockReset().mockResolvedValue(null)
     vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
@@ -218,19 +265,38 @@ describe('runAiTask', () => {
     vi.restoreAllMocks()
   })
 
-  it('stops at the daily limit without asking the model', async () => {
-    database.recent = DAILY_LIMIT
+  it('stops when the period has fewer credits left than the task costs', async () => {
+    vi.mocked(creditsUsed).mockResolvedValue(999) // captions cost 2 of 1,000
 
-    await expect(runAiTask(CAPTIONS)).rejects.toThrow(AiLimitError)
+    const error = await runAiTask(USER, CAPTIONS).then(() => null, (caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(AiLimitError)
+    expect(aiErrorMessage(error)).toContain('Kuota AI periode ini habis')
+    expect(creditsUsed).toHaveBeenCalledWith(USER, PERIOD.start)
     expect(chatCompletion).not.toHaveBeenCalled()
     expect(database.inserted).toEqual([])
   })
 
-  it('refuses to ask the model when the request count cannot be read', async () => {
-    // postgrest-js turns a HEAD 404 with no body (the table is not migrated yet) into no error and no count.
-    database.recent = null
+  it('still runs a task that uses up the last credits exactly', async () => {
+    vi.mocked(creditsUsed).mockResolvedValue(998)
+    vi.mocked(chatCompletion).mockResolvedValue('{"captions": ["Satu"]}')
 
-    const error = await runAiTask(CAPTIONS).then(() => null, (caught: unknown) => caught)
+    await expect(runAiTask(USER, CAPTIONS)).resolves.toEqual(['Satu'])
+  })
+
+  it('refuses without an active subscription', async () => {
+    vi.mocked(getCurrentPeriod).mockResolvedValue(null)
+
+    const error = await runAiTask(USER, CAPTIONS).then(() => null, (caught: unknown) => caught)
+
+    expect(aiErrorMessage(error)).toContain('Langganan tidak aktif')
+    expect(chatCompletion).not.toHaveBeenCalled()
+  })
+
+  it('refuses to ask the model when the credit count cannot be read', async () => {
+    vi.mocked(creditsUsed).mockRejectedValue(new Error('Supabase: jumlah kredit tidak terbaca'))
+
+    const error = await runAiTask(USER, CAPTIONS).then(() => null, (caught: unknown) => caught)
 
     expect(chatCompletion).not.toHaveBeenCalled()
     expect(aiErrorMessage(error)).toBe(
@@ -241,9 +307,11 @@ describe('runAiTask', () => {
   it('returns the options and logs the request', async () => {
     vi.mocked(chatCompletion).mockResolvedValue('{"captions": ["Satu"]}')
 
-    await expect(runAiTask(CAPTIONS)).resolves.toEqual(['Satu'])
+    await expect(runAiTask(USER, CAPTIONS)).resolves.toEqual(['Satu'])
     expect(database.inserted).toEqual([
       expect.objectContaining({
+        user_id: USER,
+        credits: 2,
         task: 'captions',
         input: CAPTIONS,
         output: ['Satu'],
@@ -257,24 +325,41 @@ describe('runAiTask', () => {
   it('logs a failure and rethrows it', async () => {
     vi.mocked(chatCompletion).mockRejectedValue(new RouterApiError('rate limited', 429))
 
-    await expect(runAiTask(CAPTIONS)).rejects.toMatchObject({ status: 429 })
+    await expect(runAiTask(USER, CAPTIONS)).rejects.toMatchObject({ status: 429 })
     expect(database.inserted).toEqual([
-      expect.objectContaining({ status: 'failed', output: null, error: 'RouterApiError: rate limited' }),
+      expect.objectContaining({ status: 'failed', output: null, error: 'RouterApiError: rate limited', credits: 0 }),
     ])
   })
 
   it('logs an unreadable answer as a failure', async () => {
     vi.mocked(chatCompletion).mockResolvedValue('Gemini 3.5 Flash is no longer available.')
 
-    await expect(runAiTask(CAPTIONS)).rejects.toThrow(AiOutputError)
+    await expect(runAiTask(USER, CAPTIONS)).rejects.toThrow(AiOutputError)
     expect(database.inserted).toEqual([expect.objectContaining({ status: 'failed' })])
+  })
+
+  it('sends the saved brand kit with the request', async () => {
+    vi.mocked(getBrandContext).mockResolvedValue(BRAND)
+    vi.mocked(chatCompletion).mockResolvedValue('{"captions": ["Satu"]}')
+
+    await runAiTask(USER, CAPTIONS)
+
+    expect(vi.mocked(chatCompletion).mock.calls[0][0][1].content).toContain('Nama: Kopi Sinar')
+  })
+
+  it('still writes captions when the brand kit cannot be read', async () => {
+    vi.mocked(getBrandContext).mockRejectedValue(new Error('relation "brand_kit" does not exist'))
+    vi.mocked(chatCompletion).mockResolvedValue('{"captions": ["Satu"]}')
+
+    await expect(runAiTask(USER, CAPTIONS)).resolves.toEqual(['Satu'])
+    expect(vi.mocked(chatCompletion).mock.calls[0][0][1].content).not.toContain('Tentang brand')
   })
 
   it('still returns the options when the log insert fails', async () => {
     database.insertError = { message: 'relation "ai_generations" does not exist' }
     vi.mocked(chatCompletion).mockResolvedValue('{"captions": ["Satu"]}')
 
-    await expect(runAiTask(CAPTIONS)).resolves.toEqual(['Satu'])
+    await expect(runAiTask(USER, CAPTIONS)).resolves.toEqual(['Satu'])
     expect(console.error).toHaveBeenCalled()
   })
 })
@@ -285,7 +370,7 @@ describe('aiErrorMessage', () => {
       new ConfigError('ROUTER_API_KEY belum diisi di .env.local'),
       'Konfigurasi AI belum lengkap: ROUTER_API_KEY belum diisi di .env.local.',
     ],
-    [new AiLimitError('limit'), 'Batas 100 permintaan AI per 24 jam sudah tercapai. Coba lagi nanti.'],
+    [new AiLimitError('Langganan tidak aktif.'), 'Langganan tidak aktif.'],
     [
       new AiOutputError('Gemini 3.5 Flash is no longer available.'),
       'Jawaban AI tidak bisa dibaca ("Gemini 3.5 Flash is no longer available."). Coba lagi, atau ganti ROUTER_MODEL kalau terus terjadi.',

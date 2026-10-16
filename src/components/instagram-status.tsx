@@ -1,4 +1,5 @@
 import { connection } from 'next/server'
+import { requireActiveUser } from '@/lib/auth'
 import { getConnection } from '@/lib/connection'
 import { describeError } from '@/lib/errors'
 
@@ -27,8 +28,9 @@ export function StatusLine({ tone, label }: Status) {
 async function loadStatus(): Promise<Status> {
   // Always read at request time; otherwise a failure before the query gets prerendered into the static shell.
   await connection()
+  const userId = await requireActiveUser()
   try {
-    const current = await getConnection()
+    const current = await getConnection(userId)
     if (!current) return { tone: 'muted', label: 'Belum terhubung' }
     if (current.status === 'needs_reconnect') return { tone: 'warning', label: 'Perlu disambung ulang' }
     return { tone: 'ok', label: `@${current.username}` }

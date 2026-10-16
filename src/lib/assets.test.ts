@@ -20,17 +20,17 @@ describe('createAsset', () => {
   })
 
   it('rejects a PNG before touching storage', async () => {
-    await expect(createAsset(blob([0x89, 0x50, 0x4e, 0x47]), 1080, 1080)).rejects.toBeInstanceOf(InvalidImageError)
+    await expect(createAsset('user-1', blob([0x89, 0x50, 0x4e, 0x47]), 1080, 1080)).rejects.toBeInstanceOf(InvalidImageError)
     expect(db).not.toHaveBeenCalled()
   })
 
   it('rejects a file over 8 MB', async () => {
-    await expect(createAsset(blob(JPEG_HEADER, 8 * 1024 * 1024 + 1), 1080, 1080)).rejects.toThrow('8 MB')
+    await expect(createAsset('user-1', blob(JPEG_HEADER, 8 * 1024 * 1024 + 1), 1080, 1080)).rejects.toThrow('8 MB')
     expect(db).not.toHaveBeenCalled()
   })
 
   it('rejects impossible dimensions', async () => {
-    await expect(createAsset(blob(JPEG_HEADER), 0, 1080)).rejects.toBeInstanceOf(InvalidImageError)
+    await expect(createAsset('user-1', blob(JPEG_HEADER), 0, 1080)).rejects.toBeInstanceOf(InvalidImageError)
     expect(db).not.toHaveBeenCalled()
   })
 })

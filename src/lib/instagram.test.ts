@@ -6,9 +6,14 @@ import {
   createContainer,
   exchangeCodeForToken,
   exchangeForLongLivedToken,
+  fetchCustomerProfile,
+  fetchOwnProfile,
   fetchProfile,
+  fetchRecentMedia,
   getContainerStatus,
   publishContainer,
+  sendDirectMessage,
+  subscribeToMessages,
 } from './instagram'
 
 const REDIRECT_URI = 'https://social-copilot.ngrok-free.app/api/auth/instagram/callback'
@@ -221,5 +226,89 @@ describe('InstagramApiError.isTransient', () => {
 
     expect(error).toBeInstanceOf(InstagramApiError)
     expect((error as InstagramApiError).isTransient).toBe(true)
+  })
+})
+
+describe('sendDirectMessage', () => {
+  it('posts JSON with a bearer token and returns the message id', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ recipient_id: '9012', message_id: 'mid-1' }))
+
+    await expect(sendDirectMessage('token-1', '1784', '9012', 'Halo!')).resolves.toBe('mid-1')
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toBe('https://graph.instagram.com/1784/messages')
+    expect(init?.method).toBe('POST')
+    expect(init?.headers).toMatchObject({ authorization: 'Bearer token-1', 'content-type': 'application/json' })
+    expect(JSON.parse(String(init?.body))).toEqual({ recipient: { id: '9012' }, message: { text: 'Halo!' } })
+  })
+
+  it('surfaces a Graph rejection', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: { message: 'outside the allowed window', code: 10 } }, 400))
+
+    await expect(sendDirectMessage('token-1', '1784', '9012', 'Halo!')).rejects.toMatchObject({ code: 10 })
+  })
+})
+
+describe('fetchCustomerProfile', () => {
+  it('reads username and name, leaving missing ones null', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ username: 'budi', id: '9012' }))
+
+    await expect(fetchCustomerProfile('token-1', '9012')).resolves.toEqual({ username: 'budi', name: null })
+    const url = new URL(String(fetchMock.mock.calls[0][0]))
+    expect(url.pathname).toBe('/9012')
+    expect(url.searchParams.get('fields')).toBe('username,name')
+  })
+})
+
+describe('subscribeToMessages', () => {
+  it('subscribes the account to the messages field', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true }))
+
+    await subscribeToMessages('token-1')
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toBe('https://graph.instagram.com/me/subscribed_apps')
+    expect(Object.fromEntries(init?.body as URLSearchParams)).toEqual({
+      subscribed_fields: 'messages',
+      access_token: 'token-1',
+    })
+  })
+
+  it('fails when Meta does not confirm', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: false }))
+
+    await expect(subscribeToMessages('token-1')).rejects.toBeInstanceOf(InstagramApiError)
+  })
+})
+
+describe('fetchOwnProfile', () => {
+  it('returns the name and bio, empty when Instagram leaves them out', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ username: 'kopisinar', biography: 'Ngopi santai', id: '1' }))
+
+    await expect(fetchOwnProfile('token')).resolves.toEqual({ username: 'kopisinar', name: '', biography: 'Ngopi santai' })
+    expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('fields')).toBe('username,name,biography')
+  })
+})
+
+describe('fetchRecentMedia', () => {
+  it('keeps posts with a still image: photos, a carousel cover and a video thumbnail', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: [
+          { id: '1', media_type: 'IMAGE', media_url: 'https://cdn/1.jpg', caption: 'Halo', permalink: 'https://ig/p/1' },
+          { id: '2', media_type: 'CAROUSEL_ALBUM', media_url: 'https://cdn/2.jpg' },
+          { id: '3', media_type: 'VIDEO', media_url: 'https://cdn/3.mp4', thumbnail_url: 'https://cdn/3.jpg' },
+          { id: '4', media_type: 'VIDEO', media_url: 'https://cdn/4.mp4' },
+        ],
+      }),
+    )
+
+    const posts = await fetchRecentMedia('token', 12)
+
+    expect(posts.map((post) => [post.id, post.imageUrl])).toEqual([
+      ['1', 'https://cdn/1.jpg'],
+      ['2', 'https://cdn/2.jpg'],
+      ['3', 'https://cdn/3.jpg'],
+    ])
+    expect(posts[0]).toEqual({ id: '1', caption: 'Halo', imageUrl: 'https://cdn/1.jpg', permalink: 'https://ig/p/1' })
+    expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('limit')).toBe('12')
   })
 })
