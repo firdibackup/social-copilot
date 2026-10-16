@@ -5,7 +5,7 @@ import { InstagramApiError, sendDirectMessage } from '@/lib/instagram'
 import { saveTemplateAction, saveVariablesAction, sendReply } from './actions'
 
 vi.mock('next/cache', () => ({ refresh: vi.fn() }))
-vi.mock('@/lib/local-only', () => ({ assertLocalRequest: vi.fn() }))
+vi.mock('@/lib/auth', () => ({ requireUser: vi.fn(async () => 'user-1') }))
 vi.mock('@/lib/connection', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/connection')>()),
   getPublishingAccount: vi.fn(),
@@ -58,7 +58,7 @@ describe('sendReply', () => {
     await expect(sendReply(CUSTOMER, '  Halo Budi!  ')).resolves.toBeNull()
 
     expect(sendDirectMessage).toHaveBeenCalledWith('token', '1784', CUSTOMER, 'Halo Budi!')
-    expect(recordMessage).toHaveBeenCalledWith({
+    expect(recordMessage).toHaveBeenCalledWith('user-1', {
       mid: 'mid-out',
       igsid: CUSTOMER,
       fromCustomer: false,
@@ -92,7 +92,7 @@ describe('sendReply', () => {
     vi.mocked(sendDirectMessage).mockRejectedValue(new InstagramApiError('Invalid token', 190, 400))
 
     await expect(sendReply(CUSTOMER, 'Halo')).resolves.toContain('Hubungkan ulang')
-    expect(markNeedsReconnect).toHaveBeenCalled()
+    expect(markNeedsReconnect).toHaveBeenCalledWith('user-1')
   })
 
   it('asks for a reconnect when the stored token is already unusable', async () => {
@@ -117,14 +117,14 @@ describe('sendReply', () => {
 describe('saveTemplateAction', () => {
   it('saves a new template, turning an empty keyword into a manual-only one', async () => {
     await expect(saveTemplateAction(null, '  ', ' Halo {sender_name} ')).resolves.toBeNull()
-    expect(saveTemplate).toHaveBeenCalledWith(null, null, 'Halo {sender_name}')
+    expect(saveTemplate).toHaveBeenCalledWith('user-1', null, null, 'Halo {sender_name}')
   })
 
   it('updates by id and reports a template that no longer exists', async () => {
     vi.mocked(saveTemplate).mockResolvedValue(false)
 
     await expect(saveTemplateAction(TEMPLATE_ID, 'promo', 'Promo!')).resolves.toBe('Template tidak ditemukan.')
-    expect(saveTemplate).toHaveBeenCalledWith(TEMPLATE_ID, 'promo', 'Promo!')
+    expect(saveTemplate).toHaveBeenCalledWith('user-1', TEMPLATE_ID, 'promo', 'Promo!')
   })
 
   it('rejects a malformed id and an empty body before saving', async () => {
@@ -137,7 +137,7 @@ describe('saveTemplateAction', () => {
 describe('saveVariablesAction', () => {
   it('saves parsed variables', async () => {
     await expect(saveVariablesAction('brand_name = Toko Sinar')).resolves.toBeNull()
-    expect(saveVariables).toHaveBeenCalledWith({ brand_name: 'Toko Sinar' })
+    expect(saveVariables).toHaveBeenCalledWith('user-1', { brand_name: 'Toko Sinar' })
   })
 
   it('returns the parse error without saving', async () => {

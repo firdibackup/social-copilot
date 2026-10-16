@@ -4,6 +4,7 @@ import { connection } from 'next/server'
 import { Suspense } from 'react'
 import { Notice } from '@/components/notice'
 import { PostStatusBadge } from '@/components/post-status-badge'
+import { requireUser } from '@/lib/auth'
 import { listAssets } from '@/lib/assets'
 import { getConnection } from '@/lib/connection'
 import { describeError, loadErrorMessage } from '@/lib/errors'
@@ -48,14 +49,15 @@ export default function BuatPage({ searchParams }: BuatPageProps) {
 async function EditorLoader({ searchParams }: BuatPageProps) {
   const params = await searchParams
   await connection()
+  const userId = await requireUser()
   const id = firstValue(params.id)
 
   let loaded
   try {
     const [post, library, account] = await Promise.all([
-      isUuid(id) ? getPost(id) : null,
-      listAssets(),
-      getConnection(),
+      isUuid(id) ? getPost(userId, id) : null,
+      listAssets(userId),
+      getConnection(userId),
     ])
     loaded = { post, library, instagramReady: account?.status === 'active' }
   } catch (error) {

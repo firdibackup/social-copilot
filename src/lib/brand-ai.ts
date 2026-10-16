@@ -85,8 +85,10 @@ export function parseProfile(content: string): ProfileDraft {
 }
 
 /** One request: the profile draft the brand form shows. Nothing is saved here. */
-export function analyzeProfile(sources: ProfileSources): Promise<ProfileDraft> {
-  return runLogged('brand_profile', sources, async () => parseProfile(await chatCompletion(buildProfileMessages(sources))))
+export function analyzeProfile(userId: string, sources: ProfileSources): Promise<ProfileDraft> {
+  return runLogged(userId, 'brand_profile', sources, async () =>
+    parseProfile(await chatCompletion(buildProfileMessages(sources))),
+  )
 }
 
 const VISUAL_SYSTEM = [
@@ -135,9 +137,9 @@ export function parseVisual(content: string, count: number): VisualAnalysis {
 }
 
 /** One vision request over the given references. The log keeps their ids and notes, not the images. */
-export function analyzeVisual(references: VisualReference[]): Promise<VisualAnalysis> {
+export function analyzeVisual(userId: string, references: VisualReference[]): Promise<VisualAnalysis> {
   const input = references.map(({ id, note }) => ({ id, note }))
-  return runLogged('brand_visual', input, async () =>
+  return runLogged(userId, 'brand_visual', input, async () =>
     parseVisual(await chatCompletion(buildVisualMessages(references)), references.length),
   )
 }

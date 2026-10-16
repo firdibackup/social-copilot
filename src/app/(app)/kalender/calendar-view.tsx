@@ -4,6 +4,7 @@ import { connection } from 'next/server'
 import { MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
 import { LateBadge, PostStatusBadge, STATUS_DOT_CLASS } from '@/components/post-status-badge'
+import { requireUser } from '@/lib/auth'
 import { buildMonthGrid, formatDay, formatMonth, parseMonth, shiftMonth } from '@/lib/calendar'
 import { describeError, loadErrorMessage } from '@/lib/errors'
 import { formatDateTime, formatTime, parseWibInput, wibDateKey } from '@/lib/format'
@@ -35,15 +36,16 @@ function listHref(status?: PostStatus, day?: string): string {
 export async function CalendarView({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
   await connection()
+  const userId = await requireUser()
   const now = new Date()
   const isList = firstValue(params.tampilan) === 'daftar'
 
   let body
   try {
     body = isList ? (
-      await PostList({ statusParam: firstValue(params.status), dayParam: firstValue(params.tanggal), now })
+      await PostList({ userId, statusParam: firstValue(params.status), dayParam: firstValue(params.tanggal), now })
     ) : (
-      await MonthView({ month: parseMonth(firstValue(params.bulan)) ?? wibDateKey(now).slice(0, 7), now })
+      await MonthView({ userId, month: parseMonth(firstValue(params.bulan)) ?? wibDateKey(now).slice(0, 7), now })
     )
   } catch (error) {
     console.error('[kalender] gagal memuat:', describeError(error))
@@ -88,10 +90,10 @@ function ViewLink({ href, active, label }: { href: string; active: boolean; labe
   )
 }
 
-async function MonthView({ month, now }: { month: string; now: Date }) {
+async function MonthView({ userId, month, now }: { userId: string; month: string; now: Date }) {
   const weeks = buildMonthGrid(month)
   const range = wibDayRange(weeks[0][0], weeks.at(-1)!.at(-1)!)!
-  const posts = await listPosts(range)
+  const posts = await listPosts(userId, range)
 
   // listPosts returns newest first; each day reads top to bottom by time.
   const byDay = new Map<string, Post[]>()
@@ -200,16 +202,17 @@ function DayCell({ day, posts, inMonth, isToday, now }: DayCellProps) {
 }
 
 interface PostListProps {
+  userId: string
   statusParam: string | undefined
   dayParam: string | undefined
   now: Date
 }
 
-async function PostList({ statusParam, dayParam, now }: PostListProps) {
+async function PostList({ userId, statusParam, dayParam, now }: PostListProps) {
   const status = isPostStatus(statusParam) ? statusParam : undefined
   const range = dayParam ? wibDayRange(dayParam) : null
   const day = range ? dayParam : undefined
-  const posts = await listPosts({ status, ...range })
+  const posts = await listPosts(userId, { status, ...range })
 
   return (
     <section className="space-y-4">

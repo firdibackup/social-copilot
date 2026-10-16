@@ -157,17 +157,17 @@ interface PackedImages {
  * Input images in priority order (slide 1, the reference, the logo), as long as they fit the 1 MB request limit
  * of the nginx in front of 9Router together.
  */
-async function packImages(input: ImageInput): Promise<PackedImages> {
+async function packImages(userId: string, input: ImageInput): Promise<PackedImages> {
   const packed: PackedImages = { images: [], described: [], skipped: [] }
   const { previousImage, referenceId } = input
   const candidates: { kind: InputImageKind; load: () => Promise<{ dataUrl: string; note?: string } | null> }[] = []
   if (previousImage) candidates.push({ kind: 'previous', load: async () => ({ dataUrl: previousImage }) })
-  if (referenceId) candidates.push({ kind: 'reference', load: () => loadReferenceImage(referenceId) })
+  if (referenceId) candidates.push({ kind: 'reference', load: () => loadReferenceImage(userId, referenceId) })
   if (input.includeLogo) {
     candidates.push({
       kind: 'logo',
       load: async () => {
-        const dataUrl = await loadLogoImage()
+        const dataUrl = await loadLogoImage(userId)
         return dataUrl ? { dataUrl } : null
       },
     })
@@ -208,8 +208,8 @@ export interface CreatedImage {
 }
 
 /** One image request. The log keeps the prompt and the choices, never image data. */
-export async function createImage(input: ImageInput): Promise<CreatedImage> {
-  const [brand, packed] = await Promise.all([orNull(getBrandVisual, 'brand kit'), packImages(input)])
+export async function createImage(userId: string, input: ImageInput): Promise<CreatedImage> {
+  const [brand, packed] = await Promise.all([orNull(() => getBrandVisual(userId), 'brand kit'), packImages(userId, input)])
   const prompt = buildImagePrompt(input, brand, packed.described)
   const { size } = IMAGE_FORMATS[input.format]
   const logInput = {
@@ -223,7 +223,7 @@ export async function createImage(input: ImageInput): Promise<CreatedImage> {
     sent: packed.described.map((image) => image.kind),
     prompt,
   }
-  const b64 = await runLogged('image', logInput, () => generateImage({ prompt, size, images: packed.images }), {
+  const b64 = await runLogged(userId, 'image', logInput, () => generateImage({ prompt, size, images: packed.images }), {
     model: imageModel(),
     logOutput: (result) => ({ bytes: Buffer.byteLength(result, 'base64') }),
   })
@@ -282,9 +282,9 @@ export function parseContent(value: unknown): string | { error: string } {
 }
 
 /** One chat request: the slide plan the generator shows as an editable draft. */
-export async function planSlides(content: string): Promise<Slide[]> {
-  return runLogged('image_plan', { content }, async () => {
-    const brand = await orNull(getBrandContext, 'brand kit')
+export async function planSlides(userId: string, content: string): Promise<Slide[]> {
+  return runLogged(userId, 'image_plan', { content }, async () => {
+    const brand = await orNull(() => getBrandContext(userId), 'brand kit')
     return parsePlan(await chatCompletion(buildPlanMessages(content, brand)))
   })
 }

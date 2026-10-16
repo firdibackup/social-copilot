@@ -63,7 +63,7 @@ async function publish(post: ClaimedPost, now: Date): Promise<void> {
   if (post.attemptCount === 1 && now.getTime() - post.scheduledAt.getTime() > LATE_LIMIT_MS) {
     throw new PublishFailed(LATE_MESSAGE, false)
   }
-  const { accessToken, instagramUserId } = await getPublishingAccount()
+  const { accessToken, instagramUserId } = await getPublishingAccount(post.userId)
 
   // An earlier attempt left a container: Instagram may already have published it.
   let containerId = post.igContainerId
@@ -106,7 +106,7 @@ async function settle(post: ClaimedPost, error: unknown, now: Date): Promise<Set
   if (error instanceof PublishFailed) return fail(post, error.message, error.clearContainer)
   if (error instanceof NeedsReconnectError) return fail(post, RECONNECT_MESSAGE, false)
   if (error instanceof InstagramApiError && error.isInvalidToken) {
-    await markNeedsReconnect()
+    await markNeedsReconnect(post.userId)
     return fail(post, RECONNECT_MESSAGE, false)
   }
   // A rejection is final, and a rejected request published nothing, so the container can go.

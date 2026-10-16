@@ -1,17 +1,21 @@
 import { createHmac } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getConnectedAccountId, getValidAccessToken } from '@/lib/connection'
+import { findUserByInstagramId, getValidAccessToken } from '@/lib/connection'
 import { needsProfile, recordMessage, saveProfile } from '@/lib/dm'
 import { fetchCustomerProfile } from '@/lib/instagram'
 import { GET, POST } from './route'
 
-vi.mock('@/lib/connection', () => ({ getConnectedAccountId: vi.fn(), getValidAccessToken: vi.fn() }))
+vi.mock('@/lib/connection', () => ({ findUserByInstagramId: vi.fn(), getValidAccessToken: vi.fn() }))
 vi.mock('@/lib/dm', () => ({ needsProfile: vi.fn(), recordMessage: vi.fn(), saveProfile: vi.fn() }))
 vi.mock('@/lib/instagram', () => ({ fetchCustomerProfile: vi.fn() }))
 
 const URL_BASE = 'https://social-copilot.ngrok-free.dev/api/webhooks/instagram'
 const ACCOUNT = '17841400000000001'
+const OTHER_ACCOUNT = '17841400000000002'
+const USER = 'user-1'
+const OTHER_USER = 'user-2'
 const CUSTOMER = '901234567890'
+const OWNERS: Record<string, string> = { [ACCOUNT]: USER, [OTHER_ACCOUNT]: OTHER_USER }
 
 function webhook(body: unknown, secret = 'app-secret') {
   const raw = JSON.stringify(body)
@@ -19,24 +23,21 @@ function webhook(body: unknown, secret = 'app-secret') {
   return POST(new Request(URL_BASE, { method: 'POST', body: raw, headers: { 'x-hub-signature-256': signature } }))
 }
 
-const message = (mid: string, extra: Record<string, unknown> = {}) => ({
-  object: 'instagram',
-  entry: [
-    {
-      id: ACCOUNT,
-      messaging: [
-        { sender: { id: CUSTOMER }, recipient: { id: ACCOUNT }, timestamp: 1792130400000, message: { mid, text: 'ada promo?', ...extra } },
-      ],
-    },
+const entry = (account: string, mid: string, extra: Record<string, unknown> = {}) => ({
+  id: account,
+  messaging: [
+    { sender: { id: CUSTOMER }, recipient: { id: account }, timestamp: 1792130400000, message: { mid, text: 'ada promo?', ...extra } },
   ],
 })
+
+const message = (mid: string, extra: Record<string, unknown> = {}) => ({ object: 'instagram', entry: [entry(ACCOUNT, mid, extra)] })
 
 beforeEach(() => {
   vi.resetAllMocks()
   vi.spyOn(console, 'error').mockImplementation(() => {})
   vi.stubEnv('INSTAGRAM_APP_SECRET', 'app-secret')
   vi.stubEnv('INSTAGRAM_WEBHOOK_VERIFY_TOKEN', 'verify-me')
-  vi.mocked(getConnectedAccountId).mockResolvedValue(ACCOUNT)
+  vi.mocked(findUserByInstagramId).mockImplementation(async (account) => OWNERS[account] ?? null)
   vi.mocked(recordMessage).mockResolvedValue(true)
   vi.mocked(needsProfile).mockResolvedValue(true)
   vi.mocked(getValidAccessToken).mockResolvedValue('token')
@@ -65,15 +66,25 @@ describe('POST /api/webhooks/instagram', () => {
     const response = await webhook(message('m1'))
 
     expect(response.status).toBe(200)
-    expect(recordMessage).toHaveBeenCalledWith({
+    expect(recordMessage).toHaveBeenCalledWith(USER, {
       mid: 'm1',
       igsid: CUSTOMER,
       fromCustomer: true,
       text: 'ada promo?',
       sentAt: new Date(1792130400000),
     })
+    expect(getValidAccessToken).toHaveBeenCalledWith(USER)
     expect(fetchCustomerProfile).toHaveBeenCalledWith('token', CUSTOMER)
-    expect(saveProfile).toHaveBeenCalledWith(CUSTOMER, { username: 'budi', name: 'Budi' })
+    expect(saveProfile).toHaveBeenCalledWith(USER, CUSTOMER, { username: 'budi', name: 'Budi' })
+  })
+
+  it('stores each entry for the user who connected its account and skips accounts nobody has', async () => {
+    const body = { object: 'instagram', entry: [entry(ACCOUNT, 'm1'), entry(OTHER_ACCOUNT, 'm2'), entry('17841499999999999', 'm3')] }
+
+    expect((await webhook(body)).status).toBe(200)
+    expect(recordMessage).toHaveBeenCalledTimes(2)
+    expect(recordMessage).toHaveBeenCalledWith(USER, expect.objectContaining({ mid: 'm1' }))
+    expect(recordMessage).toHaveBeenCalledWith(OTHER_USER, expect.objectContaining({ mid: 'm2' }))
   })
 
   it('rejects a payload signed with another secret', async () => {
@@ -96,7 +107,7 @@ describe('POST /api/webhooks/instagram', () => {
     echo.entry[0].messaging[0].recipient = { id: CUSTOMER }
 
     expect((await webhook(echo)).status).toBe(200)
-    expect(recordMessage).toHaveBeenCalledWith(expect.objectContaining({ fromCustomer: false, igsid: CUSTOMER }))
+    expect(recordMessage).toHaveBeenCalledWith(USER, expect.objectContaining({ fromCustomer: false, igsid: CUSTOMER }))
     expect(needsProfile).not.toHaveBeenCalled()
   })
 
@@ -113,8 +124,8 @@ describe('POST /api/webhooks/instagram', () => {
     expect((await webhook(message('m1'))).status).toBe(500)
   })
 
-  it('acknowledges messages while no account is connected, without storing them', async () => {
-    vi.mocked(getConnectedAccountId).mockResolvedValue(null)
+  it('acknowledges messages for an account no user has connected, without storing them', async () => {
+    vi.mocked(findUserByInstagramId).mockResolvedValue(null)
 
     expect((await webhook(message('m1'))).status).toBe(200)
     expect(recordMessage).not.toHaveBeenCalled()

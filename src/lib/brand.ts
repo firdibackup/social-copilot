@@ -17,7 +17,6 @@ import type { ImageType } from './image'
 import { db, unwrap } from './supabase'
 
 const BUCKET = 'brand'
-const KIT_ID = 1
 const VIEW_URL_TTL_SECONDS = 60 * 60
 /** References sent in one visual analysis: the newest ones that fit VISUAL_BODY_BUDGET. */
 export const VISUAL_REFERENCE_LIMIT = 8
@@ -103,20 +102,20 @@ function toFields(row: KitRow): BrandFields {
   }
 }
 
-async function loadKit(): Promise<KitRow | null> {
-  return unwrap(await db().from('brand_kit').select(KIT_COLUMNS).eq('id', KIT_ID).maybeSingle()) as KitRow | null
+async function loadKit(userId: string): Promise<KitRow | null> {
+  return unwrap(await db().from('brand_kit').select(KIT_COLUMNS).eq('user_id', userId).maybeSingle()) as KitRow | null
 }
 
-export async function getBrandKit(): Promise<BrandKit> {
-  const row = await loadKit()
+export async function getBrandKit(userId: string): Promise<BrandKit> {
+  const row = await loadKit(userId)
   if (!row) return { ...EMPTY_BRAND, logoUrl: null }
   const [logoUrl] = row.logo_path ? await signUrls([row.logo_path]) : [null]
   return { ...toFields(row), logoUrl: logoUrl || null }
 }
 
 /** The text the caption prompts use, or null when none of it is filled in. */
-export async function getBrandContext(): Promise<BrandContext | null> {
-  const row = await loadKit()
+export async function getBrandContext(userId: string): Promise<BrandContext | null> {
+  const row = await loadKit(userId)
   if (!row) return null
   const fields = toFields(row)
   const context = Object.fromEntries(PROFILE_FIELDS.map((field) => [field, fields[field]])) as BrandContext
@@ -124,10 +123,10 @@ export async function getBrandContext(): Promise<BrandContext | null> {
 }
 
 /** Upserts every field but the logo, which has its own actions. */
-export async function saveBrandKit(fields: BrandFields): Promise<void> {
+export async function saveBrandKit(userId: string, fields: BrandFields): Promise<void> {
   unwrap(
     await db().from('brand_kit').upsert({
-      id: KIT_ID,
+      user_id: userId,
       name: fields.name,
       category: fields.category,
       description: fields.description,
@@ -146,8 +145,8 @@ export async function saveBrandKit(fields: BrandFields): Promise<void> {
   )
 }
 
-async function upload(prefix: string, bytes: Uint8Array, type: ImageType): Promise<string> {
-  const path = `${prefix}${randomUUID()}.${EXTENSIONS[type]}`
+async function upload(userId: string, prefix: string, bytes: Uint8Array, type: ImageType): Promise<string> {
+  const path = `${userId}/${prefix}${randomUUID()}.${EXTENSIONS[type]}`
   const result = await bucket().upload(path, bytes, { contentType: type })
   if (result.error) throw new Error(`Supabase Storage: ${result.error.message}`)
   return path
@@ -159,12 +158,12 @@ async function removeFile(path: string): Promise<void> {
 }
 
 /** Replaces the logo. The old file goes only after the row points at the new one. */
-export async function setLogo(bytes: Uint8Array, type: ImageType): Promise<void> {
-  const previous = (await loadKit())?.logo_path ?? null
-  const path = await upload('logo-', bytes, type)
+export async function setLogo(userId: string, bytes: Uint8Array, type: ImageType): Promise<void> {
+  const previous = (await loadKit(userId))?.logo_path ?? null
+  const path = await upload(userId, 'logo-', bytes, type)
   const saved = await db()
     .from('brand_kit')
-    .upsert({ id: KIT_ID, logo_path: path, updated_at: new Date().toISOString() })
+    .upsert({ user_id: userId, logo_path: path, updated_at: new Date().toISOString() })
   if (saved.error) {
     await removeFile(path)
     throw new Error(`Supabase: ${saved.error.message}`)
@@ -172,16 +171,25 @@ export async function setLogo(bytes: Uint8Array, type: ImageType): Promise<void>
   if (previous) await removeFile(previous)
 }
 
-export async function removeLogo(): Promise<void> {
-  const previous = (await loadKit())?.logo_path ?? null
+export async function removeLogo(userId: string): Promise<void> {
+  const previous = (await loadKit(userId))?.logo_path ?? null
   if (!previous) return
-  unwrap(await db().from('brand_kit').update({ logo_path: null, updated_at: new Date().toISOString() }).eq('id', KIT_ID))
+  unwrap(
+    await db()
+      .from('brand_kit')
+      .update({ logo_path: null, updated_at: new Date().toISOString() })
+      .eq('user_id', userId),
+  )
   await removeFile(previous)
 }
 
-export async function listReferences(): Promise<BrandReference[]> {
+export async function listReferences(userId: string): Promise<BrandReference[]> {
   const rows: ReferenceRow[] = unwrap(
-    await db().from('brand_references').select(REFERENCE_COLUMNS).order('created_at', { ascending: false }),
+    await db()
+      .from('brand_references')
+      .select(REFERENCE_COLUMNS)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false }),
   )
   const urls = await signUrls(rows.map((row) => row.storage_path))
   return rows.map((row, index) => ({
@@ -205,14 +213,18 @@ export interface NewReference {
   palette: string[]
 }
 
-export async function addReference(reference: NewReference): Promise<void> {
+export async function addReference(userId: string, reference: NewReference): Promise<void> {
   // ponytail: two imports racing can pass this check together; the gallery may end a few over the cap.
-  const { count, error } = await db().from('brand_references').select('id', { count: 'exact', head: true })
+  const { count, error } = await db()
+    .from('brand_references')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
   if (error || count === null) throw new Error(`Supabase: ${error?.message || 'jumlah referensi tidak terbaca'}`)
   if (count >= MAX_REFERENCES) throw new ReferenceLimitError(`Referensi sudah ${MAX_REFERENCES}. Hapus yang lama dulu.`)
 
-  const path = await upload('ref-', reference.bytes, reference.type)
+  const path = await upload(userId, 'ref-', reference.bytes, reference.type)
   const insert = await db().from('brand_references').insert({
+    user_id: userId,
     storage_path: path,
     content_type: reference.type,
     source: reference.source,
@@ -233,14 +245,16 @@ export interface ReferencePatch {
 }
 
 /** False when the reference no longer exists. */
-export async function updateReference(id: string, patch: ReferencePatch): Promise<boolean> {
-  const rows: unknown[] = unwrap(await db().from('brand_references').update(patch).eq('id', id).select('id'))
+export async function updateReference(userId: string, id: string, patch: ReferencePatch): Promise<boolean> {
+  const rows: unknown[] = unwrap(
+    await db().from('brand_references').update(patch).eq('id', id).eq('user_id', userId).select('id'),
+  )
   return rows.length === 1
 }
 
-export async function deleteReference(id: string): Promise<void> {
+export async function deleteReference(userId: string, id: string): Promise<void> {
   const rows: Pick<ReferenceRow, 'storage_path'>[] = unwrap(
-    await db().from('brand_references').delete().eq('id', id).select('storage_path'),
+    await db().from('brand_references').delete().eq('id', id).eq('user_id', userId).select('storage_path'),
   )
   if (rows.length === 1) await removeFile(rows[0].storage_path)
 }
@@ -276,8 +290,8 @@ export interface BrandVisual {
 }
 
 /** Null when none of it is filled in. */
-export async function getBrandVisual(): Promise<BrandVisual | null> {
-  const row = await loadKit()
+export async function getBrandVisual(userId: string): Promise<BrandVisual | null> {
+  const row = await loadKit(userId)
   if (!row) return null
   const { name, category, visualStyle, colors, headingFont, bodyFont } = toFields(row)
   const visual = { name, category, visualStyle, colors, headingFont, bodyFont }
@@ -291,9 +305,14 @@ export interface ReferenceImage {
 }
 
 /** One reference with its bytes, or null when it no longer exists. */
-export async function loadReferenceImage(id: string): Promise<ReferenceImage | null> {
+export async function loadReferenceImage(userId: string, id: string): Promise<ReferenceImage | null> {
   const row = unwrap(
-    await db().from('brand_references').select('storage_path, content_type, note').eq('id', id).maybeSingle(),
+    await db()
+      .from('brand_references')
+      .select('storage_path, content_type, note')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .maybeSingle(),
   ) as Pick<ReferenceRow, 'storage_path' | 'content_type' | 'note'> | null
   return row ? { dataUrl: await dataUrlOf(row.storage_path, row.content_type), note: row.note } : null
 }
@@ -304,18 +323,19 @@ const TYPE_BY_EXTENSION = Object.fromEntries(Object.entries(EXTENSIONS).map(([ty
 >
 
 /** The logo as a data URL, or null when there is none. Its type comes from the extension `setLogo` gave it. */
-export async function loadLogoImage(): Promise<string | null> {
-  const path = (await loadKit())?.logo_path
+export async function loadLogoImage(userId: string): Promise<string | null> {
+  const path = (await loadKit(userId))?.logo_path
   const type = path ? TYPE_BY_EXTENSION[path.split('.').pop() ?? ''] : undefined
   return path && type ? dataUrlOf(path, type) : null
 }
 
 /** The newest references whose bytes fit in one request together. */
-export async function loadVisualReferences(): Promise<VisualSelection> {
+export async function loadVisualReferences(userId: string): Promise<VisualSelection> {
   const rows: Pick<ReferenceRow, 'id' | 'storage_path' | 'content_type' | 'note'>[] = unwrap(
     await db()
       .from('brand_references')
       .select('id, storage_path, content_type, note')
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(VISUAL_CANDIDATES),
   )

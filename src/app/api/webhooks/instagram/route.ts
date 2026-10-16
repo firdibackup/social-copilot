@@ -1,6 +1,6 @@
-import { getConnectedAccountId, getValidAccessToken } from '@/lib/connection'
+import { findUserByInstagramId, getValidAccessToken } from '@/lib/connection'
 import { needsProfile, recordMessage, saveProfile } from '@/lib/dm'
-import { hasValidSignature, parseMessageEvents } from '@/lib/dm-webhook'
+import { entryAccountIds, hasValidSignature, parseMessageEvents } from '@/lib/dm-webhook'
 import { env } from '@/lib/env'
 import { describeError } from '@/lib/errors'
 import { fetchCustomerProfile } from '@/lib/instagram'
@@ -14,8 +14,9 @@ export function GET(request: Request): Response {
 }
 
 /**
- * DMs to and from the connected account, through the public tunnel. Answers 200 once they are stored; an error
- * status makes Meta retry, and `mid` keeps the retry from storing a message twice.
+ * DMs to and from every connected account. Each entry goes to the user who connected its account, and accounts
+ * no user has are skipped. Answers 200 once they are stored; an error status makes Meta retry, and `mid` keeps
+ * the retry from storing a message twice.
  */
 export async function POST(request: Request): Promise<Response> {
   const rawBody = Buffer.from(await request.arrayBuffer())
@@ -31,9 +32,12 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const accountId = await getConnectedAccountId()
-    for (const event of accountId ? parseMessageEvents(payload, accountId) : []) {
-      if ((await recordMessage(event)) && event.fromCustomer) await fillProfile(event.igsid)
+    for (const accountId of entryAccountIds(payload)) {
+      const userId = await findUserByInstagramId(accountId)
+      if (!userId) continue
+      for (const event of parseMessageEvents(payload, accountId)) {
+        if ((await recordMessage(userId, event)) && event.fromCustomer) await fillProfile(userId, event.igsid)
+      }
     }
   } catch (error) {
     console.error('[balasan] webhook gagal disimpan:', describeError(error))
@@ -43,10 +47,10 @@ export async function POST(request: Request): Promise<Response> {
 }
 
 /** Best effort: until the profile API answers, the inbox shows the customer without a name. */
-async function fillProfile(igsid: string): Promise<void> {
+async function fillProfile(userId: string, igsid: string): Promise<void> {
   try {
-    if (!(await needsProfile(igsid))) return
-    await saveProfile(igsid, await fetchCustomerProfile(await getValidAccessToken(), igsid))
+    if (!(await needsProfile(userId, igsid))) return
+    await saveProfile(userId, igsid, await fetchCustomerProfile(await getValidAccessToken(userId), igsid))
   } catch (error) {
     console.error('[balasan] profil pelanggan gagal diambil:', describeError(error))
   }

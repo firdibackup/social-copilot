@@ -1,10 +1,10 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { requireUser } from '@/lib/auth'
 import { inspectCaption } from '@/lib/caption'
 import { describeError } from '@/lib/errors'
 import { parseWibInput } from '@/lib/format'
-import { assertLocalRequest } from '@/lib/local-only'
 import { isUuid } from '@/lib/params'
 import { cancelPost, deletePost, duplicatePost, PostLockedError, retryPost, savePost } from '@/lib/posts'
 
@@ -21,7 +21,7 @@ type Intent = 'draft' | 'schedule' | 'now'
 const isIntent = (value: unknown): value is Intent => value === 'draft' || value === 'schedule' || value === 'now'
 
 export async function savePostAction(_previous: SaveState, formData: FormData): Promise<SaveState> {
-  await assertLocalRequest()
+  const userId = await requireUser()
   const intent = formData.get('intent')
   if (!isIntent(intent)) return { error: 'Aksi tidak dikenal.' }
 
@@ -44,7 +44,7 @@ export async function savePostAction(_previous: SaveState, formData: FormData): 
 
   let savedId: string
   try {
-    savedId = await savePost({
+    savedId = await savePost(userId, {
       id: isUuid(id) ? id : null,
       caption,
       status: intent === 'draft' ? 'draft' : 'scheduled',
@@ -60,12 +60,16 @@ export async function savePostAction(_previous: SaveState, formData: FormData): 
 }
 
 /** Runs a status change and reports it on the editor as `?ok=<code>` or `?gagal=<code>`. */
-async function runPostAction(formData: FormData, code: string, action: (id: string) => Promise<boolean>) {
-  await assertLocalRequest()
+async function runPostAction(
+  formData: FormData,
+  code: string,
+  action: (userId: string, id: string) => Promise<boolean>,
+) {
+  const userId = await requireUser()
   const id = formData.get('id')
   if (!isUuid(id)) redirect('/kalender')
 
-  const done = await action(id).catch((error: unknown) => {
+  const done = await action(userId, id).catch((error: unknown) => {
     console.error(`[buat] aksi ${code} gagal:`, describeError(error))
     return false
   })
@@ -81,11 +85,11 @@ export async function retryPostAction(formData: FormData): Promise<void> {
 }
 
 export async function duplicatePostAction(formData: FormData): Promise<void> {
-  await assertLocalRequest()
+  const userId = await requireUser()
   const id = formData.get('id')
   if (!isUuid(id)) redirect('/kalender')
 
-  const copyId = await duplicatePost(id).catch((error: unknown) => {
+  const copyId = await duplicatePost(userId, id).catch((error: unknown) => {
     console.error('[buat] duplikat gagal:', describeError(error))
     return null
   })
@@ -93,11 +97,11 @@ export async function duplicatePostAction(formData: FormData): Promise<void> {
 }
 
 export async function deletePostAction(formData: FormData): Promise<void> {
-  await assertLocalRequest()
+  const userId = await requireUser()
   const id = formData.get('id')
   if (!isUuid(id)) redirect('/kalender')
 
-  const deleted = await deletePost(id).catch((error: unknown) => {
+  const deleted = await deletePost(userId, id).catch((error: unknown) => {
     console.error('[buat] hapus gagal:', describeError(error))
     return false
   })

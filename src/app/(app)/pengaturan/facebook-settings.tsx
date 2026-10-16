@@ -1,4 +1,5 @@
 import { Notice } from '@/components/notice'
+import { requireUser } from '@/lib/auth'
 import { ConfigError, describeError } from '@/lib/errors'
 import { getFacebookConnection, type FacebookConnection } from '@/lib/facebook-connection'
 import { firstValue, type SearchParams } from '@/lib/params'
@@ -26,9 +27,9 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 const UNKNOWN_ERROR = 'Terjadi kesalahan saat menghubungkan Facebook. Coba lagi.'
 
-async function loadFacebook(): Promise<LoadResult> {
+async function loadFacebook(userId: string): Promise<LoadResult> {
   try {
-    return { kind: 'ok', connection: await getFacebookConnection() }
+    return { kind: 'ok', connection: await getFacebookConnection(userId) }
   } catch (error) {
     console.error('[pengaturan] koneksi Facebook gagal dimuat:', describeError(error))
     const message =
@@ -40,7 +41,7 @@ async function loadFacebook(): Promise<LoadResult> {
 /** Facebook Login exists only for Business Discovery: reading other accounts' posts as design references. */
 export async function FacebookSettings({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
-  const result = await loadFacebook()
+  const result = await loadFacebook(await requireUser())
   const success = SUCCESS_MESSAGES[firstValue(params.fb) ?? '']
   const errorCode = firstValue(params.fb_error)
   const error = errorCode ? (ERROR_MESSAGES[errorCode] ?? UNKNOWN_ERROR) : undefined

@@ -4,7 +4,6 @@ import type { MessageEvent } from './dm-webhook'
 import type { CustomerProfile } from './instagram'
 import { db, unwrap } from './supabase'
 
-const SETTINGS_ID = 1
 /** Meta accepts replies from the app until 24 hours after the customer's last message. */
 const REPLY_WINDOW_MS = 24 * 60 * 60 * 1000
 // ponytail: newest 100 conversations and the last 200 messages of one; paginate when an inbox outgrows them.
@@ -66,9 +65,10 @@ export function isReplyWindowOpen(conversation: Conversation, now: Date): boolea
 }
 
 /** Stores a message and updates its conversation. Returns false when the message was already stored. */
-export async function recordMessage(event: MessageEvent): Promise<boolean> {
+export async function recordMessage(userId: string, event: MessageEvent): Promise<boolean> {
   const stored: unknown = unwrap(
     await db().rpc('record_dm_message', {
+      p_user_id: userId,
       p_mid: event.mid,
       p_igsid: event.igsid,
       p_from_customer: event.fromCustomer,
@@ -79,41 +79,48 @@ export async function recordMessage(event: MessageEvent): Promise<boolean> {
   return stored === true
 }
 
-export async function needsProfile(igsid: string): Promise<boolean> {
+export async function needsProfile(userId: string, igsid: string): Promise<boolean> {
   const row = unwrap(
-    await db().from('dm_conversations').select('username').eq('igsid', igsid).maybeSingle(),
+    await db().from('dm_conversations').select('username').eq('user_id', userId).eq('igsid', igsid).maybeSingle(),
   ) as { username: string | null } | null
   return row !== null && row.username === null
 }
 
-export async function saveProfile(igsid: string, profile: CustomerProfile): Promise<void> {
-  unwrap(await db().from('dm_conversations').update(profile).eq('igsid', igsid))
+export async function saveProfile(userId: string, igsid: string, profile: CustomerProfile): Promise<void> {
+  unwrap(await db().from('dm_conversations').update(profile).eq('user_id', userId).eq('igsid', igsid))
 }
 
 /** Newest first. `waitingOnly` keeps the conversations whose last message came from the customer. */
-export async function listConversations(waitingOnly: boolean): Promise<Conversation[]> {
+export async function listConversations(userId: string, waitingOnly: boolean): Promise<Conversation[]> {
   let query = db()
     .from('dm_conversations')
     .select(CONVERSATION_COLUMNS)
+    .eq('user_id', userId)
     .order('last_message_at', { ascending: false })
     .limit(CONVERSATION_LIMIT)
   if (waitingOnly) query = query.eq('last_from_customer', true)
   return (unwrap(await query) as ConversationRow[]).map(toConversation)
 }
 
-export async function getConversation(igsid: string): Promise<Conversation | null> {
+export async function getConversation(userId: string, igsid: string): Promise<Conversation | null> {
   const row = unwrap(
-    await db().from('dm_conversations').select(CONVERSATION_COLUMNS).eq('igsid', igsid).maybeSingle(),
+    await db()
+      .from('dm_conversations')
+      .select(CONVERSATION_COLUMNS)
+      .eq('user_id', userId)
+      .eq('igsid', igsid)
+      .maybeSingle(),
   ) as ConversationRow | null
   return row && toConversation(row)
 }
 
 /** Oldest first, so the thread reads top to bottom. */
-export async function listMessages(igsid: string): Promise<DmMessage[]> {
+export async function listMessages(userId: string, igsid: string): Promise<DmMessage[]> {
   const rows = unwrap(
     await db()
       .from('dm_messages')
       .select('mid, from_customer, text, sent_at')
+      .eq('user_id', userId)
       .eq('igsid', igsid)
       .order('sent_at', { ascending: false })
       .limit(MESSAGE_LIMIT),
@@ -127,29 +134,40 @@ export async function listMessages(igsid: string): Promise<DmMessage[]> {
 }
 
 /** Oldest first: when two keywords match, the earlier template wins. */
-export async function listTemplates(): Promise<DmTemplate[]> {
+export async function listTemplates(userId: string): Promise<DmTemplate[]> {
   return unwrap(
-    await db().from('dm_templates').select('id, keyword, body').order('created_at', { ascending: true }),
+    await db()
+      .from('dm_templates')
+      .select('id, keyword, body')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true }),
   ) as DmTemplate[]
 }
 
 /** Inserts when `id` is null. Returns false when the template to update no longer exists. */
-export async function saveTemplate(id: string | null, keyword: string | null, body: string): Promise<boolean> {
+export async function saveTemplate(
+  userId: string,
+  id: string | null,
+  keyword: string | null,
+  body: string,
+): Promise<boolean> {
   if (id === null) {
-    unwrap(await db().from('dm_templates').insert({ keyword, body }))
+    unwrap(await db().from('dm_templates').insert({ user_id: userId, keyword, body }))
     return true
   }
-  const rows = unwrap(await db().from('dm_templates').update({ keyword, body }).eq('id', id).select('id')) as unknown[]
+  const rows = unwrap(
+    await db().from('dm_templates').update({ keyword, body }).eq('id', id).eq('user_id', userId).select('id'),
+  ) as unknown[]
   return rows.length === 1
 }
 
-export async function deleteTemplate(id: string): Promise<void> {
-  unwrap(await db().from('dm_templates').delete().eq('id', id))
+export async function deleteTemplate(userId: string, id: string): Promise<void> {
+  unwrap(await db().from('dm_templates').delete().eq('id', id).eq('user_id', userId))
 }
 
-export async function getVariables(): Promise<Variables> {
+export async function getVariables(userId: string): Promise<Variables> {
   const row = unwrap(
-    await db().from('dm_settings').select('variables').eq('id', SETTINGS_ID).maybeSingle(),
+    await db().from('dm_settings').select('variables').eq('user_id', userId).maybeSingle(),
   ) as { variables: unknown } | null
   const stored = row?.variables
   if (typeof stored !== 'object' || stored === null) return {}
@@ -158,6 +176,6 @@ export async function getVariables(): Promise<Variables> {
   )
 }
 
-export async function saveVariables(variables: Variables): Promise<void> {
-  unwrap(await db().from('dm_settings').upsert({ id: SETTINGS_ID, variables }))
+export async function saveVariables(userId: string, variables: Variables): Promise<void> {
+  unwrap(await db().from('dm_settings').upsert({ user_id: userId, variables }))
 }

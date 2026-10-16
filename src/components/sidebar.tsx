@@ -5,6 +5,7 @@ import {
   ChartNoAxesColumn,
   Image as ImageIcon,
   Images,
+  LogOut,
   MessageCircle,
   Palette,
   Settings,
@@ -14,6 +15,7 @@ import {
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
+import { signOut } from '@/app/masuk/actions'
 import { InstagramIcon } from './instagram-icon'
 
 interface NavItem {
@@ -41,9 +43,11 @@ const ICON_STROKE = 1.75
 
 interface SidebarProps {
   instagramStatus: ReactNode
+  /** The signed-in user's email. */
+  account: ReactNode
 }
 
-export function Sidebar({ instagramStatus }: SidebarProps) {
+export function Sidebar({ instagramStatus, account }: SidebarProps) {
   const pathname = usePathname()
 
   return (
@@ -66,6 +70,17 @@ export function Sidebar({ instagramStatus }: SidebarProps) {
           </span>
         </Link>
       </div>
+
+      <form action={signOut} className="flex items-center gap-2 border-t border-zinc-200 px-6 py-4 md:mt-auto">
+        <span className="min-w-0 flex-1">{account}</span>
+        <button
+          type="submit"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+        >
+          <LogOut size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          Keluar
+        </button>
+      </form>
     </aside>
   )
 }

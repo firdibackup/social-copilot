@@ -9,7 +9,7 @@ const geistSans = Geist({
 
 export const metadata: Metadata = {
   title: { default: "Social Copilot", template: "%s · Social Copilot" },
-  description: "Dashboard pribadi untuk menjadwalkan konten dan membalas DM Instagram.",
+  description: "Jadwalkan konten, buat draf dengan AI, dan balas DM Instagram dari satu tempat.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -1,5 +1,6 @@
 import { InstagramIcon } from '@/components/instagram-icon'
 import { Notice } from '@/components/notice'
+import { requireUser } from '@/lib/auth'
 import { checkConnectionHealth, getConnection, type Connection, type ConnectionHealth } from '@/lib/connection'
 import { ConfigError, describeError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
@@ -23,6 +24,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   gagal_profil: 'Token didapat, tapi profil Instagram gagal diambil. Coba hubungkan lagi.',
   gagal_database: 'Database tidak bisa diakses. Periksa konfigurasi Supabase di .env.local.',
   gagal_putus: 'Koneksi gagal diputus. Coba lagi.',
+  akun_dipakai:
+    'Akun Instagram ini sudah tersambung ke pengguna Social Copilot lain. Putuskan dulu dari akun tersebut, atau hubungkan akun Instagram lain.',
 }
 
 const UNKNOWN_ERROR = 'Terjadi kesalahan saat menghubungkan Instagram. Coba lagi.'
@@ -32,10 +35,10 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   MEDIA_CREATOR: 'Akun Kreator',
 }
 
-async function loadInstagram(): Promise<LoadResult> {
+async function loadInstagram(userId: string): Promise<LoadResult> {
   try {
-    const connection = await getConnection()
-    const health = connection?.status === 'active' ? await checkConnectionHealth() : null
+    const connection = await getConnection(userId)
+    const health = connection?.status === 'active' ? await checkConnectionHealth(userId) : null
     return { kind: 'ok', connection, health }
   } catch (error) {
     console.error('[pengaturan] koneksi gagal dimuat:', describeError(error))
@@ -53,7 +56,7 @@ interface InstagramSettingsProps {
 
 export async function InstagramSettings({ searchParams }: InstagramSettingsProps) {
   const params = await searchParams
-  const result = await loadInstagram()
+  const result = await loadInstagram(await requireUser())
   const success = SUCCESS_MESSAGES[firstValue(params.ig) ?? '']
   const errorCode = firstValue(params.ig_error)
   const error = errorCode ? (ERROR_MESSAGES[errorCode] ?? UNKNOWN_ERROR) : undefined

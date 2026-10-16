@@ -19,7 +19,7 @@ vi.mock('./supabase', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./supabase')>()),
   db: () => ({
     from: () => ({
-      select: () => ({ gt: async () => ({ count: 0, error: null }) }),
+      select: () => ({ eq: () => ({ gt: async () => ({ count: 0, error: null }) }) }),
       insert: async (row: unknown) => {
         database.inserted.push(row)
         return { data: null, error: null }
@@ -185,7 +185,7 @@ describe('createImage', () => {
   it('sends slide 1 and the reference, skips a logo that no longer fits 1 MB, and logs no image data', async () => {
     const previousImage = `data:image/jpeg;base64,${'P'.repeat(300_000)}`
 
-    const result = await createImage({ ...INPUT, previousImage, referenceId: REFERENCE_ID, includeLogo: true, slide: { index: 2, count: 3 } })
+    const result = await createImage('user-1', { ...INPUT, previousImage, referenceId: REFERENCE_ID, includeLogo: true, slide: { index: 2, count: 3 } })
 
     expect(result).toEqual({
       image: `data:image/jpeg;base64,${JPEG_B64}`,
@@ -205,7 +205,7 @@ describe('createImage', () => {
     vi.mocked(getBrandVisual).mockRejectedValue(new Error('relation "brand_kit" does not exist'))
     vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    await createImage(INPUT)
+    await createImage('user-1', INPUT)
 
     expect(vi.mocked(generateImage).mock.calls[0][0].prompt).not.toContain('Brand colours')
   })

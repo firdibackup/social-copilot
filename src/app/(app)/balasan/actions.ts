@@ -1,12 +1,12 @@
 'use server'
 
 import { refresh } from 'next/cache'
+import { requireUser } from '@/lib/auth'
 import { getPublishingAccount, getValidAccessToken, markNeedsReconnect, NeedsReconnectError } from '@/lib/connection'
 import { deleteTemplate, getConversation, isReplyWindowOpen, recordMessage, saveTemplate, saveVariables } from '@/lib/dm'
 import { KEYWORD_MAX_LENGTH, parseVariables, REPLY_MAX_LENGTH } from '@/lib/dm-templates'
 import { describeError } from '@/lib/errors'
 import { InstagramApiError, sendDirectMessage, subscribeToMessages } from '@/lib/instagram'
-import { assertLocalRequest } from '@/lib/local-only'
 import { isUuid } from '@/lib/params'
 
 /** Each action returns a message for the owner, or null when it worked. */
@@ -19,10 +19,10 @@ const WINDOW_CLOSED =
 const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
 
 /** Owner-facing text for an Instagram call that failed. */
-async function instagramErrorMessage(error: unknown, context: string): Promise<string> {
+async function instagramErrorMessage(userId: string, error: unknown, context: string): Promise<string> {
   if (error instanceof NeedsReconnectError) return RECONNECT
   if (error instanceof InstagramApiError && error.isInvalidToken) {
-    await markNeedsReconnect()
+    await markNeedsReconnect(userId)
     return RECONNECT
   }
   console.error(`[balasan] ${context}:`, describeError(error))
@@ -32,7 +32,7 @@ async function instagramErrorMessage(error: unknown, context: string): Promise<s
 }
 
 export async function sendReply(igsid: unknown, reply: unknown): Promise<ActionError> {
-  await assertLocalRequest()
+  const userId = await requireUser()
   const message = text(reply)
   if (!message) return 'Tulis balasan dulu.'
   if (message.length > REPLY_MAX_LENGTH) return `Balasan maksimal ${REPLY_MAX_LENGTH} karakter.`
@@ -40,17 +40,17 @@ export async function sendReply(igsid: unknown, reply: unknown): Promise<ActionE
   const customer = typeof igsid === 'string' ? igsid : ''
   let mid: string
   try {
-    const conversation = customer ? await getConversation(customer) : null
+    const conversation = customer ? await getConversation(userId, customer) : null
     if (!conversation) return 'Percakapan tidak ditemukan.'
     if (!isReplyWindowOpen(conversation, new Date())) return WINDOW_CLOSED
-    const account = await getPublishingAccount()
+    const account = await getPublishingAccount(userId)
     mid = await sendDirectMessage(account.accessToken, account.instagramUserId, customer, message)
   } catch (error) {
-    return instagramErrorMessage(error, 'balasan gagal dikirim')
+    return instagramErrorMessage(userId, error, 'balasan gagal dikirim')
   }
 
   // The DM is out. If this write fails, the webhook echo stores it moments later.
-  await recordMessage({ mid, igsid: customer, fromCustomer: false, text: message, sentAt: new Date() }).catch(
+  await recordMessage(userId, { mid, igsid: customer, fromCustomer: false, text: message, sentAt: new Date() }).catch(
     (error: unknown) => console.error('[balasan] balasan terkirim tapi gagal disimpan:', describeError(error)),
   )
   refresh()
@@ -58,7 +58,7 @@ export async function sendReply(igsid: unknown, reply: unknown): Promise<ActionE
 }
 
 export async function saveTemplateAction(id: unknown, keyword: unknown, body: unknown): Promise<ActionError> {
-  await assertLocalRequest()
+  const userId = await requireUser()
   const templateId = id === null ? null : isUuid(id) ? id : undefined
   const trigger = text(keyword)
   const reply = text(body)
@@ -68,7 +68,7 @@ export async function saveTemplateAction(id: unknown, keyword: unknown, body: un
   if (trigger.length > KEYWORD_MAX_LENGTH) return `Kata kunci maksimal ${KEYWORD_MAX_LENGTH} karakter.`
 
   try {
-    if (!(await saveTemplate(templateId, trigger || null, reply))) return 'Template tidak ditemukan.'
+    if (!(await saveTemplate(userId, templateId, trigger || null, reply))) return 'Template tidak ditemukan.'
   } catch (error) {
     console.error('[balasan] template gagal disimpan:', describeError(error))
     return 'Template gagal disimpan. Periksa koneksi Supabase.'
@@ -78,10 +78,10 @@ export async function saveTemplateAction(id: unknown, keyword: unknown, body: un
 }
 
 export async function deleteTemplateAction(id: unknown): Promise<ActionError> {
-  await assertLocalRequest()
+  const userId = await requireUser()
   if (!isUuid(id)) return 'Template tidak ditemukan.'
   try {
-    await deleteTemplate(id)
+    await deleteTemplate(userId, id)
   } catch (error) {
     console.error('[balasan] template gagal dihapus:', describeError(error))
     return 'Template gagal dihapus. Coba lagi.'
@@ -91,11 +91,11 @@ export async function deleteTemplateAction(id: unknown): Promise<ActionError> {
 }
 
 export async function saveVariablesAction(lines: unknown): Promise<ActionError> {
-  await assertLocalRequest()
+  const userId = await requireUser()
   const parsed = parseVariables(typeof lines === 'string' ? lines : '')
   if ('error' in parsed) return parsed.error
   try {
-    await saveVariables(parsed.variables)
+    await saveVariables(userId, parsed.variables)
   } catch (error) {
     console.error('[balasan] variabel gagal disimpan:', describeError(error))
     return 'Variabel gagal disimpan. Periksa koneksi Supabase.'
@@ -106,11 +106,11 @@ export async function saveVariablesAction(lines: unknown): Promise<ActionError> 
 
 /** Asks Meta to send the connected account's DMs to the webhook. */
 export async function subscribeAction(): Promise<ActionError> {
-  await assertLocalRequest()
+  const userId = await requireUser()
   try {
-    await subscribeToMessages(await getValidAccessToken())
+    await subscribeToMessages(await getValidAccessToken(userId))
     return null
   } catch (error) {
-    return instagramErrorMessage(error, 'langganan DM gagal')
+    return instagramErrorMessage(userId, error, 'langganan DM gagal')
   }
 }

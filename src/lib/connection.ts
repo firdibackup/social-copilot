@@ -11,12 +11,12 @@ import {
 } from './instagram'
 import { db, unwrap } from './supabase'
 
-const CONNECTION_ID = 1
 const STATE_BYTES = 32
 const STATE_TTL_MS = 10 * 60 * 1000
 const HOUR_MS = 60 * 60 * 1000
 const REFRESH_MIN_AGE_MS = 24 * HOUR_MS
 const REFRESH_WINDOW_MS = 7 * 24 * HOUR_MS
+const UNIQUE_VIOLATION = '23505'
 
 export type ConnectionStatus = 'active' | 'needs_reconnect'
 export type ConnectionHealth = 'healthy' | 'needs_reconnect' | 'unreachable'
@@ -43,34 +43,46 @@ export class NeedsReconnectError extends Error {
   override name = 'NeedsReconnectError'
 }
 
+/** The Instagram account is already connected to another user of the app. */
+export class AccountTakenError extends Error {
+  override name = 'AccountTakenError'
+}
+
 const stateCutoff = () => new Date(Date.now() - STATE_TTL_MS).toISOString()
 
-export async function createOAuthState(): Promise<string> {
+/** A one-time state that only `userId` can redeem, so a login started by one user can't finish in another's session. */
+export async function createOAuthState(userId: string): Promise<string> {
   const state = randomBytes(STATE_BYTES).toString('base64url')
   unwrap(await db().from('oauth_states').delete().lt('created_at', stateCutoff()))
-  unwrap(await db().from('oauth_states').insert({ state }))
+  unwrap(await db().from('oauth_states').insert({ state, user_id: userId }))
   return state
 }
 
 /** Deletes the state in the same query that checks it, so each state works exactly once. */
-export async function consumeOAuthState(state: string): Promise<boolean> {
+export async function consumeOAuthState(state: string, userId: string): Promise<boolean> {
   const rows: unknown = unwrap(
-    await db().from('oauth_states').delete().eq('state', state).gt('created_at', stateCutoff()).select('state'),
+    await db()
+      .from('oauth_states')
+      .delete()
+      .eq('state', state)
+      .eq('user_id', userId)
+      .gt('created_at', stateCutoff())
+      .select('state'),
   )
   return Array.isArray(rows) && rows.length === 1
 }
 
-async function loadRow(): Promise<ConnectionRow | null> {
+async function loadRow(userId: string): Promise<ConnectionRow | null> {
   const result = await db()
     .from('instagram_connections')
     .select('instagram_user_id, username, account_type, access_token_enc, token_expires_at, token_refreshed_at, status')
-    .eq('id', CONNECTION_ID)
+    .eq('user_id', userId)
     .maybeSingle()
   return unwrap(result) as ConnectionRow | null
 }
 
-export async function getConnection(): Promise<Connection | null> {
-  const row = await loadRow()
+export async function getConnection(userId: string): Promise<Connection | null> {
+  const row = await loadRow(userId)
   if (!row) return null
   return {
     username: row.username,
@@ -80,44 +92,53 @@ export async function getConnection(): Promise<Connection | null> {
   }
 }
 
-/** The connected account's id, which webhooks carry as `entry.id`. Null when nothing is connected. */
-export async function getConnectedAccountId(): Promise<string | null> {
-  return (await loadRow())?.instagram_user_id ?? null
+/** The user's Instagram account id, which webhooks carry as `entry.id`. Null when nothing is connected. */
+export async function getConnectedAccountId(userId: string): Promise<string | null> {
+  return (await loadRow(userId))?.instagram_user_id ?? null
+}
+
+/** Who connected the Instagram account a webhook is about. Null when no user has it. */
+export async function findUserByInstagramId(instagramUserId: string): Promise<string | null> {
+  const row = unwrap(
+    await db().from('instagram_connections').select('user_id').eq('instagram_user_id', instagramUserId).maybeSingle(),
+  ) as { user_id: string } | null
+  return row?.user_id ?? null
 }
 
 export async function saveConnection(
+  userId: string,
   profile: InstagramProfile,
   token: LongLivedToken,
   scopes: string[],
 ): Promise<void> {
   const now = new Date().toISOString()
-  unwrap(
-    await db().from('instagram_connections').upsert({
-      id: CONNECTION_ID,
-      instagram_user_id: profile.userId,
-      username: profile.username,
-      account_type: profile.accountType,
-      access_token_enc: encryptToken(token.accessToken),
-      scopes,
-      token_expires_at: token.expiresAt.toISOString(),
-      token_refreshed_at: now,
-      status: 'active',
-      connected_at: now,
-      updated_at: now,
-    }),
-  )
+  const result = await db().from('instagram_connections').upsert({
+    user_id: userId,
+    instagram_user_id: profile.userId,
+    username: profile.username,
+    account_type: profile.accountType,
+    access_token_enc: encryptToken(token.accessToken),
+    scopes,
+    token_expires_at: token.expiresAt.toISOString(),
+    token_refreshed_at: now,
+    status: 'active',
+    connected_at: now,
+    updated_at: now,
+  })
+  if (result.error?.code === UNIQUE_VIOLATION) throw new AccountTakenError('Akun Instagram dipakai pengguna lain')
+  unwrap(result)
 }
 
-export async function deleteConnection(): Promise<void> {
-  unwrap(await db().from('instagram_connections').delete().eq('id', CONNECTION_ID))
+export async function deleteConnection(userId: string): Promise<void> {
+  unwrap(await db().from('instagram_connections').delete().eq('user_id', userId))
 }
 
-export async function markNeedsReconnect(): Promise<void> {
+export async function markNeedsReconnect(userId: string): Promise<void> {
   unwrap(
     await db()
       .from('instagram_connections')
       .update({ status: 'needs_reconnect', updated_at: new Date().toISOString() })
-      .eq('id', CONNECTION_ID),
+      .eq('user_id', userId),
   )
 }
 
@@ -128,7 +149,7 @@ export function shouldRefreshToken(refreshedAt: Date, expiresAt: Date, now: Date
   return age >= REFRESH_MIN_AGE_MS && remaining <= REFRESH_WINDOW_MS
 }
 
-async function refreshStoredToken(currentToken: string): Promise<string> {
+async function refreshStoredToken(userId: string, currentToken: string): Promise<string> {
   try {
     const refreshed = await refreshLongLivedToken(currentToken)
     const now = new Date().toISOString()
@@ -141,12 +162,12 @@ async function refreshStoredToken(currentToken: string): Promise<string> {
           token_refreshed_at: now,
           updated_at: now,
         })
-        .eq('id', CONNECTION_ID),
+        .eq('user_id', userId),
     )
     return refreshed.accessToken
   } catch (error) {
     if (error instanceof InstagramApiError && error.isInvalidToken) {
-      await markNeedsReconnect()
+      await markNeedsReconnect(userId)
       throw new NeedsReconnectError('Token Instagram ditolak saat refresh')
     }
     // The current token has not expired yet; the next use retries the refresh.
@@ -161,38 +182,38 @@ export interface PublishingAccount {
 }
 
 /** A usable access token and its account id, refreshing the token first when it is close to expiry. */
-export async function getPublishingAccount(): Promise<PublishingAccount> {
-  const row = await loadRow()
+export async function getPublishingAccount(userId: string): Promise<PublishingAccount> {
+  const row = await loadRow(userId)
   if (!row) throw new NeedsReconnectError('Instagram belum terhubung')
 
   const now = new Date()
   const expiresAt = new Date(row.token_expires_at)
   if (row.status === 'needs_reconnect' || expiresAt <= now) {
-    if (row.status === 'active') await markNeedsReconnect()
+    if (row.status === 'active') await markNeedsReconnect(userId)
     throw new NeedsReconnectError('Token Instagram kedaluwarsa atau dicabut')
   }
 
   const token = decryptToken(row.access_token_enc)
   const accessToken = shouldRefreshToken(new Date(row.token_refreshed_at), expiresAt, now)
-    ? await refreshStoredToken(token)
+    ? await refreshStoredToken(userId, token)
     : token
   return { accessToken, instagramUserId: row.instagram_user_id }
 }
 
 /** Returns a usable access token, refreshing it first when it is close to expiry. */
-export async function getValidAccessToken(): Promise<string> {
-  return (await getPublishingAccount()).accessToken
+export async function getValidAccessToken(userId: string): Promise<string> {
+  return (await getPublishingAccount(userId)).accessToken
 }
 
 /** Checks the stored token against Instagram. Used by the settings page. */
-export async function checkConnectionHealth(): Promise<ConnectionHealth> {
+export async function checkConnectionHealth(userId: string): Promise<ConnectionHealth> {
   try {
-    await fetchProfile(await getValidAccessToken())
+    await fetchProfile(await getValidAccessToken(userId))
     return 'healthy'
   } catch (error) {
     if (error instanceof NeedsReconnectError) return 'needs_reconnect'
     if (error instanceof InstagramApiError && error.isInvalidToken) {
-      await markNeedsReconnect()
+      await markNeedsReconnect(userId)
       return 'needs_reconnect'
     }
     console.error('[instagram] cek koneksi gagal:', describeError(error))

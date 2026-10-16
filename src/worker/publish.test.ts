@@ -44,6 +44,7 @@ const minutesFromNow = (minutes: number) => new Date(NOW.getTime() + minutes * 6
 
 const post = (overrides: Partial<ClaimedPost> = {}): ClaimedPost => ({
   id: 'p1',
+  userId: 'user-1',
   caption: 'Ngopi pagi #kopi',
   scheduledAt: NOW,
   attemptCount: 1,
@@ -75,6 +76,7 @@ describe('processPost', () => {
       image_url: 'https://media.test/a.jpg?token=x',
       caption: 'Ngopi pagi #kopi',
     })
+    expect(getPublishingAccount).toHaveBeenCalledWith('user-1')
     expect(setContainerId).toHaveBeenCalledWith('p1', 'c1')
     expect(vi.mocked(setContainerId).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(publishContainer).mock.invocationCallOrder[0],
@@ -187,7 +189,7 @@ describe('processPost', () => {
 
     await processPost(post(), NOW)
 
-    expect(markNeedsReconnect).toHaveBeenCalled()
+    expect(markNeedsReconnect).toHaveBeenCalledWith('user-1')
     expect(markFailed).toHaveBeenCalledWith('p1', expect.stringContaining('Sambungkan ulang'), false)
   })
 

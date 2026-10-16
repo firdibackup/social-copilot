@@ -9,10 +9,7 @@ const EFFECTIVE_DATE = '16 Oktober 2026'
 
 const DELETE_MAIL = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('Hapus data')}`
 
-/**
- * Public through the tunnel (PUBLIC_PATHS) for the Meta app's Privacy Policy, Terms of Service and data deletion
- * URLs. The proxy also blocks /_next/ there, so the page must read well as plain HTML without its stylesheet.
- */
+/** Public (PUBLIC_PATHS in proxy.ts) for the Meta app's Privacy Policy, Terms of Service and data deletion URLs. */
 export default function PrivasiPage() {
   return (
     <main className="mx-auto max-w-2xl space-y-10 px-4 py-10 text-zinc-800">
@@ -28,39 +25,45 @@ export default function PrivasiPage() {
 
       <Section id="privasi" title="Kebijakan Privasi">
         <p>
-          {APP_NAME} adalah aplikasi pribadi yang dipakai pengelolanya untuk menjadwalkan konten dan membalas pesan
-          langsung (DM) di akun Instagram miliknya sendiri, melalui API resmi Meta. Aplikasi ini tidak dijual dan tidak
-          disediakan untuk umum. Pengelola data adalah {APP_NAME}, yang bisa dihubungi di{' '}
+          {APP_NAME} adalah layanan bagi pemilik akun Instagram Business atau Creator untuk menjadwalkan konten,
+          membalas pesan langsung (DM), dan membuat draf konten dengan bantuan AI, melalui API resmi Meta. Setiap
+          pengguna mendaftar dengan email dan password, lalu menghubungkan satu akun Instagram miliknya. Pengelola
+          layanan adalah {APP_NAME}, yang bisa dihubungi di{' '}
           <a href={`mailto:${CONTACT_EMAIL}`} className="underline">{CONTACT_EMAIL}</a>.
         </p>
 
         <h3 className="font-semibold text-zinc-900">Data yang diproses</h3>
         <ul className="list-disc space-y-2 pl-5">
           <li>
-            <strong>Akun Instagram dan Facebook pengelola:</strong> ID akun, username, jenis akun, dan token akses.
-            Token disimpan terenkripsi (AES-256-GCM).
+            <strong>Akun pengguna:</strong> alamat email dan password. Password disimpan dalam bentuk hash oleh sistem
+            login, tidak pernah dalam bentuk aslinya.
           </li>
           <li>
-            <strong>Konten pengelola:</strong> foto, caption, dan jadwal post, serta ID dan tautan post yang sudah
+            <strong>Akun Instagram dan Facebook pengguna:</strong> ID akun, username, jenis akun, nama Facebook Page,
+            dan token akses. Token disimpan terenkripsi (AES-256-GCM).
+          </li>
+          <li>
+            <strong>Konten pengguna:</strong> foto, caption, dan jadwal post, serta ID dan tautan post yang sudah
             terbit.
           </li>
           <li>
-            <strong>Pesan langsung:</strong> kalau Anda mengirim DM ke akun Instagram pengelola, Meta meneruskan ke
-            aplikasi ini ID Instagram Anda yang khusus untuk aplikasi ini, username dan nama profil Anda, isi pesan
-            teks, dan waktunya. Lampiran seperti foto dan video tidak disimpan. Balasan pengelola juga disimpan agar
-            percakapan bisa dibaca utuh.
+            <strong>Pesan langsung:</strong> kalau Anda mengirim DM ke akun Instagram yang terhubung dengan {APP_NAME},
+            Meta meneruskan ke layanan ini ID Instagram Anda yang khusus untuk akun tersebut, username dan nama profil
+            Anda, isi pesan teks, dan waktunya. Lampiran seperti foto dan video tidak disimpan. Balasan pemilik akun
+            juga disimpan agar percakapan bisa dibaca utuh.
           </li>
           <li>
-            <strong>Referensi brand:</strong> isi website brand pengelola, serta gambar post publik akun bisnis atau
-            kreator Instagram lain yang dipilih pengelola sebagai referensi desain, beserta nama akun dan tautannya.
+            <strong>Referensi brand:</strong> isi website brand pengguna, serta gambar post publik akun bisnis atau
+            kreator Instagram lain yang dipilih pengguna sebagai referensi desain, beserta nama akun dan tautannya.
           </li>
         </ul>
 
         <h3 className="font-semibold text-zinc-900">Untuk apa data dipakai</h3>
         <p>
-          Data hanya dipakai untuk menjalankan fitur aplikasi bagi pengelola: menerbitkan post terjadwal, menampilkan
-          dan membalas DM, serta membuat draf caption. Setiap DM dikirim oleh pengelola sendiri sebagai balasan. Aplikasi
-          ini tidak mengirim pesan massal atau pesan yang tidak diminta.
+          Data hanya dipakai untuk menjalankan fitur bagi pengguna pemiliknya: menerbitkan post terjadwal, menampilkan
+          dan membalas DM, serta membuat draf caption dan gambar. Data satu pengguna tidak bisa dilihat pengguna lain.
+          Setiap DM dikirim oleh pemilik akun sendiri sebagai balasan. {APP_NAME} tidak mengirim pesan massal atau
+          pesan yang tidak diminta.
         </p>
 
         <h3 className="font-semibold text-zinc-900">Dengan siapa data dibagikan</h3>
@@ -71,54 +74,63 @@ export default function PrivasiPage() {
           </li>
           <li>
             <strong>Penyedia AI melalui 9Router:</strong> topik, caption, informasi brand, dan gambar referensi yang
-            dimasukkan pengelola dikirim untuk membuat draf. Isi DM tidak pernah dikirim ke layanan AI.
+            dimasukkan pengguna dikirim untuk membuat draf. Isi DM tidak pernah dikirim ke layanan AI.
           </li>
         </ul>
         <p>Data tidak dijual dan tidak dipakai untuk iklan.</p>
 
         <h3 className="font-semibold text-zinc-900">Penyimpanan dan keamanan</h3>
         <p>
-          Data disimpan di database dan penyimpanan file Supabase yang di-host sendiri oleh pengelola. Dashboard
-          aplikasi hanya bisa dibuka dari komputer pengelola, dan database tidak bisa diakses publik.
+          Data disimpan di database dan penyimpanan file Supabase yang dikelola {APP_NAME}. Dashboard hanya bisa
+          dibuka setelah login, setiap permintaan hanya membaca data milik pengguna yang login, dan database tidak bisa
+          diakses publik.
         </p>
 
         <h3 className="font-semibold text-zinc-900">Berapa lama data disimpan</h3>
         <p>
-          Token akses dihapus saat pengelola memutus koneksi Instagram atau Facebook. Data lain disimpan selama
-          diperlukan untuk fitur di atas, atau sampai dihapus atas permintaan (lihat{' '}
+          Token akses dihapus saat pengguna memutus koneksi Instagram atau Facebook. Data lain disimpan selama akun
+          pengguna aktif, atau sampai dihapus atas permintaan (lihat{' '}
           <a href="#hapus-data" className="underline">Penghapusan Data</a>).
         </p>
       </Section>
 
       <Section id="ketentuan" title="Ketentuan Layanan">
         <ul className="list-disc space-y-2 pl-5">
-          <li>{APP_NAME} hanya dipakai pengelolanya untuk akun miliknya sendiri. Tidak ada layanan untuk pihak lain.</li>
+          <li>
+            Pengguna hanya menghubungkan akun Instagram miliknya sendiri atau akun yang berhak ia kelola, dan
+            bertanggung jawab atas konten serta balasan yang diterbitkan.
+          </li>
           <li>
             Pemakaian mengikuti Ketentuan Platform Meta, Ketentuan Penggunaan Instagram, dan Pedoman Komunitas
-            Instagram.
+            Instagram. Spam, pesan massal, dan pesan yang tidak diminta dilarang.
           </li>
-          <li>Aplikasi disediakan apa adanya, tanpa jaminan apa pun.</li>
+          <li>Layanan disediakan apa adanya, tanpa jaminan apa pun.</li>
           <li>Perubahan kebijakan dan ketentuan diumumkan dengan memperbarui halaman ini dan tanggal berlakunya.</li>
         </ul>
       </Section>
 
       <Section id="hapus-data" title="Penghapusan Data">
-        <p>Kalau Anda pernah mengirim DM ke akun yang dikelola dengan aplikasi ini dan ingin datanya dihapus:</p>
+        <p>
+          <strong>Pengguna {APP_NAME}</strong> yang ingin menghapus akun beserta seluruh datanya (koneksi, post, foto,
+          DM, dan brand kit):
+        </p>
         <ol className="list-decimal space-y-2 pl-5">
           <li>
             Kirim email ke <a href={DELETE_MAIL} className="underline">{CONTACT_EMAIL}</a> dengan subjek
-            &ldquo;Hapus data&rdquo;, dan sertakan username Instagram Anda.
+            &ldquo;Hapus data&rdquo; dari alamat email akun Anda.
           </li>
-          <li>
-            Percakapan dan pesan Anda dihapus dari database paling lambat 30 hari setelah email diterima, lalu Anda
-            mendapat balasan konfirmasi.
-          </li>
+          <li>Akun dan datanya dihapus paling lambat 30 hari setelah email diterima, lalu Anda mendapat konfirmasi.</li>
         </ol>
         <p>
-          Anda juga bisa meminta salinan data Anda lewat email yang sama. Pengelola yang ingin mencabut akses aplikasi
-          bisa memutus koneksi di Pengaturan aplikasi, lalu menghapus {APP_NAME} di Instagram (Pengaturan dan aktivitas
-          → Izin situs web → Aplikasi dan situs web) dan di Facebook (Pengaturan dan privasi → Pengaturan → Aplikasi
-          dan situs web).
+          Akses aplikasi juga bisa dicabut kapan saja: putuskan koneksi di Pengaturan, lalu hapus {APP_NAME} di
+          Instagram (Pengaturan dan aktivitas → Izin situs web → Aplikasi dan situs web) dan di Facebook (Pengaturan dan
+          privasi → Pengaturan → Aplikasi dan situs web).
+        </p>
+        <p>
+          <strong>Pengirim DM:</strong> kalau Anda pernah mengirim DM ke akun yang dikelola dengan {APP_NAME} dan ingin
+          datanya dihapus, kirim email ke alamat yang sama dengan subjek &ldquo;Hapus data&rdquo; dan sertakan username
+          Instagram Anda. Percakapan dan pesan Anda dihapus paling lambat 30 hari setelah email diterima. Anda juga bisa
+          meminta salinan data Anda lewat email yang sama.
         </p>
       </Section>
     </main>

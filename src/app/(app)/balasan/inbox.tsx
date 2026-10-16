@@ -2,6 +2,7 @@ import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { connection } from 'next/server'
 import { Notice } from '@/components/notice'
+import { requireUser } from '@/lib/auth'
 import { getConnection } from '@/lib/connection'
 import {
   getConversation,
@@ -52,12 +53,12 @@ function shorten(value: string): string {
 const listTime = (date: Date, now: Date) =>
   wibDateKey(date) === wibDateKey(now) ? formatTime(date) : formatShortDate(date)
 
-async function loadThread(igsid: string, now: Date): Promise<Thread | null> {
+async function loadThread(userId: string, igsid: string, now: Date): Promise<Thread | null> {
   const [conversation, messages, templates, variables] = await Promise.all([
-    getConversation(igsid),
-    listMessages(igsid),
-    listTemplates(),
-    getVariables(),
+    getConversation(userId, igsid),
+    listMessages(userId, igsid),
+    listTemplates(userId),
+    getVariables(userId),
   ])
   if (!conversation) return null
 
@@ -78,6 +79,7 @@ async function loadThread(igsid: string, now: Date): Promise<Thread | null> {
 export async function Inbox({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
   await connection()
+  const userId = await requireUser()
   const now = new Date()
   const filter: Filter = firstValue(params.filter) === 'semua' ? 'semua' : 'belum'
   const selectedId = firstValue(params.c)
@@ -86,11 +88,11 @@ export async function Inbox({ searchParams }: { searchParams: Promise<SearchPara
   let conversations: Conversation[] = []
   let thread: Thread | null = null
   try {
-    connected = (await getConnection()) !== null
+    connected = (await getConnection(userId)) !== null
     if (connected) {
       ;[conversations, thread] = await Promise.all([
-        listConversations(filter === 'belum'),
-        selectedId ? loadThread(selectedId, now) : null,
+        listConversations(userId, filter === 'belum'),
+        selectedId ? loadThread(userId, selectedId, now) : null,
       ])
     }
   } catch (error) {
@@ -138,12 +140,7 @@ export async function Inbox({ searchParams }: { searchParams: Promise<SearchPara
             </ul>
           )}
           <div className="space-y-2 text-xs text-zinc-500">
-            <p>
-              DM baru tidak muncul? Di aplikasi Meta, isi webhook dengan URL{' '}
-              <code>https://&lt;domain-ngrok&gt;/api/webhooks/instagram</code> dan Verify Token dari{' '}
-              <code>INSTAGRAM_WEBHOOK_VERIFY_TOKEN</code>, pastikan aplikasinya Live, lalu aktifkan pengiriman DM
-              untuk akun ini.
-            </p>
+            <p>DM baru tidak muncul? Aktifkan pengiriman DM untuk akun ini.</p>
             <SubscribeButton />
           </div>
         </div>

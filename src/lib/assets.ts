@@ -48,11 +48,12 @@ export async function signMediaUrls(paths: string[], ttlSeconds = VIEW_URL_TTL_S
   return paths.map((path) => byPath.get(path) ?? '')
 }
 
-export async function listAssets(): Promise<Asset[]> {
+export async function listAssets(userId: string): Promise<Asset[]> {
   const rows: AssetRow[] = unwrap(
     await db()
       .from('assets')
       .select('id, storage_path, width, height')
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(LIBRARY_LIMIT),
   )
@@ -61,7 +62,7 @@ export async function listAssets(): Promise<Asset[]> {
 }
 
 /** Stores a JPEG prepared by the browser. */
-export async function createAsset(file: Blob, width: number, height: number): Promise<Asset> {
+export async function createAsset(userId: string, file: Blob, width: number, height: number): Promise<Asset> {
   if (file.size === 0 || file.size > MAX_IMAGE_BYTES) throw new InvalidImageError('Ukuran foto harus di bawah 8 MB.')
   if (![width, height].every((side) => Number.isInteger(side) && side > 0)) {
     throw new InvalidImageError('Ukuran foto tidak valid.')
@@ -69,13 +70,13 @@ export async function createAsset(file: Blob, width: number, height: number): Pr
   const bytes = new Uint8Array(await file.arrayBuffer())
   if (!isJpeg(bytes)) throw new InvalidImageError('File bukan JPEG.')
 
-  const path = `${randomUUID()}.jpg`
+  const path = `${userId}/${randomUUID()}.jpg`
   const upload = await bucket().upload(path, bytes, { contentType: 'image/jpeg' })
   if (upload.error) throw new Error(`Supabase Storage: ${upload.error.message}`)
 
   const insert = await db()
     .from('assets')
-    .insert({ storage_path: path, width, height, size_bytes: bytes.length })
+    .insert({ user_id: userId, storage_path: path, width, height, size_bytes: bytes.length })
     .select('id')
     .single<{ id: string }>()
   if (insert.error) {
@@ -88,8 +89,8 @@ export async function createAsset(file: Blob, width: number, height: number): Pr
 }
 
 /** Deletes the row first: if a post still uses the photo, the foreign key stops it before the file is gone. */
-export async function deleteAsset(id: string): Promise<void> {
-  const result = await db().from('assets').delete().eq('id', id).select('storage_path')
+export async function deleteAsset(userId: string, id: string): Promise<void> {
+  const result = await db().from('assets').delete().eq('id', id).eq('user_id', userId).select('storage_path')
   if (result.error?.code === FOREIGN_KEY_VIOLATION) throw new AssetInUseError('Foto ini masih dipakai di post.')
   const rows: Pick<AssetRow, 'storage_path'>[] = unwrap(result)
   if (rows.length === 0) return

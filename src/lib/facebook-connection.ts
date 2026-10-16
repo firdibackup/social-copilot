@@ -3,8 +3,6 @@ import { decryptToken, encryptToken } from './crypto'
 import type { InstagramPage } from './facebook'
 import { db, unwrap } from './supabase'
 
-const CONNECTION_ID = 1
-
 export type FacebookStatus = 'active' | 'needs_reconnect'
 
 /** What the UI may see. The Page token never leaves this module except through getDiscoveryAccount. */
@@ -32,25 +30,25 @@ interface ConnectionRow {
   status: FacebookStatus
 }
 
-async function loadRow(): Promise<ConnectionRow | null> {
+async function loadRow(userId: string): Promise<ConnectionRow | null> {
   const result = await db()
     .from('facebook_connections')
     .select('page_name, username, instagram_user_id, access_token_enc, status')
-    .eq('id', CONNECTION_ID)
+    .eq('user_id', userId)
     .maybeSingle()
   return unwrap(result) as ConnectionRow | null
 }
 
-export async function getFacebookConnection(): Promise<FacebookConnection | null> {
-  const row = await loadRow()
+export async function getFacebookConnection(userId: string): Promise<FacebookConnection | null> {
+  const row = await loadRow(userId)
   return row ? { pageName: row.page_name, username: row.username, status: row.status } : null
 }
 
-export async function saveFacebookConnection(page: InstagramPage): Promise<void> {
+export async function saveFacebookConnection(userId: string, page: InstagramPage): Promise<void> {
   const now = new Date().toISOString()
   unwrap(
     await db().from('facebook_connections').upsert({
-      id: CONNECTION_ID,
+      user_id: userId,
       page_id: page.pageId,
       page_name: page.pageName,
       instagram_user_id: page.instagramUserId,
@@ -63,21 +61,21 @@ export async function saveFacebookConnection(page: InstagramPage): Promise<void>
   )
 }
 
-export async function deleteFacebookConnection(): Promise<void> {
-  unwrap(await db().from('facebook_connections').delete().eq('id', CONNECTION_ID))
+export async function deleteFacebookConnection(userId: string): Promise<void> {
+  unwrap(await db().from('facebook_connections').delete().eq('user_id', userId))
 }
 
-export async function markFacebookNeedsReconnect(): Promise<void> {
+export async function markFacebookNeedsReconnect(userId: string): Promise<void> {
   unwrap(
     await db()
       .from('facebook_connections')
       .update({ status: 'needs_reconnect', updated_at: new Date().toISOString() })
-      .eq('id', CONNECTION_ID),
+      .eq('user_id', userId),
   )
 }
 
-export async function getDiscoveryAccount(): Promise<DiscoveryAccount> {
-  const row = await loadRow()
+export async function getDiscoveryAccount(userId: string): Promise<DiscoveryAccount> {
+  const row = await loadRow(userId)
   if (!row) throw new FacebookReconnectError('Facebook belum terhubung')
   if (row.status !== 'active') throw new FacebookReconnectError('Token Facebook dicabut')
   return { accessToken: decryptToken(row.access_token_enc), instagramUserId: row.instagram_user_id }

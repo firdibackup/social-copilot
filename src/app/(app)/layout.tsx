@@ -1,4 +1,5 @@
 import { Suspense, type ReactNode } from 'react'
+import { AccountEmail } from '@/components/account-email'
 import { InstagramStatus, StatusLine } from '@/components/instagram-status'
 import { Sidebar } from '@/components/sidebar'
 
@@ -13,6 +14,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
         instagramStatus={
           <Suspense fallback={<StatusLine tone="muted" label="Memeriksa…" />}>
             <InstagramStatus />
+          </Suspense>
+        }
+        account={
+          <Suspense fallback={null}>
+            <AccountEmail />
           </Suspense>
         }
       />

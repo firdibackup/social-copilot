@@ -17,7 +17,7 @@ vi.mock('./supabase', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./supabase')>()),
   db: () => ({
     from: () => ({
-      select: () => ({ gt: async () => ({ count: 0, error: null }) }),
+      select: () => ({ eq: () => ({ gt: async () => ({ count: 0, error: null }) }) }),
       insert: async (row: unknown) => {
         database.inserted.push(row)
         return { data: null, error: null }
@@ -112,7 +112,7 @@ describe('logging', () => {
   it('logs the profile request with its sources and draft', async () => {
     vi.mocked(chatCompletion).mockResolvedValue('{"name": "Kopi Sinar"}')
 
-    await expect(analyzeProfile(SOURCES)).resolves.toMatchObject({ name: 'Kopi Sinar' })
+    await expect(analyzeProfile('user-1', SOURCES)).resolves.toMatchObject({ name: 'Kopi Sinar' })
     expect(database.inserted).toEqual([
       expect.objectContaining({ task: 'brand_profile', input: SOURCES, output: expect.objectContaining({ name: 'Kopi Sinar' }) }),
     ])
@@ -121,7 +121,7 @@ describe('logging', () => {
   it('logs reference ids and notes, never the image data', async () => {
     vi.mocked(chatCompletion).mockResolvedValue('{"visualStyle": "Hangat", "references": ["a", "b"]}')
 
-    await analyzeVisual(REFERENCES)
+    await analyzeVisual('user-1', REFERENCES)
 
     expect(database.inserted).toEqual([
       expect.objectContaining({

@@ -16,6 +16,7 @@ import { ConfigError } from './errors'
 import { chatCompletion, RouterApiError } from './nine-router'
 
 const database = vi.hoisted(() => ({
+  counted: [] as unknown[][],
   recent: 0 as number | null,
   insertError: null as { message: string } | null,
   inserted: [] as unknown[],
@@ -25,7 +26,12 @@ vi.mock('./supabase', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./supabase')>()),
   db: () => ({
     from: () => ({
-      select: () => ({ gt: async () => ({ count: database.recent, error: null }) }),
+      select: () => ({
+        eq: (...filter: unknown[]) => {
+          database.counted.push(filter)
+          return { gt: async () => ({ count: database.recent, error: null }) }
+        },
+      }),
       insert: async (row: unknown) => {
         database.inserted.push(row)
         return { data: null, error: database.insertError }
@@ -242,9 +248,12 @@ describe('parseOptions', () => {
   })
 })
 
+const USER = 'user-1'
+
 describe('runAiTask', () => {
   beforeEach(() => {
     vi.stubEnv('ROUTER_MODEL', 'test-model')
+    database.counted = []
     database.recent = 0
     database.insertError = null
     database.inserted = []
@@ -261,7 +270,7 @@ describe('runAiTask', () => {
   it('stops at the daily limit without asking the model', async () => {
     database.recent = DAILY_LIMIT
 
-    await expect(runAiTask(CAPTIONS)).rejects.toThrow(AiLimitError)
+    await expect(runAiTask(USER, CAPTIONS)).rejects.toThrow(AiLimitError)
     expect(chatCompletion).not.toHaveBeenCalled()
     expect(database.inserted).toEqual([])
   })
@@ -270,7 +279,7 @@ describe('runAiTask', () => {
     // postgrest-js turns a HEAD 404 with no body (the table is not migrated yet) into no error and no count.
     database.recent = null
 
-    const error = await runAiTask(CAPTIONS).then(() => null, (caught: unknown) => caught)
+    const error = await runAiTask(USER, CAPTIONS).then(() => null, (caught: unknown) => caught)
 
     expect(chatCompletion).not.toHaveBeenCalled()
     expect(aiErrorMessage(error)).toBe(
@@ -281,9 +290,11 @@ describe('runAiTask', () => {
   it('returns the options and logs the request', async () => {
     vi.mocked(chatCompletion).mockResolvedValue('{"captions": ["Satu"]}')
 
-    await expect(runAiTask(CAPTIONS)).resolves.toEqual(['Satu'])
+    await expect(runAiTask(USER, CAPTIONS)).resolves.toEqual(['Satu'])
+    expect(database.counted).toEqual([['user_id', USER]])
     expect(database.inserted).toEqual([
       expect.objectContaining({
+        user_id: USER,
         task: 'captions',
         input: CAPTIONS,
         output: ['Satu'],
@@ -297,7 +308,7 @@ describe('runAiTask', () => {
   it('logs a failure and rethrows it', async () => {
     vi.mocked(chatCompletion).mockRejectedValue(new RouterApiError('rate limited', 429))
 
-    await expect(runAiTask(CAPTIONS)).rejects.toMatchObject({ status: 429 })
+    await expect(runAiTask(USER, CAPTIONS)).rejects.toMatchObject({ status: 429 })
     expect(database.inserted).toEqual([
       expect.objectContaining({ status: 'failed', output: null, error: 'RouterApiError: rate limited' }),
     ])
@@ -306,7 +317,7 @@ describe('runAiTask', () => {
   it('logs an unreadable answer as a failure', async () => {
     vi.mocked(chatCompletion).mockResolvedValue('Gemini 3.5 Flash is no longer available.')
 
-    await expect(runAiTask(CAPTIONS)).rejects.toThrow(AiOutputError)
+    await expect(runAiTask(USER, CAPTIONS)).rejects.toThrow(AiOutputError)
     expect(database.inserted).toEqual([expect.objectContaining({ status: 'failed' })])
   })
 
@@ -314,7 +325,7 @@ describe('runAiTask', () => {
     vi.mocked(getBrandContext).mockResolvedValue(BRAND)
     vi.mocked(chatCompletion).mockResolvedValue('{"captions": ["Satu"]}')
 
-    await runAiTask(CAPTIONS)
+    await runAiTask(USER, CAPTIONS)
 
     expect(vi.mocked(chatCompletion).mock.calls[0][0][1].content).toContain('Nama: Kopi Sinar')
   })
@@ -323,7 +334,7 @@ describe('runAiTask', () => {
     vi.mocked(getBrandContext).mockRejectedValue(new Error('relation "brand_kit" does not exist'))
     vi.mocked(chatCompletion).mockResolvedValue('{"captions": ["Satu"]}')
 
-    await expect(runAiTask(CAPTIONS)).resolves.toEqual(['Satu'])
+    await expect(runAiTask(USER, CAPTIONS)).resolves.toEqual(['Satu'])
     expect(vi.mocked(chatCompletion).mock.calls[0][0][1].content).not.toContain('Tentang brand')
   })
 
@@ -331,7 +342,7 @@ describe('runAiTask', () => {
     database.insertError = { message: 'relation "ai_generations" does not exist' }
     vi.mocked(chatCompletion).mockResolvedValue('{"captions": ["Satu"]}')
 
-    await expect(runAiTask(CAPTIONS)).resolves.toEqual(['Satu'])
+    await expect(runAiTask(USER, CAPTIONS)).resolves.toEqual(['Satu'])
     expect(console.error).toHaveBeenCalled()
   })
 })

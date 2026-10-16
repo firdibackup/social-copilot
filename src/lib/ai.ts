@@ -260,7 +260,7 @@ export function parseOptions(request: AiRequest, content: string): string[] {
 export const DAILY_LIMIT = 100
 const DAY_MS = 24 * 60 * 60 * 1000
 
-/** The owner reached DAILY_LIMIT. */
+/** The user reached DAILY_LIMIT. */
 export class AiLimitError extends Error {
   override name = 'AiLimitError'
 }
@@ -269,6 +269,7 @@ export class AiLimitError extends Error {
 export type LoggedTask = AiRequest['task'] | 'brand_profile' | 'brand_visual' | 'image' | 'image_plan'
 
 interface GenerationLog {
+  user_id: string
   task: LoggedTask
   /** Never image data: it would bloat the table. */
   input: unknown
@@ -279,11 +280,12 @@ interface GenerationLog {
   duration_ms: number
 }
 
-async function countRecentRequests(): Promise<number> {
+async function countRecentRequests(userId: string): Promise<number> {
   const since = new Date(Date.now() - DAY_MS).toISOString()
   const { count, error } = await db()
     .from('ai_generations')
     .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
     .gt('created_at', since)
   // A HEAD 404 (table not migrated) comes back with no error and no count; reading it as 0 would skip the limit.
   if (error || count === null) {
@@ -308,21 +310,22 @@ interface LogOptions<T> {
   logOutput?: (result: T) => unknown
 }
 
-/** Checks the daily limit, runs `ask`, and logs the request with its result (the output) whatever the outcome. */
+/** Checks the user's daily limit, runs `ask`, and logs the request with its result (the output) whatever the outcome. */
 export async function runLogged<T>(
+  userId: string,
   task: LoggedTask,
   input: unknown,
   ask: () => Promise<T>,
   options: LogOptions<T> = {},
 ): Promise<T> {
   const model = options.model ?? env('ROUTER_MODEL')
-  if ((await countRecentRequests()) >= DAILY_LIMIT) {
+  if ((await countRecentRequests(userId)) >= DAILY_LIMIT) {
     throw new AiLimitError(`Batas ${DAILY_LIMIT} permintaan per 24 jam tercapai`)
   }
 
   const startedAt = Date.now()
   const log = (result: Pick<GenerationLog, 'output' | 'status' | 'error'>) =>
-    logGeneration({ task, input, model, duration_ms: Date.now() - startedAt, ...result })
+    logGeneration({ user_id: userId, task, input, model, duration_ms: Date.now() - startedAt, ...result })
 
   try {
     const result = await ask()
@@ -335,9 +338,9 @@ export async function runLogged<T>(
 }
 
 /** Captions still work when the brand kit can't be read; they are just not on-brand. */
-async function loadBrandContext(): Promise<BrandContext | null> {
+async function loadBrandContext(userId: string): Promise<BrandContext | null> {
   try {
-    return await getBrandContext()
+    return await getBrandContext(userId)
   } catch (error) {
     console.error('[ai] brand kit gagal dimuat, lanjut tanpa brand:', describeError(error))
     return null
@@ -345,9 +348,9 @@ async function loadBrandContext(): Promise<BrandContext | null> {
 }
 
 /** Asks the model for the editor's options, with the brand kit in the prompt. */
-export async function runAiTask(request: AiRequest): Promise<string[]> {
-  return runLogged(request.task, request, async () => {
-    const brand = await loadBrandContext()
+export async function runAiTask(userId: string, request: AiRequest): Promise<string[]> {
+  return runLogged(userId, request.task, request, async () => {
+    const brand = await loadBrandContext(userId)
     return parseOptions(request, await chatCompletion(buildMessages(request, brand)))
   })
 }

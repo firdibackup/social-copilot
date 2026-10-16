@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runAiTask } from '@/lib/ai'
 import type { AiRequest, Brief } from '@/lib/ai-options'
-import { assertLocalRequest } from '@/lib/local-only'
+import { requireUser } from '@/lib/auth'
 import { RouterApiError } from '@/lib/nine-router'
 import { generateAction } from './ai-actions'
 
-vi.mock('@/lib/local-only', () => ({ assertLocalRequest: vi.fn() }))
+vi.mock('@/lib/auth', () => ({ requireUser: vi.fn() }))
 vi.mock('@/lib/ai', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/ai')>()),
   runAiTask: vi.fn(),
@@ -16,7 +16,7 @@ const REQUEST: AiRequest = { task: 'captions', brief: BRIEF }
 
 describe('generateAction', () => {
   beforeEach(() => {
-    vi.mocked(assertLocalRequest).mockReset().mockResolvedValue(undefined)
+    vi.mocked(requireUser).mockReset().mockResolvedValue('user-1')
     vi.mocked(runAiTask).mockReset()
     vi.spyOn(console, 'error').mockImplementation(() => {})
   })
@@ -29,13 +29,13 @@ describe('generateAction', () => {
     vi.mocked(runAiTask).mockResolvedValue(['Satu', 'Dua'])
 
     await expect(generateAction(REQUEST)).resolves.toEqual({ options: ['Satu', 'Dua'] })
-    expect(runAiTask).toHaveBeenCalledWith(REQUEST)
+    expect(runAiTask).toHaveBeenCalledWith('user-1', REQUEST)
   })
 
-  it('refuses requests from outside this machine', async () => {
-    vi.mocked(assertLocalRequest).mockRejectedValue(new Error('Tidak diizinkan'))
+  it('refuses visitors without a session', async () => {
+    vi.mocked(requireUser).mockRejectedValue(new Error('NEXT_REDIRECT /masuk'))
 
-    await expect(generateAction(REQUEST)).rejects.toThrow('Tidak diizinkan')
+    await expect(generateAction(REQUEST)).rejects.toThrow('NEXT_REDIRECT')
     expect(runAiTask).not.toHaveBeenCalled()
   })
 

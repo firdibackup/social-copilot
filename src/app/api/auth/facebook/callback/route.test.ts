@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { currentUser } from '@/lib/auth'
 import { consumeOAuthState, getConnectedAccountId } from '@/lib/connection'
 import { exchangeFacebookCode, exchangeForLongLivedUserToken, fetchInstagramPages } from '@/lib/facebook'
 import { saveFacebookConnection } from '@/lib/facebook-connection'
 import { GET } from './route'
 
+vi.mock('@/lib/auth', () => ({ currentUser: vi.fn() }))
 vi.mock('@/lib/connection', () => ({ consumeOAuthState: vi.fn(), getConnectedAccountId: vi.fn() }))
 vi.mock('@/lib/facebook-connection', () => ({ saveFacebookConnection: vi.fn() }))
 vi.mock('@/lib/facebook', async (importOriginal) => ({
@@ -13,6 +15,7 @@ vi.mock('@/lib/facebook', async (importOriginal) => ({
   fetchInstagramPages: vi.fn(),
 }))
 
+const USER = 'user-1'
 const PAGE = {
   pageId: 'p1',
   pageName: 'Kopi Sinar',
@@ -31,6 +34,7 @@ describe('GET /api/auth/facebook/callback', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(currentUser).mockResolvedValue({ id: USER, email: 'owner@example.com' })
     vi.mocked(consumeOAuthState).mockResolvedValue(true)
     vi.mocked(getConnectedAccountId).mockResolvedValue('17841400000000001')
     vi.mocked(exchangeFacebookCode).mockResolvedValue('short-token')
@@ -45,7 +49,16 @@ describe('GET /api/auth/facebook/callback', () => {
     expect(redirectParams(response)).toEqual({ fb: 'connected' })
     expect(exchangeForLongLivedUserToken).toHaveBeenCalledWith('short-token')
     expect(fetchInstagramPages).toHaveBeenCalledWith('long-token')
-    expect(saveFacebookConnection).toHaveBeenCalledWith(PAGE)
+    expect(consumeOAuthState).toHaveBeenCalledWith('s1', USER)
+    expect(getConnectedAccountId).toHaveBeenCalledWith(USER)
+    expect(saveFacebookConnection).toHaveBeenCalledWith(USER, PAGE)
+  })
+
+  it('sends a visitor without a session to sign in, without touching the state', async () => {
+    vi.mocked(currentUser).mockResolvedValue(null)
+
+    expect(new URL((await callback('code=abc&state=s1')).headers.get('location') ?? '').pathname).toBe('/masuk')
+    expect(consumeOAuthState).not.toHaveBeenCalled()
   })
 
   it('reports a denied login without consuming the state', async () => {

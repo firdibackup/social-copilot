@@ -27,6 +27,12 @@ export function hasValidSignature(rawBody: Buffer, header: string | null, appSec
   return received.length === expected.length && timingSafeEqual(received, expected)
 }
 
+/** The accounts a webhook payload carries DMs for: its distinct `entry.id`s. */
+export function entryAccountIds(payload: unknown): string[] {
+  if (!isObject(payload) || payload.object !== 'instagram' || !Array.isArray(payload.entry)) return []
+  return [...new Set(payload.entry.filter(isObject).map((entry) => String(entry.id)))]
+}
+
 /**
  * The DMs in a webhook payload for `accountId` (the `entry.id` Meta sends). Echoes are the account's own
  * messages, sent from this app or from the Instagram app. Deleted messages, reactions and read receipts
