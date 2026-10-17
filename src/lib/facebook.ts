@@ -106,9 +106,13 @@ export async function fetchInstagramPages(userToken: string): Promise<InstagramP
   })
 }
 
-/** The Page behind the Instagram account the app already uses, else the first Page with an Instagram account. */
+/**
+ * The Page behind the Instagram account the app uses. Only while none is connected, the first Page with an
+ * Instagram account: the connection is kept per Instagram account, so another account's Page would be invisible.
+ */
 export function choosePage(pages: InstagramPage[], connectedInstagramId: string | null): InstagramPage | null {
-  return pages.find((page) => page.instagramUserId === connectedInstagramId) ?? pages[0] ?? null
+  if (connectedInstagramId) return pages.find((page) => page.instagramUserId === connectedInstagramId) ?? null
+  return pages[0] ?? null
 }
 
 const USERNAME = /^[a-z0-9._]{1,30}$/

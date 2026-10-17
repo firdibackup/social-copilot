@@ -82,6 +82,13 @@ describe('GET /api/auth/facebook/callback', () => {
     expect(saveFacebookConnection).not.toHaveBeenCalled()
   })
 
+  it('explains when no Page belongs to the connected Instagram account', async () => {
+    vi.mocked(getConnectedAccountId).mockResolvedValue('17841400000000009')
+
+    expect(redirectParams(await callback('code=abc&state=s1'))).toEqual({ fb_error: 'page_lain' })
+    expect(saveFacebookConnection).not.toHaveBeenCalled()
+  })
+
   it('maps a failed token exchange to gagal_token', async () => {
     vi.mocked(exchangeFacebookCode).mockRejectedValue(new Error('Invalid verification code'))
 

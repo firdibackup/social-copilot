@@ -5,7 +5,14 @@ import { describeError } from '@/lib/errors'
 import { choosePage, exchangeFacebookCode, exchangeForLongLivedUserToken, fetchInstagramPages } from '@/lib/facebook'
 import { saveFacebookConnection } from '@/lib/facebook-connection'
 
-type CallbackErrorCode = 'ditolak' | 'state_tidak_valid' | 'gagal_token' | 'gagal_page' | 'tanpa_instagram' | 'gagal_database'
+type CallbackErrorCode =
+  | 'ditolak'
+  | 'state_tidak_valid'
+  | 'gagal_token'
+  | 'gagal_page'
+  | 'tanpa_instagram'
+  | 'page_lain'
+  | 'gagal_database'
 type CallbackResult = { fb: 'connected' } | { fb_error: CallbackErrorCode }
 
 class CallbackFailure extends Error {
@@ -38,7 +45,7 @@ async function completeLogin(userId: string, params: URLSearchParams): Promise<C
   const pages = await step('gagal_page', () => fetchInstagramPages(longLived))
   const connectedId = await step('gagal_database', () => getConnectedAccountId(userId))
   const page = choosePage(pages, connectedId)
-  if (!page) return { fb_error: 'tanpa_instagram' }
+  if (!page) return { fb_error: pages.length > 0 && connectedId ? 'page_lain' : 'tanpa_instagram' }
   await step('gagal_database', () => saveFacebookConnection(userId, page))
   return { fb: 'connected' }
 }

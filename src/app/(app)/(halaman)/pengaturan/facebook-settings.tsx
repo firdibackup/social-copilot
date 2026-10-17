@@ -22,6 +22,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   gagal_page: 'Daftar Facebook Page gagal diambil. Pastikan izin pages_show_list disetujui.',
   tanpa_instagram:
     'Tidak ada Facebook Page dengan akun Instagram profesional. Hubungkan akun Instagram ke Page di Meta Business Suite, lalu coba lagi.',
+  page_lain:
+    'Tidak ada Facebook Page untuk akun Instagram yang terhubung. Hubungkan akun itu ke Page di Meta Business Suite, atau masuk dengan akun Facebook yang memegang Page-nya.',
   gagal_database: 'Database tidak bisa diakses. Periksa konfigurasi Supabase dan migrasi terbaru.',
   gagal_putus: 'Koneksi Facebook gagal diputus. Coba lagi.',
 }

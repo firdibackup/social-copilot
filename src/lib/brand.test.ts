@@ -7,6 +7,7 @@ import {
   hasBrandKit,
   listReferences,
   loadReferenceImage,
+  loadVisualReferences,
   ReferenceLimitError,
   startBrandSync,
   updateBrandKit,
@@ -131,6 +132,30 @@ describe('loadReferenceImage', () => {
   })
 })
 
+describe('loadVisualReferences', () => {
+  it('sends groups oldest first, each in slide order, so the cover leads its group', async () => {
+    const images = (prefix: string) => [
+      { position: 2, label: 'cta', storage_path: `${prefix}/cta.jpg`, content_type: 'image/jpeg' },
+      { position: 0, label: 'cover', storage_path: `${prefix}/cover.jpg`, content_type: 'image/jpeg' },
+      { position: 1, label: 'isi', storage_path: `${prefix}/isi.jpg`, content_type: 'image/jpeg' },
+    ]
+    useDb([
+      {
+        data: [
+          { id: 'new', note: '', brand_reference_images: images('new') },
+          { id: 'old', note: '', brand_reference_images: images('old') },
+        ],
+        error: null,
+      },
+    ])
+
+    const { references } = await loadVisualReferences('user-1', 'ig-1')
+
+    const decoded = references.map((reference) => Buffer.from(reference.dataUrl.split(',')[1], 'base64').toString())
+    expect(decoded).toEqual(['old/cover.jpg', 'old/isi.jpg', 'old/cta.jpg', 'new/cover.jpg', 'new/isi.jpg', 'new/cta.jpg'])
+  })
+})
+
 describe('deleteReference', () => {
   it('removes every image file of the group', async () => {
     const { storage } = useDb([
@@ -177,8 +202,16 @@ describe('the new-account fill status', () => {
   })
 
   it('shows the status on the kit', async () => {
-    useDb([{ data: { name: 'Kopi', colors: [], logo_path: null, sync_status: 'running' }, error: null }])
+    const updated = new Date(Date.now() - 60_000).toISOString()
+    useDb([{ data: { name: 'Kopi', colors: [], logo_path: null, sync_status: 'running', updated_at: updated }, error: null }])
 
     await expect(getBrandKit('user-1', 'ig-1')).resolves.toMatchObject({ syncStatus: 'running' })
+  })
+
+  it('treats a fill that stopped moving as failed, e.g. after a restart', async () => {
+    const updated = new Date(Date.now() - 6 * 60_000).toISOString()
+    useDb([{ data: { name: 'Kopi', colors: [], logo_path: null, sync_status: 'running', updated_at: updated }, error: null }])
+
+    await expect(getBrandKit('user-1', 'ig-1')).resolves.toMatchObject({ syncStatus: 'failed' })
   })
 })

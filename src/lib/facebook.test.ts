@@ -120,9 +120,13 @@ describe('choosePage', () => {
     expect(choosePage([PAGE_A, pageB], '17841400000000002')).toBe(pageB)
   })
 
-  it('falls back to the first Page, or null without any', () => {
+  it('falls back to the first Page only while no Instagram account is connected', () => {
     expect(choosePage([PAGE_A, pageB], null)).toBe(PAGE_A)
     expect(choosePage([], '1')).toBeNull()
+  })
+
+  it('refuses Pages of other Instagram accounts: data is kept per connected account', () => {
+    expect(choosePage([PAGE_A, pageB], '17841400000000009')).toBeNull()
   })
 })
 

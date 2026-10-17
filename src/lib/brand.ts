@@ -60,6 +60,7 @@ interface KitRow {
   visual_style: string
   logo_path: string | null
   sync_status: SyncStatus
+  updated_at: string
 }
 
 interface ImageRow {
@@ -81,7 +82,7 @@ interface ReferenceRow {
 }
 
 const KIT_COLUMNS =
-  'name, category, description, website_url, audience, voice, words_use, words_avoid, facts, colors, heading_font, body_font, visual_style, logo_path, sync_status'
+  'name, category, description, website_url, audience, voice, words_use, words_avoid, facts, colors, heading_font, body_font, visual_style, logo_path, sync_status, updated_at'
 const REFERENCE_COLUMNS = 'id, source, source_label, permalink, palette, description, note'
 
 const bucket = () => db().storage.from(BUCKET)
@@ -137,7 +138,15 @@ export async function getBrandKit(userId: string, accountId: string): Promise<Br
   const row = await loadKit(userId, accountId)
   if (!row) return { ...EMPTY_BRAND, logoUrl: null, syncStatus: null }
   const [logoUrl] = row.logo_path ? await signUrls([row.logo_path]) : [null]
-  return { ...toFields(row), logoUrl: logoUrl || null, syncStatus: row.sync_status ?? null }
+  return { ...toFields(row), logoUrl: logoUrl || null, syncStatus: syncStatusOf(row) }
+}
+
+/** Each fill step bumps updated_at; one that stopped moving was cut off (a restart, a deploy) and won't finish. */
+const STALE_SYNC_MS = 5 * 60 * 1000
+
+function syncStatusOf(row: KitRow): SyncStatus {
+  const stale = Date.now() - new Date(row.updated_at).getTime() > STALE_SYNC_MS
+  return row.sync_status === 'running' && stale ? 'failed' : (row.sync_status ?? null)
 }
 
 /** A kit row means the account was set up before: connecting it again fills nothing. */
@@ -224,6 +233,8 @@ export async function saveBrandKit(userId: string, accountId: string, fields: Br
         heading_font: fields.headingFont,
         body_font: fields.bodyFont,
         visual_style: fields.visualStyle,
+        // The owner's own save settles a fill that failed; its notice has done its job.
+        sync_status: null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'user_id,account_id' },
@@ -502,20 +513,25 @@ export async function loadVisualReferences(userId: string, accountId: string): P
       .order('created_at', { ascending: false })
       .limit(VISUAL_CANDIDATES),
   )
-  const references: VisualReference[] = []
+  // Newest groups get the budget first; each group keeps slide order, so its cover leads (and is described first).
+  const groups: VisualReference[][] = []
+  let count = 0
   let used = 0
   let skipped = 0
   for (const row of rows) {
+    const group: VisualReference[] = []
     for (const image of visualImagesOf(row.brand_reference_images)) {
-      if (references.length === VISUAL_REFERENCE_LIMIT) break
+      if (count === VISUAL_REFERENCE_LIMIT) break
       const dataUrl = await dataUrlOf(image.storage_path, image.content_type)
       if (used + dataUrl.length > VISUAL_BODY_BUDGET) {
         skipped += 1
         continue
       }
       used += dataUrl.length
-      references.push({ id: row.id, note: row.note, dataUrl })
+      count += 1
+      group.push({ id: row.id, note: row.note, dataUrl })
     }
+    if (group.length > 0) groups.push(group)
   }
-  return { references: references.reverse(), skipped }
+  return { references: groups.reverse().flat(), skipped }
 }

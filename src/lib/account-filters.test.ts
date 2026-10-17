@@ -63,6 +63,12 @@ describe('singleton writes key on user and account', () => {
     expect(upsert?.[2]).toEqual({ onConflict: 'user_id,account_id' })
   })
 
+  it('clears a failed fill notice once the owner saves the brand', async () => {
+    answer({ data: null, error: null })
+    await saveBrandKit('user-1', 'ig-1', EMPTY_BRAND)
+    expect(calls.find((call) => call[0] === 'upsert')?.[1]).toMatchObject({ sync_status: null })
+  })
+
   it('saves template variables for the account', async () => {
     answer({ data: null, error: null })
     await saveVariables('user-1', 'ig-1', { brand_name: 'Toko' })

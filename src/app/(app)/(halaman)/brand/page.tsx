@@ -63,7 +63,9 @@ async function BrandStudio() {
           Sebagian brand gagal disiapkan otomatis. Lengkapi lewat tombol analisis di bawah.
         </Notice>
       )}
+      {/* The form copies the kit into state once: remount it when the fill finishes, or it keeps the empty kit. */}
       <BrandForm
+        key={syncing ?? 'siap'}
         kit={data.kit}
         references={data.references}
         instagramUsername={instagramUsername}
