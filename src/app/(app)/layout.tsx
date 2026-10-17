@@ -1,4 +1,7 @@
+import { CreditCard, LogOut } from 'lucide-react'
+import Link from 'next/link'
 import { Suspense, type ReactNode } from 'react'
+import { signOut } from '@/app/masuk/actions'
 import { AccountEmail } from '@/components/account-email'
 import { Breadcrumb } from '@/components/breadcrumb'
 import { InstagramStatus, StatusLine } from '@/components/instagram-status'
@@ -10,6 +13,9 @@ import { WorkspaceBadge, WorkspaceLine } from '@/components/workspace-badge'
 interface AppLayoutProps {
   children: ReactNode
 }
+
+const PHONE_ACTION =
+  'inline-flex h-9 items-center gap-1.5 rounded-lg px-2 text-sm text-ink-muted transition-colors hover:bg-zinc-100 hover:text-ink'
 
 /**
  * The sidebar sits on the grey background and the page in a white card beside it. The window itself never scrolls:
@@ -42,14 +48,26 @@ export default function AppLayout({ children }: AppLayoutProps) {
       />
       <div className="flex min-w-0 flex-1 flex-col md:py-3 md:pr-3">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-paper md:rounded-2xl md:border md:border-hairline">
-          <header className="flex h-14 shrink-0 items-center border-b border-hairline px-5">
+          <header className="flex h-14 shrink-0 items-center gap-2 border-b border-hairline px-5">
             <Breadcrumb />
+            {/* The sidebar's Langganan and Keluar, which the phone's bottom bar has no room for. */}
+            <div className="ml-auto flex items-center gap-1 md:hidden">
+              <Link href="/langganan" className={PHONE_ACTION}>
+                <CreditCard size={16} strokeWidth={1.75} aria-hidden="true" />
+                Langganan
+              </Link>
+              <form action={signOut}>
+                <button type="submit" aria-label="Keluar" className={PHONE_ACTION}>
+                  <LogOut size={16} strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              </form>
+            </div>
           </header>
           <Suspense fallback={null}>
             <RenewalBanner />
           </Suspense>
           {/* Room for the phone's bottom bar. */}
-          <div className="min-h-0 flex-1 pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</div>
+          <main className="min-h-0 flex-1 pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
         </div>
       </div>
       <MobileNav />

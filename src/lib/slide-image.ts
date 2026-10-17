@@ -18,9 +18,10 @@ export interface SlideImage {
   height: number
 }
 
-async function encode(image: Sharp): Promise<Buffer> {
+/** `build` runs inside the try: sharp throws synchronously for empty bytes, e.g. from base64 that decodes to nothing. */
+async function encode(build: () => Sharp): Promise<Buffer> {
   try {
-    return await image.toBuffer()
+    return await build().toBuffer()
   } catch (error) {
     throw new SlideImageError(error instanceof Error ? error.message : 'Gambar tidak bisa dibaca')
   }
@@ -32,7 +33,7 @@ async function encode(image: Sharp): Promise<Buffer> {
  */
 export async function toSlideJpeg(bytes: Uint8Array, format: ImageFormat): Promise<SlideImage> {
   const { width, height } = IMAGE_FORMATS[format]
-  const data = await encode(
+  const data = await encode(() =>
     sharp(bytes).rotate().resize(width, height, { fit: 'cover' }).flatten({ background: '#ffffff' }).jpeg({ quality: JPEG_QUALITY }),
   )
   return { bytes: new Uint8Array(data), width, height }
@@ -40,7 +41,7 @@ export async function toSlideJpeg(bytes: Uint8Array, format: ImageFormat): Promi
 
 /** A small JPEG data URL of a stored slide, for 9Router to keep its look in another image. */
 export async function toReferenceDataUrl(bytes: Uint8Array): Promise<string> {
-  const data = await encode(
+  const data = await encode(() =>
     sharp(bytes).resize({ width: REFERENCE_WIDTH, withoutEnlargement: true }).jpeg({ quality: REFERENCE_QUALITY }),
   )
   return `data:image/jpeg;base64,${data.toString('base64')}`

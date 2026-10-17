@@ -3,38 +3,36 @@ import {
   AiLimitError,
   aiErrorMessage,
   AiOutputError,
-  buildMessages,
-  parseAiRequest,
-  parseOptions,
-  runAiTask,
+  cleanList,
+  describeBrand,
+  loadBrandContext,
+  readJson,
+  remainingCredits,
+  runLogged,
+  snippetOf,
 } from './ai'
-import type { AiRequest, Brief } from './ai-options'
 import { creditsUsed, getCurrentPeriod } from './billing'
+import { contentCost } from './billing-options'
 import { getBrandContext } from './brand'
 import type { BrandContext } from './brand-options'
 import { ConfigError } from './errors'
-import { chatCompletion, RouterApiError } from './nine-router'
+import { RouterApiError } from './nine-router'
 
 const database = vi.hoisted(() => ({
   insertError: null as { message: string } | null,
-  inserted: [] as unknown[],
+  inserted: [] as { table: string; row: unknown }[],
 }))
 
 vi.mock('./supabase', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./supabase')>()),
   db: () => ({
-    from: () => ({
+    from: (table: string) => ({
       insert: async (row: unknown) => {
-        database.inserted.push(row)
+        database.inserted.push({ table, row })
         return { data: null, error: database.insertError }
       },
     }),
   }),
-}))
-
-vi.mock('./nine-router', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./nine-router')>()),
-  chatCompletion: vi.fn(),
 }))
 
 vi.mock('./brand', () => ({ getBrandContext: vi.fn() }))
@@ -51,196 +49,6 @@ const BRAND: BrandContext = {
   facts: '- Buka 08.00–22.00 WIB',
 }
 
-const BRIEF: Brief = {
-  topic: 'Promo kopi susu gula aren 20%',
-  goal: 'promosi',
-  tone: 'santai',
-  audience: 'mahasiswa',
-  photoCount: 3,
-}
-const CAPTIONS: AiRequest = { task: 'captions', brief: BRIEF }
-
-describe('parseAiRequest', () => {
-  it('accepts a brief and trims its text', () => {
-    const input = { task: 'captions', brief: { ...BRIEF, topic: '  Promo kopi  ', audience: ' ' } }
-
-    expect(parseAiRequest(input)).toEqual({
-      request: { task: 'captions', brief: { ...BRIEF, topic: 'Promo kopi', audience: '' } },
-    })
-  })
-
-  it('accepts a rewrite and hashtag request', () => {
-    expect(parseAiRequest({ task: 'rewrite', style: 'cta', caption: 'Halo' })).toEqual({
-      request: { task: 'rewrite', style: 'cta', caption: 'Halo' },
-    })
-    expect(parseAiRequest({ task: 'hashtags', caption: 'Halo\r\nsemua' })).toEqual({
-      request: { task: 'hashtags', caption: 'Halo\nsemua' },
-    })
-  })
-
-  it.each([
-    ['a non-object', 'captions'],
-    ['an unknown task', { task: 'publish' }],
-    ['a missing brief', { task: 'ideas' }],
-    ['an empty topic', { task: 'captions', brief: { ...BRIEF, topic: '   ' } }],
-    ['a topic over 300 characters', { task: 'captions', brief: { ...BRIEF, topic: 'a'.repeat(301) } }],
-    ['an audience over 150 characters', { task: 'captions', brief: { ...BRIEF, audience: 'a'.repeat(151) } }],
-    ['an unknown goal', { task: 'captions', brief: { ...BRIEF, goal: 'viral' } }],
-    ['a goal inherited from Object.prototype', { task: 'captions', brief: { ...BRIEF, goal: 'toString' } }],
-    ['an unknown tone', { task: 'ideas', brief: { ...BRIEF, tone: 'marah' } }],
-    ['eleven photos', { task: 'captions', brief: { ...BRIEF, photoCount: 11 } }],
-    ['a fractional photo count', { task: 'captions', brief: { ...BRIEF, photoCount: 1.5 } }],
-    ['an unknown rewrite style', { task: 'rewrite', style: 'puitis', caption: 'Halo' }],
-    ['an empty caption', { task: 'hashtags', caption: ' \n ' }],
-  ])('refuses %s', (_label, input) => {
-    expect(parseAiRequest(input)).toHaveProperty('error')
-  })
-
-  it('counts code points, so 2,200 emoji fit and 2,201 do not', () => {
-    expect(parseAiRequest({ task: 'rewrite', style: 'singkat', caption: '😀'.repeat(2200) })).toHaveProperty('request')
-    expect(parseAiRequest({ task: 'rewrite', style: 'singkat', caption: '😀'.repeat(2201) })).toEqual({
-      error: 'Caption lebih dari 2.200 karakter.',
-    })
-  })
-
-  it('refuses hashtag suggestions for a caption that already has 30', () => {
-    const caption = Array.from({ length: 30 }, (_, index) => `#tag${index}`).join(' ')
-
-    expect(parseAiRequest({ task: 'hashtags', caption })).toEqual({ error: 'Caption sudah memakai 30 hashtag.' })
-  })
-})
-
-describe('buildMessages', () => {
-  it('sends the rules as the system message and the brief as the user message', () => {
-    const [system, user] = buildMessages(CAPTIONS)
-
-    expect(system).toMatchObject({ role: 'system' })
-    expect(system.content).toContain('JSON')
-    expect(user.role).toBe('user')
-    expect(user.content).toContain('"""\nPromo kopi susu gula aren 20%\n"""')
-    expect(user.content).toContain('Tujuan: Promosi atau jualan')
-    expect(user.content).toContain('Nada: Santai')
-    expect(user.content).toContain('Audiens: mahasiswa')
-    expect(user.content).toContain('Format post: carousel 3 foto')
-    expect(user.content).toContain('{"captions"')
-  })
-
-  it('describes a single photo, no photos and an empty audience', () => {
-    expect(buildMessages({ task: 'ideas', brief: { ...BRIEF, photoCount: 1 } })[1].content).toContain('foto tunggal')
-
-    const user = buildMessages({ task: 'ideas', brief: { ...BRIEF, photoCount: 0, audience: '' } })[1].content
-    expect(user).toContain('belum ada foto')
-    expect(user).toContain('Audiens: umum')
-  })
-
-  it('ends caption and idea prompts with the no-invented-claims reminder, where the model weighs it most', () => {
-    for (const task of ['captions', 'ideas'] as const) {
-      const user = buildMessages({ task, brief: BRIEF })[1].content
-
-      expect(user.trimEnd()).toMatch(/Hanya pakai fakta dari brief di atas\.[^\n]*$/)
-    }
-  })
-
-  it('quotes the caption to rewrite', () => {
-    const [, user] = buildMessages({ task: 'rewrite', style: 'cta', caption: 'Halo semua' })
-
-    expect(user.content).toContain('"""\nHalo semua\n"""')
-    expect(user.content).toContain('ajakan bertindak')
-  })
-
-  it('puts the filled brand fields first and quotes the brand facts', () => {
-    const user = buildMessages(CAPTIONS, BRAND)[1].content
-
-    expect(user).toMatch(/^Tentang brand/)
-    expect(user).toContain('Nama: Kopi Sinar')
-    expect(user).toContain('Gaya bahasa: Santai, pakai "kak"')
-    expect(user).toContain('Hindari kata atau gaya ini: murah')
-    expect(user).toContain('Fakta brand yang boleh dipakai:\n"""\n- Buka 08.00–22.00 WIB\n"""')
-    expect(user).not.toContain('Deskripsi:')
-  })
-
-  it('lets brand facts count as facts and fills an empty audience from the brand', () => {
-    const user = buildMessages({ task: 'ideas', brief: { ...BRIEF, audience: '' } }, BRAND)[1].content
-
-    expect(user).toContain('Audiens: pekerja muda di Bandung')
-    expect(user.trimEnd()).toMatch(/Hanya pakai fakta dari brief dan fakta brand di atas\.[^\n]*$/)
-  })
-
-  it('keeps the brief-only reminder when the brand has no facts', () => {
-    const user = buildMessages(CAPTIONS, { ...BRAND, facts: '' })[1].content
-
-    expect(user.trimEnd()).toMatch(/Hanya pakai fakta dari brief di atas\.[^\n]*$/)
-  })
-})
-
-const thrown = (run: () => unknown): unknown => {
-  try {
-    run()
-  } catch (error) {
-    return error
-  }
-  return null
-}
-
-describe('parseOptions', () => {
-  const json = '{"captions": ["Satu", "Dua"]}'
-
-  it('reads plain, fenced and wrapped JSON', () => {
-    expect(parseOptions(CAPTIONS, json)).toEqual(['Satu', 'Dua'])
-    expect(parseOptions(CAPTIONS, `\`\`\`json\n${json}\n\`\`\``)).toEqual(['Satu', 'Dua'])
-    expect(parseOptions(CAPTIONS, `Berikut hasilnya:\n${json}`)).toEqual(['Satu', 'Dua'])
-  })
-
-  it('turns a provider notice sent with status 200 into an AiOutputError', () => {
-    const notice =
-      'Gemini 3.5 Flash is no longer available. Please switch to Gemini 3.7 Flash in the latest version of Antigravity.'
-
-    const error = thrown(() => parseOptions(CAPTIONS, notice))
-
-    expect(error).toBeInstanceOf(AiOutputError)
-    expect(error).toMatchObject({ snippet: notice })
-  })
-
-  it('keeps the first 120 characters of a long answer', () => {
-    expect(thrown(() => parseOptions(CAPTIONS, 'x'.repeat(500)))).toMatchObject({ snippet: `${'x'.repeat(120)}…` })
-  })
-
-  it('rejects the wrong shape and lists with nothing usable', () => {
-    expect(() => parseOptions(CAPTIONS, '{"caption": "Satu"}')).toThrow(AiOutputError)
-    expect(() => parseOptions(CAPTIONS, '{"captions": ["", "  ", 3]}')).toThrow(AiOutputError)
-  })
-
-  it('trims, drops duplicates and keeps at most three captions', () => {
-    const answer = JSON.stringify({ captions: [' Satu ', 'Satu', 'Dua', 'Tiga', 'Empat'] })
-
-    expect(parseOptions(CAPTIONS, answer)).toEqual(['Satu', 'Dua', 'Tiga'])
-  })
-
-  it('cuts ideas to the topic limit, so Jadikan topik always passes validation', () => {
-    const ideas = parseOptions({ task: 'ideas', brief: BRIEF }, JSON.stringify({ ideas: ['😀'.repeat(400)] }))
-
-    expect(Array.from(ideas[0])).toHaveLength(300)
-  })
-
-  it('returns a rewrite as one option', () => {
-    expect(parseOptions({ task: 'rewrite', style: 'singkat', caption: 'Halo' }, '{"caption": " Hai "}')).toEqual(['Hai'])
-  })
-
-  it('normalizes hashtags and leaves out the ones already in the caption', () => {
-    const request: AiRequest = { task: 'hashtags', caption: 'Ngopi dulu #KopiSusu' }
-    const answer = JSON.stringify({ hashtags: ['#kopisusu', 'gula aren', '#Promo-Weekend', '#', '#GulaAren'] })
-
-    expect(parseOptions(request, answer)).toEqual(['#gulaaren #PromoWeekend'])
-  })
-
-  it('adds no more hashtags than the caption has room for', () => {
-    const caption = Array.from({ length: 27 }, (_, index) => `#ada${index}`).join(' ')
-    const answer = JSON.stringify({ hashtags: ['#a', '#b', '#c', '#d', '#e'] })
-
-    expect(parseOptions({ task: 'hashtags', caption }, answer)).toEqual(['#a #b #c'])
-  })
-})
-
 const USER = 'user-1'
 const PERIOD = {
   start: new Date('2026-10-01T00:00:00Z'),
@@ -248,15 +56,94 @@ const PERIOD = {
   activeUntil: new Date('2026-10-31T00:00:00Z'),
 }
 
-describe('runAiTask', () => {
+const rows = () => database.inserted.map((insert) => insert.row)
+
+const failure = (promise: Promise<unknown>) => promise.then(() => null, (caught: unknown) => caught)
+
+describe('describeBrand', () => {
+  it('lists the filled fields in order, quotes the facts and ends with a blank line', () => {
+    expect(describeBrand(BRAND)).toBe(
+      [
+        'Tentang brand (ikuti gaya bahasanya):',
+        'Nama: Kopi Sinar',
+        'Kategori: Kedai kopi',
+        'Audiens utama: pekerja muda di Bandung',
+        'Gaya bahasa: Santai, pakai "kak"',
+        'Hindari kata atau gaya ini: murah',
+        'Fakta brand yang boleh dipakai:\n"""\n- Buka 08.00–22.00 WIB\n"""',
+        '',
+        '',
+      ].join('\n'),
+    )
+  })
+
+  it('leaves out empty fields and an empty facts block', () => {
+    const text = describeBrand({ ...BRAND, category: '', facts: '' })
+
+    expect(text).not.toContain('Kategori')
+    expect(text).not.toContain('Fakta brand')
+    expect(text).not.toContain('Deskripsi')
+  })
+})
+
+describe('snippetOf', () => {
+  it('flattens whitespace', () => {
+    expect(snippetOf('  Maaf,\n\n  coba   lagi. ')).toBe('Maaf, coba lagi.')
+  })
+
+  it('cuts at 120 characters with an ellipsis', () => {
+    expect(snippetOf('x'.repeat(500))).toBe(`${'x'.repeat(120)}…`)
+    expect(snippetOf('x'.repeat(120))).toBe('x'.repeat(120))
+  })
+
+  it('counts code points, so 120 emoji stay whole and 121 are cut', () => {
+    expect(snippetOf('😀'.repeat(120))).toBe('😀'.repeat(120))
+    expect(snippetOf('😀'.repeat(121))).toBe(`${'😀'.repeat(120)}…`)
+  })
+})
+
+describe('readJson', () => {
+  const json = '{"caption": "Halo", "meta": {"n": 1}}'
+  const parsed = { caption: 'Halo', meta: { n: 1 } }
+
+  it('reads plain, fenced and wrapped JSON, taking the outermost braces', () => {
+    expect(readJson(json)).toEqual(parsed)
+    expect(readJson(`\`\`\`json\n${json}\n\`\`\``)).toEqual(parsed)
+    expect(readJson(`Berikut hasilnya:\n${json}\nSemoga membantu.`)).toEqual(parsed)
+  })
+
+  it.each([
+    ['a provider notice', 'Gemini 3.5 Flash is no longer available.'],
+    ['broken JSON', '{"caption": "Halo"'],
+    ['a closing brace before the opening one', '} lalu {'],
+    ['invalid JSON between braces', '{caption: Halo}'],
+  ])('returns null for %s', (_label, content) => {
+    expect(readJson(content)).toBeNull()
+  })
+})
+
+describe('cleanList', () => {
+  it('drops non-strings and blanks, trims and removes duplicates', () => {
+    expect(cleanList([' Satu ', 'Satu', '', '  ', 3, null, 'Dua'], 10)).toEqual(['Satu', 'Dua'])
+  })
+
+  it('counts the maximum after removing duplicates', () => {
+    expect(cleanList(['a', 'a', 'b', 'c', 'd'], 3)).toEqual(['a', 'b', 'c'])
+  })
+
+  it.each([['a string', 'Satu'], ['an object', { 0: 'Satu' }], ['null', null]])('returns nothing for %s', (_label, value) => {
+    expect(cleanList(value, 3)).toEqual([])
+  })
+})
+
+describe('with a period', () => {
   beforeEach(() => {
     vi.stubEnv('ROUTER_MODEL', 'test-model')
     vi.mocked(getCurrentPeriod).mockReset().mockResolvedValue(PERIOD)
     vi.mocked(creditsUsed).mockReset().mockResolvedValue(0)
+    vi.mocked(getBrandContext).mockReset().mockResolvedValue(null)
     database.insertError = null
     database.inserted = []
-    vi.mocked(chatCompletion).mockReset()
-    vi.mocked(getBrandContext).mockReset().mockResolvedValue(null)
     vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
@@ -265,102 +152,143 @@ describe('runAiTask', () => {
     vi.restoreAllMocks()
   })
 
-  it('stops when the period has fewer credits left than the task costs', async () => {
-    vi.mocked(creditsUsed).mockResolvedValue(999) // captions cost 2 of 1,000
+  describe('remainingCredits', () => {
+    it('counts the credits left since the period started', async () => {
+      vi.mocked(creditsUsed).mockResolvedValue(2_500)
 
-    const error = await runAiTask(USER, CAPTIONS).then(() => null, (caught: unknown) => caught)
+      await expect(remainingCredits(USER)).resolves.toEqual({ remaining: 7_500, period: PERIOD })
+      expect(creditsUsed).toHaveBeenCalledWith(USER, PERIOD.start)
+    })
 
-    expect(error).toBeInstanceOf(AiLimitError)
-    expect(aiErrorMessage(error)).toContain('Kuota AI periode ini habis')
-    expect(creditsUsed).toHaveBeenCalledWith(USER, PERIOD.start)
-    expect(chatCompletion).not.toHaveBeenCalled()
-    expect(database.inserted).toEqual([])
+    it('never goes below 0 when two requests at once overspent the period', async () => {
+      vi.mocked(creditsUsed).mockResolvedValue(10_020)
+
+      await expect(remainingCredits(USER)).resolves.toMatchObject({ remaining: 0 })
+    })
   })
 
-  it('still runs a task that uses up the last credits exactly', async () => {
-    vi.mocked(creditsUsed).mockResolvedValue(998)
-    vi.mocked(chatCompletion).mockResolvedValue('{"captions": ["Satu"]}')
+  describe('runLogged', () => {
+    it('returns the answer and logs it to ai_generations with the task price', async () => {
+      const ask = vi.fn(async () => 'Halo')
 
-    await expect(runAiTask(USER, CAPTIONS)).resolves.toEqual(['Satu'])
+      await expect(runLogged(USER, 'caption_edit', { instruction: 'santai' }, ask)).resolves.toBe('Halo')
+      expect(database.inserted).toEqual([
+        {
+          table: 'ai_generations',
+          row: {
+            user_id: USER,
+            task: 'caption_edit',
+            input: { instruction: 'santai' },
+            model: 'test-model',
+            output: 'Halo',
+            status: 'ok',
+            error: null,
+            credits: 2,
+            duration_ms: expect.any(Number),
+          },
+        },
+      ])
+    })
+
+    it('charges and checks the given cost instead of the task price', async () => {
+      vi.mocked(creditsUsed).mockResolvedValue(10_000 - contentCost(3))
+
+      await runLogged(USER, 'content', {}, async () => 'ok', { cost: contentCost(3) })
+
+      expect(rows()).toEqual([expect.objectContaining({ task: 'content', credits: 63 })])
+    })
+
+    it('logs the given model and only what logOutput keeps', async () => {
+      const image = { bytes: new Uint8Array(4), prompt: 'Kafe' }
+
+      await runLogged(USER, 'slide_edit', {}, async () => image, {
+        model: 'image-model',
+        logOutput: (result) => ({ bytes: result.bytes.length, prompt: result.prompt }),
+      })
+
+      expect(rows()).toEqual([expect.objectContaining({ model: 'image-model', output: { bytes: 4, prompt: 'Kafe' } })])
+    })
+
+    it('still runs a request that uses up the last credits exactly', async () => {
+      vi.mocked(creditsUsed).mockResolvedValue(998)
+
+      await expect(runLogged(USER, 'caption_edit', {}, async () => 'ok')).resolves.toBe('ok')
+    })
+
+    it('runs a free request with no credits left', async () => {
+      vi.mocked(creditsUsed).mockResolvedValue(10_000)
+
+      await expect(runLogged(USER, 'content_slide', {}, async () => 'ok')).resolves.toBe('ok')
+      expect(rows()).toEqual([expect.objectContaining({ credits: 0, status: 'ok' })])
+    })
+
+    it('stops before asking when the period has fewer credits left than the request costs', async () => {
+      vi.mocked(creditsUsed).mockResolvedValue(9_999)
+      const ask = vi.fn(async () => 'ok')
+
+      const error = await failure(runLogged(USER, 'caption_edit', {}, ask))
+
+      expect(error).toBeInstanceOf(AiLimitError)
+      expect(aiErrorMessage(error)).toBe(
+        'Kuota AI periode ini tidak cukup. Kuota baru mulai 31 Okt, atau perpanjang di halaman Langganan.',
+      )
+      expect(ask).not.toHaveBeenCalled()
+      expect(database.inserted).toEqual([])
+    })
+
+    it('refuses without an active subscription', async () => {
+      vi.mocked(getCurrentPeriod).mockResolvedValue(null)
+      const ask = vi.fn(async () => 'ok')
+
+      const error = await failure(runLogged(USER, 'caption_edit', {}, ask))
+
+      expect(aiErrorMessage(error)).toContain('Langganan tidak aktif')
+      expect(ask).not.toHaveBeenCalled()
+    })
+
+    it('refuses to ask when the credit count cannot be read', async () => {
+      vi.mocked(creditsUsed).mockRejectedValue(new Error('Supabase: jumlah kredit tidak terbaca'))
+      const ask = vi.fn(async () => 'ok')
+
+      const error = await failure(runLogged(USER, 'caption_edit', {}, ask))
+
+      expect(ask).not.toHaveBeenCalled()
+      expect(aiErrorMessage(error)).toBe(
+        'AI gagal dijalankan: database tidak bisa diakses. Periksa Supabase dan migrasi terbaru.',
+      )
+    })
+
+    it('logs a failure at no cost and rethrows the same error', async () => {
+      const rejected = new RouterApiError('rate limited', 429)
+
+      await expect(runLogged(USER, 'content', {}, async () => Promise.reject(rejected), { cost: 63 })).rejects.toBe(rejected)
+      expect(rows()).toEqual([
+        expect.objectContaining({ status: 'failed', output: null, error: 'RouterApiError: rate limited', credits: 0 }),
+      ])
+    })
+
+    it('still returns the answer when the log insert fails', async () => {
+      database.insertError = { message: 'relation "ai_generations" does not exist' }
+
+      await expect(runLogged(USER, 'caption_edit', {}, async () => 'ok')).resolves.toBe('ok')
+      expect(console.error).toHaveBeenCalledWith('[ai] gagal mencatat permintaan:', expect.stringContaining('ai_generations'))
+    })
   })
 
-  it('refuses without an active subscription', async () => {
-    vi.mocked(getCurrentPeriod).mockResolvedValue(null)
+  describe('loadBrandContext', () => {
+    it('returns the saved brand kit', async () => {
+      vi.mocked(getBrandContext).mockResolvedValue(BRAND)
 
-    const error = await runAiTask(USER, CAPTIONS).then(() => null, (caught: unknown) => caught)
+      await expect(loadBrandContext(USER)).resolves.toEqual(BRAND)
+      expect(getBrandContext).toHaveBeenCalledWith(USER)
+    })
 
-    expect(aiErrorMessage(error)).toContain('Langganan tidak aktif')
-    expect(chatCompletion).not.toHaveBeenCalled()
-  })
+    it('goes on without the brand when the kit cannot be read', async () => {
+      vi.mocked(getBrandContext).mockRejectedValue(new Error('relation "brand_kit" does not exist'))
 
-  it('refuses to ask the model when the credit count cannot be read', async () => {
-    vi.mocked(creditsUsed).mockRejectedValue(new Error('Supabase: jumlah kredit tidak terbaca'))
-
-    const error = await runAiTask(USER, CAPTIONS).then(() => null, (caught: unknown) => caught)
-
-    expect(chatCompletion).not.toHaveBeenCalled()
-    expect(aiErrorMessage(error)).toBe(
-      'AI gagal dijalankan: database tidak bisa diakses. Periksa Supabase dan migrasi terbaru.',
-    )
-  })
-
-  it('returns the options and logs the request', async () => {
-    vi.mocked(chatCompletion).mockResolvedValue('{"captions": ["Satu"]}')
-
-    await expect(runAiTask(USER, CAPTIONS)).resolves.toEqual(['Satu'])
-    expect(database.inserted).toEqual([
-      expect.objectContaining({
-        user_id: USER,
-        credits: 2,
-        task: 'captions',
-        input: CAPTIONS,
-        output: ['Satu'],
-        model: 'test-model',
-        status: 'ok',
-        error: null,
-      }),
-    ])
-  })
-
-  it('logs a failure and rethrows it', async () => {
-    vi.mocked(chatCompletion).mockRejectedValue(new RouterApiError('rate limited', 429))
-
-    await expect(runAiTask(USER, CAPTIONS)).rejects.toMatchObject({ status: 429 })
-    expect(database.inserted).toEqual([
-      expect.objectContaining({ status: 'failed', output: null, error: 'RouterApiError: rate limited', credits: 0 }),
-    ])
-  })
-
-  it('logs an unreadable answer as a failure', async () => {
-    vi.mocked(chatCompletion).mockResolvedValue('Gemini 3.5 Flash is no longer available.')
-
-    await expect(runAiTask(USER, CAPTIONS)).rejects.toThrow(AiOutputError)
-    expect(database.inserted).toEqual([expect.objectContaining({ status: 'failed' })])
-  })
-
-  it('sends the saved brand kit with the request', async () => {
-    vi.mocked(getBrandContext).mockResolvedValue(BRAND)
-    vi.mocked(chatCompletion).mockResolvedValue('{"captions": ["Satu"]}')
-
-    await runAiTask(USER, CAPTIONS)
-
-    expect(vi.mocked(chatCompletion).mock.calls[0][0][1].content).toContain('Nama: Kopi Sinar')
-  })
-
-  it('still writes captions when the brand kit cannot be read', async () => {
-    vi.mocked(getBrandContext).mockRejectedValue(new Error('relation "brand_kit" does not exist'))
-    vi.mocked(chatCompletion).mockResolvedValue('{"captions": ["Satu"]}')
-
-    await expect(runAiTask(USER, CAPTIONS)).resolves.toEqual(['Satu'])
-    expect(vi.mocked(chatCompletion).mock.calls[0][0][1].content).not.toContain('Tentang brand')
-  })
-
-  it('still returns the options when the log insert fails', async () => {
-    database.insertError = { message: 'relation "ai_generations" does not exist' }
-    vi.mocked(chatCompletion).mockResolvedValue('{"captions": ["Satu"]}')
-
-    await expect(runAiTask(USER, CAPTIONS)).resolves.toEqual(['Satu'])
-    expect(console.error).toHaveBeenCalled()
+      await expect(loadBrandContext(USER)).resolves.toBeNull()
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('brand kit'), expect.stringContaining('brand_kit'))
+    })
   })
 })
 
@@ -380,6 +308,7 @@ describe('aiErrorMessage', () => {
     [new RouterApiError('x', 401), 'API key 9Router ditolak. Periksa ROUTER_API_KEY di .env.local.'],
     [new RouterApiError('x', 403), 'API key 9Router ditolak. Periksa ROUTER_API_KEY di .env.local.'],
     [new RouterApiError('x', 404), 'Model AI tidak ditemukan. Periksa ROUTER_MODEL di .env.local.'],
+    [new RouterApiError('x', 413), 'Permintaan ke 9Router terlalu besar. Kurangi atau perkecil gambar referensi.'],
     [new RouterApiError('x', 429), 'Kuota AI sedang habis. Coba lagi beberapa menit lagi.'],
     [new RouterApiError('x', 503), 'Layanan AI sedang bermasalah. Coba lagi nanti.'],
     [new RouterApiError('x', 400), 'Permintaan ditolak layanan AI (HTTP 400). Periksa ROUTER_MODEL di .env.local.'],

@@ -62,7 +62,7 @@ as $$
 declare
   v_id uuid;
 begin
-  if jsonb_typeof(p_slides) <> 'array' or jsonb_array_length(p_slides) not between 1 and 10 then
+  if jsonb_typeof(p_slides) is distinct from 'array' or jsonb_array_length(p_slides) not between 1 and 10 then
     raise exception 'invalid_slides';
   end if;
   if exists (
@@ -110,8 +110,10 @@ as $$
 $$;
 
 -- Puts a generated image into its post: the slide becomes ready and the photo joins post_media at the slide's
--- place, or at the end when an edit of the post has taken that place since. The post row is locked first, so
--- this waits for a save_post in progress instead of interleaving with its delete and insert.
+-- place, or at the first free place when an edit of the post has taken that place since. The first free place,
+-- not after the last photo: a slide that landed at its own place past a renumbered list leaves a gap, and the end
+-- can be past 9 while the post has room. The post row is locked first, so this waits for a save_post in progress
+-- instead of interleaving with its delete and insert.
 create function public.attach_slide(p_slide_id uuid, p_asset_id uuid)
 returns void
 language plpgsql
@@ -141,21 +143,29 @@ begin
   end if;
 
   if exists (select 1 from public.post_media where post_id = v_post and position = v_position) then
-    select coalesce(max(position) + 1, 0) into v_position from public.post_media where post_id = v_post;
+    select min(free.position) into v_position
+      from generate_series(0, 9) as free (position)
+     where not exists (select 1 from public.post_media where post_id = v_post and position = free.position);
   end if;
-  if v_position > 9 then
+  if v_position is null then
     raise exception 'post_full';
   end if;
 
   insert into public.post_media (post_id, asset_id, position) values (v_post, p_asset_id, v_position);
+  -- Checked again: after the 5-minute reclaim, two generators of one slide can both read it as generating above.
+  -- The second waits for the post lock, then finds it ready here, and its insert is rolled back.
   update public.post_slides
      set status = 'ready', asset_id = p_asset_id, error = null, updated_at = now()
-   where id = p_slide_id;
+   where id = p_slide_id and status = 'generating';
+  if not found then
+    raise exception 'slide_not_claimed';
+  end if;
   update public.posts set updated_at = now() where id = v_post;
 end;
 $$;
 
 -- An edited slide: its new image takes the old one's place in post_media, and a ready row keeps the new prompt.
+-- A reference that isn't the user's own, or was deleted while the image was made, is left out.
 create function public.replace_slide(
   p_user_id      uuid,
   p_post_id      uuid,
@@ -197,7 +207,9 @@ begin
   insert into public.post_slides
     (user_id, post_id, position, headline, scene, format, reference_id, include_logo, status, asset_id)
   values
-    (p_user_id, p_post_id, v_position, p_headline, p_scene, p_format, p_reference_id, p_include_logo, 'ready', p_new_asset_id);
+    (p_user_id, p_post_id, v_position, p_headline, p_scene, p_format,
+     (select id from public.brand_references where id = p_reference_id and user_id = p_user_id),
+     p_include_logo, 'ready', p_new_asset_id);
   update public.posts set updated_at = now() where id = p_post_id;
 end;
 $$;

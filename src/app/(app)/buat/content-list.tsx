@@ -19,7 +19,6 @@ interface ContentListProps {
   selectedId: string | null
   selectedIdeaId: string | null
   /** e.g. "0,2%", what one round of ideas costs. */
-  ideasCost: string
   className: string
 }
 
@@ -33,7 +32,7 @@ function meta(post: ContentListItem): string {
 }
 
 /** Buat's left column: the posts still worth editing and the AI's ideas for new ones. */
-export function ContentList({ posts, ideas, selectedId, selectedIdeaId, ideasCost, className }: ContentListProps) {
+export function ContentList({ posts, ideas, selectedId, selectedIdeaId, className }: ContentListProps) {
   return (
     <aside aria-label="Daftar konten" className={`${className} min-h-0 w-full shrink-0 flex-col md:w-[320px] md:border-r md:border-hairline`}>
       <div className="px-4 pt-3 pb-2">
@@ -74,7 +73,7 @@ export function ContentList({ posts, ideas, selectedId, selectedIdeaId, ideasCos
           )}
         </ListSection>
 
-        <ListSection title="Ide" count={ideas.length} action={<FindIdeasButton cost={ideasCost} />}>
+        <ListSection title="Ide" count={ideas.length} action={<FindIdeasButton />}>
           {ideas.length === 0 ? (
             <p className="py-2 text-sm text-ink-muted">Pilih Cari ide: AI menyusun 10 ide dari Brand Anda.</p>
           ) : (
