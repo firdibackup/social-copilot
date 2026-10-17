@@ -11,6 +11,7 @@ import {
   removeLogo,
   saveBrandKit,
   setLogo,
+  setReferenceImageLabel,
   updateReference,
   type ReferencePatch,
 } from '@/lib/brand'
@@ -19,9 +20,12 @@ import {
   DESCRIPTION_MAX_LENGTH,
   lengthOf,
   MAX_LOGO_BYTES,
+  MAX_GROUP_IMAGES,
   NOTE_MAX_LENGTH,
   parseBrandFields,
   parsePalette,
+  REFERENCE_LABELS,
+  type ReferenceLabel,
   type ReferenceSource,
 } from '@/lib/brand-options'
 import { getValidAccessToken, markNeedsReconnect, NeedsReconnectError } from '@/lib/connection'
@@ -145,7 +149,7 @@ export async function analyzeProfileAction(websiteUrl: unknown, includeInstagram
 
 /** Receives a JPEG prepared in the browser (see toReferenceJpeg) and its palette. */
 export async function uploadReferenceAction(formData: FormData): Promise<ActionError> {
-  const { userId } = await requireAccount()
+  const { userId, accountId } = await requireAccount()
   const file = formData.get('file')
   if (!(file instanceof Blob)) return 'File tidak ditemukan.'
   if (file.size === 0 || file.size > MAX_IMAGE_BYTES) return 'Ukuran gambar harus di bawah 8 MB.'
@@ -159,7 +163,13 @@ export async function uploadReferenceAction(formData: FormData): Promise<ActionE
   }
 
   try {
-    await addReference(userId, { bytes, type: 'image/jpeg', source: 'upload', sourceLabel: 'Unggahan', permalink: null, palette })
+    await addReference(userId, accountId, {
+      images: [{ bytes, type: 'image/jpeg' }],
+      source: 'upload',
+      sourceLabel: 'Unggahan',
+      permalink: null,
+      palette,
+    })
   } catch (error) {
     if (error instanceof ReferenceLimitError) return error.message
     console.error('[brand] referensi gagal disimpan:', describeError(error))
@@ -224,8 +234,9 @@ export async function discoverPostsAction(input: unknown): Promise<PostsResult> 
   }
 }
 
+/** One post: its photo, or every slide of a carousel, becomes one reference group. */
 interface ImportItem {
-  imageUrl: string
+  imageUrls: string[]
   permalink: string | null
   source: Exclude<ReferenceSource, 'upload'>
   sourceLabel: string
@@ -235,42 +246,50 @@ const IMPORT_SOURCES = new Set<string>(['website', 'instagram', 'discovery'])
 const isHttpUrl = (value: string) => /^https?:\/\//i.test(value) && lengthOf(value) <= URL_MAX_LENGTH
 
 function parseImportItem(value: unknown): ImportItem | null {
-  if (!isObject(value)) return null
-  const imageUrl = text(value.imageUrl)
+  if (!isObject(value) || !Array.isArray(value.imageUrls)) return null
+  const imageUrls = value.imageUrls.map(text)
   const permalink = value.permalink === null ? null : text(value.permalink)
   const sourceLabel = text(value.sourceLabel)
-  if (!isHttpUrl(imageUrl) || (permalink !== null && !isHttpUrl(permalink))) return null
+  if (imageUrls.length === 0 || imageUrls.length > MAX_GROUP_IMAGES || !imageUrls.every(isHttpUrl)) return null
+  if (permalink !== null && !isHttpUrl(permalink)) return null
   if (typeof value.source !== 'string' || !IMPORT_SOURCES.has(value.source)) return null
   if (lengthOf(sourceLabel) > LABEL_MAX_LENGTH || (permalink !== null && lengthOf(permalink) > 500)) return null
-  return { imageUrl, permalink, source: value.source as ImportItem['source'], sourceLabel }
+  return { imageUrls, permalink, source: value.source as ImportItem['source'], sourceLabel }
 }
 
 export type ImportResult = { imported: number; failed: string[] } | { error: string }
 
-/** Downloads the chosen images into the brand bucket. The page computes their palettes afterwards. */
+/** Downloads the chosen posts into the brand bucket, one group each. The page computes their palettes afterwards. */
 export async function importReferencesAction(items: unknown): Promise<ImportResult> {
-  const { userId } = await requireAccount()
+  const { userId, accountId } = await requireAccount()
   const parsed = Array.isArray(items) ? items.map(parseImportItem) : []
   if (parsed.length === 0 || parsed.length > MAX_IMPORT || parsed.some((item) => item === null)) {
-    return { error: `Pilih 1–${MAX_IMPORT} gambar.` }
+    return { error: `Pilih 1–${MAX_IMPORT} post.` }
   }
 
   let imported = 0
   const failed: string[] = []
   for (const [index, item] of (parsed as ImportItem[]).entries()) {
     try {
-      const image = await fetchImage(item.imageUrl)
-      await addReference(userId, { ...image, source: item.source, sourceLabel: item.sourceLabel, permalink: item.permalink, palette: [] })
+      const images = []
+      for (const url of item.imageUrls) images.push(await fetchImage(url))
+      await addReference(userId, accountId, {
+        images,
+        source: item.source,
+        sourceLabel: item.sourceLabel,
+        permalink: item.permalink,
+        palette: [],
+      })
       imported += 1
     } catch (error) {
       if (error instanceof ReferenceLimitError) {
         failed.push(error.message)
         break
       }
-      if (error instanceof RemoteFetchError) failed.push(`Gambar ${index + 1}: ${error.message}`)
+      if (error instanceof RemoteFetchError) failed.push(`Post ${index + 1}: ${error.message}`)
       else {
         console.error('[brand] impor referensi gagal:', describeError(error))
-        failed.push(`Gambar ${index + 1}: gagal disimpan. ${DATABASE}`)
+        failed.push(`Post ${index + 1}: gagal disimpan. ${DATABASE}`)
       }
     }
   }
@@ -311,6 +330,21 @@ export async function updateReferenceAction(id: unknown, changes: unknown): Prom
   }
 }
 
+const LABELS = new Set<string>(Object.keys(REFERENCE_LABELS))
+
+/** The owner's label for one slide. No refresh: the select already shows it. */
+export async function setReferenceLabelAction(imageId: unknown, label: unknown): Promise<ActionError> {
+  const { userId } = await requireAccount()
+  if (!isUuid(imageId)) return 'Gambar tidak ditemukan.'
+  if (typeof label !== 'string' || !LABELS.has(label)) return 'Label tidak valid.'
+  try {
+    return (await setReferenceImageLabel(userId, imageId, label as ReferenceLabel)) ? null : 'Gambar tidak ditemukan.'
+  } catch (error) {
+    console.error('[brand] label referensi gagal diubah:', describeError(error))
+    return `Label gagal disimpan. ${DATABASE}`
+  }
+}
+
 export async function deleteReferenceAction(id: unknown): Promise<ActionError> {
   const { userId } = await requireAccount()
   if (!isUuid(id)) return 'Referensi tidak ditemukan.'
@@ -328,10 +362,10 @@ export type VisualResult = { visualStyle: string; used: number; skipped: number 
 
 /** Vision analysis of the newest references. Descriptions are saved; the style guide only fills the form. */
 export async function analyzeVisualAction(): Promise<VisualResult> {
-  const { userId } = await requireAccount()
+  const { userId, accountId } = await requireAccount()
   let selection
   try {
-    selection = await loadVisualReferences(userId)
+    selection = await loadVisualReferences(userId, accountId)
   } catch (error) {
     console.error('[brand] referensi gagal dibaca:', describeError(error))
     return { error: `Referensi gagal dibaca. ${DATABASE}` }
@@ -353,10 +387,13 @@ export async function analyzeVisualAction(): Promise<VisualResult> {
     console.error('[brand] analisis visual gagal:', describeError(error))
     return { error: aiErrorMessage(error) }
   }
+  // A group can send several images; its first description is the one saved.
+  const described = new Set<string>()
   await Promise.all(
     references.map(async (reference, index) => {
       const description = analysis.descriptions[index]
-      if (!description) return
+      if (!description || described.has(reference.id)) return
+      described.add(reference.id)
       // The style guide is the main result; a description that fails to save is only logged.
       await updateReference(userId, reference.id, { description }).catch((error: unknown) =>
         console.error('[brand] deskripsi referensi gagal disimpan:', describeError(error)),

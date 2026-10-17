@@ -3,13 +3,17 @@ import { randomUUID } from 'node:crypto'
 import {
   EMPTY_BRAND,
   isHex,
+  labelsForCount,
+  MAX_GROUP_IMAGES,
   MAX_REFERENCES,
+  pickReferenceImage,
   PROFILE_FIELDS,
   type BrandColor,
   type BrandContext,
   type BrandFields,
   type BrandKit,
   type BrandReference,
+  type ReferenceLabel,
   type ReferenceSource,
 } from './brand-options'
 import { getConnectedAccountId } from './connection'
@@ -19,7 +23,7 @@ import { db, unwrap } from './supabase'
 
 const BUCKET = 'brand'
 const VIEW_URL_TTL_SECONDS = 60 * 60
-/** References sent in one visual analysis: the newest ones that fit VISUAL_BODY_BUDGET. */
+/** Images sent in one visual analysis: the newest groups' that fit VISUAL_BODY_BUDGET. */
 export const VISUAL_REFERENCE_LIMIT = 8
 /**
  * Data URL characters per analysis. 9Router sits behind nginx with the default 1 MB client_max_body_size
@@ -54,21 +58,27 @@ interface KitRow {
   logo_path: string | null
 }
 
-interface ReferenceRow {
-  id: string
+interface ImageRow {
+  position: number
+  label: ReferenceLabel
   storage_path: string
   content_type: ImageType
+}
+
+interface ReferenceRow {
+  id: string
   source: ReferenceSource
   source_label: string
   permalink: string | null
   palette: unknown
   description: string
   note: string
+  brand_reference_images: (Omit<ImageRow, 'content_type'> & { id: string })[]
 }
 
 const KIT_COLUMNS =
   'name, category, description, website_url, audience, voice, words_use, words_avoid, facts, colors, heading_font, body_font, visual_style, logo_path'
-const REFERENCE_COLUMNS = 'id, storage_path, content_type, source, source_label, permalink, palette, description, note'
+const REFERENCE_COLUMNS = 'id, source, source_label, permalink, palette, description, note'
 
 const bucket = () => db().storage.from(BUCKET)
 
@@ -204,59 +214,99 @@ export async function removeLogo(userId: string, accountId: string): Promise<voi
   await removeFile(previous)
 }
 
-export async function listReferences(userId: string): Promise<BrandReference[]> {
+export async function listReferences(userId: string, accountId: string): Promise<BrandReference[]> {
   const rows: ReferenceRow[] = unwrap(
     await db()
       .from('brand_references')
-      .select(REFERENCE_COLUMNS)
+      .select(`${REFERENCE_COLUMNS}, brand_reference_images(id, position, storage_path, label)`)
       .eq('user_id', userId)
+      .eq('account_id', accountId)
       .order('created_at', { ascending: false }),
   )
-  const urls = await signUrls(rows.map((row) => row.storage_path))
-  return rows.map((row, index) => ({
+  const groups = rows.map((row) => ({ row, images: [...row.brand_reference_images].sort((a, b) => a.position - b.position) }))
+  const urls = await signUrls(groups.flatMap(({ images }) => images.map((image) => image.storage_path)))
+  let urlIndex = 0
+  return groups.map(({ row, images }) => ({
     id: row.id,
-    url: urls[index],
     source: row.source,
     sourceLabel: row.source_label,
     permalink: row.permalink,
     palette: paletteFrom(row.palette),
     description: row.description,
     note: row.note,
+    images: images.map((image) => ({ id: image.id, url: urls[urlIndex++], position: image.position, label: image.label })),
   }))
 }
 
 export interface NewReference {
-  bytes: Uint8Array
-  type: ImageType
+  /** One for a photo, every slide for a carousel (at most MAX_GROUP_IMAGES). */
+  images: { bytes: Uint8Array; type: ImageType }[]
+  /** Defaults to labelsForCount. */
+  labels?: ReferenceLabel[]
   source: ReferenceSource
   sourceLabel: string
   permalink: string | null
   palette: string[]
 }
 
-export async function addReference(userId: string, reference: NewReference): Promise<void> {
+async function removeFiles(paths: string[]): Promise<void> {
+  if (paths.length === 0) return
+  const removal = await bucket().remove(paths)
+  if (removal.error) console.error('[brand] file tertinggal di Storage:', describeError(removal.error))
+}
+
+/** Stores one group: the row, its files, then its image rows. Anything half-saved is removed again. */
+export async function addReference(userId: string, accountId: string, reference: NewReference): Promise<string> {
+  const images = reference.images.slice(0, MAX_GROUP_IMAGES)
+  if (images.length === 0) throw new Error('Referensi tanpa gambar')
   // ponytail: two imports racing can pass this check together; the gallery may end a few over the cap.
   const { count, error } = await db()
     .from('brand_references')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
+    .eq('account_id', accountId)
   if (error || count === null) throw new Error(`Supabase: ${error?.message || 'jumlah referensi tidak terbaca'}`)
   if (count >= MAX_REFERENCES) throw new ReferenceLimitError(`Referensi sudah ${MAX_REFERENCES}. Hapus yang lama dulu.`)
 
-  const path = await upload(userId, 'ref-', reference.bytes, reference.type)
-  const insert = await db().from('brand_references').insert({
-    user_id: userId,
-    storage_path: path,
-    content_type: reference.type,
-    source: reference.source,
-    source_label: reference.sourceLabel,
-    permalink: reference.permalink,
-    palette: reference.palette,
-  })
-  if (insert.error) {
-    await removeFile(path)
-    throw new Error(`Supabase: ${insert.error.message}`)
+  const group = unwrap(
+    await db()
+      .from('brand_references')
+      .insert({
+        user_id: userId,
+        account_id: accountId,
+        source: reference.source,
+        source_label: reference.sourceLabel,
+        permalink: reference.permalink,
+        palette: reference.palette,
+      })
+      .select('id')
+      .single(),
+  ) as { id: string }
+
+  const labels = reference.labels?.length === images.length ? reference.labels : labelsForCount(images.length)
+  const paths: string[] = []
+  try {
+    for (const image of images) paths.push(await upload(userId, 'ref-', image.bytes, image.type))
+    unwrap(
+      await db()
+        .from('brand_reference_images')
+        .insert(
+          images.map((image, position) => ({
+            user_id: userId,
+            reference_id: group.id,
+            position,
+            storage_path: paths[position],
+            content_type: image.type,
+            label: labels[position],
+          })),
+        ),
+    )
+  } catch (failure) {
+    await db().from('brand_references').delete().eq('id', group.id).eq('user_id', userId)
+    await removeFiles(paths)
+    throw failure
   }
+  return group.id
 }
 
 export interface ReferencePatch {
@@ -273,11 +323,23 @@ export async function updateReference(userId: string, id: string, patch: Referen
   return rows.length === 1
 }
 
-export async function deleteReference(userId: string, id: string): Promise<void> {
-  const rows: Pick<ReferenceRow, 'storage_path'>[] = unwrap(
-    await db().from('brand_references').delete().eq('id', id).eq('user_id', userId).select('storage_path'),
+/** The owner's label for one slide of a group. False when the image no longer exists. */
+export async function setReferenceImageLabel(userId: string, imageId: string, label: ReferenceLabel): Promise<boolean> {
+  const rows: unknown[] = unwrap(
+    await db().from('brand_reference_images').update({ label }).eq('id', imageId).eq('user_id', userId).select('id'),
   )
-  if (rows.length === 1) await removeFile(rows[0].storage_path)
+  return rows.length === 1
+}
+
+/** Deletes the whole group; its image rows go with it, and their files after. */
+export async function deleteReference(userId: string, id: string): Promise<void> {
+  const images: { storage_path: string }[] = unwrap(
+    await db().from('brand_reference_images').select('storage_path').eq('reference_id', id).eq('user_id', userId),
+  )
+  const rows: unknown[] = unwrap(
+    await db().from('brand_references').delete().eq('id', id).eq('user_id', userId).select('id'),
+  )
+  if (rows.length === 1) await removeFiles(images.map((image) => image.storage_path))
 }
 
 export interface VisualReference {
@@ -325,17 +387,25 @@ export interface ReferenceImage {
   note: string
 }
 
-/** One reference with its bytes, or null when it no longer exists. */
-export async function loadReferenceImage(userId: string, id: string): Promise<ReferenceImage | null> {
+/**
+ * The image of a reference group that a slide follows (see pickReferenceImage), with its bytes. `slide` is null
+ * for a one-image post. Null when the reference no longer exists.
+ */
+export async function loadReferenceImage(
+  userId: string,
+  id: string,
+  slide: { index: number; count: number } | null,
+): Promise<ReferenceImage | null> {
   const row = unwrap(
     await db()
       .from('brand_references')
-      .select('storage_path, content_type, note')
+      .select('note, brand_reference_images(position, label, storage_path, content_type)')
       .eq('id', id)
       .eq('user_id', userId)
       .maybeSingle(),
-  ) as Pick<ReferenceRow, 'storage_path' | 'content_type' | 'note'> | null
-  return row ? { dataUrl: await dataUrlOf(row.storage_path, row.content_type), note: row.note } : null
+  ) as { note: string; brand_reference_images: ImageRow[] } | null
+  const image = row && pickReferenceImage(row.brand_reference_images, slide)
+  return row && image ? { dataUrl: await dataUrlOf(image.storage_path, image.content_type), note: row.note } : null
 }
 
 const TYPE_BY_EXTENSION = Object.fromEntries(Object.entries(EXTENSIONS).map(([type, ext]) => [ext, type])) as Record<
@@ -350,13 +420,26 @@ export async function loadLogoImage(userId: string): Promise<string | null> {
   return path && type ? dataUrlOf(path, type) : null
 }
 
-/** The newest references whose bytes fit in one request together. */
-export async function loadVisualReferences(userId: string): Promise<VisualSelection> {
-  const rows: Pick<ReferenceRow, 'id' | 'storage_path' | 'content_type' | 'note'>[] = unwrap(
+/** What the vision model sees of a group: its cover, one inner slide and its CTA. */
+function visualImagesOf(images: ImageRow[]): ImageRow[] {
+  const sorted = [...images].sort((x, y) => x.position - y.position)
+  const cover = pickReferenceImage(sorted, null)
+  const inner = sorted.find((image) => image.label === 'isi')
+  const cta = sorted.find((image) => image.label === 'cta')
+  return [cover, inner, cta].filter((image, index, all): image is ImageRow => !!image && all.indexOf(image) === index)
+}
+
+/**
+ * The newest groups' images (cover, one inner slide, CTA) whose bytes fit in one request together.
+ * VISUAL_REFERENCE_LIMIT counts images; several images of one group share its id.
+ */
+export async function loadVisualReferences(userId: string, accountId: string): Promise<VisualSelection> {
+  const rows: { id: string; note: string; brand_reference_images: ImageRow[] }[] = unwrap(
     await db()
       .from('brand_references')
-      .select('id, storage_path, content_type, note')
+      .select('id, note, brand_reference_images(position, label, storage_path, content_type)')
       .eq('user_id', userId)
+      .eq('account_id', accountId)
       .order('created_at', { ascending: false })
       .limit(VISUAL_CANDIDATES),
   )
@@ -364,14 +447,16 @@ export async function loadVisualReferences(userId: string): Promise<VisualSelect
   let used = 0
   let skipped = 0
   for (const row of rows) {
-    if (references.length === VISUAL_REFERENCE_LIMIT) break
-    const dataUrl = await dataUrlOf(row.storage_path, row.content_type)
-    if (used + dataUrl.length > VISUAL_BODY_BUDGET) {
-      skipped += 1
-      continue
+    for (const image of visualImagesOf(row.brand_reference_images)) {
+      if (references.length === VISUAL_REFERENCE_LIMIT) break
+      const dataUrl = await dataUrlOf(image.storage_path, image.content_type)
+      if (used + dataUrl.length > VISUAL_BODY_BUDGET) {
+        skipped += 1
+        continue
+      }
+      used += dataUrl.length
+      references.push({ id: row.id, note: row.note, dataUrl })
     }
-    used += dataUrl.length
-    references.push({ id: row.id, note: row.note, dataUrl })
   }
   return { references: references.reverse(), skipped }
 }

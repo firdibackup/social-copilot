@@ -183,9 +183,15 @@ describe('drawImage', () => {
 
     const drawn = await drawImage(USER, { ...INPUT, referenceId: REFERENCE_ID, includeLogo: true })
 
-    expect(loadReferenceImage).toHaveBeenCalledWith(USER, REFERENCE_ID)
+    expect(loadReferenceImage).toHaveBeenCalledWith(USER, REFERENCE_ID, null)
     expect(drawn.skipped).toEqual(['referensi (tidak ditemukan)', 'logo (tidak ditemukan)'])
     expect(drawn.sent).toEqual([])
+  })
+
+  it('asks for the reference image that matches the slide’s place in the carousel', async () => {
+    await drawImage(USER, { ...INPUT, referenceId: REFERENCE_ID, slide: { index: 5, count: 5 } })
+
+    expect(loadReferenceImage).toHaveBeenCalledWith(USER, REFERENCE_ID, { index: 5, count: 5 })
   })
 
   it('loads only the images the input asks for', async () => {

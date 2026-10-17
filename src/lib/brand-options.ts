@@ -131,15 +131,19 @@ export function colorsFromPalettes(palettes: string[][]): BrandColor[] {
   return picked.map((hex, index) => ({ hex, role: ROLE_ORDER[index] }))
 }
 
+/** A design reference: one photo, or every slide of a carousel with its label. */
 export interface BrandReference {
   id: string
-  url: string
   source: ReferenceSource
+  /** @account or domain. */
   sourceLabel: string
   permalink: string | null
+  /** The cover's palette. */
   palette: string[]
   description: string
   note: string
+  /** In carousel order; never empty. */
+  images: { id: string; url: string; position: number; label: ReferenceLabel }[]
 }
 
 export const EMPTY_BRAND: BrandFields = {

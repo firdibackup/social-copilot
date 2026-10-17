@@ -36,7 +36,7 @@ async function BrandStudio() {
   try {
     const [kit, references, instagram, facebook] = await Promise.all([
       getBrandKit(userId, accountId),
-      listReferences(userId),
+      listReferences(userId, accountId),
       getConnection(userId),
       getFacebookConnection(userId, accountId),
     ])

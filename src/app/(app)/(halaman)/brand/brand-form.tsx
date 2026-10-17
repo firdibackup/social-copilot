@@ -340,7 +340,7 @@ function WebsiteImages({ website }: { website: WebsiteSuggestions }) {
       url,
       async () => {
         const response = await importReferencesAction([
-          { imageUrl: url, permalink: website.url, source: 'website', sourceLabel: hostOf(website.url) },
+          { imageUrls: [url], permalink: website.url, source: 'website', sourceLabel: hostOf(website.url) },
         ])
         if ('error' in response) return response.error
         return response.failed[0] ?? null

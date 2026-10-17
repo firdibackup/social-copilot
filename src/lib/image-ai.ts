@@ -103,7 +103,7 @@ async function packImages(userId: string, input: ImageInput): Promise<PackedImag
   const candidates: { kind: InputImageKind; load: () => Promise<{ dataUrl: string; note?: string } | null> }[] = []
   if (currentImage) candidates.push({ kind: 'current', load: async () => ({ dataUrl: currentImage }) })
   if (previousImage) candidates.push({ kind: 'previous', load: async () => ({ dataUrl: previousImage }) })
-  if (referenceId) candidates.push({ kind: 'reference', load: () => loadReferenceImage(userId, referenceId) })
+  if (referenceId) candidates.push({ kind: 'reference', load: () => loadReferenceImage(userId, referenceId, input.slide) })
   if (input.includeLogo) {
     candidates.push({
       kind: 'logo',

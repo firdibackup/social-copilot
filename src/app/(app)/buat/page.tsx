@@ -81,7 +81,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
       !postId && isUuid(ideaParam) ? getIdea(userId, ideaParam) : null,
       getConnection(userId),
       getBrandKit(userId, accountId),
-      listReferences(userId),
+      listReferences(userId, accountId),
       listAssets(userId, accountId),
       // Shown as a hint only; every request checks the credits again.
       remainingCredits(userId).then(
@@ -152,7 +152,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
           account={{ username: instagram?.username ?? null, avatarUrl: kit.logoUrl }}
           references={references.map((reference) => ({
             id: reference.id,
-            url: reference.url,
+            url: reference.images[0]?.url ?? '',
             label: reference.sourceLabel || 'Referensi',
           }))}
           hasLogo={kit.logoUrl !== null}

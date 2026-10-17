@@ -26,6 +26,41 @@ export function queryMock(result: unknown = { data: [], error: null }) {
   return { query, calls }
 }
 
+/**
+ * A db() stand-in whose every `from()` starts a new chain answering with the next of `results` (the last one
+ * repeats), and whose `storage.from()` bucket records uploads and removals.
+ */
+export function dbMock(results: unknown[]) {
+  const chains: unknown[][][] = []
+  const storage = {
+    uploads: [] as string[],
+    removed: [] as string[],
+    upload: vi.fn(async (path: string) => {
+      storage.uploads.push(path)
+      return { data: { path }, error: null }
+    }),
+    remove: vi.fn(async (paths: string[]) => {
+      storage.removed.push(...paths)
+      return { data: [], error: null }
+    }),
+    download: vi.fn(async (path: string) => ({ data: new Blob([path]), error: null })),
+    createSignedUrls: vi.fn(async (paths: string[]) => ({
+      data: paths.map((path) => ({ path, signedUrl: `https://signed/${path}` })),
+      error: null,
+    })),
+  }
+  const client = {
+    from: vi.fn((table: string) => {
+      const { query, calls } = queryMock(results[Math.min(chains.length, results.length - 1)])
+      chains.push(calls)
+      calls.push(['from', table])
+      return query
+    }),
+    storage: { from: () => storage },
+  }
+  return { client, chains, storage }
+}
+
 /** Whether the recorded chain filtered `column` by `value`. */
 export const filtered = (calls: unknown[][], column: string, value: unknown) =>
   calls.some((call) => call[0] === 'eq' && call[1] === column && call[2] === value)

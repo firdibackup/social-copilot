@@ -135,7 +135,7 @@ function useMissingPalettes(references: BrandReference[]) {
         try {
           // The card's <img> already loaded this URL without CORS, and Storage sends no `Vary: Origin`, so a
           // cached copy would lack Access-Control-Allow-Origin. A fresh request carries Origin and gets it.
-          const response = await fetch(reference.url, { cache: 'no-store' })
+          const response = await fetch(reference.images[0].url, { cache: 'no-store' })
           if (!response.ok) continue
           const palette = await paletteFromBlob(await response.blob())
           if (palette.length > 0 && (await updateReferenceAction(reference.id, { palette })) === null) saved += 1
@@ -303,7 +303,7 @@ function PostPicker({ result, source, room, imported, onDone }: PostPickerProps)
     setPending(true)
     const items = posts
       .filter((post) => selected.has(post.id))
-      .map((post) => ({ imageUrl: post.imageUrl, permalink: post.permalink, source, sourceLabel: `@${account.username}` }))
+      .map((post) => ({ imageUrls: post.images, permalink: post.permalink, source, sourceLabel: `@${account.username}` }))
     const response = await importReferencesAction(items).catch(() => ({ error: FAILED }))
     setPending(false)
     if ('error' in response) {
@@ -410,7 +410,7 @@ function ReferenceCard({ reference }: { reference: BrandReference }) {
 
   return (
     <li className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
-      <MediaImage src={reference.url} className="aspect-square w-full bg-zinc-100 object-cover" />
+      <MediaImage src={reference.images[0]?.url ?? ''} className="aspect-square w-full bg-zinc-100 object-cover" />
       <div className="space-y-3 p-3">
         <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
           <span className="truncate">
