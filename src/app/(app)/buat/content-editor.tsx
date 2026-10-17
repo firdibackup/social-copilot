@@ -379,6 +379,7 @@ export function ContentEditor({
             {references.map((reference) => (
               <option key={reference.id} value={reference.id}>
                 {reference.label}
+                {reference.slideCount > 1 && ` (${reference.slideCount} slide)`}
               </option>
             ))}
           </select>

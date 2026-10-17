@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, ExternalLink, ImagePlus, Search, Trash2 } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, ExternalLink, ImagePlus, Search, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
@@ -10,7 +10,9 @@ import {
   DESCRIPTION_MAX_LENGTH,
   MAX_REFERENCES,
   NOTE_MAX_LENGTH,
+  REFERENCE_LABELS,
   type BrandReference,
+  type ReferenceLabel,
   type ReferenceSource,
 } from '@/lib/brand-options'
 import { toReferenceJpeg } from '@/lib/image'
@@ -21,6 +23,7 @@ import {
   discoverPostsAction,
   importReferencesAction,
   listOwnPostsAction,
+  setReferenceLabelAction,
   updateReferenceAction,
   uploadReferenceAction,
   type PostsResult,
@@ -333,7 +336,7 @@ function PostPicker({ result, source, room, imported, onDone }: PostPickerProps)
       ) : (
         <>
           <p className="text-sm text-zinc-500">
-            Pilih sampai {limit} post. Video dilewati; carousel diambil slide pertamanya.
+            Pilih sampai {limit} post. Video dilewati; carousel diambil semua slide-nya.
           </p>
           <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
             {posts.map((post) => {
@@ -353,6 +356,11 @@ function PostPicker({ result, source, room, imported, onDone }: PostPickerProps)
                     {checked && (
                       <span className="absolute top-1.5 right-1.5 rounded-full bg-zinc-900 p-0.5 text-white">
                         <Check size={14} aria-hidden="true" />
+                      </span>
+                    )}
+                    {post.isCarousel && !done && (
+                      <span className="absolute top-1.5 left-1.5 rounded bg-zinc-900/80 px-1.5 py-0.5 text-[11px] font-medium text-white">
+                        Carousel · {post.images.length}
                       </span>
                     )}
                     {done && (
@@ -402,7 +410,8 @@ function ReferenceCard({ reference }: { reference: BrandReference }) {
   }
 
   async function remove() {
-    if (!window.confirm('Hapus referensi ini?')) return
+    const slides = reference.images.length > 1 ? ` beserta ${reference.images.length} slide-nya` : ''
+    if (!window.confirm(`Hapus referensi ini${slides}?`)) return
     setPending(true)
     setError(await deleteReferenceAction(reference.id).catch(() => FAILED))
     setPending(false)
@@ -410,7 +419,7 @@ function ReferenceCard({ reference }: { reference: BrandReference }) {
 
   return (
     <li className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
-      <MediaImage src={reference.images[0]?.url ?? ''} className="aspect-square w-full bg-zinc-100 object-cover" />
+      <ReferenceSlides images={reference.images} />
       <div className="space-y-3 p-3">
         <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
           <span className="truncate">
@@ -476,5 +485,99 @@ function ReferenceCard({ reference }: { reference: BrandReference }) {
         {error && <Notice tone="error">{error}</Notice>}
       </div>
     </li>
+  )
+}
+
+const LABEL_ORDER = Object.keys(REFERENCE_LABELS) as ReferenceLabel[]
+
+/**
+ * A group's slides as a swipeable strip, one per view, each with its label; the select under it changes the
+ * visible slide's label. One-image groups show just the image.
+ */
+function ReferenceSlides({ images }: { images: BrandReference['images'] }) {
+  const strip = useRef<HTMLDivElement>(null)
+  const [current, setCurrent] = useState(0)
+  const [labels, setLabels] = useState(() => images.map((image) => image.label))
+  const [error, setError] = useState<string | null>(null)
+  const many = images.length > 1
+
+  function show(index: number) {
+    const target = Math.max(0, Math.min(images.length - 1, index))
+    const element = strip.current
+    if (element) element.scrollTo({ left: target * element.clientWidth, behavior: 'smooth' })
+    setCurrent(target)
+  }
+
+  async function relabel(label: ReferenceLabel) {
+    const previous = labels[current]
+    setLabels((list) => list.map((item, index) => (index === current ? label : item)))
+    const failure = await setReferenceLabelAction(images[current].id, label).catch(() => FAILED)
+    setError(failure)
+    if (failure) setLabels((list) => list.map((item, index) => (index === current ? previous : item)))
+  }
+
+  return (
+    <div>
+      <div className="relative">
+        <div
+          ref={strip}
+          onScroll={(event) => {
+            const element = event.currentTarget
+            setCurrent(Math.round(element.scrollLeft / Math.max(1, element.clientWidth)))
+          }}
+          className="flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none]"
+        >
+          {images.map((image, index) => (
+            <div key={image.id} className="relative w-full shrink-0 snap-start">
+              <MediaImage src={image.url} className="aspect-square w-full bg-zinc-100 object-cover" />
+              {many && (
+                <span className="absolute top-2 left-2 rounded bg-zinc-900/80 px-1.5 py-0.5 text-[11px] font-medium text-white">
+                  {REFERENCE_LABELS[labels[index]]} · {index + 1}/{images.length}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+        {many && current > 0 && (
+          <button
+            type="button"
+            onClick={() => show(current - 1)}
+            aria-label="Slide sebelumnya"
+            className="absolute top-1/2 left-2 -translate-y-1/2 rounded-full bg-white/90 p-1 text-zinc-700 shadow hover:bg-white"
+          >
+            <ChevronLeft size={16} aria-hidden="true" />
+          </button>
+        )}
+        {many && current < images.length - 1 && (
+          <button
+            type="button"
+            onClick={() => show(current + 1)}
+            aria-label="Slide berikutnya"
+            className="absolute top-1/2 right-2 -translate-y-1/2 rounded-full bg-white/90 p-1 text-zinc-700 shadow hover:bg-white"
+          >
+            <ChevronRight size={16} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+      {many && (
+        <div className="flex items-center justify-between gap-2 border-b border-zinc-100 px-3 py-2">
+          <label className="flex items-center gap-2 text-xs text-zinc-500">
+            Label slide {current + 1}
+            <select
+              value={labels[current]}
+              onChange={(event) => void relabel(event.target.value as ReferenceLabel)}
+              className="rounded-md border border-zinc-200 bg-white px-1.5 py-1 text-xs text-zinc-900"
+            >
+              {LABEL_ORDER.map((label) => (
+                <option key={label} value={label}>
+                  {REFERENCE_LABELS[label]}
+                </option>
+              ))}
+            </select>
+          </label>
+          {error && <span className="text-xs text-red-600">{error}</span>}
+        </div>
+      )}
+    </div>
   )
 }

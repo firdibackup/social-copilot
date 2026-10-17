@@ -154,6 +154,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
             id: reference.id,
             url: reference.images[0]?.url ?? '',
             label: reference.sourceLabel || 'Referensi',
+            slideCount: reference.images.length,
           }))}
           hasLogo={kit.logoUrl !== null}
           credits={credits}
