@@ -1,7 +1,7 @@
 # Data per Akun Instagram dan Referensi Carousel — Desain
 
 - **Tanggal:** 2026-10-17
-- **Status:** desain disetujui owner di chat. Review spec dan rencana tertulis dilewati atas permintaan owner.
+- **Status:** dibangun 2026-10-17 (rencana: `docs/superpowers/plans/2026-10-17-akun-instagram.md`). Owner menegaskan data akun lama disembunyikan, bukan dihapus. Belum diuji: migration di database VPS, Business Discovery dengan `children`, dan uji manual dua akun.
 - **Menyentuh:** multi-user (`2026-10-16-multi-user-design.md`), Brand (`2026-10-16-brand-kit-design.md`), Buat Konten (`2026-10-16-buat-konten-design.md`), Balasan, Kalender, Aset, worker.
 
 ## Tujuan

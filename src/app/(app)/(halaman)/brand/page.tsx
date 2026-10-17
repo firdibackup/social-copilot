@@ -9,6 +9,7 @@ import { describeError, loadErrorMessage } from '@/lib/errors'
 import { getFacebookConnection } from '@/lib/facebook-connection'
 import { BrandForm } from './brand-form'
 import { ReferencesPanel } from './references-panel'
+import { SyncRefresher } from './sync-refresher'
 
 export const metadata: Metadata = { title: 'Brand' }
 
@@ -47,8 +48,21 @@ async function BrandStudio() {
   }
 
   const instagramUsername = data.instagram?.status === 'active' ? data.instagram.username : null
+  const syncing = data.kit.syncStatus
   return (
     <div className="space-y-10">
+      {syncing === 'running' && (
+        <Notice tone="success">
+          Menyiapkan brand dari @{data.instagram?.username ?? 'akun'}… Profil, logo, warna, dan referensi desain terisi
+          sendiri dalam beberapa saat.
+          <SyncRefresher />
+        </Notice>
+      )}
+      {syncing === 'failed' && (
+        <Notice tone="warning">
+          Sebagian brand gagal disiapkan otomatis. Lengkapi lewat tombol analisis di bawah.
+        </Notice>
+      )}
       <BrandForm
         kit={data.kit}
         references={data.references}
