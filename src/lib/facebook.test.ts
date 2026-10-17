@@ -154,7 +154,17 @@ describe('discoverAccount', () => {
             data: [
               { id: 'm1', caption: 'Promo', media_type: 'IMAGE', media_url: 'https://cdn/m1.jpg', permalink: 'https://ig/p/1' },
               { id: 'm2', media_type: 'VIDEO', media_url: 'https://cdn/m2.mp4', permalink: 'https://ig/p/2' },
-              { id: 'm3', media_type: 'CAROUSEL_ALBUM', media_url: 'https://cdn/m3.jpg' },
+              {
+                id: 'm3',
+                media_type: 'CAROUSEL_ALBUM',
+                media_url: 'https://cdn/m3.jpg',
+                children: {
+                  data: [
+                    { media_type: 'IMAGE', media_url: 'https://cdn/m3.jpg' },
+                    { media_type: 'IMAGE', media_url: 'https://cdn/m3b.jpg' },
+                  ],
+                },
+              },
             ],
           },
         },
@@ -169,12 +179,27 @@ describe('discoverAccount', () => {
       biography: 'Kopi enak',
       followersCount: 1200,
       posts: [
-        { id: 'm1', caption: 'Promo', imageUrl: 'https://cdn/m1.jpg', permalink: 'https://ig/p/1' },
-        { id: 'm3', caption: '', imageUrl: 'https://cdn/m3.jpg', permalink: null },
+        {
+          id: 'm1',
+          caption: 'Promo',
+          imageUrl: 'https://cdn/m1.jpg',
+          images: ['https://cdn/m1.jpg'],
+          isCarousel: false,
+          permalink: 'https://ig/p/1',
+        },
+        {
+          id: 'm3',
+          caption: '',
+          imageUrl: 'https://cdn/m3.jpg',
+          images: ['https://cdn/m3.jpg', 'https://cdn/m3b.jpg'],
+          isCarousel: true,
+          permalink: null,
+        },
       ],
     })
     expect(calledUrl().pathname).toBe('/v25.0/17841400000000001')
     expect(calledUrl().searchParams.get('fields')).toMatch(/^business_discovery\.username\(kopisaingan\)\{/)
+    expect(calledUrl().searchParams.get('fields')).toContain('children{media_type,media_url}')
   })
 
   it('refuses a username that would break out of the field syntax', async () => {

@@ -141,7 +141,8 @@ export interface DiscoveredAccount {
  */
 export async function discoverAccount(pageToken: string, instagramUserId: string, username: string): Promise<DiscoveredAccount> {
   if (!USERNAME.test(username)) throw new InstagramApiError('Username tidak valid', null, 400)
-  const media = `media.limit(${DISCOVERY_MEDIA_LIMIT}){id,caption,media_type,media_url,permalink}`
+  // No thumbnail_url: Business Discovery's media edge doesn't offer it, so video slides are skipped there.
+  const media = `media.limit(${DISCOVERY_MEDIA_LIMIT}){id,caption,media_type,media_url,permalink,children{media_type,media_url}}`
   const body = await request(
     graphUrl(instagramUserId, {
       // The username sits inside Graph's field syntax, so USERNAME above keeps it to letters, digits, `.` and `_`.

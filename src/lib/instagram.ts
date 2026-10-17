@@ -1,4 +1,5 @@
 import 'server-only'
+import { MAX_GROUP_IMAGES } from './brand-options'
 import { env } from './env'
 
 export const INSTAGRAM_SCOPES = [
@@ -210,22 +211,51 @@ export async function fetchOwnProfile(accessToken: string): Promise<OwnProfile> 
   }
 }
 
-/** A post offered as a design reference. `imageUrl` is a signed CDN link: never log it. */
+/** A post offered as a design reference. Its URLs are signed CDN links: never log them. */
 export interface InstagramPost {
   id: string
   caption: string
+  /** The cover: `images[0]`. */
   imageUrl: string
+  /** Every slide of a carousel in order (at most MAX_GROUP_IMAGES), or the one photo. */
+  images: string[]
+  isCarousel: boolean
   permalink: string | null
 }
 
-/** Posts with a still image. A carousel's `media_url` is its first slide; a video needs `thumbnail_url`. */
+/** The media fields a reference picker needs, carousel slides included. */
+export const MEDIA_FIELDS = 'id,caption,media_type,media_url,thumbnail_url,permalink,children{media_type,media_url,thumbnail_url}'
+
+/** A slide's still image: a video slide has one only as `thumbnail_url`. */
+const stillOf = (item: Json) => optionalString(item.media_type === 'VIDEO' ? item.thumbnail_url : item.media_url)
+
+function slidesOf(item: Json): string[] {
+  const children = isObject(item.children) && Array.isArray(item.children.data) ? item.children.data : []
+  return children.flatMap((child) => {
+    const url = isObject(child) ? stillOf(child) : null
+    return url ? [url] : []
+  })
+}
+
+/** Photos and carousels. Videos are left out; a carousel without its slides keeps only the cover. */
 export function toPosts(data: unknown): InstagramPost[] {
   if (!Array.isArray(data)) return []
   return data.flatMap((item): InstagramPost[] => {
-    if (!isObject(item) || typeof item.id !== 'string') return []
-    const imageUrl = optionalString(item.media_type === 'VIDEO' ? item.thumbnail_url : item.media_url)
-    if (!imageUrl) return []
-    return [{ id: item.id, caption: optionalString(item.caption) ?? '', imageUrl, permalink: optionalString(item.permalink) }]
+    if (!isObject(item) || typeof item.id !== 'string' || item.media_type === 'VIDEO') return []
+    const cover = optionalString(item.media_url)
+    const slides = item.media_type === 'CAROUSEL_ALBUM' ? slidesOf(item).slice(0, MAX_GROUP_IMAGES) : []
+    const images = slides.length > 0 ? slides : cover ? [cover] : []
+    if (images.length === 0) return []
+    return [
+      {
+        id: item.id,
+        caption: optionalString(item.caption) ?? '',
+        imageUrl: images[0],
+        images,
+        isCarousel: slides.length > 0,
+        permalink: optionalString(item.permalink),
+      },
+    ]
   })
 }
 
@@ -233,7 +263,7 @@ export function toPosts(data: unknown): InstagramPost[] {
 export async function fetchRecentMedia(accessToken: string, limit: number): Promise<InstagramPost[]> {
   const body = await request(
     graphUrl('/me/media', {
-      fields: 'id,caption,media_type,media_url,thumbnail_url,permalink',
+      fields: MEDIA_FIELDS,
       limit: String(limit),
       access_token: accessToken,
     }),

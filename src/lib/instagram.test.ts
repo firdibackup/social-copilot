@@ -289,26 +289,85 @@ describe('fetchOwnProfile', () => {
 })
 
 describe('fetchRecentMedia', () => {
-  it('keeps posts with a still image: photos, a carousel cover and a video thumbnail', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        data: [
-          { id: '1', media_type: 'IMAGE', media_url: 'https://cdn/1.jpg', caption: 'Halo', permalink: 'https://ig/p/1' },
-          { id: '2', media_type: 'CAROUSEL_ALBUM', media_url: 'https://cdn/2.jpg' },
-          { id: '3', media_type: 'VIDEO', media_url: 'https://cdn/3.mp4', thumbnail_url: 'https://cdn/3.jpg' },
-          { id: '4', media_type: 'VIDEO', media_url: 'https://cdn/4.mp4' },
-        ],
-      }),
-    )
+  const page = (data: unknown[]) => fetchMock.mockResolvedValueOnce(jsonResponse({ data }))
+  const child = (url: string, type = 'IMAGE') => ({ media_type: type, media_url: url })
+
+  it('keeps photos and carousels and skips videos', async () => {
+    page([
+      { id: '1', media_type: 'IMAGE', media_url: 'https://cdn/1.jpg', caption: 'Halo', permalink: 'https://ig/p/1' },
+      { id: '2', media_type: 'CAROUSEL_ALBUM', media_url: 'https://cdn/2.jpg' },
+      { id: '3', media_type: 'VIDEO', media_url: 'https://cdn/3.mp4', thumbnail_url: 'https://cdn/3.jpg' },
+    ])
 
     const posts = await fetchRecentMedia('token', 12)
 
-    expect(posts.map((post) => [post.id, post.imageUrl])).toEqual([
-      ['1', 'https://cdn/1.jpg'],
-      ['2', 'https://cdn/2.jpg'],
-      ['3', 'https://cdn/3.jpg'],
+    expect(posts.map((post) => post.id)).toEqual(['1', '2'])
+    expect(posts[0]).toEqual({
+      id: '1',
+      caption: 'Halo',
+      imageUrl: 'https://cdn/1.jpg',
+      images: ['https://cdn/1.jpg'],
+      isCarousel: false,
+      permalink: 'https://ig/p/1',
+    })
+    const url = new URL(String(fetchMock.mock.calls[0][0]))
+    expect(url.searchParams.get('limit')).toBe('12')
+    expect(url.searchParams.get('fields')).toContain('children{media_type,media_url,thumbnail_url}')
+  })
+
+  it('keeps every slide of a carousel, in order', async () => {
+    page([
+      {
+        id: '1',
+        media_type: 'CAROUSEL_ALBUM',
+        media_url: 'https://cdn/a.jpg',
+        children: { data: [child('https://cdn/a.jpg'), child('https://cdn/b.jpg'), child('https://cdn/c.jpg')] },
+      },
     ])
-    expect(posts[0]).toEqual({ id: '1', caption: 'Halo', imageUrl: 'https://cdn/1.jpg', permalink: 'https://ig/p/1' })
-    expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('limit')).toBe('12')
+
+    const [post] = await fetchRecentMedia('token', 12)
+
+    expect(post.images).toEqual(['https://cdn/a.jpg', 'https://cdn/b.jpg', 'https://cdn/c.jpg'])
+    expect(post.isCarousel).toBe(true)
+    expect(post.imageUrl).toBe('https://cdn/a.jpg')
+  })
+
+  it('uses the thumbnail of a video slide and skips one without', async () => {
+    page([
+      {
+        id: '1',
+        media_type: 'CAROUSEL_ALBUM',
+        media_url: 'https://cdn/a.jpg',
+        children: {
+          data: [
+            child('https://cdn/a.jpg'),
+            { media_type: 'VIDEO', media_url: 'https://cdn/v.mp4', thumbnail_url: 'https://cdn/v.jpg' },
+            { media_type: 'VIDEO', media_url: 'https://cdn/w.mp4' },
+          ],
+        },
+      },
+    ])
+
+    const [post] = await fetchRecentMedia('token', 12)
+
+    expect(post.images).toEqual(['https://cdn/a.jpg', 'https://cdn/v.jpg'])
+  })
+
+  it('falls back to the cover alone when Instagram leaves out the slides', async () => {
+    page([{ id: '1', media_type: 'CAROUSEL_ALBUM', media_url: 'https://cdn/a.jpg' }])
+
+    const [post] = await fetchRecentMedia('token', 12)
+
+    expect(post.images).toEqual(['https://cdn/a.jpg'])
+    expect(post.isCarousel).toBe(false)
+  })
+
+  it('keeps at most 20 slides', async () => {
+    const slides = Array.from({ length: 25 }, (_, index) => child(`https://cdn/${index}.jpg`))
+    page([{ id: '1', media_type: 'CAROUSEL_ALBUM', media_url: 'https://cdn/0.jpg', children: { data: slides } }])
+
+    const [post] = await fetchRecentMedia('token', 12)
+
+    expect(post.images).toHaveLength(20)
   })
 })
