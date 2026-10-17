@@ -88,6 +88,14 @@ describe('sendReply', () => {
     expect(sendDirectMessage).not.toHaveBeenCalled()
   })
 
+  it('replies only in conversations of the connected account', async () => {
+    vi.mocked(getConversation).mockResolvedValue(null)
+
+    await expect(sendReply(CUSTOMER, 'Halo')).resolves.toBe('Percakapan tidak ditemukan.')
+    expect(getConversation).toHaveBeenCalledWith('user-1', 'ig-1', CUSTOMER)
+    expect(sendDirectMessage).not.toHaveBeenCalled()
+  })
+
   it('marks the connection for reconnecting when Instagram rejects the token', async () => {
     vi.mocked(sendDirectMessage).mockRejectedValue(new InstagramApiError('Invalid token', 190, 400))
 

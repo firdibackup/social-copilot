@@ -1,14 +1,21 @@
 import { InstagramIcon } from '@/components/instagram-icon'
 import { Notice } from '@/components/notice'
 import { requireActiveUser } from '@/lib/auth'
-import { checkConnectionHealth, getConnection, type Connection, type ConnectionHealth } from '@/lib/connection'
+import {
+  checkConnectionHealth,
+  getConnectedAccountId,
+  getConnection,
+  type Connection,
+  type ConnectionHealth,
+} from '@/lib/connection'
 import { ConfigError, describeError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
 import { firstValue, type SearchParams } from '@/lib/params'
-import { DisconnectButton } from './disconnect-button'
+import { countScheduledPosts } from '@/lib/posts'
+import { InstagramDisconnectButton } from './disconnect-button'
 
 type LoadResult =
-  | { kind: 'ok'; connection: Connection | null; health: ConnectionHealth | null }
+  | { kind: 'ok'; connection: Connection | null; health: ConnectionHealth | null; scheduledCount: number }
   | { kind: 'error'; message: string }
 
 const SUCCESS_MESSAGES: Record<string, string> = {
@@ -39,7 +46,10 @@ async function loadInstagram(userId: string): Promise<LoadResult> {
   try {
     const connection = await getConnection(userId)
     const health = connection?.status === 'active' ? await checkConnectionHealth(userId) : null
-    return { kind: 'ok', connection, health }
+    // For the Putuskan dialog: these posts become drafts.
+    const accountId = connection ? await getConnectedAccountId(userId) : null
+    const scheduledCount = accountId ? await countScheduledPosts(userId, accountId) : 0
+    return { kind: 'ok', connection, health, scheduledCount }
   } catch (error) {
     console.error('[pengaturan] koneksi gagal dimuat:', describeError(error))
     const message =
@@ -60,9 +70,16 @@ export async function InstagramSettings({ searchParams }: InstagramSettingsProps
   const success = SUCCESS_MESSAGES[firstValue(params.ig) ?? '']
   const errorCode = firstValue(params.ig_error)
   const error = errorCode ? (ERROR_MESSAGES[errorCode] ?? UNKNOWN_ERROR) : undefined
+  // requireAccount() sends pages that show one account's data here while nothing is connected.
+  const needsAccount = firstValue(params.perlu) === 'instagram' && result.kind === 'ok' && !result.connection
 
   return (
     <section id="instagram" aria-labelledby="instagram-heading" className="space-y-4">
+      {needsAccount && (
+        <Notice tone="warning">
+          Hubungkan akun Instagram dulu untuk memakai Brand, Buat Konten, Kalender, Aset, dan Balasan.
+        </Notice>
+      )}
       {success && <Notice tone="success">{success}</Notice>}
       {error && <Notice tone="error">{error}</Notice>}
 
@@ -78,7 +95,11 @@ export async function InstagramSettings({ searchParams }: InstagramSettingsProps
             {result.kind === 'error' ? (
               <Notice tone="warning">{result.message}</Notice>
             ) : (
-              <ConnectionDetails connection={result.connection} health={result.health} />
+              <ConnectionDetails
+                connection={result.connection}
+                health={result.health}
+                scheduledCount={result.scheduledCount}
+              />
             )}
           </div>
         </div>
@@ -90,9 +111,10 @@ export async function InstagramSettings({ searchParams }: InstagramSettingsProps
 interface ConnectionDetailsProps {
   connection: Connection | null
   health: ConnectionHealth | null
+  scheduledCount: number
 }
 
-function ConnectionDetails({ connection, health }: ConnectionDetailsProps) {
+function ConnectionDetails({ connection, health, scheduledCount }: ConnectionDetailsProps) {
   if (!connection) {
     return (
       <>
@@ -120,8 +142,15 @@ function ConnectionDetails({ connection, health }: ConnectionDetailsProps) {
       <HealthNotice needsReconnect={needsReconnect} health={health} />
       <div className="flex flex-wrap gap-2">
         {needsReconnect && <ConnectLink label="Sambungkan ulang" />}
-        <DisconnectButton />
+        <InstagramDisconnectButton username={connection.username} scheduledCount={scheduledCount} />
       </div>
+      {needsReconnect && (
+        // Instagram's login page can't show our warning: another account logging in here counts as switching.
+        <p className="text-xs text-zinc-500">
+          Pastikan masuk dengan @{connection.username}. Akun lain akan menggantikannya, dan posting terjadwal
+          @{connection.username} kembali jadi draft.
+        </p>
+      )}
     </>
   )
 }

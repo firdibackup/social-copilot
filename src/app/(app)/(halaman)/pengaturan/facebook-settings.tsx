@@ -4,7 +4,7 @@ import { getConnectedAccountId } from '@/lib/connection'
 import { ConfigError, describeError } from '@/lib/errors'
 import { getFacebookConnection, type FacebookConnection } from '@/lib/facebook-connection'
 import { firstValue, type SearchParams } from '@/lib/params'
-import { DisconnectButton } from './disconnect-button'
+import { FacebookDisconnectButton } from './disconnect-button'
 
 type LoadResult = { kind: 'ok'; connection: FacebookConnection | null } | { kind: 'error'; message: string }
 
@@ -92,7 +92,7 @@ function FacebookDetails({ connection }: { connection: FacebookConnection | null
       )}
       <div className="flex flex-wrap gap-2">
         {needsReconnect && <ConnectLink label="Hubungkan ulang" />}
-        <DisconnectButton service="facebook" />
+        <FacebookDisconnectButton />
       </div>
     </>
   )
