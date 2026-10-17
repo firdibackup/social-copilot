@@ -6,11 +6,10 @@ import { Notice } from '@/components/notice'
 import { remainingCredits } from '@/lib/ai'
 import { listAssets } from '@/lib/assets'
 import { requireActiveUser } from '@/lib/auth'
-import { formatCreditShare, TASK_CREDITS } from '@/lib/billing-options'
 import { getBrandKit, listReferences } from '@/lib/brand'
 import { getConnection } from '@/lib/connection'
 import { describeError, loadErrorMessage } from '@/lib/errors'
-import { suggestedSlot } from '@/lib/format'
+import { slotOn, suggestedSlot } from '@/lib/format'
 import { getIdea, listIdeas } from '@/lib/ideas'
 import { firstValue, isUuid, type SearchParams } from '@/lib/params'
 import { getPost, listContentPosts } from '@/lib/posts'
@@ -61,7 +60,8 @@ const toView = (slide: SlideRecord): SlideView => ({
 
 /**
  * Two columns: the post list and ideas, and the editor. `?id=` opens a post, `?ide=` starts a new one from an idea,
- * `?baru=1` starts an empty one. On a phone only one column shows at a time.
+ * `?baru=1` starts an empty one, and `?tanggal=` (a day picked in Kalender) starts one suggested for that day. On a
+ * phone only one column shows at a time.
  */
 async function Workspace({ searchParams }: BuatPageProps) {
   const params = await searchParams
@@ -100,7 +100,10 @@ async function Workspace({ searchParams }: BuatPageProps) {
   }
 
   const { posts, ideas, post, slides, idea, instagram, kit, references, library, credits } = data
-  const editing = Boolean(postId || idea || firstValue(params.baru))
+  const now = new Date()
+  const day = firstValue(params.tanggal) ?? ''
+  const daySlot = day ? slotOn(day, now) : null
+  const editing = Boolean(postId || idea || daySlot || firstValue(params.baru))
   const ok = OK_MESSAGES[firstValue(params.ok) ?? '']
   const failed = FAILED_MESSAGES[firstValue(params.gagal) ?? '']
   const instagramReady = instagram?.status === 'active'
@@ -138,7 +141,6 @@ async function Workspace({ searchParams }: BuatPageProps) {
         ideas={ideas}
         selectedId={post?.id ?? null}
         selectedIdeaId={idea?.id ?? null}
-        ideasCost={formatCreditShare(TASK_CREDITS.content_ideas)}
         className={editing ? 'hidden md:flex' : 'flex'}
       />
       <section aria-label="Editor" className={`min-h-0 min-w-0 flex-1 flex-col ${editing ? 'flex' : 'hidden md:flex'}`}>
@@ -155,7 +157,8 @@ async function Workspace({ searchParams }: BuatPageProps) {
           }))}
           hasLogo={kit.logoUrl !== null}
           credits={credits}
-          slot={suggestedSlot(new Date())}
+          slot={daySlot ?? suggestedSlot(now)}
+          day={daySlot ? day : null}
           library={library}
           notices={notices}
         />

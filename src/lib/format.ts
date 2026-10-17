@@ -75,6 +75,18 @@ export function suggestedSlot(now: Date): Slot {
   return { value: `${wibDateKey(new Date(tonight.getTime() + DAY_MS))}T${SUGGESTED_TIME}`, label: 'Besok 19.00' }
 }
 
+/**
+ * The suggested time on a day picked in Kalender (`YYYY-MM-DD`, from `?tanggal=`), or null when the day is malformed
+ * or that time is less than 30 minutes away.
+ */
+export function slotOn(day: string, now: Date): Slot | null {
+  const value = `${day}T${SUGGESTED_TIME}`
+  const date = parseWibInput(value)
+  if (!date || date.getTime() - now.getTime() < MIN_LEAD_MS) return null
+  const suggested = suggestedSlot(now)
+  return suggested.value === value ? suggested : { value, label: `${formatShortDate(date)} 19.00` }
+}
+
 /** Reads a `datetime-local` value as WIB. Rejects malformed or impossible dates such as 31 February. */
 export function parseWibInput(value: string): Date | null {
   if (!WIB_INPUT.test(value)) return null

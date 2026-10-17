@@ -105,12 +105,12 @@ export interface Credits {
 /** Credits left in the user's current period. A count that can't be read throws, so AI stops rather than runs free. */
 export async function remainingCredits(userId: string): Promise<Credits> {
   const period = await getCurrentPeriod(userId)
-  if (!period) throw new AiLimitError('Langganan tidak aktif. Aktifkan di menu Langganan untuk memakai AI.')
+  if (!period) throw new AiLimitError('Langganan tidak aktif. Aktifkan di halaman Langganan untuk memakai AI.')
   return { remaining: Math.max(0, PLAN.credits - (await creditsUsed(userId, period.start))), period }
 }
 
 export const quotaSpentMessage = (period: Period) =>
-  `Kuota AI periode ini tidak cukup. Kuota baru mulai ${formatShortDate(period.end)}, atau perpanjang di menu Langganan.`
+  `Kuota AI periode ini tidak cukup. Kuota baru mulai ${formatShortDate(period.end)}, atau perpanjang di halaman Langganan.`
 
 async function logGeneration(row: GenerationLog): Promise<void> {
   try {

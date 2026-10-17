@@ -6,8 +6,8 @@ import { deleteIdeaAction, generateIdeasAction } from './content-actions'
 
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
 
-/** Ten new ideas from the brand kit. The cost shows before the click, since it uses credits. */
-export function FindIdeasButton({ cost }: { cost: string }) {
+/** Ten new ideas from the brand kit. */
+export function FindIdeasButton() {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
@@ -21,7 +21,6 @@ export function FindIdeasButton({ cost }: { cost: string }) {
             setError(await generateIdeasAction().catch(() => FAILED))
           })
         }
-        title={`Memakai ${cost} kuota AI`}
         className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent-soft disabled:opacity-60"
       >
         {pending ? (
@@ -29,7 +28,7 @@ export function FindIdeasButton({ cost }: { cost: string }) {
         ) : (
           <Sparkles size={14} aria-hidden="true" />
         )}
-        {pending ? 'Mencari ide…' : `Cari ide · ${cost}`}
+        {pending ? 'Mencari ide…' : 'Cari ide'}
       </button>
       {error && (
         <p role="alert" className="mt-1 max-w-[240px] text-right text-xs text-red-700">

@@ -23,7 +23,7 @@ const LATE_LIMIT_MS = 60 * 60 * 1000
 const RECONNECT_MESSAGE = 'Sambungkan ulang Instagram di Pengaturan, lalu pilih Coba lagi.'
 const LATE_MESSAGE = 'Terlewat lebih dari 60 menit dari jadwal. Pilih Coba lagi untuk menerbitkan sekarang.'
 const PROCESSING_MESSAGE = 'Instagram masih memproses foto.'
-const EXPIRED_MESSAGE = 'Langganan berakhir. Perpanjang di menu Langganan, lalu pilih Coba lagi.'
+const EXPIRED_MESSAGE = 'Langganan berakhir. Perpanjang di halaman Langganan, lalu pilih Coba lagi.'
 
 /** The post certainly did not go out and should not be retried. */
 class PublishFailed extends Error {

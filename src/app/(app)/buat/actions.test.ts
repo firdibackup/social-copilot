@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PostLockedError, savePost } from '@/lib/posts'
+import { hasSlidesInProgress } from '@/lib/slides'
 import { savePostAction } from './actions'
 
 vi.mock('@/lib/auth', () => ({ requireActiveUser: vi.fn(async () => USER) }))
@@ -7,6 +8,7 @@ vi.mock('@/lib/posts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/posts')>()),
   savePost: vi.fn(),
 }))
+vi.mock('@/lib/slides', () => ({ hasSlidesInProgress: vi.fn() }))
 vi.mock('next/navigation', () => ({
   redirect: vi.fn((url: string) => {
     throw new Error(`REDIRECT ${url}`)
@@ -30,6 +32,7 @@ const submit = (fields: Record<string, string | string[]>) => savePostAction({ e
 describe('savePostAction', () => {
   beforeEach(() => {
     vi.mocked(savePost).mockReset().mockResolvedValue(POST_ID)
+    vi.mocked(hasSlidesInProgress).mockReset().mockResolvedValue(false)
     vi.useFakeTimers({ now: new Date('2026-10-14T05:00:00Z'), toFake: ['Date'] })
   })
 
@@ -84,5 +87,17 @@ describe('savePostAction', () => {
     vi.mocked(savePost).mockRejectedValue(new PostLockedError('Post sedang atau mungkin sudah diterbitkan'))
     const state = await submit({ intent: 'draft', id: POST_ID })
     expect(state.error).toContain('sudah diterbitkan')
+  })
+
+  it('waits while AI slides are still being made, so their photos are not dropped', async () => {
+    vi.mocked(hasSlidesInProgress).mockResolvedValue(true)
+    const state = await submit({ intent: 'schedule', id: POST_ID, assetId: PHOTO, scheduledAt: '2026-10-14T19:00' })
+    expect(state.error).toContain('Tunggu semua slide')
+    expect(savePost).not.toHaveBeenCalled()
+  })
+
+  it('does not ask about slides for a new post', async () => {
+    await expect(submit({ intent: 'draft', caption: 'Halo' })).rejects.toThrow('REDIRECT')
+    expect(hasSlidesInProgress).not.toHaveBeenCalled()
   })
 })

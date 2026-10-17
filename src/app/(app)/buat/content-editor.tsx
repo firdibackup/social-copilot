@@ -36,7 +36,7 @@ const EDITABLE_STATUSES = new Set(['draft', 'scheduled', 'failed', 'cancelled'])
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
 const LOCKED = 'Post ini tidak bisa diubah lagi.'
 const WAIT = 'Tunggu semua slide selesai dibuat.'
-const SHORT = 'Kuota AI tidak cukup. Perpanjang di menu Langganan.'
+const SHORT = 'Kuota AI tidak cukup. Perpanjang di halaman Langganan.'
 const CHIP = 'inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-zinc-50 px-2 py-1 text-xs text-ink-muted'
 const CHIP_SELECT = 'bg-transparent font-medium text-ink focus:outline-none'
 const TOOL_SHADOW = 'shadow-[0_1px_3px_-1px_rgba(0,0,0,0.12)]'
@@ -58,6 +58,8 @@ interface ContentEditorProps {
   /** Credits left in the period; null when they couldn't be read (the server still checks). */
   credits: number | null
   slot: Slot
+  /** The day picked in Kalender (`?tanggal=`), kept in the URL while the new post is made. */
+  day: string | null
   library: Asset[]
   /** The page's messages about the post, above the toolbar. */
   notices: ReactNode
@@ -85,10 +87,12 @@ export function ContentEditor({
   hasLogo,
   credits,
   slot,
+  day,
   library: initialLibrary,
   notices,
 }: ContentEditorProps) {
   const router = useRouter()
+  const openPost = (id: string) => router.push(`/buat?id=${id}${day ? `&tanggal=${day}` : ''}`)
   const editable = post === null || (EDITABLE_STATUSES.has(post.status) && !post.isLocked)
   const serverMedia = post?.media ?? []
 
@@ -105,6 +109,8 @@ export function ContentEditor({
   const [savedVersion, setSavedVersion] = useState(0)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  // Offered back while the caption is still exactly what the AI put there.
+  const [undo, setUndo] = useState<{ before: string; after: string } | null>(null)
   const [slideCount, setSlideCount] = useState(DEFAULT_SLIDES)
   const [format, setFormat] = useState<ImageFormat>('4:5')
   const [referenceId, setReferenceId] = useState('')
@@ -244,7 +250,7 @@ export function ContentEditor({
       setBusy(null)
       setNotice({ tone: 'error', text: result.error })
     } else {
-      router.push(`/buat?id=${result.postId}`)
+      openPost(result.postId)
     }
   }
 
@@ -278,7 +284,7 @@ export function ContentEditor({
           setNotice({ tone: 'error', text: result.error })
           return false
         }
-        router.push(`/buat?id=${result.postId}`)
+        openPost(result.postId)
         return true
       },
     }
@@ -297,6 +303,7 @@ export function ContentEditor({
           setNotice({ tone: 'error', text: result.error })
           return false
         }
+        setUndo({ before: caption, after: result.caption })
         change({ caption: result.caption })
         return true
       },
@@ -398,6 +405,9 @@ export function ContentEditor({
 
   const counts = inspectCaption(caption)
   const username = account.username ?? 'akun_anda'
+  // Not while an AI request runs: actions run one at a time, so an autosave typed during a slide edit would run
+  // after it with the old photo list and drop the new image.
+  const captionLocked = locked || busy !== null
   const captionArea = post ? (
     <div className="space-y-1">
       <p className="text-[13px] font-semibold text-ink">{username}</p>
@@ -405,9 +415,9 @@ export function ContentEditor({
         value={caption}
         onChange={(event) => change({ caption: event.target.value })}
         onFocus={() => setTarget('caption')}
-        readOnly={locked}
+        readOnly={captionLocked}
         aria-label="Caption"
-        placeholder={locked ? '' : 'Tulis caption, atau minta AI lewat kotak di bawah…'}
+        placeholder={captionLocked ? '' : 'Tulis caption, atau minta AI lewat kotak di bawah…'}
         className="block w-full resize-none border-0 bg-transparent p-0 text-[13px] leading-relaxed text-ink [field-sizing:content] placeholder:text-ink-soft read-only:text-ink-muted focus:outline-none"
       />
       <p className="flex flex-wrap gap-x-3 text-[11px] text-ink-muted">
@@ -415,6 +425,21 @@ export function ContentEditor({
         <Count value={counts.hashtags} max={CAPTION_MAX_HASHTAGS} label="hashtag" />
         <Count value={counts.mentions} max={CAPTION_MAX_MENTIONS} label="mention" />
       </p>
+      {undo && caption === undo.after && !captionLocked && (
+        <p className="text-xs text-ink-muted">
+          Caption diganti AI.{' '}
+          <button
+            type="button"
+            onClick={() => {
+              change({ caption: undo.before })
+              setUndo(null)
+            }}
+            className="font-medium text-ink underline"
+          >
+            Urungkan
+          </button>
+        </p>
+      )}
     </div>
   ) : (
     <p className="text-[13px] text-ink-muted">Caption muncul di sini.</p>
