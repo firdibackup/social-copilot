@@ -1,5 +1,6 @@
 import 'server-only'
-import { PLAN, usedPercent } from './billing-options'
+import { getPlan } from './app-settings'
+import { usedPercent } from './billing-options'
 import { appUrl } from './env'
 import { createPaymentRequest, getPaymentRequest } from './mayar'
 import { db, unwrap } from './supabase'
@@ -69,12 +70,14 @@ export async function creditsUsed(userId: string, since: Date): Promise<number> 
 
 export interface Usage {
   used: number
+  /** The plan's credits per period. */
+  credits: number
   percent: number
 }
 
 export async function getUsage(userId: string, period: Period): Promise<Usage> {
-  const used = await creditsUsed(userId, period.start)
-  return { used, percent: usedPercent(used) }
+  const [used, plan] = await Promise.all([creditsUsed(userId, period.start), getPlan()])
+  return { used, credits: plan.credits, percent: usedPercent(used, plan.credits) }
 }
 
 export async function listPayments(userId: string): Promise<Payment[]> {
@@ -102,12 +105,13 @@ export async function listPayments(userId: string): Promise<Payment[]> {
  */
 export const paymentsEnabled = () => process.env.MAYAR_ENABLED?.trim() === 'true'
 
-/** One free period, stacked after any the user already has like a paid one. */
-export async function grantFreePeriod(userId: string): Promise<void> {
+/** A free period of the plan's length, or `days` (from an admin), stacked after any the user already has. */
+export async function grantFreePeriod(userId: string, days?: number): Promise<void> {
+  const length = days ?? (await getPlan()).days
   const { id } = unwrap(
     await db().from('payments').insert({ user_id: userId, amount: 0, status: 'pending' }).select('id').single(),
   ) as { id: string }
-  unwrap(await db().rpc('activate_payment', { p_id: id, p_days: PLAN.days }))
+  unwrap(await db().rpc('activate_payment', { p_id: id, p_days: length }))
 }
 
 /**
@@ -128,21 +132,22 @@ export async function startCheckout(userId: string, email: string, now = new Dat
   ) as { link: string }[]
   if (reusable[0]) return reusable[0].link
 
+  const plan = await getPlan()
   const expiresAt = new Date(now.getTime() + LINK_TTL_MS)
   const { id } = unwrap(
     await db()
       .from('payments')
-      .insert({ user_id: userId, amount: PLAN.priceIdr, status: 'pending', expires_at: expiresAt.toISOString() })
+      .insert({ user_id: userId, amount: plan.priceIdr, status: 'pending', expires_at: expiresAt.toISOString() })
       .select('id')
       .single(),
   ) as { id: string }
 
   try {
     const created = await createPaymentRequest({
-      name: PLAN.name,
-      amount: PLAN.priceIdr,
+      name: plan.name,
+      amount: plan.priceIdr,
       email,
-      description: `Langganan Social Copilot ${PLAN.days} hari`,
+      description: `Langganan Social Copilot ${plan.days} hari`,
       redirectUrl: appUrl('/langganan', { bayar: 'selesai' }),
       expiredAt: expiresAt,
     })
@@ -163,7 +168,9 @@ export async function confirmPayment(row: PaymentRow, now = new Date()): Promise
   if (row.status !== 'pending' || !row.mayar_id) return false
   const state = await getPaymentRequest(row.mayar_id)
   if (state.status === 'paid' && state.amount === row.amount) {
-    const activated: unknown = unwrap(await db().rpc('activate_payment', { p_id: row.id, p_days: PLAN.days }))
+    // The plan's length when Mayar confirms; an admin change in between applies to this payment too.
+    const { days } = await getPlan()
+    const activated: unknown = unwrap(await db().rpc('activate_payment', { p_id: row.id, p_days: days }))
     return activated === true
   }
   if (row.expires_at && new Date(row.expires_at) <= now) {

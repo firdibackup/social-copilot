@@ -1,9 +1,9 @@
 import 'server-only'
+import { getPlan, textModel } from './app-settings'
 import { creditsUsed, getCurrentPeriod, type Period } from './billing'
-import { PLAN, TASK_CREDITS } from './billing-options'
+import { TASK_CREDITS } from './billing-options'
 import { getBrandContext } from './brand'
 import { lengthOf, truncate, type BrandContext } from './brand-options'
-import { env } from './env'
 import { ConfigError, describeError } from './errors'
 import { formatShortDate } from './format'
 import { RouterApiError } from './nine-router'
@@ -74,7 +74,7 @@ export class AiLimitError extends Error {
   override name = 'AiLimitError'
 }
 
-/** Every kind of 9Router request; each costs TASK_CREDITS of the period's PLAN.credits. */
+/** Every kind of 9Router request; each costs TASK_CREDITS of the period's plan credits (getPlan()). */
 export type LoggedTask =
   | 'content'
   | 'content_slide'
@@ -106,7 +106,8 @@ export interface Credits {
 export async function remainingCredits(userId: string): Promise<Credits> {
   const period = await getCurrentPeriod(userId)
   if (!period) throw new AiLimitError('Langganan tidak aktif. Aktifkan di halaman Langganan untuk memakai AI.')
-  return { remaining: Math.max(0, PLAN.credits - (await creditsUsed(userId, period.start))), period }
+  const [plan, used] = await Promise.all([getPlan(), creditsUsed(userId, period.start)])
+  return { remaining: Math.max(0, plan.credits - used), period }
 }
 
 export const quotaSpentMessage = (period: Period) =>
@@ -122,7 +123,7 @@ async function logGeneration(row: GenerationLog): Promise<void> {
 }
 
 interface LogOptions<T> {
-  /** Defaults to ROUTER_MODEL. */
+  /** Defaults to the admin's text model (textModel()). */
   model?: string
   /** What the log keeps of the result; an image would bloat the table. */
   logOutput?: (result: T) => unknown
@@ -143,7 +144,7 @@ export async function runLogged<T>(
   ask: () => Promise<T>,
   options: LogOptions<T> = {},
 ): Promise<T> {
-  const model = options.model ?? env('ROUTER_MODEL')
+  const model = options.model ?? (await textModel())
   const cost = options.cost ?? TASK_CREDITS[task]
   const { remaining, period } = await remainingCredits(userId)
   if (cost > remaining) throw new AiLimitError(quotaSpentMessage(period))
@@ -175,14 +176,14 @@ export async function loadBrandContext(userId: string): Promise<BrandContext | n
 
 function routerErrorMessage(status: number): string {
   if (status === 0) return 'Layanan AI tidak bisa dihubungi atau terlalu lama menjawab. Coba lagi.'
-  if (status === 200) return 'Jawaban AI kosong. Coba lagi, atau ganti ROUTER_MODEL kalau terus terjadi.'
+  if (status === 200) return 'Jawaban AI kosong. Coba lagi, atau ganti model AI di Admin › Pengaturan kalau terus terjadi.'
   if (status === 401 || status === 403) return 'API key 9Router ditolak. Periksa ROUTER_API_KEY di .env.local.'
-  if (status === 404) return 'Model AI tidak ditemukan. Periksa ROUTER_MODEL di .env.local.'
+  if (status === 404) return 'Model AI tidak ditemukan. Periksa model AI di Admin › Pengaturan.'
   // nginx in front of 9Router answers this above client_max_body_size (1 MB by default).
   if (status === 413) return 'Permintaan ke 9Router terlalu besar. Kurangi atau perkecil gambar referensi.'
   if (status === 429) return 'Kuota AI sedang habis. Coba lagi beberapa menit lagi.'
   if (status >= 500) return 'Layanan AI sedang bermasalah. Coba lagi nanti.'
-  return `Permintaan ditolak layanan AI (HTTP ${status}). Periksa ROUTER_MODEL di .env.local.`
+  return `Permintaan ditolak layanan AI (HTTP ${status}). Periksa model AI di Admin › Pengaturan.`
 }
 
 /** Owner-facing text for anything a text AI request throws. Provider details stay in the server log. */
@@ -190,7 +191,7 @@ export function aiErrorMessage(error: unknown): string {
   if (error instanceof ConfigError) return `Konfigurasi AI belum lengkap: ${error.message}.`
   if (error instanceof AiLimitError) return error.message
   if (error instanceof AiOutputError) {
-    return `Jawaban AI tidak bisa dibaca ("${error.snippet}"). Coba lagi, atau ganti ROUTER_MODEL kalau terus terjadi.`
+    return `Jawaban AI tidak bisa dibaca ("${error.snippet}"). Coba lagi, atau ganti model AI di Admin › Pengaturan kalau terus terjadi.`
   }
   if (error instanceof RouterApiError) return routerErrorMessage(error.status)
   return 'AI gagal dijalankan: database tidak bisa diakses. Periksa Supabase dan migrasi terbaru.'

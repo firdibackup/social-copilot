@@ -5,6 +5,7 @@ import {
   MessageCircle,
   Palette,
   Settings,
+  ShieldCheck,
   WandSparkles,
   type LucideIcon,
 } from 'lucide-react'
@@ -28,5 +29,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: '/brand', label: 'Brand', icon: Palette },
   { href: '/pengaturan', label: 'Pengaturan', icon: Settings },
 ]
+
+/** Shown only to admins (ADMIN_EMAILS), in the sidebar under its own heading. */
+export const ADMIN_ITEM: NavItem = { href: '/admin', label: 'Admin', icon: ShieldCheck }
 
 export const isActive = (item: NavItem, pathname: string) => pathname.startsWith(item.href)

@@ -1,4 +1,4 @@
-import { CreditCard, LogOut } from 'lucide-react'
+import { CreditCard, LogOut, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
 import { Suspense, type ReactNode } from 'react'
 import { signOut } from '@/app/masuk/actions'
@@ -6,9 +6,10 @@ import { AccountEmail } from '@/components/account-email'
 import { Breadcrumb } from '@/components/breadcrumb'
 import { InstagramStatus, StatusLine } from '@/components/instagram-status'
 import { MobileNav } from '@/components/mobile-nav'
-import { Sidebar } from '@/components/sidebar'
+import { AdminSection, Sidebar } from '@/components/sidebar'
 import { CreditBar, CreditMeter, RenewalBanner } from '@/components/subscription-status'
 import { WorkspaceBadge, WorkspaceLine } from '@/components/workspace-badge'
+import { currentUser, isAdmin } from '@/lib/auth'
 
 interface AppLayoutProps {
   children: ReactNode
@@ -45,6 +46,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
             <AccountEmail />
           </Suspense>
         }
+        admin={
+          <Suspense fallback={null}>
+            <AdminNav />
+          </Suspense>
+        }
       />
       <div className="flex min-w-0 flex-1 flex-col md:py-3 md:pr-3">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-paper md:rounded-2xl md:border md:border-hairline">
@@ -52,6 +58,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
             <Breadcrumb />
             {/* The sidebar's Langganan and Keluar, which the phone's bottom bar has no room for. */}
             <div className="ml-auto flex items-center gap-1 md:hidden">
+              <Suspense fallback={null}>
+                <AdminNav phone />
+              </Suspense>
               <Link href="/langganan" className={PHONE_ACTION}>
                 <CreditCard size={16} strokeWidth={1.75} aria-hidden="true" />
                 Langganan
@@ -72,5 +81,18 @@ export default function AppLayout({ children }: AppLayoutProps) {
       </div>
       <MobileNav />
     </div>
+  )
+}
+
+/** The Admin link, for admins only: in the sidebar, or in the phone's header, whose bottom bar has no room. */
+async function AdminNav({ phone = false }: { phone?: boolean }) {
+  const user = await currentUser()
+  if (!user || !isAdmin(user)) return null
+  if (!phone) return <AdminSection />
+  return (
+    <Link href="/admin" className={PHONE_ACTION}>
+      <ShieldCheck size={16} strokeWidth={1.75} aria-hidden="true" />
+      Admin
+    </Link>
   )
 }

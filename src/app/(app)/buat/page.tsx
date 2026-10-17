@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
 import { Notice } from '@/components/notice'
+import { getPlan } from '@/lib/app-settings'
 import { remainingCredits } from '@/lib/ai'
 import { listAssets } from '@/lib/assets'
 import { requireAccount } from '@/lib/auth'
@@ -73,7 +74,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
 
   let data
   try {
-    const [posts, ideas, post, slides, idea, instagram, kit, references, library, credits] = await Promise.all([
+    const [posts, ideas, post, slides, idea, instagram, kit, references, library, credits, plan] = await Promise.all([
       listContentPosts(userId, accountId),
       listIdeas(userId, accountId),
       postId ? getPost(userId, postId) : null,
@@ -88,8 +89,9 @@ async function Workspace({ searchParams }: BuatPageProps) {
         (left) => left.remaining,
         () => null,
       ),
+      getPlan(),
     ])
-    data = { posts, ideas, post, slides, idea, instagram, kit, references, library, credits }
+    data = { posts, ideas, post, slides, idea, instagram, kit, references, library, credits, plan }
   } catch (error) {
     console.error('[buat] gagal memuat:', describeError(error))
     return (
@@ -99,7 +101,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
     )
   }
 
-  const { posts, ideas, post, slides, idea, instagram, kit, references, library, credits } = data
+  const { posts, ideas, post, slides, idea, instagram, kit, references, library, credits, plan } = data
   const now = new Date()
   const day = firstValue(params.tanggal) ?? ''
   const daySlot = day ? slotOn(day, now) : null
@@ -158,6 +160,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
           }))}
           hasLogo={kit.logoUrl !== null}
           credits={credits}
+          planCredits={plan.credits}
           slot={daySlot ?? suggestedSlot(now)}
           day={daySlot ? day : null}
           library={library}

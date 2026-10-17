@@ -1,9 +1,10 @@
 import 'server-only'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { connection } from 'next/server'
 import { cache } from 'react'
+import { parseAdminEmails } from './admin-options'
 import { getCurrentPeriod, type Period } from './billing'
 import { getConnectedAccountId } from './connection'
 import { env } from './env'
@@ -48,6 +49,21 @@ export async function requireUser(): Promise<string> {
   const user = await currentUser()
   if (!user) redirect('/masuk')
   return user.id
+}
+
+/** Whether the user is one of ADMIN_EMAILS. Admins need no subscription for the admin pages. */
+export const isAdmin = (user: SessionUser) =>
+  user.email !== '' && parseAdminEmails(process.env.ADMIN_EMAILS).has(user.email.toLowerCase())
+
+/**
+ * The signed-in admin, for every admin page, action and route. Anyone else gets a 404, so the pages don't announce
+ * that they exist.
+ */
+export async function requireAdmin(): Promise<SessionUser> {
+  const user = await currentUser()
+  if (!user) redirect('/masuk')
+  if (!isAdmin(user)) notFound()
+  return user
 }
 
 /** The current period of the signed-in user, or null. Cached per request like the session. */

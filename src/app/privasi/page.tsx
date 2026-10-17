@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
-import type { ReactNode } from 'react'
-import { formatRupiah, PLAN } from '@/lib/billing-options'
+import { connection } from 'next/server'
+import { Suspense, type ReactNode } from 'react'
+import { getPlan } from '@/lib/app-settings'
+import { DEFAULT_PLAN, formatRupiah, type Plan } from '@/lib/billing-options'
 
 export const metadata: Metadata = { title: 'Kebijakan Privasi' }
 
@@ -109,15 +111,9 @@ export default function PrivasiPage() {
             Pemakaian mengikuti Ketentuan Platform Meta, Ketentuan Penggunaan Instagram, dan Pedoman Komunitas
             Instagram. Spam, pesan massal, dan pesan yang tidak diminta dilarang.
           </li>
-          <li>
-            Langganan {formatRupiah(PLAN.priceIdr)} per {PLAN.days} hari, dibayar di muka melalui Mayar. Tidak ada
-            perpanjangan otomatis: akses berhenti di akhir periode sampai diperpanjang, dan post terjadwal tidak
-            diterbitkan selama langganan tidak aktif.
-          </li>
-          <li>
-            Setiap periode memberi kuota AI {PLAN.credits.toLocaleString('id-ID')} kredit. Sisa kuota tidak terbawa ke
-            periode berikutnya.
-          </li>
+          <Suspense fallback={<PlanTermsText plan={DEFAULT_PLAN} />}>
+            <PlanTerms />
+          </Suspense>
           <li>
             Pembayaran yang sudah diterima tidak dapat dikembalikan, kecuali layanan tidak bisa dipakai karena kesalahan
             dari pihak {APP_NAME}.
@@ -161,5 +157,27 @@ function Section({ id, title, children }: { id: string; title: string; children:
       <h2 className="text-xl font-semibold text-zinc-900">{title}</h2>
       {children}
     </section>
+  )
+}
+
+/** The plan as the admin set it (/admin/pengaturan). */
+async function PlanTerms() {
+  await connection()
+  return <PlanTermsText plan={await getPlan()} />
+}
+
+function PlanTermsText({ plan }: { plan: Plan }) {
+  return (
+    <>
+      <li>
+        Langganan {formatRupiah(plan.priceIdr)} per {plan.days} hari, dibayar di muka melalui Mayar. Tidak ada
+        perpanjangan otomatis: akses berhenti di akhir periode sampai diperpanjang, dan post terjadwal tidak diterbitkan
+        selama langganan tidak aktif.
+      </li>
+      <li>
+        Setiap periode memberi kuota AI {plan.credits.toLocaleString('id-ID')} kredit. Sisa kuota tidak terbawa ke
+        periode berikutnya.
+      </li>
+    </>
   )
 }

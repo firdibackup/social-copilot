@@ -2,6 +2,7 @@
 
 import { refresh } from 'next/cache'
 import { aiErrorMessage, loadBrandContext, runLogged } from '@/lib/ai'
+import { imageModel } from '@/lib/app-settings'
 import { createAsset, loadAssetBytes } from '@/lib/assets'
 import { requireAccount } from '@/lib/auth'
 import { lengthOf } from '@/lib/brand-options'
@@ -12,7 +13,6 @@ import { describeError } from '@/lib/errors'
 import { addIdeas, deleteIdea, recentTitles } from '@/lib/ideas'
 import { drawImage, imageErrorMessage, imageLog, type DrawnImage } from '@/lib/image-ai'
 import type { ImageFormat } from '@/lib/image-options'
-import { imageModel } from '@/lib/nine-router'
 import { isUuid } from '@/lib/params'
 import { ContentError, createContentPost, getPost, PostLockedError, savePost, type Post } from '@/lib/posts'
 import { toReferenceDataUrl, toSlideJpeg } from '@/lib/slide-image'
@@ -119,7 +119,7 @@ export async function generateSlideAction(slideId: unknown): Promise<ActionError
         await attachSlide(claimed.id, await storeImage(userId, drawn, claimed.format))
         return drawn
       },
-      { model: imageModel(), logOutput: imageLog },
+      { model: await imageModel(), logOutput: imageLog },
     )
     return null
   } catch (error) {
@@ -193,7 +193,7 @@ export async function editSlideAction(input: unknown): Promise<ActionError> {
         await replaceSlide(userId, { postId, oldAssetId: assetId, newAssetId, ...revised, format, referenceId, includeLogo })
         return drawn
       },
-      { model: imageModel(), logOutput: imageLog },
+      { model: await imageModel(), logOutput: imageLog },
     )
   } catch (error) {
     if (error instanceof SlideError) return error.message

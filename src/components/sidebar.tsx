@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { signOut } from '@/app/masuk/actions'
 import { InstagramIcon } from './instagram-icon'
-import { isActive, NAV_ITEMS, type NavItem } from './nav-items'
+import { ADMIN_ITEM, isActive, NAV_ITEMS, type NavItem } from './nav-items'
 
 const SECTION_LABEL = 'px-3 pb-1.5 text-[11px] font-medium tracking-wide text-ink-muted uppercase'
 const ITEM_CLASS =
@@ -22,10 +22,12 @@ interface SidebarProps {
   credits: ReactNode
   /** The signed-in user's email. */
   account: ReactNode
+  /** AdminSection for admins; renders nothing for everyone else. */
+  admin: ReactNode
 }
 
 /** Desktop only; phones get MobileNav at the bottom instead. */
-export function Sidebar({ workspace, instagramStatus, credits, account }: SidebarProps) {
+export function Sidebar({ workspace, instagramStatus, credits, account, admin }: SidebarProps) {
   const pathname = usePathname()
 
   return (
@@ -42,6 +44,8 @@ export function Sidebar({ workspace, instagramStatus, credits, account }: Sideba
           ))}
         </ul>
       </nav>
+
+      {admin}
 
       <section aria-label="Akun terhubung">
         <p className={SECTION_LABEL}>Connect</p>
@@ -70,6 +74,17 @@ export function Sidebar({ workspace, instagramStatus, credits, account }: Sideba
         </button>
       </form>
     </aside>
+  )
+}
+
+/** The Admin link; the layout renders it only for admins. */
+export function AdminSection() {
+  const pathname = usePathname()
+  return (
+    <nav aria-label="Admin">
+      <p className={SECTION_LABEL}>Admin</p>
+      <NavLink item={ADMIN_ITEM} active={isActive(ADMIN_ITEM, pathname)} />
+    </nav>
   )
 }
 

@@ -1,4 +1,5 @@
 import 'server-only'
+import { imageModel, textModel } from './app-settings'
 import { env } from './env'
 
 /** Combos may try several providers in turn before one answers. */
@@ -61,11 +62,14 @@ async function post(path: string, body: unknown, timeoutMs: number, accept?: str
   )
 }
 
-/** One chat completion, returning the answer's text. `stream: false` must be explicit: without it 9Router answers with SSE. */
-export async function chatCompletion(messages: ChatMessage[]): Promise<string> {
+/**
+ * One chat completion, returning the answer's text. `stream: false` must be explicit: without it 9Router answers with
+ * SSE. `model` defaults to the admin's text model (textModel()).
+ */
+export async function chatCompletion(messages: ChatMessage[], model?: string): Promise<string> {
   const response = await post(
     '/chat/completions',
-    { model: env('ROUTER_MODEL'), messages, stream: false, max_tokens: MAX_TOKENS },
+    { model: model ?? (await textModel()), messages, stream: false, max_tokens: MAX_TOKENS },
     REQUEST_TIMEOUT_MS,
   )
   const body: unknown = await response.json().catch(() => null)
@@ -75,11 +79,6 @@ export async function chatCompletion(messages: ChatMessage[]): Promise<string> {
 
 /** An image takes 30–40 s; a slow provider or a retry by 9Router can take a few minutes. */
 const IMAGE_TIMEOUT_MS = 5 * 60_000
-/** Verified on 2026-10-16. Overridable, since 9Router's image models change with its Codex version. */
-const DEFAULT_IMAGE_MODEL = 'cx/gpt-image-2.5'
-
-export const imageModel = () => process.env.ROUTER_IMAGE_MODEL?.trim() || DEFAULT_IMAGE_MODEL
-
 export interface ImageRequest {
   prompt: string
   /** `WIDTHxHEIGHT`, e.g. 1088x1360. */
@@ -141,11 +140,11 @@ export function readImageStream(text: string): string {
  * One image as base64 JPEG. SSE is asked for because its progress events keep the connection open through nginx while
  * the image renders. Request bodies above 1 MB get a 413 from that nginx, so input images must stay small.
  */
-export async function generateImage({ prompt, size, images }: ImageRequest): Promise<string> {
+export async function generateImage({ prompt, size, images }: ImageRequest, model?: string): Promise<string> {
   const response = await post(
     '/images/generations',
     {
-      model: imageModel(),
+      model: model ?? (await imageModel()),
       prompt,
       n: 1,
       size,
@@ -166,4 +165,22 @@ export async function generateImage({ prompt, size, images }: ImageRequest): Pro
     throw new RouterApiError('Stream gambar dari 9Router terputus', 0)
   })
   return readImageStream(text)
+}
+
+const LIST_TIMEOUT_MS = 15_000
+
+/** The chat models 9Router offers (`GET /models`). Image models are not listed there; the 9Router dashboard has them. */
+export async function listModels(): Promise<string[]> {
+  const url = `${env('ROUTER_API_BASE_URL').replace(/\/+$/, '')}/models`
+  const response = await fetch(url, {
+    headers: { authorization: `Bearer ${env('ROUTER_API_KEY')}` },
+    signal: AbortSignal.timeout(LIST_TIMEOUT_MS),
+  }).catch(() => {
+    throw new RouterApiError('9Router tidak bisa dihubungi', 0)
+  })
+  const body: unknown = await response.json().catch(() => null)
+  if (!response.ok) throw new RouterApiError(errorMessage(body, response.status), response.status)
+  const data = isObject(body) && Array.isArray(body.data) ? body.data : []
+  const ids = data.map((model) => (isObject(model) && typeof model.id === 'string' ? model.id : '')).filter(Boolean)
+  return [...new Set(ids)].sort((a, b) => a.localeCompare(b))
 }

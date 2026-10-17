@@ -3,12 +3,12 @@
 import { ChevronRight, House } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { isActive, NAV_ITEMS } from './nav-items'
+import { ADMIN_ITEM, isActive, NAV_ITEMS } from './nav-items'
 
 /** Home › the current page, at the top of the main card. */
 export function Breadcrumb() {
   const pathname = usePathname()
-  const page = NAV_ITEMS.find((item) => isActive(item, pathname))
+  const page = [...NAV_ITEMS, ADMIN_ITEM].find((item) => isActive(item, pathname))
 
   return (
     <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-sm">

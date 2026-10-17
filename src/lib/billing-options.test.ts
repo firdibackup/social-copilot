@@ -11,11 +11,11 @@ describe('contentCost', () => {
 
 describe('usedPercent', () => {
   it('rounds down, so 100% means the credits are truly spent', () => {
-    expect(usedPercent(0)).toBe(0)
-    expect(usedPercent(99)).toBe(0)
-    expect(usedPercent(100)).toBe(1)
-    expect(usedPercent(9_999)).toBe(99)
-    expect(usedPercent(10_000)).toBe(100)
+    expect(usedPercent(0, 10_000)).toBe(0)
+    expect(usedPercent(99, 10_000)).toBe(0)
+    expect(usedPercent(100, 10_000)).toBe(1)
+    expect(usedPercent(9_999, 10_000)).toBe(99)
+    expect(usedPercent(10_000, 10_000)).toBe(100)
   })
 
   it.each([
@@ -23,23 +23,31 @@ describe('usedPercent', () => {
     [5_700, 57],
     [5_800, 58],
   ])('stays exact where dividing first loses a percent to floating point: %i credits', (used, percent) => {
-    expect(usedPercent(used)).toBe(percent)
+    expect(usedPercent(used, 10_000)).toBe(percent)
   })
 
   it('caps at 100 when more than the period allows was used', () => {
-    expect(usedPercent(15_000)).toBe(100)
+    expect(usedPercent(15_000, 10_000)).toBe(100)
+  })
+
+  it('stays at 0 when credits given back leave less than nothing used', () => {
+    expect(usedPercent(-500, 10_000)).toBe(0)
+  })
+
+  it('follows the plan it is given', () => {
+    expect(usedPercent(500, 1_000)).toBe(50)
   })
 })
 
 describe('formatCreditShare', () => {
   it('shows a cost as a share of the period with an id-ID decimal comma', () => {
-    expect(formatCreditShare(103)).toBe('1%')
-    expect(formatCreditShare(23)).toBe('0,2%')
-    expect(formatCreditShare(2_030)).toBe('20,3%')
+    expect(formatCreditShare(103, 10_000)).toBe('1%')
+    expect(formatCreditShare(23, 10_000)).toBe('0,2%')
+    expect(formatCreditShare(2_030, 10_000)).toBe('20,3%')
   })
 
   it('leaves out a zero decimal', () => {
-    expect(formatCreditShare(200)).toBe('2%')
+    expect(formatCreditShare(200, 10_000)).toBe('2%')
   })
 })
 

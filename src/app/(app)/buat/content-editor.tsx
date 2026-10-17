@@ -57,6 +57,8 @@ interface ContentEditorProps {
   hasLogo: boolean
   /** Credits left in the period; null when they couldn't be read (the server still checks). */
   credits: number | null
+  /** The plan's credits per period, which costs are shown as a share of. */
+  planCredits: number
   slot: Slot
   /** The day picked in Kalender (`?tanggal=`), kept in the URL while the new post is made. */
   day: string | null
@@ -86,6 +88,7 @@ export function ContentEditor({
   references,
   hasLogo,
   credits,
+  planCredits,
   slot,
   day,
   library: initialLibrary,
@@ -504,7 +507,7 @@ export function ContentEditor({
         <div className="mx-auto max-w-[680px]">
           <Composer
             placeholder={composer.placeholder}
-            cost={`${post ? '' : '≈ '}${formatCreditShare(composer.cost)} kuota`}
+            cost={`${post ? '' : '≈ '}${formatCreditShare(composer.cost, planCredits)} kuota`}
             blocked={composer.blocked}
             busyLabel={busy}
             initialText={idea?.title}

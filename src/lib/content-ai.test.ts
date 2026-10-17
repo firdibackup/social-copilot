@@ -3,6 +3,7 @@ import { AiOutputError } from './ai'
 import { creditsUsed, getCurrentPeriod } from './billing'
 import { getBrandContext } from './brand'
 import type { BrandContext } from './brand-options'
+import { HOOK_ARCHETYPES } from './carousel-guide'
 import {
   buildCaptionEditMessages,
   buildContentMessages,
@@ -121,6 +122,18 @@ describe('buildContentMessages', () => {
     expect(user).toMatch(/^Tentang brand/)
     expect(user).toContain('Fakta brand yang boleh dipakai:\n"""\n- Buka 08.00–22.00 WIB\n"""')
     expect(user.trimEnd()).toMatch(/Hanya pakai fakta dari topik dan fakta brand di atas\. Jangan menambah klaim[^\n]*$/)
+  })
+
+  it('adds the carousel guide with the chosen hook archetype, before the topic', () => {
+    const user = String(buildContentMessages('Tips seduh', 5, null, 'contrarian')[1].content)
+
+    expect(user).toContain('Panduan carousel (wajib):')
+    expect(user).toContain(`Gaya hook post ini: ${HOOK_ARCHETYPES.contrarian}`)
+    expect(user.indexOf('Panduan carousel')).toBeLessThan(user.indexOf('Topik:'))
+  })
+
+  it('leaves the carousel guide out of a single image', () => {
+    expect(buildContentMessages('Tips seduh', 1, null)[1].content).not.toContain('Panduan carousel')
   })
 
   it('allows only the topic as facts when the brand has none', () => {

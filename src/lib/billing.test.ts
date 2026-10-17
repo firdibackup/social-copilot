@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getPlan } from './app-settings'
 import { confirmPayment, grantFreePeriod, startCheckout } from './billing'
+import { DEFAULT_PLAN } from './billing-options'
 import { createPaymentRequest, getPaymentRequest, MayarApiError } from './mayar'
 
 /** A query builder that records each call and resolves to the next queued result for any table. */
@@ -33,6 +35,7 @@ vi.mock('./supabase', async (importOriginal) => ({
     rpc: fake.rpc,
   }),
 }))
+vi.mock('./app-settings', () => ({ getPlan: vi.fn() }))
 vi.mock('./mayar', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./mayar')>()),
   createPaymentRequest: vi.fn(),
@@ -55,6 +58,7 @@ beforeEach(() => {
   fake.rpc.mockReset()
   vi.mocked(createPaymentRequest).mockReset()
   vi.mocked(getPaymentRequest).mockReset()
+  vi.mocked(getPlan).mockResolvedValue(DEFAULT_PLAN)
 })
 
 describe('startCheckout', () => {
@@ -142,5 +146,19 @@ describe('grantFreePeriod', () => {
     expect(step('payments', 'insert')[0][0]).toEqual({ user_id: USER, amount: 0, status: 'pending' })
     expect(fake.rpc).toHaveBeenCalledWith('activate_payment', { p_id: 'pay-free', p_days: 30 })
     expect(createPaymentRequest).not.toHaveBeenCalled()
+  })
+})
+
+describe('the plan an admin set', () => {
+  it('grants its length, or the days an admin chose', async () => {
+    vi.mocked(getPlan).mockResolvedValue({ ...DEFAULT_PLAN, days: 7 })
+    fake.results = [ok({ id: 'pay-a' }), ok({ id: 'pay-b' })]
+    fake.rpc.mockResolvedValue({ data: true, error: null })
+
+    await grantFreePeriod(USER)
+    await grantFreePeriod(USER, 90)
+
+    expect(fake.rpc).toHaveBeenCalledWith('activate_payment', { p_id: 'pay-a', p_days: 7 })
+    expect(fake.rpc).toHaveBeenCalledWith('activate_payment', { p_id: 'pay-b', p_days: 90 })
   })
 })

@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { requireAccount, requireActiveUser } from './auth'
+import { requireAccount, requireActiveUser, requireAdmin } from './auth'
 import { getCurrentPeriod } from './billing'
 import { getConnectedAccountId } from './connection'
 
-const session = vi.hoisted(() => ({ userId: null as string | null }))
+const session = vi.hoisted(() => ({ userId: null as string | null, email: 'owner@example.com' }))
 
 vi.mock('next/headers', () => ({ cookies: async () => ({ getAll: () => [], set: () => {} }) }))
 vi.mock('next/server', () => ({ connection: async () => {} }))
@@ -11,10 +11,13 @@ vi.mock('next/navigation', () => ({
   redirect: (url: string) => {
     throw new Error(`REDIRECT ${url}`)
   },
+  notFound: () => {
+    throw new Error('NOT_FOUND')
+  },
 }))
 vi.mock('@supabase/ssr', () => ({
   createServerClient: () => ({
-    auth: { getClaims: async () => ({ data: session.userId ? { claims: { sub: session.userId } } : null }) },
+    auth: { getClaims: async () => ({ data: session.userId ? { claims: { sub: session.userId, email: session.email } } : null }) },
   }),
 }))
 vi.mock('./billing', () => ({ getCurrentPeriod: vi.fn() }))
@@ -66,5 +69,32 @@ describe('requireAccount', () => {
     vi.mocked(getConnectedAccountId).mockResolvedValue(null)
 
     await expect(requireAccount()).rejects.toThrow('REDIRECT /pengaturan?perlu=instagram')
+  })
+})
+
+describe('requireAdmin', () => {
+  it('returns a user listed in ADMIN_EMAILS, whatever the case', async () => {
+    vi.stubEnv('ADMIN_EMAILS', 'Owner@Example.com, staf@example.com')
+    session.userId = 'admin-1'
+    session.email = 'owner@example.com'
+
+    await expect(requireAdmin()).resolves.toEqual({ id: 'admin-1', email: 'owner@example.com' })
+  })
+
+  it('answers 404 to anyone else, and when ADMIN_EMAILS is empty', async () => {
+    session.userId = 'user-9'
+    session.email = 'pengguna@example.com'
+    vi.stubEnv('ADMIN_EMAILS', 'owner@example.com')
+    await expect(requireAdmin()).rejects.toThrow('NOT_FOUND')
+
+    vi.stubEnv('ADMIN_EMAILS', '')
+    session.email = ''
+    await expect(requireAdmin()).rejects.toThrow('NOT_FOUND')
+  })
+
+  it('sends a visitor without a session to sign in', async () => {
+    session.userId = null
+
+    await expect(requireAdmin()).rejects.toThrow('REDIRECT /masuk')
   })
 })

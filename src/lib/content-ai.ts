@@ -3,6 +3,7 @@ import { AiOutputError, cleanList, describeBrand, loadBrandContext, quote, readJ
 import { contentCost } from './billing-options'
 import { truncate, type BrandContext } from './brand-options'
 import { CAPTION_MAX_LENGTH } from './caption'
+import { carouselGuide, pickHook, type HookArchetype } from './carousel-guide'
 import type { ContentRequest } from './content-options'
 import { HEADLINE_MAX_LENGTH, SCENE_MAX_LENGTH, type Slide } from './image-options'
 import { chatCompletion, type ChatMessage } from './nine-router'
@@ -72,7 +73,12 @@ function slideStructure(slides: number): string {
 
 const allowedFacts = (brand: BrandContext | null) => (brand?.facts ? 'topik dan fakta brand di atas' : 'topik di atas')
 
-export function buildContentMessages(topic: string, slides: number, brand: BrandContext | null): ChatMessage[] {
+export function buildContentMessages(
+  topic: string,
+  slides: number,
+  brand: BrandContext | null,
+  hook: HookArchetype = pickHook(),
+): ChatMessage[] {
   const carousel = slides > 1
   return [
     { role: 'system', content: CONTENT_SYSTEM },
@@ -83,6 +89,7 @@ export function buildContentMessages(topic: string, slides: number, brand: Brand
         '- title: judul singkat post untuk daftar konten, maksimal 8 kata.',
         `- caption: 2–4 paragraf pendek, sekitar 300–700 karakter sebelum hashtag: kalimat pembuka yang menarik, isi, lalu ajakan bertindak (CTA). Tutup dengan 3–8 hashtag relevan di baris terakhir.${carousel ? ' Ajak pembaca menggeser carousel kalau sesuai.' : ''}`,
         `- slides: tepat ${slides} slide, berurutan.${carousel ? ` Susunannya: ${slideStructure(slides)}.` : ''}`,
+        ...(carousel ? ['', carouselGuide(hook), ''] : []),
         'Format JSON: {"title": "…", "caption": "…", "slides": [{"headline": "…", "scene": "…"}]}',
         '',
         `Topik:\n${quote(topic)}`,

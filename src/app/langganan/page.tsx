@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import { Notice } from '@/components/notice'
+import { getPlan } from '@/lib/app-settings'
 import { requireUser } from '@/lib/auth'
 import {
   getCurrentPeriod,
@@ -12,7 +13,7 @@ import {
   syncPendingPayments,
   type PaymentStatus,
 } from '@/lib/billing'
-import { contentCost, formatRupiah, PLAN } from '@/lib/billing-options'
+import { contentCost, formatRupiah } from '@/lib/billing-options'
 import { getConnection } from '@/lib/connection'
 import { describeError, loadErrorMessage } from '@/lib/errors'
 import { formatDateTime, formatShortDate } from '@/lib/format'
@@ -67,18 +68,19 @@ async function Subscription({ searchParams }: LanggananPageProps) {
   let data
   try {
     const period = await getCurrentPeriod(userId)
-    const [usage, payments, instagram] = await Promise.all([
+    const [usage, payments, instagram, plan] = await Promise.all([
       period ? getUsage(userId, period) : null,
       listPayments(userId),
       getConnection(userId),
+      getPlan(),
     ])
-    data = { period, usage, payments, instagram }
+    data = { period, usage, payments, instagram, plan }
   } catch (error) {
     console.error('[langganan] gagal memuat:', describeError(error))
     return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
   }
 
-  const { period, usage, payments, instagram } = data
+  const { period, usage, payments, instagram, plan } = data
   const paying = paymentsEnabled()
   const justPaid = firstValue(params.bayar) === 'selesai'
   // First payment: the next step is connecting Instagram.
@@ -88,7 +90,7 @@ async function Subscription({ searchParams }: LanggananPageProps) {
   return (
     <div className="space-y-6">
       {!paying && (
-        <Notice tone="warning">Mode uji coba: pembayaran belum aktif, jadi setiap periode {PLAN.days} hari gratis.</Notice>
+        <Notice tone="warning">Mode uji coba: pembayaran belum aktif, jadi setiap periode {plan.days} hari gratis.</Notice>
       )}
       {firstValue(params.gagal) === 'bayar' && (
         <Notice tone="error">Halaman pembayaran gagal dibuat. Coba lagi sebentar lagi.</Notice>
@@ -121,31 +123,31 @@ async function Subscription({ searchParams }: LanggananPageProps) {
           </div>
           <form action={startCheckoutAction}>
             <button type="submit" className={PRIMARY_BUTTON}>
-              Perpanjang {PLAN.days} hari · {paying ? formatRupiah(PLAN.priceIdr) : 'gratis'}
+              Perpanjang {plan.days} hari · {paying ? formatRupiah(plan.priceIdr) : 'gratis'}
             </button>
           </form>
         </section>
       ) : (
         <section className={CARD}>
           <div className="space-y-1">
-            <p className="font-medium text-zinc-900">{PLAN.name}</p>
+            <p className="font-medium text-zinc-900">{plan.name}</p>
             <p className="text-2xl font-semibold tracking-tight text-zinc-900">
-              {formatRupiah(PLAN.priceIdr)} <span className="text-sm font-normal text-zinc-500">/ {PLAN.days} hari</span>
+              {formatRupiah(plan.priceIdr)} <span className="text-sm font-normal text-zinc-500">/ {plan.days} hari</span>
             </p>
           </div>
           <ul className="list-disc space-y-1 pl-5 text-sm text-zinc-700">
             <li>1 akun Instagram Business atau Creator</li>
             <li>Jadwal post dan carousel, inbox DM dengan template balasan</li>
             <li>
-              Kuota AI per periode: sekitar {Math.floor(PLAN.credits / contentCost(3))} konten 3 slide (caption dan
-              gambarnya), atau {Math.floor(PLAN.credits / contentCost(1))} konten 1 gambar
+              Kuota AI per periode: sekitar {Math.floor(plan.credits / contentCost(3))} konten 3 slide (caption dan
+              gambarnya), atau {Math.floor(plan.credits / contentCost(1))} konten 1 gambar
             </li>
             <li>Prabayar, tanpa perpanjangan otomatis</li>
           </ul>
           <div className="flex flex-wrap items-center gap-3">
             <form action={startCheckoutAction}>
               <button type="submit" className={PRIMARY_BUTTON}>
-                {!paying ? `Aktifkan ${PLAN.days} hari gratis` : waiting ? 'Lanjutkan pembayaran' : 'Bayar dengan Mayar'}
+                {!paying ? `Aktifkan ${plan.days} hari gratis` : waiting ? 'Lanjutkan pembayaran' : 'Bayar dengan Mayar'}
               </button>
             </form>
             {waiting && (
