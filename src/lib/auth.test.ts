@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { requireActiveUser } from './auth'
+import { requireAccount, requireActiveUser } from './auth'
 import { getCurrentPeriod } from './billing'
+import { getConnectedAccountId } from './connection'
 
 const session = vi.hoisted(() => ({ userId: null as string | null }))
 
@@ -17,6 +18,7 @@ vi.mock('@supabase/ssr', () => ({
   }),
 }))
 vi.mock('./billing', () => ({ getCurrentPeriod: vi.fn() }))
+vi.mock('./connection', () => ({ getConnectedAccountId: vi.fn() }))
 
 const PERIOD = { start: new Date('2026-10-01'), end: new Date('2026-10-31'), activeUntil: new Date('2026-10-31') }
 
@@ -46,5 +48,23 @@ describe('requireActiveUser', () => {
 
     await expect(requireActiveUser()).rejects.toThrow('REDIRECT /masuk')
     expect(getCurrentPeriod).not.toHaveBeenCalled()
+  })
+})
+
+describe('requireAccount', () => {
+  it('returns the user and the connected account', async () => {
+    session.userId = 'user-1'
+    vi.mocked(getCurrentPeriod).mockResolvedValue(PERIOD)
+    vi.mocked(getConnectedAccountId).mockResolvedValue('ig-1')
+
+    await expect(requireAccount()).resolves.toEqual({ userId: 'user-1', accountId: 'ig-1' })
+  })
+
+  it('sends a user without Instagram to Pengaturan', async () => {
+    session.userId = 'user-3'
+    vi.mocked(getCurrentPeriod).mockResolvedValue(PERIOD)
+    vi.mocked(getConnectedAccountId).mockResolvedValue(null)
+
+    await expect(requireAccount()).rejects.toThrow('REDIRECT /pengaturan?perlu=instagram')
   })
 })

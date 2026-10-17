@@ -2,14 +2,14 @@
 
 import { redirect } from 'next/navigation'
 import { requireActiveUser } from '@/lib/auth'
-import { deleteConnection } from '@/lib/connection'
+import { disconnectInstagram as disconnectAccount } from '@/lib/connection'
 import { describeError } from '@/lib/errors'
 import { deleteFacebookConnection } from '@/lib/facebook-connection'
 
 export async function disconnectInstagram(): Promise<void> {
   const userId = await requireActiveUser()
 
-  const outcome = await deleteConnection(userId).then(
+  const outcome = await disconnectAccount(userId).then(
     () => 'ig=disconnected',
     (error: unknown) => {
       console.error('[pengaturan] gagal memutus Instagram:', describeError(error))

@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
 import { cache } from 'react'
 import { getCurrentPeriod, type Period } from './billing'
+import { getConnectedAccountId } from './connection'
 import { env } from './env'
 
 export interface SessionUser {
@@ -61,3 +62,20 @@ export async function requireActiveUser(): Promise<string> {
   if (!(await currentPeriod(userId))) redirect('/langganan')
   return userId
 }
+
+/** The signed-in user and the Instagram account whose data the dashboard shows. */
+export interface AccountScope {
+  userId: string
+  accountId: string
+}
+
+/**
+ * For the pages that show one account's data (Brand, Buat, Kalender, Aset, Balasan), their actions and routes.
+ * Without a connected Instagram account the user goes to Pengaturan to connect one.
+ */
+export const requireAccount = cache(async (): Promise<AccountScope> => {
+  const userId = await requireActiveUser()
+  const accountId = await getConnectedAccountId(userId)
+  if (!accountId) redirect('/pengaturan?perlu=instagram')
+  return { userId, accountId }
+})

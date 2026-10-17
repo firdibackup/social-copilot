@@ -129,8 +129,19 @@ export async function saveConnection(
   unwrap(result)
 }
 
-export async function deleteConnection(userId: string): Promise<void> {
-  unwrap(await db().from('instagram_connections').delete().eq('user_id', userId))
+/** Putuskan: the account's scheduled posts become drafts and the connection goes. Returns how many were drafted. */
+export async function disconnectInstagram(userId: string): Promise<number> {
+  return unwrap(await db().rpc('disconnect_instagram', { p_user_id: userId })) as number
+}
+
+/** Scheduled posts of an account that is no longer the connected one go back to draft. */
+export async function draftScheduledPosts(userId: string, accountId: string): Promise<number> {
+  return unwrap(await db().rpc('draft_scheduled_posts', { p_user_id: userId, p_account_id: accountId })) as number
+}
+
+/** Rows from before accounts existed (no account) go to the account being connected. */
+export async function claimOrphanRows(userId: string, accountId: string): Promise<void> {
+  unwrap(await db().rpc('claim_orphan_rows', { p_user_id: userId, p_account_id: accountId }))
 }
 
 export async function markNeedsReconnect(userId: string): Promise<void> {
