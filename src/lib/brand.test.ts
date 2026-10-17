@@ -1,3 +1,4 @@
+import sharp from 'sharp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { dbMock, filtered } from '@/test/query-mock'
 import {
@@ -109,6 +110,32 @@ describe('listReferences', () => {
 })
 
 describe('loadReferenceImage', () => {
+  it('sends the chosen slide small, with its label, so it always fits next to slide 1', async () => {
+    const big = await sharp({ create: { width: 1080, height: 1350, channels: 3, background: { r: 200, g: 40, b: 40 } } })
+      .jpeg({ quality: 95 })
+      .toBuffer()
+    const { storage } = useDb([
+      {
+        data: {
+          note: '',
+          brand_reference_images: [
+            { position: 0, label: 'cover', storage_path: 'u/cover.jpg', content_type: 'image/jpeg' },
+            { position: 1, label: 'cta', storage_path: 'u/cta.jpg', content_type: 'image/jpeg' },
+          ],
+        },
+        error: null,
+      },
+    ])
+    storage.download.mockResolvedValue({ data: new Blob([new Uint8Array(big)]), error: null } as never)
+
+    const image = await loadReferenceImage('user-1', 'ref-1', { index: 3, count: 3 })
+
+    expect(image?.label).toBe('cta')
+    expect(image?.dataUrl.startsWith('data:image/jpeg;base64,')).toBe(true)
+    const { width } = await sharp(Buffer.from(image!.dataUrl.split(',')[1], 'base64')).metadata()
+    expect(width).toBe(640)
+  })
+
   it('loads the image the slide follows', async () => {
     const { storage } = useDb([
       {
@@ -123,6 +150,9 @@ describe('loadReferenceImage', () => {
         error: null,
       },
     ])
+
+    const small = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#000000' } }).jpeg().toBuffer()
+    storage.download.mockResolvedValue({ data: new Blob([new Uint8Array(small)]), error: null } as never)
 
     const image = await loadReferenceImage('user-1', 'ref-1', { index: 3, count: 3 })
 

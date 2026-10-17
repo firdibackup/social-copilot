@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AiLimitError } from './ai'
 import { getBrandVisual, loadLogoImage, loadReferenceImage, VISUAL_BODY_BUDGET, type BrandVisual } from './brand'
-import { buildImagePrompt, drawImage, imageErrorMessage, imageLog } from './image-ai'
+import { buildImagePrompt, drawImage, imageErrorMessage, imageLog, slideRole } from './image-ai'
 import type { ImageInput } from './image-options'
 import { generateImage, RouterApiError } from './nine-router'
 import { SlideImageError } from './slide-image'
@@ -129,7 +129,7 @@ describe('buildImagePrompt', () => {
 describe('drawImage', () => {
   beforeEach(() => {
     vi.mocked(getBrandVisual).mockReset().mockResolvedValue(BRAND)
-    vi.mocked(loadReferenceImage).mockReset().mockResolvedValue({ dataUrl: dataUrl('R', 400_000), note: 'layout' })
+    vi.mocked(loadReferenceImage).mockReset().mockResolvedValue({ dataUrl: dataUrl('R', 400_000), note: 'layout', label: 'single' })
     vi.mocked(loadLogoImage).mockReset().mockResolvedValue(dataUrl('L', 600_000))
     vi.mocked(generateImage).mockReset().mockResolvedValue(JPEG.toString('base64'))
   })
@@ -152,17 +152,28 @@ describe('drawImage', () => {
     expect(vi.mocked(generateImage).mock.calls[0][0].size).toBe('1024x1024')
   })
 
-  it('sends the current slide, slide 1 and the reference in that order, and skips a logo that no longer fits 1 MB', async () => {
+  it('sends the current slide, the reference and slide 1 in that order, and skips a logo that no longer fits 1 MB', async () => {
     const currentImage = dataUrl('C', 100_000)
     const previousImage = dataUrl('P', 300_000)
 
     const drawn = await drawImage(USER, { ...INPUT, currentImage, previousImage, referenceId: REFERENCE_ID, includeLogo: true })
 
-    expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([currentImage, previousImage, dataUrl('R', 400_000)])
-    expect(drawn.sent).toEqual(['current', 'previous', 'reference'])
+    expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([currentImage, dataUrl('R', 400_000), previousImage])
+    expect(drawn.sent).toEqual(['current', 'reference', 'previous'])
     expect(drawn.skipped).toEqual(['logo (terlalu besar untuk batas 1 MB 9Router)'])
-    expect(drawn.prompt).toContain('image3 is a design reference')
+    expect(drawn.prompt).toContain('image2 is a design reference')
     expect(drawn.prompt).not.toContain('brand logo')
+  })
+
+  it('keeps the reference over slide 1 when only one of them fits', async () => {
+    vi.mocked(loadReferenceImage).mockResolvedValue({ dataUrl: dataUrl('R', 600_000), note: '', label: 'cta' })
+    const previousImage = dataUrl('P', 500_000)
+
+    const drawn = await drawImage(USER, { ...INPUT, previousImage, referenceId: REFERENCE_ID, slide: { index: 5, count: 5 } })
+
+    expect(drawn.sent).toEqual(['reference'])
+    expect(drawn.skipped).toEqual(['slide 1 (terlalu besar untuk batas 1 MB 9Router)'])
+    expect(drawn.prompt).toContain('image1 is the CTA slide')
   })
 
   it('fills the budget exactly, and numbers the next images from image1 after one too big to send', async () => {
@@ -223,7 +234,7 @@ describe('imageLog', () => {
   it('keeps the byte count, the prompt and what was sent, never image data', () => {
     const drawn = { bytes: new Uint8Array(1234), prompt: 'Kafe', sent: ['previous' as const], skipped: ['logo (tidak ditemukan)'] }
 
-    expect(imageLog(drawn)).toEqual({ bytes: 1234, prompt: 'Kafe', sent: ['previous'] })
+    expect(imageLog(drawn)).toEqual({ bytes: 1234, prompt: 'Kafe', sent: ['previous'], skipped: ['logo (tidak ditemukan)'] })
   })
 })
 
@@ -251,5 +262,50 @@ describe('imageErrorMessage', () => {
   it('falls back to the AI messages', () => {
     expect(imageErrorMessage(new RouterApiError('x', 413))).toContain('terlalu besar')
     expect(imageErrorMessage(new AiLimitError('Langganan tidak aktif.'))).toBe('Langganan tidak aktif.')
+  })
+})
+
+describe('slideRole', () => {
+  it.each([
+    [null, null],
+    [{ index: 1, count: 1 }, null],
+    [{ index: 1, count: 5 }, 'cover'],
+    [{ index: 3, count: 5 }, 'isi'],
+    [{ index: 5, count: 5 }, 'cta'],
+    [{ index: 2, count: 2 }, 'isi'],
+  ] as const)('slide %j is %s', (slide, role) => {
+    expect(slideRole(slide)).toBe(role)
+  })
+})
+
+describe('slide roles in the prompt', () => {
+  it('tells the model which slide it makes and which slide of the reference to follow', () => {
+    const prompt = buildImagePrompt({ ...INPUT, slide: { index: 5, count: 5 } }, null, [
+      { kind: 'reference', label: 'cta' },
+      { kind: 'previous' },
+    ])
+
+    expect(prompt).toContain('This is the closing call-to-action slide.')
+    expect(prompt).toContain("image1 is the CTA slide of the owner's reference carousel: copy its layout for this slide")
+    expect(prompt).toContain('image2 is slide 1 of this carousel: keep the same colours, fonts, lighting and people, but not its layout')
+  })
+
+  it('describes cover and inner slides', () => {
+    expect(buildImagePrompt({ ...INPUT, slide: { index: 1, count: 5 } }, null, [])).toContain('This is the cover slide')
+    expect(buildImagePrompt({ ...INPUT, slide: { index: 3, count: 5 } }, null, [{ kind: 'reference', label: 'isi' }])).toContain(
+      "image1 is an inner content slide of the owner's reference carousel",
+    )
+  })
+
+  it('keeps slide 1 as the layout guide without a reference', () => {
+    const prompt = buildImagePrompt({ ...INPUT, slide: { index: 3, count: 5 } }, null, [{ kind: 'previous' }])
+
+    expect(prompt).toContain('keep the same people, colours, lighting, typography and layout')
+  })
+
+  it('keeps the neutral reference wording for a single photo', () => {
+    const prompt = buildImagePrompt(INPUT, null, [{ kind: 'reference', label: 'single' }])
+
+    expect(prompt).toContain('image1 is a design reference: follow its style, composition and mood')
   })
 })

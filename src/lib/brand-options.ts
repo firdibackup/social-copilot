@@ -105,7 +105,7 @@ export interface LabeledImage {
 }
 
 /**
- * The group image a slide follows: slide 1 (or a one-image post) the cover, the last slide the CTA, the middle
+ * The group image a slide follows: slide 1 (or a one-image post) the cover, the last slide of three or more the CTA, the middle
  * slides the inner ones in turn. A missing label falls back to the cover, a missing cover to the first image.
  */
 export function pickReferenceImage<T extends LabeledImage>(
@@ -115,7 +115,8 @@ export function pickReferenceImage<T extends LabeledImage>(
   const sorted = [...images].sort((a, b) => a.position - b.position)
   const cover = sorted.find((image) => image.label === 'cover') ?? sorted.find((image) => image.label === 'single') ?? sorted[0]
   if (!cover || !slide || slide.count <= 1 || slide.index <= 1) return cover ?? null
-  if (slide.index >= slide.count) return sorted.find((image) => image.label === 'cta') ?? cover
+  // Like labelsForCount: only a carousel of three or more ends with a CTA; two slides are cover and inner slide.
+  if (slide.count > 2 && slide.index >= slide.count) return sorted.find((image) => image.label === 'cta') ?? cover
   const inner = sorted.filter((image) => image.label === 'isi')
   return inner.length > 0 ? inner[(slide.index - 2) % inner.length] : cover
 }

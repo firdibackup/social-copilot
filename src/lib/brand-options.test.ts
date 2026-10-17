@@ -116,6 +116,10 @@ describe('pickReferenceImage', () => {
     expect(pickReferenceImage([], null)).toBeNull()
   })
 
+  it('gives the second of two slides an inner slide, as labelsForCount labels two images', () => {
+    expect(pickReferenceImage(group, { index: 2, count: 2 })?.position).toBe(1)
+  })
+
   it('uses a single image for every slide', () => {
     expect(pickReferenceImage([{ position: 0, label: 'single' as const }], { index: 5, count: 5 })?.position).toBe(0)
   })

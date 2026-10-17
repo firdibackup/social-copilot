@@ -20,6 +20,7 @@ import {
 import { getConnectedAccountId } from './connection'
 import { describeError } from './errors'
 import type { ImageType } from './image'
+import { toReferenceDataUrl } from './slide-image'
 import { db, unwrap } from './supabase'
 
 const BUCKET = 'brand'
@@ -455,6 +456,8 @@ export async function getBrandVisual(userId: string): Promise<BrandVisual | null
 export interface ReferenceImage {
   dataUrl: string
   note: string
+  /** Which slide of its group this is, so the prompt can say what it shows. */
+  label: ReferenceLabel
 }
 
 /**
@@ -475,7 +478,13 @@ export async function loadReferenceImage(
       .maybeSingle(),
   ) as { note: string; brand_reference_images: ImageRow[] } | null
   const image = row && pickReferenceImage(row.brand_reference_images, slide)
-  return row && image ? { dataUrl: await dataUrlOf(image.storage_path, image.content_type), note: row.note } : null
+  if (!row || !image) return null
+  // Small, like the slide-1 image beside it: a full-size Instagram photo can take most of the 1 MB request alone,
+  // and then it was the reference, not slide 1, that got left out.
+  const { data, error } = await bucket().download(image.storage_path)
+  if (error) throw new Error(`Supabase Storage: ${error.message}`)
+  const dataUrl = await toReferenceDataUrl(new Uint8Array(await data.arrayBuffer()))
+  return { dataUrl, note: row.note, label: image.label }
 }
 
 const TYPE_BY_EXTENSION = Object.fromEntries(Object.entries(EXTENSIONS).map(([type, ext]) => [ext, type])) as Record<

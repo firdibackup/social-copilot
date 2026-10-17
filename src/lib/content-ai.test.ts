@@ -81,6 +81,19 @@ const PLAN_ANSWER = JSON.stringify({
 const rows = () => database.inserted.map((insert) => insert.row)
 
 describe('buildContentMessages', () => {
+  it('plans a carousel as cover, inner slides with one point each, and a CTA', () => {
+    const user = buildContentMessages('Tips seduh', 5, null)[1].content
+
+    expect(user).toContain('slide 1 = cover')
+    expect(user).toContain('slide 2–4 = isi, satu poin per slide')
+    expect(user).toContain('slide 5 = CTA')
+  })
+
+  it('plans two slides as cover and inner slide, and one image without roles', () => {
+    expect(buildContentMessages('Tips seduh', 2, null)[1].content).toContain('slide 2 = isi')
+    expect(buildContentMessages('Tips seduh', 1, null)[1].content).not.toContain('= cover')
+  })
+
   it('asks for a carousel with exactly that many slides and quotes the topic', () => {
     const [system, user] = buildContentMessages('Tips seduh', 3, null)
 

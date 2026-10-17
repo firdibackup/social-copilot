@@ -59,6 +59,17 @@ const IDEAS_SYSTEM = [
 /** Repeated last in the task prompts: Haiku still invented "stok terbatas" with the rule only in the system prompt. */
 const NO_INVENTED_CLAIMS = 'Jangan menambah klaim seperti stok terbatas, promo terbatas, atau kualitas premium.'
 
+/**
+ * The carousel's order, the same roles reference groups carry (labelsForCount): image prompts then follow the
+ * cover, inner and CTA slides of a reference carousel.
+ */
+function slideStructure(slides: number): string {
+  const cover = 'slide 1 = cover (judul atau hook singkat yang membuat orang berhenti dan menggeser)'
+  if (slides === 2) return `${cover}; slide 2 = isi (poin utamanya)`
+  const inner = slides === 3 ? 'slide 2 = isi' : `slide 2–${slides - 1} = isi`
+  return `${cover}; ${inner}, satu poin per slide; slide ${slides} = CTA (ajakan bertindak yang jelas)`
+}
+
 const allowedFacts = (brand: BrandContext | null) => (brand?.facts ? 'topik dan fakta brand di atas' : 'topik di atas')
 
 export function buildContentMessages(topic: string, slides: number, brand: BrandContext | null): ChatMessage[] {
@@ -71,7 +82,7 @@ export function buildContentMessages(topic: string, slides: number, brand: Brand
         `${brand ? describeBrand(brand) : ''}Tugas: buat satu post Instagram tentang topik di bawah, berupa ${carousel ? `carousel ${slides} slide` : 'satu gambar'}.`,
         '- title: judul singkat post untuk daftar konten, maksimal 8 kata.',
         `- caption: 2–4 paragraf pendek, sekitar 300–700 karakter sebelum hashtag: kalimat pembuka yang menarik, isi, lalu ajakan bertindak (CTA). Tutup dengan 3–8 hashtag relevan di baris terakhir.${carousel ? ' Ajak pembaca menggeser carousel kalau sesuai.' : ''}`,
-        `- slides: tepat ${slides} slide, berurutan.${carousel ? ' Slide pertama harus menarik perhatian; slide terakhir boleh berisi ajakan bertindak.' : ''}`,
+        `- slides: tepat ${slides} slide, berurutan.${carousel ? ` Susunannya: ${slideStructure(slides)}.` : ''}`,
         'Format JSON: {"title": "…", "caption": "…", "slides": [{"headline": "…", "scene": "…"}]}',
         '',
         `Topik:\n${quote(topic)}`,
