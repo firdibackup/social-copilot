@@ -1,7 +1,7 @@
 import { connection } from 'next/server'
 import { requireActiveUser } from '@/lib/auth'
 import { getBrandKit } from '@/lib/brand'
-import { getConnection } from '@/lib/connection'
+import { getConnectedAccountId, getConnection } from '@/lib/connection'
 import { describeError } from '@/lib/errors'
 import { Avatar } from './avatar'
 
@@ -9,8 +9,10 @@ async function loadWorkspace(): Promise<{ name: string; logoUrl: string | null }
   await connection()
   const userId = await requireActiveUser()
   try {
-    const [kit, instagram] = await Promise.all([getBrandKit(userId), getConnection(userId)])
-    return { name: kit.name || (instagram ? `@${instagram.username}` : 'Workspace'), logoUrl: kit.logoUrl }
+    const [accountId, instagram] = await Promise.all([getConnectedAccountId(userId), getConnection(userId)])
+    // The brand belongs to the connected account; without one there is no brand to show.
+    const kit = accountId ? await getBrandKit(userId, accountId) : null
+    return { name: kit?.name || (instagram ? `@${instagram.username}` : 'Workspace'), logoUrl: kit?.logoUrl ?? null }
   } catch (error) {
     console.error('[sidebar] workspace gagal dimuat:', describeError(error))
     return { name: 'Workspace', logoUrl: null }

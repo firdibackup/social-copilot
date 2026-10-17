@@ -5,7 +5,7 @@ import { InstagramApiError, sendDirectMessage } from '@/lib/instagram'
 import { saveTemplateAction, saveVariablesAction, sendReply } from './actions'
 
 vi.mock('next/cache', () => ({ refresh: vi.fn() }))
-vi.mock('@/lib/auth', () => ({ requireActiveUser: vi.fn(async () => 'user-1') }))
+vi.mock('@/lib/auth', () => ({ requireAccount: vi.fn(async () => ({ userId: 'user-1', accountId: 'ig-1' })) }))
 vi.mock('@/lib/connection', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/connection')>()),
   getPublishingAccount: vi.fn(),
@@ -137,7 +137,7 @@ describe('saveTemplateAction', () => {
 describe('saveVariablesAction', () => {
   it('saves parsed variables', async () => {
     await expect(saveVariablesAction('brand_name = Toko Sinar')).resolves.toBeNull()
-    expect(saveVariables).toHaveBeenCalledWith('user-1', { brand_name: 'Toko Sinar' })
+    expect(saveVariables).toHaveBeenCalledWith('user-1', 'ig-1', { brand_name: 'Toko Sinar' })
   })
 
   it('returns the parse error without saving', async () => {

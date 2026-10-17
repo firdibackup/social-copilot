@@ -5,7 +5,7 @@ import { Suspense } from 'react'
 import { Notice } from '@/components/notice'
 import { remainingCredits } from '@/lib/ai'
 import { listAssets } from '@/lib/assets'
-import { requireActiveUser } from '@/lib/auth'
+import { requireAccount } from '@/lib/auth'
 import { getBrandKit, listReferences } from '@/lib/brand'
 import { getConnection } from '@/lib/connection'
 import { describeError, loadErrorMessage } from '@/lib/errors'
@@ -66,7 +66,7 @@ const toView = (slide: SlideRecord): SlideView => ({
 async function Workspace({ searchParams }: BuatPageProps) {
   const params = await searchParams
   await connection()
-  const userId = await requireActiveUser()
+  const { userId, accountId } = await requireAccount()
   const id = firstValue(params.id)
   const ideaParam = firstValue(params.ide)
   const postId = isUuid(id) ? id : null
@@ -74,15 +74,15 @@ async function Workspace({ searchParams }: BuatPageProps) {
   let data
   try {
     const [posts, ideas, post, slides, idea, instagram, kit, references, library, credits] = await Promise.all([
-      listContentPosts(userId),
-      listIdeas(userId),
+      listContentPosts(userId, accountId),
+      listIdeas(userId, accountId),
       postId ? getPost(userId, postId) : null,
       postId ? listUnfinishedSlides(userId, postId) : [],
       !postId && isUuid(ideaParam) ? getIdea(userId, ideaParam) : null,
       getConnection(userId),
-      getBrandKit(userId),
+      getBrandKit(userId, accountId),
       listReferences(userId),
-      listAssets(userId),
+      listAssets(userId, accountId),
       // Shown as a hint only; every request checks the credits again.
       remainingCredits(userId).then(
         (left) => left.remaining,

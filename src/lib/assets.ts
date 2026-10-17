@@ -48,12 +48,14 @@ export async function signMediaUrls(paths: string[], ttlSeconds = VIEW_URL_TTL_S
   return paths.map((path) => byPath.get(path) ?? '')
 }
 
-export async function listAssets(userId: string): Promise<Asset[]> {
+/** The account's photo library. */
+export async function listAssets(userId: string, accountId: string): Promise<Asset[]> {
   const rows: AssetRow[] = unwrap(
     await db()
       .from('assets')
       .select('id, storage_path, width, height')
       .eq('user_id', userId)
+      .eq('account_id', accountId)
       .order('created_at', { ascending: false })
       .limit(LIBRARY_LIMIT),
   )

@@ -2,7 +2,7 @@ import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { connection } from 'next/server'
 import { Notice } from '@/components/notice'
-import { requireActiveUser } from '@/lib/auth'
+import { requireAccount } from '@/lib/auth'
 import { getConnection } from '@/lib/connection'
 import {
   getConversation,
@@ -53,12 +53,12 @@ function shorten(value: string): string {
 const listTime = (date: Date, now: Date) =>
   wibDateKey(date) === wibDateKey(now) ? formatTime(date) : formatShortDate(date)
 
-async function loadThread(userId: string, igsid: string, now: Date): Promise<Thread | null> {
+async function loadThread(userId: string, accountId: string, igsid: string, now: Date): Promise<Thread | null> {
   const [conversation, messages, templates, variables] = await Promise.all([
-    getConversation(userId, igsid),
+    getConversation(userId, accountId, igsid),
     listMessages(userId, igsid),
-    listTemplates(userId),
-    getVariables(userId),
+    listTemplates(userId, accountId),
+    getVariables(userId, accountId),
   ])
   if (!conversation) return null
 
@@ -79,7 +79,7 @@ async function loadThread(userId: string, igsid: string, now: Date): Promise<Thr
 export async function Inbox({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
   await connection()
-  const userId = await requireActiveUser()
+  const { userId, accountId } = await requireAccount()
   const now = new Date()
   const filter: Filter = firstValue(params.filter) === 'semua' ? 'semua' : 'belum'
   const selectedId = firstValue(params.c)
@@ -91,8 +91,8 @@ export async function Inbox({ searchParams }: { searchParams: Promise<SearchPara
     connected = (await getConnection(userId)) !== null
     if (connected) {
       ;[conversations, thread] = await Promise.all([
-        listConversations(userId, filter === 'belum'),
-        selectedId ? loadThread(userId, selectedId, now) : null,
+        listConversations(userId, accountId, filter === 'belum'),
+        selectedId ? loadThread(userId, accountId, selectedId, now) : null,
       ])
     }
   } catch (error) {

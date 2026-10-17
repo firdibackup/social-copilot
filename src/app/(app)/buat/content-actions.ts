@@ -3,7 +3,7 @@
 import { refresh } from 'next/cache'
 import { aiErrorMessage, loadBrandContext, runLogged } from '@/lib/ai'
 import { createAsset, loadAssetBytes } from '@/lib/assets'
-import { requireActiveUser } from '@/lib/auth'
+import { requireAccount } from '@/lib/auth'
 import { lengthOf } from '@/lib/brand-options'
 import { CAPTION_MAX_LENGTH } from '@/lib/caption'
 import { editCaption, planContent, reviseSlide, suggestIdeas } from '@/lib/content-ai'
@@ -51,7 +51,7 @@ const captionOf = (value: unknown) => (typeof value === 'string' ? value.replace
  * and its waiting slides are stored inside that charged request, so a failure on either side costs nothing.
  */
 export async function createContentAction(input: unknown): Promise<CreateResult> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   const parsed = parseContentRequest(input)
   if ('error' in parsed) return parsed
   const { request } = parsed
@@ -78,7 +78,7 @@ async function storeImage(userId: string, drawn: DrawnImage, format: ImageFormat
  * claim_slide keeps two tabs from making it twice. Returns null when there was nothing (left) to do.
  */
 export async function generateSlideAction(slideId: unknown): Promise<ActionError> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   if (!isUuid(slideId)) return 'Slide tidak ditemukan.'
 
   let slide
@@ -134,7 +134,7 @@ export async function generateSlideAction(slideId: unknown): Promise<ActionError
 
 /** Drops a waiting or failed slide from the post. */
 export async function deleteSlideAction(slideId: unknown): Promise<ActionError> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   if (!isUuid(slideId)) return 'Slide tidak ditemukan.'
   try {
     if (!(await deleteUnfinishedSlide(userId, slideId))) return 'Slide sedang dibuat. Tunggu sebentar.'
@@ -151,7 +151,7 @@ export async function deleteSlideAction(slideId: unknown): Promise<ActionError> 
  * image. One charge covers both. The old photo stays in Aset.
  */
 export async function editSlideAction(input: unknown): Promise<ActionError> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   const postId = isObject(input) ? input.postId : null
   const assetId = isObject(input) ? input.assetId : null
   if (!isUuid(postId) || !isUuid(assetId)) return 'Slide tidak ditemukan.'
@@ -205,7 +205,7 @@ export async function editSlideAction(input: unknown): Promise<ActionError> {
 
 /** A caption changed as the owner asked. It only fills the editor, which saves it like typed text. */
 export async function editCaptionAction(input: unknown): Promise<CaptionResult> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   const caption = captionOf(isObject(input) ? input.caption : null)
   if (lengthOf(caption) > CAPTION_MAX_LENGTH) return { error: 'Caption lebih dari 2.200 karakter.' }
   const instruction = parseInstruction(isObject(input) ? input.instruction : null)
@@ -221,11 +221,11 @@ export async function editCaptionAction(input: unknown): Promise<CaptionResult> 
 
 /** Ten new ideas from the brand kit, unlike the open ones and the newest posts. */
 export async function generateIdeasAction(): Promise<ActionError> {
-  const userId = await requireActiveUser()
+  const { userId, accountId } = await requireAccount()
   try {
     const brand = await loadBrandContext(userId)
     if (!brand) return 'Lengkapi Brand dulu, minimal nama dan deskripsi, supaya idenya sesuai bisnis Anda.'
-    await suggestIdeas(userId, brand, await recentTitles(userId), (ideas) => addIdeas(userId, ideas))
+    await suggestIdeas(userId, brand, await recentTitles(userId, accountId), (ideas) => addIdeas(userId, ideas))
   } catch (error) {
     console.error('[buat] ide gagal dibuat:', describeError(error))
     return aiErrorMessage(error)
@@ -235,7 +235,7 @@ export async function generateIdeasAction(): Promise<ActionError> {
 }
 
 export async function deleteIdeaAction(id: unknown): Promise<ActionError> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   if (!isUuid(id)) return 'Ide tidak ditemukan.'
   try {
     await deleteIdea(userId, id)
@@ -252,7 +252,7 @@ export async function deleteIdeaAction(id: unknown): Promise<ActionError> {
  * a new draft from the owner's own photos.
  */
 export async function saveContentAction(input: unknown): Promise<SaveResult> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   if (!isObject(input)) return { error: 'Permintaan tidak valid.' }
   const caption = captionOf(input.caption)
   const assetIds = Array.isArray(input.assetIds) ? input.assetIds.filter(isUuid) : []

@@ -1,5 +1,6 @@
 import { Notice } from '@/components/notice'
 import { requireActiveUser } from '@/lib/auth'
+import { getConnectedAccountId } from '@/lib/connection'
 import { ConfigError, describeError } from '@/lib/errors'
 import { getFacebookConnection, type FacebookConnection } from '@/lib/facebook-connection'
 import { firstValue, type SearchParams } from '@/lib/params'
@@ -29,7 +30,9 @@ const UNKNOWN_ERROR = 'Terjadi kesalahan saat menghubungkan Facebook. Coba lagi.
 
 async function loadFacebook(userId: string): Promise<LoadResult> {
   try {
-    return { kind: 'ok', connection: await getFacebookConnection(userId) }
+    // The Page belongs to the connected Instagram account.
+    const accountId = await getConnectedAccountId(userId)
+    return { kind: 'ok', connection: accountId ? await getFacebookConnection(userId, accountId) : null }
   } catch (error) {
     console.error('[pengaturan] koneksi Facebook gagal dimuat:', describeError(error))
     const message =

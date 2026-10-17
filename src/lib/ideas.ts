@@ -10,13 +10,14 @@ export interface Idea {
   title: string
 }
 
-/** Newest first. */
-export async function listIdeas(userId: string): Promise<Idea[]> {
+/** The account's ideas, newest first. */
+export async function listIdeas(userId: string, accountId: string): Promise<Idea[]> {
   return unwrap(
     await db()
       .from('content_ideas')
       .select('id, title')
       .eq('user_id', userId)
+      .eq('account_id', accountId)
       .order('created_at', { ascending: false })
       .limit(LIST_LIMIT),
   ) as Idea[]
@@ -37,13 +38,14 @@ export async function deleteIdea(userId: string, id: string): Promise<void> {
 }
 
 /** What the idea prompt must not repeat: the ideas still open and the newest posts' titles. */
-export async function recentTitles(userId: string): Promise<string[]> {
+export async function recentTitles(userId: string, accountId: string): Promise<string[]> {
   const [ideas, posts] = await Promise.all([
-    listIdeas(userId),
+    listIdeas(userId, accountId),
     db()
       .from('posts')
       .select('title')
       .eq('user_id', userId)
+      .eq('account_id', accountId)
       .neq('title', '')
       .order('created_at', { ascending: false })
       .limit(RECENT_POSTS),

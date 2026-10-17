@@ -126,9 +126,13 @@ export interface PostFilter {
   to?: Date
 }
 
-/** Newest schedule first; posts without a date (drafts) come first. */
-export async function listPosts(userId: string, filter: PostFilter = {}): Promise<Post[]> {
-  let query = db().from('posts').select(`${POST_FIELDS}, ${MEDIA_FIELDS}`).eq('user_id', userId)
+/** The account's posts, newest schedule first; posts without a date (drafts) come first. */
+export async function listPosts(userId: string, accountId: string, filter: PostFilter = {}): Promise<Post[]> {
+  let query = db()
+    .from('posts')
+    .select(`${POST_FIELDS}, ${MEDIA_FIELDS}`)
+    .eq('user_id', userId)
+    .eq('account_id', accountId)
   if (filter.status) query = query.eq('status', filter.status)
   if (filter.from) query = query.gte('scheduled_at', filter.from.toISOString())
   if (filter.to) query = query.lt('scheduled_at', filter.to.toISOString())
@@ -167,6 +171,7 @@ export async function savePost(userId: string, input: PostInput): Promise<string
   if (error?.message === 'post_locked') {
     throw new PostLockedError('Post sedang atau mungkin sudah diterbitkan, jadi isinya tidak bisa diubah.')
   }
+  if (error?.message === 'wrong_account') throw new PostLockedError('Post ini milik akun Instagram lain.')
   if (error) throw new Error(`Supabase: ${error.message}`)
   return data as string
 }
@@ -177,16 +182,15 @@ async function updateIfStatus(
   id: string,
   statuses: PostStatus[],
   values: Record<string, unknown>,
+  accountId?: string,
 ): Promise<boolean> {
-  const rows: unknown[] = unwrap(
-    await db()
-      .from('posts')
-      .update({ ...values, updated_at: now() })
-      .eq('id', id)
-      .eq('user_id', userId)
-      .in('status', statuses)
-      .select('id'),
-  )
+  let query = db()
+    .from('posts')
+    .update({ ...values, updated_at: now() })
+    .eq('id', id)
+    .eq('user_id', userId)
+  if (accountId) query = query.eq('account_id', accountId)
+  const rows: unknown[] = unwrap(await query.in('status', statuses).select('id'))
   return rows.length === 1
 }
 
@@ -194,15 +198,30 @@ export function cancelPost(userId: string, id: string): Promise<boolean> {
   return updateIfStatus(userId, id, ['scheduled'], { status: 'cancelled', next_attempt_at: null })
 }
 
-/** Publishes now. Keeps ig_container_id, so the worker checks Instagram before publishing again. */
-export function retryPost(userId: string, id: string): Promise<boolean> {
+/**
+ * Publishes now, and only on the connected account. Keeps ig_container_id, so the worker checks Instagram before
+ * publishing again.
+ */
+export function retryPost(userId: string, accountId: string, id: string): Promise<boolean> {
   return updateIfStatus(userId, id, ['failed', 'cancelled'], {
     status: 'scheduled',
     scheduled_at: now(),
     attempt_count: 0,
     next_attempt_at: null,
     last_error: null,
-  })
+  }, accountId)
+}
+
+/** How many of the account's posts wait to be published, for the Putuskan dialog. */
+export async function countScheduledPosts(userId: string, accountId: string): Promise<number> {
+  const { count, error } = await db()
+    .from('posts')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('account_id', accountId)
+    .eq('status', 'scheduled')
+  if (error || count === null) throw new Error(`Supabase: ${error?.message || 'jumlah posting tidak terbaca'}`)
+  return count
 }
 
 /** Removes the post from the app only; a published post stays on Instagram. */
@@ -248,13 +267,14 @@ interface ContentListRow {
   post_slides: { status: string }[]
 }
 
-/** Most recently changed first. */
-export async function listContentPosts(userId: string): Promise<ContentListItem[]> {
+/** The account's unpublished posts, most recently changed first. */
+export async function listContentPosts(userId: string, accountId: string): Promise<ContentListItem[]> {
   const rows = unwrap(
     await db()
       .from('posts')
       .select('id, title, caption, status, scheduled_at, post_media(position, assets(storage_path)), post_slides(status)')
       .eq('user_id', userId)
+      .eq('account_id', accountId)
       .in('status', WORK_STATUSES)
       .order('updated_at', { ascending: false })
       .limit(CONTENT_LIST_LIMIT)

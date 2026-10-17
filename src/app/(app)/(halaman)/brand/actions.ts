@@ -2,7 +2,7 @@
 
 import { refresh } from 'next/cache'
 import { aiErrorMessage } from '@/lib/ai'
-import { requireActiveUser } from '@/lib/auth'
+import { requireAccount, type AccountScope } from '@/lib/auth'
 import {
   addReference,
   deleteReference,
@@ -66,11 +66,11 @@ async function instagramErrorMessage(userId: string, error: unknown, context: st
 }
 
 export async function saveBrandAction(input: unknown): Promise<ActionError> {
-  const userId = await requireActiveUser()
+  const { userId, accountId } = await requireAccount()
   const parsed = parseBrandFields(input)
   if ('error' in parsed) return parsed.error
   try {
-    await saveBrandKit(userId, parsed.fields)
+    await saveBrandKit(userId, accountId, parsed.fields)
   } catch (error) {
     console.error('[brand] brand kit gagal disimpan:', describeError(error))
     return `Brand kit gagal disimpan. ${DATABASE}`
@@ -114,7 +114,7 @@ async function readInstagram(userId: string): Promise<Read<NonNullable<ProfileSo
 
 /** Reads the sources and asks the AI for a profile draft. Nothing is saved: the form shows the draft. */
 export async function analyzeProfileAction(websiteUrl: unknown, includeInstagram: unknown): Promise<ProfileResult> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   const url = text(websiteUrl)
   if (!url && includeInstagram !== true) return { error: 'Isi alamat website atau centang akun Instagram dulu.' }
 
@@ -145,7 +145,7 @@ export async function analyzeProfileAction(websiteUrl: unknown, includeInstagram
 
 /** Receives a JPEG prepared in the browser (see toReferenceJpeg) and its palette. */
 export async function uploadReferenceAction(formData: FormData): Promise<ActionError> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   const file = formData.get('file')
   if (!(file instanceof Blob)) return 'File tidak ditemukan.'
   if (file.size === 0 || file.size > MAX_IMAGE_BYTES) return 'Ukuran gambar harus di bawah 8 MB.'
@@ -180,7 +180,7 @@ export type PostsResult = { account: PostsAccount; posts: InstagramPost[] } | { 
 
 /** The connected account's newest posts, to pick references from. */
 export async function listOwnPostsAction(): Promise<PostsResult> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   try {
     const token = await getValidAccessToken(userId)
     const [profile, posts] = await Promise.all([fetchOwnProfile(token), fetchRecentMedia(token, POSTS_LIMIT)])
@@ -191,11 +191,11 @@ export async function listOwnPostsAction(): Promise<PostsResult> {
 }
 
 /** Graph codes for missing users (110) and bad requests (100), and for missing permissions (10, 200). */
-async function discoveryErrorMessage(userId: string, error: unknown, username: string): Promise<string> {
+async function discoveryErrorMessage(scope: AccountScope, error: unknown, username: string): Promise<string> {
   if (error instanceof FacebookReconnectError) return FB_RECONNECT
   if (error instanceof InstagramApiError) {
     if (error.isInvalidToken) {
-      await markFacebookNeedsReconnect(userId).catch(() => {})
+      await markFacebookNeedsReconnect(scope.userId, scope.accountId).catch(() => {})
       return FB_RECONNECT
     }
     if (error.code === 110 || error.code === 100) {
@@ -211,16 +211,16 @@ async function discoveryErrorMessage(userId: string, error: unknown, username: s
 
 /** Another Business or Creator account's newest posts, through Business Discovery. */
 export async function discoverPostsAction(input: unknown): Promise<PostsResult> {
-  const userId = await requireActiveUser()
+  const scope = await requireAccount()
   const username = parseInstagramUsername(text(input))
   if (!username) return { error: 'Tulis username Instagram, mis. @namaakun, atau tempel link profilnya.' }
   try {
-    const account = await getDiscoveryAccount(userId)
+    const account = await getDiscoveryAccount(scope.userId, scope.accountId)
     const found = await discoverAccount(account.accessToken, account.instagramUserId, username)
     const { posts, ...profile } = found
     return { account: profile, posts }
   } catch (error) {
-    return { error: await discoveryErrorMessage(userId, error, username) }
+    return { error: await discoveryErrorMessage(scope, error, username) }
   }
 }
 
@@ -249,7 +249,7 @@ export type ImportResult = { imported: number; failed: string[] } | { error: str
 
 /** Downloads the chosen images into the brand bucket. The page computes their palettes afterwards. */
 export async function importReferencesAction(items: unknown): Promise<ImportResult> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   const parsed = Array.isArray(items) ? items.map(parseImportItem) : []
   if (parsed.length === 0 || parsed.length > MAX_IMPORT || parsed.some((item) => item === null)) {
     return { error: `Pilih 1–${MAX_IMPORT} gambar.` }
@@ -299,7 +299,7 @@ function parsePatch(value: unknown): ReferencePatch | string {
 
 /** No refresh: the card already shows what was typed, and palettes arrive in a batch the page refreshes once. */
 export async function updateReferenceAction(id: unknown, changes: unknown): Promise<ActionError> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   if (!isUuid(id)) return 'Referensi tidak ditemukan.'
   const patch = parsePatch(changes)
   if (typeof patch === 'string') return patch
@@ -312,7 +312,7 @@ export async function updateReferenceAction(id: unknown, changes: unknown): Prom
 }
 
 export async function deleteReferenceAction(id: unknown): Promise<ActionError> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   if (!isUuid(id)) return 'Referensi tidak ditemukan.'
   try {
     await deleteReference(userId, id)
@@ -328,7 +328,7 @@ export type VisualResult = { visualStyle: string; used: number; skipped: number 
 
 /** Vision analysis of the newest references. Descriptions are saved; the style guide only fills the form. */
 export async function analyzeVisualAction(): Promise<VisualResult> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   let selection
   try {
     selection = await loadVisualReferences(userId)
@@ -367,11 +367,11 @@ export async function analyzeVisualAction(): Promise<VisualResult> {
   return { visualStyle: analysis.visualStyle, used: references.length, skipped }
 }
 
-async function storeLogo(userId: string, bytes: Uint8Array): Promise<ActionError> {
+async function storeLogo({ userId, accountId }: AccountScope, bytes: Uint8Array): Promise<ActionError> {
   const type = imageType(bytes)
   if (!type) return 'Logo harus PNG, JPEG, atau WebP.'
   try {
-    await setLogo(userId, bytes, type)
+    await setLogo(userId, accountId, bytes, type)
   } catch (error) {
     console.error('[brand] logo gagal disimpan:', describeError(error))
     return `Logo gagal disimpan. ${DATABASE}`
@@ -381,21 +381,21 @@ async function storeLogo(userId: string, bytes: Uint8Array): Promise<ActionError
 }
 
 export async function uploadLogoAction(formData: FormData): Promise<ActionError> {
-  const userId = await requireActiveUser()
+  const scope = await requireAccount()
   const file = formData.get('file')
   if (!(file instanceof Blob)) return 'File tidak ditemukan.'
   if (file.size === 0 || file.size > MAX_LOGO_BYTES) return 'Ukuran logo harus di bawah 2 MB.'
-  return storeLogo(userId, new Uint8Array(await file.arrayBuffer()))
+  return storeLogo(scope, new Uint8Array(await file.arrayBuffer()))
 }
 
 /** One of the logo candidates the website analysis offered. */
 export async function logoFromUrlAction(url: unknown): Promise<ActionError> {
-  const userId = await requireActiveUser()
+  const scope = await requireAccount()
   const address = text(url)
   if (!isHttpUrl(address)) return 'Alamat logo tidak valid.'
   try {
     const { bytes } = await fetchImage(address, MAX_LOGO_BYTES)
-    return await storeLogo(userId, bytes)
+    return await storeLogo(scope, bytes)
   } catch (error) {
     if (error instanceof RemoteFetchError) return `Logo tidak bisa diambil: ${error.message}`
     console.error('[brand] logo dari website gagal:', describeError(error))
@@ -404,9 +404,9 @@ export async function logoFromUrlAction(url: unknown): Promise<ActionError> {
 }
 
 export async function removeLogoAction(): Promise<ActionError> {
-  const userId = await requireActiveUser()
+  const { userId, accountId } = await requireAccount()
   try {
-    await removeLogo(userId)
+    await removeLogo(userId, accountId)
   } catch (error) {
     console.error('[brand] logo gagal dihapus:', describeError(error))
     return 'Logo gagal dihapus. Coba lagi.'

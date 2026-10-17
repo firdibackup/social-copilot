@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
 import { Notice } from '@/components/notice'
-import { requireActiveUser } from '@/lib/auth'
+import { requireAccount } from '@/lib/auth'
 import { getVariables, listTemplates } from '@/lib/dm'
 import { formatVariables, type DmTemplate } from '@/lib/dm-templates'
 import { describeError, loadErrorMessage } from '@/lib/errors'
@@ -42,11 +42,11 @@ export default function BalasanPage({ searchParams }: BalasanPageProps) {
 
 async function Templates() {
   await connection()
-  const userId = await requireActiveUser()
+  const { userId, accountId } = await requireAccount()
   let templates: DmTemplate[]
   let variablesText: string
   try {
-    const [list, variables] = await Promise.all([listTemplates(userId), getVariables(userId)])
+    const [list, variables] = await Promise.all([listTemplates(userId, accountId), getVariables(userId, accountId)])
     templates = list
     variablesText = formatVariables(variables)
   } catch (error) {

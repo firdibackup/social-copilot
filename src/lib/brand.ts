@@ -12,6 +12,7 @@ import {
   type BrandReference,
   type ReferenceSource,
 } from './brand-options'
+import { getConnectedAccountId } from './connection'
 import { describeError } from './errors'
 import type { ImageType } from './image'
 import { db, unwrap } from './supabase'
@@ -102,12 +103,24 @@ function toFields(row: KitRow): BrandFields {
   }
 }
 
-async function loadKit(userId: string): Promise<KitRow | null> {
-  return unwrap(await db().from('brand_kit').select(KIT_COLUMNS).eq('user_id', userId).maybeSingle()) as KitRow | null
+/** One brand kit per user and Instagram account. */
+async function loadKit(userId: string, accountId: string): Promise<KitRow | null> {
+  return unwrap(
+    await db().from('brand_kit').select(KIT_COLUMNS).eq('user_id', userId).eq('account_id', accountId).maybeSingle(),
+  ) as KitRow | null
 }
 
-export async function getBrandKit(userId: string): Promise<BrandKit> {
-  const row = await loadKit(userId)
+/**
+ * The connected account's kit, for AI prompts, which take only the user: one more query, against requests that
+ * take seconds. Null without a connected account.
+ */
+async function loadConnectedKit(userId: string): Promise<KitRow | null> {
+  const accountId = await getConnectedAccountId(userId)
+  return accountId ? loadKit(userId, accountId) : null
+}
+
+export async function getBrandKit(userId: string, accountId: string): Promise<BrandKit> {
+  const row = await loadKit(userId, accountId)
   if (!row) return { ...EMPTY_BRAND, logoUrl: null }
   const [logoUrl] = row.logo_path ? await signUrls([row.logo_path]) : [null]
   return { ...toFields(row), logoUrl: logoUrl || null }
@@ -115,7 +128,7 @@ export async function getBrandKit(userId: string): Promise<BrandKit> {
 
 /** The text the caption prompts use, or null when none of it is filled in. */
 export async function getBrandContext(userId: string): Promise<BrandContext | null> {
-  const row = await loadKit(userId)
+  const row = await loadConnectedKit(userId)
   if (!row) return null
   const fields = toFields(row)
   const context = Object.fromEntries(PROFILE_FIELDS.map((field) => [field, fields[field]])) as BrandContext
@@ -123,25 +136,29 @@ export async function getBrandContext(userId: string): Promise<BrandContext | nu
 }
 
 /** Upserts every field but the logo, which has its own actions. */
-export async function saveBrandKit(userId: string, fields: BrandFields): Promise<void> {
+export async function saveBrandKit(userId: string, accountId: string, fields: BrandFields): Promise<void> {
   unwrap(
-    await db().from('brand_kit').upsert({
-      user_id: userId,
-      name: fields.name,
-      category: fields.category,
-      description: fields.description,
-      website_url: fields.websiteUrl,
-      audience: fields.audience,
-      voice: fields.voice,
-      words_use: fields.wordsUse,
-      words_avoid: fields.wordsAvoid,
-      facts: fields.facts,
-      colors: fields.colors,
-      heading_font: fields.headingFont,
-      body_font: fields.bodyFont,
-      visual_style: fields.visualStyle,
-      updated_at: new Date().toISOString(),
-    }),
+    await db().from('brand_kit').upsert(
+      {
+        user_id: userId,
+        account_id: accountId,
+        name: fields.name,
+        category: fields.category,
+        description: fields.description,
+        website_url: fields.websiteUrl,
+        audience: fields.audience,
+        voice: fields.voice,
+        words_use: fields.wordsUse,
+        words_avoid: fields.wordsAvoid,
+        facts: fields.facts,
+        colors: fields.colors,
+        heading_font: fields.headingFont,
+        body_font: fields.bodyFont,
+        visual_style: fields.visualStyle,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,account_id' },
+    ),
   )
 }
 
@@ -158,12 +175,15 @@ async function removeFile(path: string): Promise<void> {
 }
 
 /** Replaces the logo. The old file goes only after the row points at the new one. */
-export async function setLogo(userId: string, bytes: Uint8Array, type: ImageType): Promise<void> {
-  const previous = (await loadKit(userId))?.logo_path ?? null
+export async function setLogo(userId: string, accountId: string, bytes: Uint8Array, type: ImageType): Promise<void> {
+  const previous = (await loadKit(userId, accountId))?.logo_path ?? null
   const path = await upload(userId, 'logo-', bytes, type)
   const saved = await db()
     .from('brand_kit')
-    .upsert({ user_id: userId, logo_path: path, updated_at: new Date().toISOString() })
+    .upsert(
+      { user_id: userId, account_id: accountId, logo_path: path, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,account_id' },
+    )
   if (saved.error) {
     await removeFile(path)
     throw new Error(`Supabase: ${saved.error.message}`)
@@ -171,14 +191,15 @@ export async function setLogo(userId: string, bytes: Uint8Array, type: ImageType
   if (previous) await removeFile(previous)
 }
 
-export async function removeLogo(userId: string): Promise<void> {
-  const previous = (await loadKit(userId))?.logo_path ?? null
+export async function removeLogo(userId: string, accountId: string): Promise<void> {
+  const previous = (await loadKit(userId, accountId))?.logo_path ?? null
   if (!previous) return
   unwrap(
     await db()
       .from('brand_kit')
       .update({ logo_path: null, updated_at: new Date().toISOString() })
-      .eq('user_id', userId),
+      .eq('user_id', userId)
+      .eq('account_id', accountId),
   )
   await removeFile(previous)
 }
@@ -291,7 +312,7 @@ export interface BrandVisual {
 
 /** Null when none of it is filled in. */
 export async function getBrandVisual(userId: string): Promise<BrandVisual | null> {
-  const row = await loadKit(userId)
+  const row = await loadConnectedKit(userId)
   if (!row) return null
   const { name, category, visualStyle, colors, headingFont, bodyFont } = toFields(row)
   const visual = { name, category, visualStyle, colors, headingFont, bodyFont }
@@ -324,7 +345,7 @@ const TYPE_BY_EXTENSION = Object.fromEntries(Object.entries(EXTENSIONS).map(([ty
 
 /** The logo as a data URL, or null when there is none. Its type comes from the extension `setLogo` gave it. */
 export async function loadLogoImage(userId: string): Promise<string | null> {
-  const path = (await loadKit(userId))?.logo_path
+  const path = (await loadConnectedKit(userId))?.logo_path
   const type = path ? TYPE_BY_EXTENSION[path.split('.').pop() ?? ''] : undefined
   return path && type ? dataUrlOf(path, type) : null
 }

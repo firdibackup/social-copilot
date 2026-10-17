@@ -3,7 +3,7 @@ import { PostLockedError, savePost } from '@/lib/posts'
 import { hasSlidesInProgress } from '@/lib/slides'
 import { savePostAction } from './actions'
 
-vi.mock('@/lib/auth', () => ({ requireActiveUser: vi.fn(async () => USER) }))
+vi.mock('@/lib/auth', () => ({ requireAccount: vi.fn(async () => ({ userId: USER, accountId: 'ig-1' })) }))
 vi.mock('@/lib/posts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/posts')>()),
   savePost: vi.fn(),

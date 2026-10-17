@@ -1,7 +1,7 @@
 'use server'
 
 import { refresh } from 'next/cache'
-import { requireActiveUser } from '@/lib/auth'
+import { requireAccount } from '@/lib/auth'
 import { getPublishingAccount, getValidAccessToken, markNeedsReconnect, NeedsReconnectError } from '@/lib/connection'
 import { deleteTemplate, getConversation, isReplyWindowOpen, recordMessage, saveTemplate, saveVariables } from '@/lib/dm'
 import { KEYWORD_MAX_LENGTH, parseVariables, REPLY_MAX_LENGTH } from '@/lib/dm-templates'
@@ -32,7 +32,7 @@ async function instagramErrorMessage(userId: string, error: unknown, context: st
 }
 
 export async function sendReply(igsid: unknown, reply: unknown): Promise<ActionError> {
-  const userId = await requireActiveUser()
+  const { userId, accountId } = await requireAccount()
   const message = text(reply)
   if (!message) return 'Tulis balasan dulu.'
   if (message.length > REPLY_MAX_LENGTH) return `Balasan maksimal ${REPLY_MAX_LENGTH} karakter.`
@@ -40,7 +40,8 @@ export async function sendReply(igsid: unknown, reply: unknown): Promise<ActionE
   const customer = typeof igsid === 'string' ? igsid : ''
   let mid: string
   try {
-    const conversation = customer ? await getConversation(userId, customer) : null
+    // Null too for a conversation of an account that isn't the connected one: replies go out from that account.
+    const conversation = customer ? await getConversation(userId, accountId, customer) : null
     if (!conversation) return 'Percakapan tidak ditemukan.'
     if (!isReplyWindowOpen(conversation, new Date())) return WINDOW_CLOSED
     const account = await getPublishingAccount(userId)
@@ -58,7 +59,7 @@ export async function sendReply(igsid: unknown, reply: unknown): Promise<ActionE
 }
 
 export async function saveTemplateAction(id: unknown, keyword: unknown, body: unknown): Promise<ActionError> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   const templateId = id === null ? null : isUuid(id) ? id : undefined
   const trigger = text(keyword)
   const reply = text(body)
@@ -78,7 +79,7 @@ export async function saveTemplateAction(id: unknown, keyword: unknown, body: un
 }
 
 export async function deleteTemplateAction(id: unknown): Promise<ActionError> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   if (!isUuid(id)) return 'Template tidak ditemukan.'
   try {
     await deleteTemplate(userId, id)
@@ -91,11 +92,11 @@ export async function deleteTemplateAction(id: unknown): Promise<ActionError> {
 }
 
 export async function saveVariablesAction(lines: unknown): Promise<ActionError> {
-  const userId = await requireActiveUser()
+  const { userId, accountId } = await requireAccount()
   const parsed = parseVariables(typeof lines === 'string' ? lines : '')
   if ('error' in parsed) return parsed.error
   try {
-    await saveVariables(userId, parsed.variables)
+    await saveVariables(userId, accountId, parsed.variables)
   } catch (error) {
     console.error('[balasan] variabel gagal disimpan:', describeError(error))
     return 'Variabel gagal disimpan. Periksa koneksi Supabase.'
@@ -106,7 +107,7 @@ export async function saveVariablesAction(lines: unknown): Promise<ActionError> 
 
 /** Asks Meta to send the connected account's DMs to the webhook. */
 export async function subscribeAction(): Promise<ActionError> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   try {
     await subscribeToMessages(await getValidAccessToken(userId))
     return null

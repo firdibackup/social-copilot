@@ -1,7 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { requireActiveUser } from '@/lib/auth'
+import { requireAccount, type AccountScope } from '@/lib/auth'
 import { inspectCaption } from '@/lib/caption'
 import { describeError } from '@/lib/errors'
 import { parseWibInput } from '@/lib/format'
@@ -22,7 +22,7 @@ type Intent = 'draft' | 'schedule' | 'now'
 const isIntent = (value: unknown): value is Intent => value === 'draft' || value === 'schedule' || value === 'now'
 
 export async function savePostAction(_previous: SaveState, formData: FormData): Promise<SaveState> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   const intent = formData.get('intent')
   if (!isIntent(intent)) return { error: 'Aksi tidak dikenal.' }
 
@@ -66,13 +66,13 @@ export async function savePostAction(_previous: SaveState, formData: FormData): 
 async function runPostAction(
   formData: FormData,
   code: string,
-  action: (userId: string, id: string) => Promise<boolean>,
+  action: (scope: AccountScope, id: string) => Promise<boolean>,
 ) {
-  const userId = await requireActiveUser()
+  const scope = await requireAccount()
   const id = formData.get('id')
   if (!isUuid(id)) redirect('/kalender')
 
-  const done = await action(userId, id).catch((error: unknown) => {
+  const done = await action(scope, id).catch((error: unknown) => {
     console.error(`[buat] aksi ${code} gagal:`, describeError(error))
     return false
   })
@@ -80,15 +80,15 @@ async function runPostAction(
 }
 
 export async function cancelPostAction(formData: FormData): Promise<void> {
-  await runPostAction(formData, 'cancel', cancelPost)
+  await runPostAction(formData, 'cancel', ({ userId }, id) => cancelPost(userId, id))
 }
 
 export async function retryPostAction(formData: FormData): Promise<void> {
-  await runPostAction(formData, 'retry', retryPost)
+  await runPostAction(formData, 'retry', ({ userId, accountId }, id) => retryPost(userId, accountId, id))
 }
 
 export async function duplicatePostAction(formData: FormData): Promise<void> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   const id = formData.get('id')
   if (!isUuid(id)) redirect('/kalender')
 
@@ -100,7 +100,7 @@ export async function duplicatePostAction(formData: FormData): Promise<void> {
 }
 
 export async function deletePostAction(formData: FormData): Promise<void> {
-  const userId = await requireActiveUser()
+  const { userId } = await requireAccount()
   const id = formData.get('id')
   if (!isUuid(id)) redirect('/kalender')
 

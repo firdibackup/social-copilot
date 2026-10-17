@@ -90,24 +90,27 @@ export async function saveProfile(userId: string, igsid: string, profile: Custom
   unwrap(await db().from('dm_conversations').update(profile).eq('user_id', userId).eq('igsid', igsid))
 }
 
-/** Newest first. `waitingOnly` keeps the conversations whose last message came from the customer. */
-export async function listConversations(userId: string, waitingOnly: boolean): Promise<Conversation[]> {
+/** The account's inbox, newest first. `waitingOnly` keeps the conversations whose last message came from the customer. */
+export async function listConversations(userId: string, accountId: string, waitingOnly: boolean): Promise<Conversation[]> {
   let query = db()
     .from('dm_conversations')
     .select(CONVERSATION_COLUMNS)
     .eq('user_id', userId)
+    .eq('account_id', accountId)
     .order('last_message_at', { ascending: false })
     .limit(CONVERSATION_LIMIT)
   if (waitingOnly) query = query.eq('last_from_customer', true)
   return (unwrap(await query) as ConversationRow[]).map(toConversation)
 }
 
-export async function getConversation(userId: string, igsid: string): Promise<Conversation | null> {
+/** Null also when the conversation belongs to an account that isn't the connected one. */
+export async function getConversation(userId: string, accountId: string, igsid: string): Promise<Conversation | null> {
   const row = unwrap(
     await db()
       .from('dm_conversations')
       .select(CONVERSATION_COLUMNS)
       .eq('user_id', userId)
+      .eq('account_id', accountId)
       .eq('igsid', igsid)
       .maybeSingle(),
   ) as ConversationRow | null
@@ -134,12 +137,13 @@ export async function listMessages(userId: string, igsid: string): Promise<DmMes
 }
 
 /** Oldest first: when two keywords match, the earlier template wins. */
-export async function listTemplates(userId: string): Promise<DmTemplate[]> {
+export async function listTemplates(userId: string, accountId: string): Promise<DmTemplate[]> {
   return unwrap(
     await db()
       .from('dm_templates')
       .select('id, keyword, body')
       .eq('user_id', userId)
+      .eq('account_id', accountId)
       .order('created_at', { ascending: true }),
   ) as DmTemplate[]
 }
@@ -165,9 +169,9 @@ export async function deleteTemplate(userId: string, id: string): Promise<void> 
   unwrap(await db().from('dm_templates').delete().eq('id', id).eq('user_id', userId))
 }
 
-export async function getVariables(userId: string): Promise<Variables> {
+export async function getVariables(userId: string, accountId: string): Promise<Variables> {
   const row = unwrap(
-    await db().from('dm_settings').select('variables').eq('user_id', userId).maybeSingle(),
+    await db().from('dm_settings').select('variables').eq('user_id', userId).eq('account_id', accountId).maybeSingle(),
   ) as { variables: unknown } | null
   const stored = row?.variables
   if (typeof stored !== 'object' || stored === null) return {}
@@ -176,6 +180,10 @@ export async function getVariables(userId: string): Promise<Variables> {
   )
 }
 
-export async function saveVariables(userId: string, variables: Variables): Promise<void> {
-  unwrap(await db().from('dm_settings').upsert({ user_id: userId, variables }))
+export async function saveVariables(userId: string, accountId: string, variables: Variables): Promise<void> {
+  unwrap(
+    await db()
+      .from('dm_settings')
+      .upsert({ user_id: userId, account_id: accountId, variables }, { onConflict: 'user_id,account_id' }),
+  )
 }

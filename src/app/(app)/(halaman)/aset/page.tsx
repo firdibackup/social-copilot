@@ -3,7 +3,7 @@ import { connection } from 'next/server'
 import { Suspense } from 'react'
 import { MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
-import { requireActiveUser } from '@/lib/auth'
+import { requireAccount } from '@/lib/auth'
 import { UploadButton } from '@/components/upload-button'
 import { listAssets, type Asset } from '@/lib/assets'
 import { describeError, loadErrorMessage } from '@/lib/errors'
@@ -33,10 +33,10 @@ export default function AsetPage() {
 
 async function AssetGrid() {
   await connection()
-  const userId = await requireActiveUser()
+  const { userId, accountId } = await requireAccount()
   let assets: Asset[]
   try {
-    assets = await listAssets(userId)
+    assets = await listAssets(userId, accountId)
   } catch (error) {
     console.error('[aset] gagal memuat:', describeError(error))
     return <Notice tone="warning">{loadErrorMessage(error)}</Notice>

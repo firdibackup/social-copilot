@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { requireActiveUser } from '@/lib/auth'
-import { disconnectInstagram as disconnectAccount } from '@/lib/connection'
+import { disconnectInstagram as disconnectAccount, getConnectedAccountId } from '@/lib/connection'
 import { describeError } from '@/lib/errors'
 import { deleteFacebookConnection } from '@/lib/facebook-connection'
 
@@ -22,7 +22,9 @@ export async function disconnectInstagram(): Promise<void> {
 export async function disconnectFacebook(): Promise<void> {
   const userId = await requireActiveUser()
 
-  const outcome = await deleteFacebookConnection(userId).then(
+  const outcome = await getConnectedAccountId(userId)
+    .then((accountId) => (accountId ? deleteFacebookConnection(userId, accountId) : undefined))
+    .then(
     () => 'fb=disconnected',
     (error: unknown) => {
       console.error('[pengaturan] gagal memutus Facebook:', describeError(error))
