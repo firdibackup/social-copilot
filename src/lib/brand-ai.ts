@@ -84,10 +84,19 @@ export function parseProfile(content: string): ProfileDraft {
   return draft
 }
 
+/** Only the new-account fill passes `cost: 0`; owner-started requests pay TASK_CREDITS. */
+interface CostOption {
+  cost?: number
+}
+
 /** One request: the profile draft the brand form shows. Nothing is saved here. */
-export function analyzeProfile(userId: string, sources: ProfileSources): Promise<ProfileDraft> {
-  return runLogged(userId, 'brand_profile', sources, async () =>
-    parseProfile(await chatCompletion(buildProfileMessages(sources))),
+export function analyzeProfile(userId: string, sources: ProfileSources, options: CostOption = {}): Promise<ProfileDraft> {
+  return runLogged(
+    userId,
+    'brand_profile',
+    sources,
+    async () => parseProfile(await chatCompletion(buildProfileMessages(sources))),
+    options,
   )
 }
 
@@ -137,9 +146,17 @@ export function parseVisual(content: string, count: number): VisualAnalysis {
 }
 
 /** One vision request over the given references. The log keeps their ids and notes, not the images. */
-export function analyzeVisual(userId: string, references: VisualReference[]): Promise<VisualAnalysis> {
+export function analyzeVisual(
+  userId: string,
+  references: VisualReference[],
+  options: CostOption = {},
+): Promise<VisualAnalysis> {
   const input = references.map(({ id, note }) => ({ id, note }))
-  return runLogged(userId, 'brand_visual', input, async () =>
-    parseVisual(await chatCompletion(buildVisualMessages(references)), references.length),
+  return runLogged(
+    userId,
+    'brand_visual',
+    input,
+    async () => parseVisual(await chatCompletion(buildVisualMessages(references)), references.length),
+    options,
   )
 }

@@ -137,4 +137,14 @@ describe('logging', () => {
     ])
     expect(JSON.stringify(database.inserted)).not.toContain('base64')
   })
+
+  it('logs a free request at 0 credits when asked, as the new-account fill does', async () => {
+    vi.mocked(chatCompletion).mockResolvedValueOnce('{"name": "Kopi Sinar"}')
+    vi.mocked(chatCompletion).mockResolvedValueOnce('{"visualStyle": "Hangat", "references": ["a", "b"]}')
+
+    await analyzeProfile('user-1', SOURCES, { cost: 0 })
+    await analyzeVisual('user-1', REFERENCES, { cost: 0 })
+
+    expect(database.inserted).toEqual([expect.objectContaining({ credits: 0 }), expect.objectContaining({ credits: 0 })])
+  })
 })

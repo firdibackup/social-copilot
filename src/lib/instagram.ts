@@ -199,15 +199,20 @@ export interface OwnProfile {
   username: string
   name: string
   biography: string
+  /** A signed CDN link, the new account's first logo: never log it. */
+  profilePictureUrl: string | null
 }
 
-/** The connected account's own name and bio, for the brand kit. */
+/** The connected account's own name, bio and picture, for the brand kit. */
 export async function fetchOwnProfile(accessToken: string): Promise<OwnProfile> {
-  const body = await request(graphUrl('/me', { fields: 'username,name,biography', access_token: accessToken }))
+  const body = await request(
+    graphUrl('/me', { fields: 'username,name,biography,profile_picture_url', access_token: accessToken }),
+  )
   return {
     username: readString(body, 'username'),
     name: optionalString(body.name) ?? '',
     biography: optionalString(body.biography) ?? '',
+    profilePictureUrl: optionalString(body.profile_picture_url),
   }
 }
 

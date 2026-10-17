@@ -1,6 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { currentPeriod, currentUser } from '@/lib/auth'
-import { AccountTakenError, consumeOAuthState, saveConnection } from '@/lib/connection'
+import { after } from 'next/server'
+import { hasBrandKit, startBrandSync } from '@/lib/brand'
+import { syncNewAccount } from '@/lib/brand-sync'
+import {
+  AccountTakenError,
+  claimOrphanRows,
+  consumeOAuthState,
+  draftScheduledPosts,
+  getConnectedAccountId,
+  saveConnection,
+} from '@/lib/connection'
 import { exchangeCodeForToken, exchangeForLongLivedToken, fetchProfile } from '@/lib/instagram'
 import { GET } from './route'
 
@@ -9,7 +19,13 @@ vi.mock('@/lib/connection', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/connection')>()),
   consumeOAuthState: vi.fn(),
   saveConnection: vi.fn(),
+  getConnectedAccountId: vi.fn(),
+  draftScheduledPosts: vi.fn(),
+  claimOrphanRows: vi.fn(),
 }))
+vi.mock('next/server', () => ({ after: vi.fn() }))
+vi.mock('@/lib/brand', () => ({ hasBrandKit: vi.fn(), startBrandSync: vi.fn() }))
+vi.mock('@/lib/brand-sync', () => ({ syncNewAccount: vi.fn() }))
 vi.mock('@/lib/instagram', () => ({
   exchangeCodeForToken: vi.fn(),
   exchangeForLongLivedToken: vi.fn(),
@@ -43,6 +59,78 @@ describe('GET /api/auth/instagram/callback', () => {
     })
     vi.mocked(exchangeForLongLivedToken).mockResolvedValue(LONG_TOKEN)
     vi.mocked(fetchProfile).mockResolvedValue(PROFILE)
+    vi.mocked(getConnectedAccountId).mockResolvedValue(null)
+    vi.mocked(hasBrandKit).mockResolvedValue(true)
+    vi.mocked(startBrandSync).mockResolvedValue(true)
+  })
+
+  describe('switching and new accounts', () => {
+    const connect = () => callback('code=abc&state=s1')
+
+    it('fills the brand of an account connected for the first time, after the redirect', async () => {
+      vi.mocked(hasBrandKit).mockResolvedValue(false)
+
+      const response = await connect()
+
+      expect(redirectTarget(response).params).toEqual({ ig: 'connected' })
+      expect(hasBrandKit).toHaveBeenCalledWith(USER, PROFILE.userId)
+      expect(startBrandSync).toHaveBeenCalledWith(USER, PROFILE.userId)
+      expect(after).toHaveBeenCalledTimes(1)
+      const task = vi.mocked(after).mock.calls[0][0] as () => unknown
+      task()
+      expect(syncNewAccount).toHaveBeenCalledWith(USER, PROFILE.userId)
+    })
+
+    it('leaves an account that already has a brand as it is', async () => {
+      await connect()
+
+      expect(startBrandSync).not.toHaveBeenCalled()
+      expect(after).not.toHaveBeenCalled()
+    })
+
+    it('does not start a second fill another tab already started', async () => {
+      vi.mocked(hasBrandKit).mockResolvedValue(false)
+      vi.mocked(startBrandSync).mockResolvedValue(false)
+
+      await connect()
+
+      expect(after).not.toHaveBeenCalled()
+    })
+
+    it('turns the previous account’s scheduled posts into drafts when another account logs in', async () => {
+      vi.mocked(getConnectedAccountId).mockResolvedValue('ig-old')
+
+      await connect()
+
+      expect(draftScheduledPosts).toHaveBeenCalledWith(USER, 'ig-old')
+    })
+
+    it('keeps scheduled posts when the same account reconnects', async () => {
+      vi.mocked(getConnectedAccountId).mockResolvedValue(PROFILE.userId)
+
+      await connect()
+
+      expect(draftScheduledPosts).not.toHaveBeenCalled()
+    })
+
+    it('hands rows without an account to the new connection after saving it', async () => {
+      await connect()
+
+      expect(claimOrphanRows).toHaveBeenCalledWith(USER, PROFILE.userId)
+      expect(vi.mocked(saveConnection).mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(claimOrphanRows).mock.invocationCallOrder[0],
+      )
+    })
+
+    it('touches nothing when the account belongs to another user', async () => {
+      vi.mocked(getConnectedAccountId).mockResolvedValue('ig-old')
+      vi.mocked(saveConnection).mockRejectedValue(new AccountTakenError('taken'))
+
+      await connect()
+
+      expect(draftScheduledPosts).not.toHaveBeenCalled()
+      expect(claimOrphanRows).not.toHaveBeenCalled()
+    })
   })
 
   it('connects the account and redirects to settings', async () => {

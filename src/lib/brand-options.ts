@@ -57,8 +57,12 @@ export interface BrandColor {
 
 export type BrandFields = Record<BrandTextField, string> & { colors: BrandColor[] }
 
+/** The new-account fill: running while it works, failed when a step failed, null otherwise. */
+export type SyncStatus = 'running' | 'failed' | null
+
 export interface BrandKit extends BrandFields {
   logoUrl: string | null
+  syncStatus: SyncStatus
 }
 
 /** What the AI reads from websites and captions, and what the caption prompts use. */

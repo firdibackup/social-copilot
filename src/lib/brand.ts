@@ -15,6 +15,7 @@ import {
   type BrandReference,
   type ReferenceLabel,
   type ReferenceSource,
+  type SyncStatus,
 } from './brand-options'
 import { getConnectedAccountId } from './connection'
 import { describeError } from './errors'
@@ -33,6 +34,8 @@ export const VISUAL_REFERENCE_LIMIT = 8
 export const VISUAL_BODY_BUDGET = 900_000
 /** How many of the newest references are looked at to fill the budget. */
 const VISUAL_CANDIDATES = 16
+
+const UNIQUE_VIOLATION = '23505'
 
 const EXTENSIONS: Record<ImageType, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
 
@@ -56,6 +59,7 @@ interface KitRow {
   body_font: string
   visual_style: string
   logo_path: string | null
+  sync_status: SyncStatus
 }
 
 interface ImageRow {
@@ -77,7 +81,7 @@ interface ReferenceRow {
 }
 
 const KIT_COLUMNS =
-  'name, category, description, website_url, audience, voice, words_use, words_avoid, facts, colors, heading_font, body_font, visual_style, logo_path'
+  'name, category, description, website_url, audience, voice, words_use, words_avoid, facts, colors, heading_font, body_font, visual_style, logo_path, sync_status'
 const REFERENCE_COLUMNS = 'id, source, source_label, permalink, palette, description, note'
 
 const bucket = () => db().storage.from(BUCKET)
@@ -131,9 +135,64 @@ async function loadConnectedKit(userId: string): Promise<KitRow | null> {
 
 export async function getBrandKit(userId: string, accountId: string): Promise<BrandKit> {
   const row = await loadKit(userId, accountId)
-  if (!row) return { ...EMPTY_BRAND, logoUrl: null }
+  if (!row) return { ...EMPTY_BRAND, logoUrl: null, syncStatus: null }
   const [logoUrl] = row.logo_path ? await signUrls([row.logo_path]) : [null]
-  return { ...toFields(row), logoUrl: logoUrl || null }
+  return { ...toFields(row), logoUrl: logoUrl || null, syncStatus: row.sync_status ?? null }
+}
+
+/** A kit row means the account was set up before: connecting it again fills nothing. */
+export async function hasBrandKit(userId: string, accountId: string): Promise<boolean> {
+  const { count, error } = await db()
+    .from('brand_kit')
+    .select('user_id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('account_id', accountId)
+  if (error || count === null) throw new Error(`Supabase: ${error?.message || 'brand kit tidak terbaca'}`)
+  return count > 0
+}
+
+/** Claims the new-account fill with a running kit row. False when another request claimed it first. */
+export async function startBrandSync(userId: string, accountId: string): Promise<boolean> {
+  const result = await db().from('brand_kit').insert({ user_id: userId, account_id: accountId, sync_status: 'running' })
+  if (result.error?.code === UNIQUE_VIOLATION) return false
+  unwrap(result)
+  return true
+}
+
+const COLUMN_OF: Record<keyof BrandFields, string> = {
+  name: 'name',
+  category: 'category',
+  description: 'description',
+  websiteUrl: 'website_url',
+  audience: 'audience',
+  voice: 'voice',
+  wordsUse: 'words_use',
+  wordsAvoid: 'words_avoid',
+  facts: 'facts',
+  colors: 'colors',
+  headingFont: 'heading_font',
+  bodyFont: 'body_font',
+  visualStyle: 'visual_style',
+}
+
+/** Changes only the given fields, unlike saveBrandKit: the new-account fill saves step by step. */
+export async function updateBrandKit(
+  userId: string,
+  accountId: string,
+  patch: Partial<BrandFields> & { syncStatus?: SyncStatus },
+): Promise<void> {
+  const { syncStatus, ...fields } = patch
+  const values: Record<string, unknown> = Object.fromEntries(
+    Object.entries(fields).map(([field, value]) => [COLUMN_OF[field as keyof BrandFields], value]),
+  )
+  if (syncStatus !== undefined) values.sync_status = syncStatus
+  unwrap(
+    await db()
+      .from('brand_kit')
+      .update({ ...values, updated_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('account_id', accountId),
+  )
 }
 
 /** The text the caption prompts use, or null when none of it is filled in. */

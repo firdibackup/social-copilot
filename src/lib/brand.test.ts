@@ -1,6 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { dbMock, filtered } from '@/test/query-mock'
-import { addReference, deleteReference, listReferences, loadReferenceImage, ReferenceLimitError } from './brand'
+import {
+  addReference,
+  deleteReference,
+  getBrandKit,
+  hasBrandKit,
+  listReferences,
+  loadReferenceImage,
+  ReferenceLimitError,
+  startBrandSync,
+  updateBrandKit,
+} from './brand'
 import { db } from './supabase'
 
 vi.mock('./supabase', async (importOriginal) => ({
@@ -131,5 +141,44 @@ describe('deleteReference', () => {
     await deleteReference('user-1', 'ref-1')
 
     expect(storage.removed).toEqual(['u/a.jpg', 'u/b.jpg'])
+  })
+})
+
+describe('the new-account fill status', () => {
+  it('tells whether the account already has a kit', async () => {
+    const { chains } = useDb([{ count: 1, error: null }])
+
+    await expect(hasBrandKit('user-1', 'ig-1')).resolves.toBe(true)
+    expect(filtered(chains[0], 'account_id', 'ig-1')).toBe(true)
+  })
+
+  it('starts the fill with a running kit, once', async () => {
+    const { chains } = useDb([{ data: null, error: null }])
+
+    await expect(startBrandSync('user-1', 'ig-1')).resolves.toBe(true)
+    expect(inserted(chains, 'brand_kit')).toEqual({ user_id: 'user-1', account_id: 'ig-1', sync_status: 'running' })
+  })
+
+  it('reports a fill another request already started', async () => {
+    useDb([{ data: null, error: { code: '23505', message: 'duplicate key' } }])
+
+    await expect(startBrandSync('user-1', 'ig-1')).resolves.toBe(false)
+  })
+
+  it('updates only the given fields and the status', async () => {
+    const { chains } = useDb([{ data: null, error: null }])
+
+    await updateBrandKit('user-1', 'ig-1', { name: 'Kopi', syncStatus: null })
+
+    const update = chains[0].find((call) => call[0] === 'update')?.[1] as Record<string, unknown>
+    expect(update).toMatchObject({ name: 'Kopi', sync_status: null })
+    expect(update).not.toHaveProperty('voice')
+    expect(filtered(chains[0], 'account_id', 'ig-1')).toBe(true)
+  })
+
+  it('shows the status on the kit', async () => {
+    useDb([{ data: { name: 'Kopi', colors: [], logo_path: null, sync_status: 'running' }, error: null }])
+
+    await expect(getBrandKit('user-1', 'ig-1')).resolves.toMatchObject({ syncStatus: 'running' })
   })
 })

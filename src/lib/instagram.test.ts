@@ -283,8 +283,21 @@ describe('fetchOwnProfile', () => {
   it('returns the name and bio, empty when Instagram leaves them out', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ username: 'kopisinar', biography: 'Ngopi santai', id: '1' }))
 
-    await expect(fetchOwnProfile('token')).resolves.toEqual({ username: 'kopisinar', name: '', biography: 'Ngopi santai' })
-    expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('fields')).toBe('username,name,biography')
+    await expect(fetchOwnProfile('token')).resolves.toEqual({
+      username: 'kopisinar',
+      name: '',
+      biography: 'Ngopi santai',
+      profilePictureUrl: null,
+    })
+    expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('fields')).toBe(
+      'username,name,biography,profile_picture_url',
+    )
+  })
+
+  it('returns the profile picture for the new-account logo', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ username: 'kopisinar', profile_picture_url: 'https://cdn/p.jpg' }))
+
+    await expect(fetchOwnProfile('token')).resolves.toMatchObject({ profilePictureUrl: 'https://cdn/p.jpg' })
   })
 })
 

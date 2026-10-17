@@ -1,5 +1,15 @@
+import { after } from 'next/server'
 import { currentPeriod, currentUser } from '@/lib/auth'
-import { AccountTakenError, consumeOAuthState, saveConnection } from '@/lib/connection'
+import { hasBrandKit, startBrandSync } from '@/lib/brand'
+import { syncNewAccount } from '@/lib/brand-sync'
+import {
+  AccountTakenError,
+  claimOrphanRows,
+  consumeOAuthState,
+  draftScheduledPosts,
+  getConnectedAccountId,
+  saveConnection,
+} from '@/lib/connection'
 import { appUrl, settingsUrl } from '@/lib/env'
 import { describeError } from '@/lib/errors'
 import { exchangeCodeForToken, exchangeForLongLivedToken, fetchProfile } from '@/lib/instagram'
@@ -41,6 +51,8 @@ async function completeLogin(userId: string, params: URLSearchParams): Promise<C
   const shortLived = await step('gagal_token', () => exchangeCodeForToken(code))
   const longLived = await step('gagal_token', () => exchangeForLongLivedToken(shortLived.accessToken))
   const profile = await step('gagal_profil', () => fetchProfile(longLived.accessToken))
+  // Read before saving: the save replaces the user's one connection row.
+  const previous = await step('gagal_database', () => getConnectedAccountId(userId))
   const saved = await step('gagal_database', () =>
     saveConnection(userId, profile, longLived, shortLived.permissions).then(
       () => true,
@@ -50,7 +62,22 @@ async function completeLogin(userId: string, params: URLSearchParams): Promise<C
       },
     ),
   )
-  return saved ? { ig: 'connected' } : { ig_error: 'akun_dipakai' }
+  if (!saved) return { ig_error: 'akun_dipakai' }
+  await step('gagal_database', () => switchToAccount(userId, previous, profile.userId))
+  return { ig: 'connected' }
+}
+
+/**
+ * After a connection is saved: a different account than before (Hubungkan ulang with another login) takes the
+ * place of Putuskan, so the old account's scheduled posts become drafts; rows without an account join this one;
+ * and an account without a brand kit yet is filled from Instagram once, after the redirect.
+ */
+async function switchToAccount(userId: string, previous: string | null, accountId: string): Promise<void> {
+  if (previous && previous !== accountId) await draftScheduledPosts(userId, previous)
+  await claimOrphanRows(userId, accountId)
+  if (!(await hasBrandKit(userId, accountId)) && (await startBrandSync(userId, accountId))) {
+    after(() => syncNewAccount(userId, accountId))
+  }
 }
 
 /** Meta redirects the signed-in user's browser here; the result is reported on the settings page. */

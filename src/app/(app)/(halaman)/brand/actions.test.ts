@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { addReference, setReferenceImageLabel } from '@/lib/brand'
+import { analyzeProfile } from '@/lib/brand-ai'
+import { getValidAccessToken } from '@/lib/connection'
+import { fetchOwnProfile, fetchRecentMedia } from '@/lib/instagram'
 import { fetchImage } from '@/lib/web-fetch'
-import { importReferencesAction, setReferenceLabelAction } from './actions'
+import { analyzeProfileAction, importReferencesAction, setReferenceLabelAction } from './actions'
 
 vi.mock('next/cache', () => ({ refresh: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ requireAccount: vi.fn(async () => ({ userId: 'user-1', accountId: 'ig-1' })) }))
@@ -9,6 +12,16 @@ vi.mock('@/lib/brand', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/brand')>()),
   addReference: vi.fn(),
   setReferenceImageLabel: vi.fn(),
+}))
+vi.mock('@/lib/brand-ai', () => ({ analyzeProfile: vi.fn(), analyzeVisual: vi.fn() }))
+vi.mock('@/lib/connection', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/connection')>()),
+  getValidAccessToken: vi.fn(),
+}))
+vi.mock('@/lib/instagram', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/instagram')>()),
+  fetchOwnProfile: vi.fn(),
+  fetchRecentMedia: vi.fn(),
 }))
 vi.mock('@/lib/web-fetch', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/web-fetch')>()),
@@ -52,5 +65,28 @@ describe('setReferenceLabelAction', () => {
   it('refuses an unknown label', async () => {
     await expect(setReferenceLabelAction(IMAGE_ID, 'judul')).resolves.toBe('Label tidak valid.')
     expect(setReferenceImageLabel).not.toHaveBeenCalled()
+  })
+})
+
+describe('analyzeProfileAction', () => {
+  it('sends the account’s text to the AI, never the signed picture URL it logs', async () => {
+    vi.mocked(getValidAccessToken).mockResolvedValue('token')
+    vi.mocked(fetchOwnProfile).mockResolvedValue({
+      username: 'kopi',
+      name: 'Kopi',
+      biography: 'Ngopi',
+      profilePictureUrl: 'https://cdn/avatar.jpg?token=x',
+    })
+    vi.mocked(fetchRecentMedia).mockResolvedValue([])
+    vi.mocked(analyzeProfile).mockResolvedValue({ name: 'Kopi' } as never)
+
+    await analyzeProfileAction('', true)
+
+    expect(vi.mocked(analyzeProfile).mock.calls[0][1].instagram).toEqual({
+      username: 'kopi',
+      name: 'Kopi',
+      biography: 'Ngopi',
+      captions: [],
+    })
   })
 })

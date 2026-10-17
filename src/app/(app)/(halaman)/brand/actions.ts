@@ -110,7 +110,9 @@ async function readInstagram(userId: string): Promise<Read<NonNullable<ProfileSo
   try {
     const token = await getValidAccessToken(userId)
     const [profile, posts] = await Promise.all([fetchOwnProfile(token), fetchRecentMedia(token, CAPTION_SAMPLES)])
-    return { value: { ...profile, captions: posts.map((post) => post.caption).filter(Boolean) } }
+    // Named fields only: the sources are logged, and the picture URL is signed.
+    const { username, name, biography } = profile
+    return { value: { username, name, biography, captions: posts.map((post) => post.caption).filter(Boolean) } }
   } catch (error) {
     return { warning: await instagramErrorMessage(userId, error, 'akun Instagram gagal dibaca') }
   }
