@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { EMPTY_BRAND, normalizeHex, normalizeWebsiteUrl, parseBrandFields, parsePalette } from './brand-options'
+import {
+  colorsFromPalettes,
+  EMPTY_BRAND,
+  labelsForCount,
+  normalizeHex,
+  normalizeWebsiteUrl,
+  parseBrandFields,
+  parsePalette,
+  pickReferenceImage,
+} from './brand-options'
 
 describe('parseBrandFields', () => {
   it('trims text, turns CRLF into LF and normalizes the website and colours', () => {
@@ -68,5 +77,61 @@ describe('normalizeWebsiteUrl', () => {
     expect(normalizeWebsiteUrl('localhost:3000')).toBeNull()
     expect(normalizeWebsiteUrl('javascript:alert(1)')).toBeNull()
     expect(normalizeWebsiteUrl('   ')).toBeNull()
+  })
+})
+
+describe('labelsForCount', () => {
+  it.each([
+    [1, ['single']],
+    [2, ['cover', 'isi']],
+    [3, ['cover', 'isi', 'cta']],
+    [5, ['cover', 'isi', 'isi', 'isi', 'cta']],
+  ])('labels %i images by position', (count, labels) => {
+    expect(labelsForCount(count)).toEqual(labels)
+  })
+})
+
+describe('pickReferenceImage', () => {
+  const group = labelsForCount(4).map((label, position) => ({ position, label })) // cover isi isi cta
+
+  it.each([
+    [null, 0],
+    [{ index: 1, count: 1 }, 0],
+    [{ index: 1, count: 7 }, 0],
+    [{ index: 7, count: 7 }, 3],
+    [{ index: 2, count: 7 }, 1],
+    [{ index: 3, count: 7 }, 2],
+    [{ index: 4, count: 7 }, 1],
+  ])('maps slide %j to position %i', (slide, position) => {
+    expect(pickReferenceImage(group, slide)?.position).toBe(position)
+  })
+
+  it('falls back to the cover without a cta, and to the first image without a cover', () => {
+    const noCta = [
+      { position: 1, label: 'isi' as const },
+      { position: 0, label: 'cover' as const },
+    ]
+    expect(pickReferenceImage(noCta, { index: 3, count: 3 })?.position).toBe(0)
+    expect(pickReferenceImage([{ position: 0, label: 'isi' as const }], { index: 1, count: 2 })?.position).toBe(0)
+    expect(pickReferenceImage([], null)).toBeNull()
+  })
+
+  it('uses a single image for every slide', () => {
+    expect(pickReferenceImage([{ position: 0, label: 'single' as const }], { index: 5, count: 5 })?.position).toBe(0)
+  })
+})
+
+describe('colorsFromPalettes', () => {
+  it('takes colours round-robin across the covers without duplicates', () => {
+    expect(colorsFromPalettes([['#111111', '#222222'], ['#111111', '#333333']])).toEqual([
+      { hex: '#111111', role: 'utama' },
+      { hex: '#222222', role: 'sekunder' },
+      { hex: '#333333', role: 'aksen' },
+    ])
+  })
+
+  it('stops at one colour per role', () => {
+    const palette = ['#000001', '#000002', '#000003', '#000004', '#000005', '#000006']
+    expect(colorsFromPalettes([palette]).map((color) => color.role)).toEqual(['utama', 'sekunder', 'aksen', 'latar', 'teks'])
   })
 })

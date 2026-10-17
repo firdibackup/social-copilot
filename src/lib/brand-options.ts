@@ -78,6 +78,59 @@ export type BrandContext = Pick<BrandFields, ProfileField>
 
 export type ReferenceSource = 'upload' | 'website' | 'instagram' | 'discovery'
 
+/** What an image is inside its reference group: a carousel's cover, inner slides and closing slide, or a photo. */
+export type ReferenceLabel = 'cover' | 'isi' | 'cta' | 'single'
+
+export const REFERENCE_LABELS: Record<ReferenceLabel, string> = { cover: 'Cover', isi: 'Isi', cta: 'CTA', single: 'Tunggal' }
+
+/** Instagram gives at most 20 slides per carousel. */
+export const MAX_GROUP_IMAGES = 20
+
+/** Labels by position: one image stands alone, two are cover and inner slide, more end with a CTA. */
+export function labelsForCount(count: number): ReferenceLabel[] {
+  if (count <= 1) return count === 1 ? ['single'] : []
+  return Array.from({ length: count }, (_, index): ReferenceLabel => {
+    if (index === 0) return 'cover'
+    return count > 2 && index === count - 1 ? 'cta' : 'isi'
+  })
+}
+
+export interface LabeledImage {
+  position: number
+  label: ReferenceLabel
+}
+
+/**
+ * The group image a slide follows: slide 1 (or a one-image post) the cover, the last slide the CTA, the middle
+ * slides the inner ones in turn. A missing label falls back to the cover, a missing cover to the first image.
+ */
+export function pickReferenceImage<T extends LabeledImage>(
+  images: T[],
+  slide: { index: number; count: number } | null,
+): T | null {
+  const sorted = [...images].sort((a, b) => a.position - b.position)
+  const cover = sorted.find((image) => image.label === 'cover') ?? sorted.find((image) => image.label === 'single') ?? sorted[0]
+  if (!cover || !slide || slide.count <= 1 || slide.index <= 1) return cover ?? null
+  if (slide.index >= slide.count) return sorted.find((image) => image.label === 'cta') ?? cover
+  const inner = sorted.filter((image) => image.label === 'isi')
+  return inner.length > 0 ? inner[(slide.index - 2) % inner.length] : cover
+}
+
+const ROLE_ORDER = Object.keys(COLOR_ROLES) as ColorRole[]
+
+/** Brand colours from the covers' palettes: their leading colours first, one per role, without repeats. */
+export function colorsFromPalettes(palettes: string[][]): BrandColor[] {
+  const picked: string[] = []
+  const longest = Math.max(0, ...palettes.map((palette) => palette.length))
+  for (let rank = 0; rank < longest && picked.length < ROLE_ORDER.length; rank += 1) {
+    for (const palette of palettes) {
+      const hex = palette[rank]?.toLowerCase()
+      if (hex && isHex(hex) && !picked.includes(hex) && picked.length < ROLE_ORDER.length) picked.push(hex)
+    }
+  }
+  return picked.map((hex, index) => ({ hex, role: ROLE_ORDER[index] }))
+}
+
 export interface BrandReference {
   id: string
   url: string
