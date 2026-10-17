@@ -53,6 +53,8 @@ export interface PostInput {
 export interface ClaimedPost {
   id: string
   userId: string
+  /** The Instagram account the post belongs to; the worker publishes only while that account is connected. */
+  accountId: string | null
   caption: string
   scheduledAt: Date
   attemptCount: number
@@ -338,12 +340,13 @@ export async function duplicatePost(userId: string, id: string): Promise<string 
 // Worker side
 
 export async function claimDuePost(): Promise<ClaimedPost | null> {
-  const rows: (PostRow & { user_id: string })[] = unwrap(await db().rpc('claim_due_post'))
+  const rows: (PostRow & { user_id: string; account_id: string | null })[] = unwrap(await db().rpc('claim_due_post'))
   const row = rows[0]
   if (!row?.scheduled_at) return null
   return {
     id: row.id,
     userId: row.user_id,
+    accountId: row.account_id,
     caption: row.caption,
     scheduledAt: new Date(row.scheduled_at),
     attemptCount: row.attempt_count,

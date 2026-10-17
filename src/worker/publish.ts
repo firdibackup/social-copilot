@@ -24,6 +24,7 @@ const RECONNECT_MESSAGE = 'Sambungkan ulang Instagram di Pengaturan, lalu pilih 
 const LATE_MESSAGE = 'Terlewat lebih dari 60 menit dari jadwal. Pilih Coba lagi untuk menerbitkan sekarang.'
 const PROCESSING_MESSAGE = 'Instagram masih memproses foto.'
 const EXPIRED_MESSAGE = 'Langganan berakhir. Perpanjang di halaman Langganan, lalu pilih Coba lagi.'
+const OTHER_ACCOUNT_MESSAGE = 'Akun Instagram berbeda'
 
 /** The post certainly did not go out and should not be retried. */
 class PublishFailed extends Error {
@@ -68,6 +69,9 @@ async function publish(post: ClaimedPost, now: Date): Promise<void> {
   // Any container stays: after renewing, Coba lagi asks Instagram about it before publishing again.
   if (!(await getCurrentPeriod(post.userId, now))) throw new PublishFailed(EXPIRED_MESSAGE, false)
   const { accessToken, instagramUserId } = await getPublishingAccount(post.userId)
+  // The owner switched accounts since: this post must never go out on the account connected now. Any container
+  // stays, since it belongs to the old account and only that account can say whether it went out.
+  if (post.accountId !== instagramUserId) throw new PublishFailed(OTHER_ACCOUNT_MESSAGE, false)
 
   // An earlier attempt left a container: Instagram may already have published it.
   let containerId = post.igContainerId

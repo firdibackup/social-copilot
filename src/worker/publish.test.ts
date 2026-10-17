@@ -47,6 +47,7 @@ const minutesFromNow = (minutes: number) => new Date(NOW.getTime() + minutes * 6
 const post = (overrides: Partial<ClaimedPost> = {}): ClaimedPost => ({
   id: 'p1',
   userId: 'user-1',
+  accountId: 'ig1',
   caption: 'Ngopi pagi #kopi',
   scheduledAt: NOW,
   attemptCount: 1,
@@ -203,6 +204,15 @@ describe('processPost', () => {
 
     expect(createContainer).not.toHaveBeenCalled()
     expect(markFailed).toHaveBeenCalledWith('p1', expect.stringContaining('Sambungkan ulang'), false)
+  })
+
+  it('fails a post of another Instagram account without retry and without calling Instagram', async () => {
+    await processPost(post({ accountId: 'ig-old', igContainerId: 'c0' }), NOW)
+
+    expect(createContainer).not.toHaveBeenCalled()
+    expect(getContainerStatus).not.toHaveBeenCalled()
+    expect(scheduleRetry).not.toHaveBeenCalled()
+    expect(markFailed).toHaveBeenCalledWith('p1', 'Akun Instagram berbeda', false)
   })
 
   it('fails the post of a user whose subscription ended, keeping its container for a later retry', async () => {
