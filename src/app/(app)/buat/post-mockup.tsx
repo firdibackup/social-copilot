@@ -1,6 +1,19 @@
 'use client'
 
-import { AlertTriangle, ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Heart, LoaderCircle, MessageCircle, Send, Trash2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  Heart,
+  ImagePlus,
+  LoaderCircle,
+  MessageCircle,
+  Plus,
+  Send,
+  Trash2,
+} from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Avatar } from '@/components/avatar'
 import { MediaImage } from '@/components/media-image'
@@ -13,9 +26,8 @@ export interface SlideView {
   position: number
   format: ImageFormat
   status: 'pending' | 'generating' | 'failed'
+  /** Why it failed; on a waiting slide, why the worker is trying it again. */
   error: string | null
-  /** Its generator died: it can be taken again. */
-  stale: boolean
 }
 
 export type SlideItem = { kind: 'image'; key: string; media: PostMedia } | { kind: 'slide'; key: string; slide: SlideView }
@@ -30,7 +42,7 @@ interface PostMockupProps {
   ratio: string
   /** The active image is being remade. */
   remaking: boolean
-  /** The slide this tab is making right now. */
+  /** The failed slide this tab is putting back in the queue right now. */
   running: string | null
   /** Photos can be moved and removed. */
   editable: boolean
@@ -40,21 +52,29 @@ interface PostMockupProps {
   onDropSlide: (slideId: string) => void
   /** Under the image, as in the feed. */
   caption: ReactNode
-  /** Shown in place of the image when the post has none yet. */
+  /** Shown in place of the image when the post has none yet and none can be added here. */
   empty: ReactNode
+  /** Opens the photo picker. Set while photos can be added: a card after the last slide and a tile in the strip. */
+  onAdd?: () => void
+  /** How many photos a post can hold. */
+  maxSlides: number
 }
 
 const ROUND_BUTTON =
   'flex size-8 items-center justify-center rounded-full bg-white/95 text-ink shadow-[0_1px_3px_-1px_rgba(0,0,0,0.3)] transition-transform hover:scale-105'
 
-/** The post as it will look in the Instagram feed, with its slides beside it. */
+/**
+ * The post as it will look in the Instagram feed, with its slides beside it. While photos can be added, the slide
+ * after the last one is a card that opens the picker, as Instagram's own composer has.
+ */
 export function PostMockup(props: PostMockupProps) {
-  const { username, avatarUrl, items, active, onSelect, ratio, caption, empty } = props
+  const { username, avatarUrl, items, active, onSelect, ratio, caption, empty, onAdd, maxSlides } = props
   const current = items[active]
+  const slots = items.length + (onAdd ? 1 : 0)
 
   return (
     <div className="flex justify-center gap-3">
-      {items.length > 1 && (
+      {slots > 1 && (
         <SlideStrip {...props} className="hidden max-h-[560px] w-14 shrink-0 flex-col gap-2 overflow-y-auto md:flex" />
       )}
       <div className="w-full max-w-[340px] space-y-2">
@@ -64,8 +84,14 @@ export function PostMockup(props: PostMockupProps) {
             <span className="truncate text-[13px] font-semibold text-ink">{username}</span>
           </header>
           <div className="relative bg-zinc-100" style={{ aspectRatio: ratio }}>
-            {current ? <Stage {...props} item={current} /> : <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-ink-muted">{empty}</div>}
-            {items.length > 1 && (
+            {current ? (
+              <Stage {...props} item={current} />
+            ) : onAdd ? (
+              <AddCard count={items.length} max={maxSlides} onAdd={onAdd} />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-ink-muted">{empty}</div>
+            )}
+            {current && items.length > 1 && (
               <span className="absolute top-3 left-3 rounded-full bg-black/60 px-2 py-0.5 text-xs font-medium text-white">
                 {active + 1}/{items.length}
               </span>
@@ -75,7 +101,7 @@ export function PostMockup(props: PostMockupProps) {
                 <ChevronLeft size={18} aria-hidden="true" />
               </button>
             )}
-            {active < items.length - 1 && (
+            {active < slots - 1 && (
               <button type="button" aria-label="Slide berikutnya" onClick={() => onSelect(active + 1)} className={`${ROUND_BUTTON} absolute top-1/2 right-2 -translate-y-1/2`}>
                 <ChevronRight size={18} aria-hidden="true" />
               </button>
@@ -90,7 +116,7 @@ export function PostMockup(props: PostMockupProps) {
             {caption}
           </div>
         </article>
-        {items.length > 1 && <SlideStrip {...props} className="flex gap-2 overflow-x-auto pb-1 md:hidden" />}
+        {slots > 1 && <SlideStrip {...props} className="flex gap-2 overflow-x-auto pb-1 md:hidden" />}
       </div>
     </div>
   )
@@ -140,8 +166,29 @@ function Stage({ item, remaking, running, editable, onRemove, onRetry, onDropSli
   const making = slide.id === running || slide.status === 'generating'
   return (
     <div className="shimmer absolute inset-0 flex items-center justify-center">
-      <Working label={making ? `Membuat slide ${slide.position + 1}…` : 'Menunggu giliran…'} spinning={making} />
+      <Working
+        label={making ? `Membuat slide ${slide.position + 1}…` : slide.error ? 'Gagal sebentar, dicoba lagi otomatis…' : 'Menunggu giliran…'}
+        spinning={making}
+      />
     </div>
+  )
+}
+
+function AddCard({ count, max, onAdd }: { count: number; max: number; onAdd: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onAdd}
+      className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-zinc-50 p-6 text-center transition-colors hover:bg-zinc-100"
+    >
+      <span className="flex size-14 items-center justify-center rounded-full bg-white text-ink shadow-[0_1px_3px_-1px_rgba(0,0,0,0.3)]">
+        <ImagePlus size={24} strokeWidth={1.75} aria-hidden="true" />
+      </span>
+      <span className="text-sm font-semibold text-ink">Tambah foto</span>
+      <span className="text-xs text-ink-muted">
+        {count}/{max} slide
+      </span>
+    </button>
   )
 }
 
@@ -154,7 +201,7 @@ function Working({ label, spinning = true }: { label: string; spinning?: boolean
   )
 }
 
-function SlideStrip({ items, active, onSelect, running, editable, onMove, className }: PostMockupProps & { className: string }) {
+function SlideStrip({ items, active, onSelect, running, editable, onMove, onAdd, className }: PostMockupProps & { className: string }) {
   const current = items[active]
   const images = items.filter((item) => item.kind === 'image').length
   return (
@@ -181,6 +228,19 @@ function SlideStrip({ items, active, onSelect, running, editable, onMove, classN
             </button>
           </li>
         ))}
+        {onAdd && (
+          <li className="shrink-0">
+            <button
+              type="button"
+              aria-label="Tambah foto"
+              title="Tambah foto"
+              onClick={onAdd}
+              className="flex size-14 items-center justify-center rounded-lg border-2 border-dashed border-hairline text-ink-muted transition-colors hover:border-accent hover:text-accent"
+            >
+              <Plus size={18} aria-hidden="true" />
+            </button>
+          </li>
+        )}
       </ol>
       {editable && current?.kind === 'image' && images > 1 && (
         <div className="flex shrink-0 justify-center gap-1 md:flex-col">

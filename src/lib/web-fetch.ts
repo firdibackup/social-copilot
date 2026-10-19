@@ -1,9 +1,11 @@
 import 'server-only'
+import { lookup } from 'node:dns/promises'
+import { isIP } from 'node:net'
 import { imageType, MAX_IMAGE_BYTES, type ImageType } from './image'
 
 const TIMEOUT_MS = 10_000
 const MAX_REDIRECTS = 4
-const USER_AGENT = 'Mozilla/5.0 (compatible; SocialCopilot/1.0)'
+const USER_AGENT = 'Mozilla/5.0 (compatible; Carousely/1.0)'
 
 /** A page or file outside the app could not be fetched. The message is safe to show to the owner. */
 export class RemoteFetchError extends Error {
@@ -17,20 +19,40 @@ const PRIVATE_IPV4 = [
   /^169\.254\./,
   /^172\.(1[6-9]|2\d|3[01])\./,
   /^192\.168\./,
-  /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./, // carrier-grade NAT
+  /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./,
+  /^(22[4-9]|23\d)\./,
+  /^255\.255\.255\.255$/,
 ]
 
-/**
- * False for loopback, private and link-local hosts written as such, so a website can't point the server at
- * itself or the LAN. ponytail: a public name that resolves to a private address still passes; resolve and
- * check the address before any deploy where the server sits next to services that matter.
- */
+const normalizedAddress = (address: string) => address.toLowerCase().replace(/^\[|\]$/g, '').replace(/^::ffff:/, '')
+
+export function isPublicAddress(address: string): boolean {
+  const value = normalizedAddress(address)
+  const family = isIP(value)
+  if (family === 4) return !PRIVATE_IPV4.some((range) => range.test(value))
+  if (family === 6) return !/^(::|::1$|f[cd]|fe[89ab]|ff)/.test(value)
+  return false
+}
+
+/** False for hosts that are explicitly local, private or not fully qualified. */
 export function isPublicHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  const host = normalizedAddress(hostname)
   if (host === 'localhost' || /\.(localhost|local|internal)$/.test(host)) return false
-  if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return !PRIVATE_IPV4.some((range) => range.test(host))
-  if (host.includes(':')) return !/^(::1?|f[cd]|fe80|::ffff:)/.test(host)
+  if (isIP(host)) return isPublicAddress(host)
   return host.includes('.')
+}
+
+async function assertPublicDns(hostname: string): Promise<void> {
+  if (isIP(normalizedAddress(hostname))) return
+  let addresses: { address: string }[]
+  try {
+    addresses = await lookup(hostname, { all: true, verbatim: true })
+  } catch {
+    throw new RemoteFetchError('Alamat website tidak ditemukan.')
+  }
+  if (addresses.length === 0 || addresses.some(({ address }) => !isPublicAddress(address))) {
+    throw new RemoteFetchError('Alamat jaringan lokal atau privat tidak diambil.')
+  }
 }
 
 function checkedUrl(input: string | URL, base?: URL): URL {
@@ -74,6 +96,10 @@ async function readLimited(response: Response, maxBytes: number): Promise<Uint8A
   return bytes
 }
 
+export interface FetchPublicOptions {
+  allowedHostname?: string
+}
+
 export interface Fetched {
   bytes: Uint8Array
   contentType: string
@@ -84,9 +110,13 @@ export interface Fetched {
 /**
  * GETs a public URL, checking every redirect hop itself. Errors carry no URL: Instagram CDN links are signed.
  */
-export async function fetchPublic(input: string, maxBytes: number): Promise<Fetched> {
+export async function fetchPublic(input: string, maxBytes: number, options: FetchPublicOptions = {}): Promise<Fetched> {
   let url = checkedUrl(input)
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    if (options.allowedHostname && url.hostname !== options.allowedHostname) {
+      throw new RemoteFetchError('Redirect keluar dari domain website tidak diikuti.')
+    }
+    await assertPublicDns(url.hostname)
     const response = await fetch(url, {
       redirect: 'manual',
       headers: { 'user-agent': USER_AGENT, accept: '*/*' },

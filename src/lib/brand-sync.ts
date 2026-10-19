@@ -1,7 +1,7 @@
 import 'server-only'
-import { addReference, loadVisualReferences, setLogo, updateBrandKit, updateReference } from './brand'
+import { addReference, getBrandFields, loadVisualReferences, setLogo, updateBrandKit, updateReference } from './brand'
 import { analyzeProfile, analyzeVisual } from './brand-ai'
-import { colorsFromPalettes, MAX_LOGO_BYTES, PROFILE_FIELDS } from './brand-options'
+import { colorsFromPalettes, MAX_LOGO_BYTES, PROFILE_FIELDS, type BrandFields } from './brand-options'
 import { getValidAccessToken } from './connection'
 import { describeError } from './errors'
 import { imageType } from './image'
@@ -15,7 +15,8 @@ const IMPORTED = 3
 
 /**
  * Fills a newly connected account's brand kit from Instagram: profile text, logo, up to 3 reference groups, brand
- * colours from their covers and the visual style. Free: the AI requests are logged at 0 credits. Each step that
+ * colours from their covers and the visual style. What the owner answered in the onboarding is already in the kit
+ * and stays: only empty fields are filled. Free: the AI requests are logged at 0 credits. Each step that
  * fails is logged and the rest still run; the kit ends with sync_status null, or 'failed' when a step failed, so
  * Brand can say so. Never throws: it runs after the callback's redirect, where nobody would see an error.
  */
@@ -39,13 +40,22 @@ export async function syncNewAccount(userId: string, accountId: string): Promise
 
   if (source) {
     const { profile, posts } = source
+    const kit = await step('baca brand kit', () => getBrandFields(userId, accountId))
+    const isEmpty = (field: keyof BrandFields) => {
+      const value = kit?.[field]
+      return Array.isArray(value) ? value.length === 0 : !value
+    }
+
     await step('profil', async () => {
       const captions = posts.map((post) => post.caption).filter(Boolean)
       // Named fields only: the sources are logged, and the picture URL is signed.
       const { username, name, biography } = profile
       const instagram = { username, name, biography, captions }
       const draft = await analyzeProfile(userId, { website: null, instagram }, { cost: 0 })
-      await updateBrandKit(userId, accountId, Object.fromEntries(PROFILE_FIELDS.map((field) => [field, draft[field]])))
+      const fields = PROFILE_FIELDS.filter((field) => draft[field] && isEmpty(field))
+      if (fields.length > 0) {
+        await updateBrandKit(userId, accountId, Object.fromEntries(fields.map((field) => [field, draft[field]])))
+      }
     })
 
     if (profile.profilePictureUrl) {
@@ -64,13 +74,13 @@ export async function syncNewAccount(userId: string, accountId: string): Promise
       if (palette && palette.length > 0) palettes.push(palette)
     }
     const colors = colorsFromPalettes(palettes)
-    if (colors.length > 0) await step('warna', () => updateBrandKit(userId, accountId, { colors }))
+    if (colors.length > 0 && isEmpty('colors')) await step('warna', () => updateBrandKit(userId, accountId, { colors }))
 
     await step('gaya visual', async () => {
       const { references } = await loadVisualReferences(userId, accountId)
       if (references.length === 0) return
       const analysis = await analyzeVisual(userId, references, { cost: 0 })
-      await updateBrandKit(userId, accountId, { visualStyle: analysis.visualStyle })
+      if (isEmpty('visualStyle')) await updateBrandKit(userId, accountId, { visualStyle: analysis.visualStyle })
       const described = new Set<string>()
       for (const [index, reference] of references.entries()) {
         const description = analysis.descriptions[index]

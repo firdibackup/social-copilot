@@ -36,7 +36,7 @@ export function UserActions({ userId, email, isSelf, banned, hasPeriod, planDays
           )}
         </ActionForm>
         <p className={HINT}>Hari tambahan menyambung setelah periode yang sudah ada, tanpa pembayaran.</p>
-        {hasPeriod && (
+        {hasPeriod && !isSelf && (
           <ActionForm userId={userId} intent="end">
             {(pending) => (
               <ConfirmButton
@@ -52,6 +52,9 @@ export function UserActions({ userId, email, isSelf, banned, hasPeriod, planDays
 
       <section className={CARD}>
         <h2 className={CARD_TITLE}>Kredit AI</h2>
+        {!hasPeriod ? (
+          <p className={HINT}>Kredit bisa diubah selama pengguna punya periode aktif. Tambah hari langganan dulu.</p>
+        ) : (
         <ActionForm userId={userId} intent="adjust">
           {(pending) => (
             <div className="space-y-3">
@@ -78,7 +81,10 @@ export function UserActions({ userId, email, isSelf, banned, hasPeriod, planDays
             </div>
           )}
         </ActionForm>
-        <p className={HINT}>Berlaku untuk periode yang sedang berjalan. Kredit tidak terbawa ke periode berikutnya.</p>
+        )}
+        {hasPeriod && (
+          <p className={HINT}>Berlaku untuk periode yang sedang berjalan. Kredit tidak terbawa ke periode berikutnya.</p>
+        )}
         {hasPeriod && (
           <ActionForm userId={userId} intent="reset">
             {(pending) => (

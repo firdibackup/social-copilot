@@ -1,6 +1,6 @@
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
-import { SlideImageError, toReferenceDataUrl, toSlideJpeg } from './slide-image'
+import { SlideImageError, toReferenceDataUrl, toSlideJpeg, toWebsiteJpeg } from './slide-image'
 
 const RED = { r: 255, g: 0, b: 0 }
 const BLUE = { r: 0, g: 0, b: 255 }
@@ -74,6 +74,18 @@ describe('toSlideJpeg', () => {
     ['no bytes, as base64 that decodes to nothing gives', new Uint8Array(Buffer.from('!!!!', 'base64'))],
   ])('throws a SlideImageError for %s', async (_label, bytes) => {
     await expect(toSlideJpeg(bytes, '4:5')).rejects.toBeInstanceOf(SlideImageError)
+  })
+})
+
+describe('toWebsiteJpeg', () => {
+  it('converts a remote image to an Instagram-safe JPEG', async () => {
+    const image = await toWebsiteJpeg(await halves(2000, 1000))
+    expect(image).toMatchObject({ width: 1440, height: 754 })
+    expect(await sharp(image.bytes).metadata()).toMatchObject({ format: 'jpeg', width: 1440, height: 754 })
+  })
+
+  it('rejects tiny images', async () => {
+    await expect(toWebsiteJpeg(await halves(100, 100))).rejects.toThrow('terlalu kecil')
   })
 })
 

@@ -4,7 +4,7 @@ import { Check, ChevronLeft, ChevronRight, ExternalLink, ImagePlus, Search, Tras
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { MediaImage } from '@/components/media-image'
+import { ExternalImage, MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
 import {
   DESCRIPTION_MAX_LENGTH,
@@ -28,7 +28,7 @@ import {
   uploadReferenceAction,
   type PostsResult,
 } from './actions'
-import { BUTTON, CARD, ExternalImage, FAILED, FIELD, LABEL, PRIMARY_BUTTON } from './brand-form'
+import { BUTTON, CARD, FAILED, FIELD, LABEL, PRIMARY_BUTTON } from './brand-form'
 
 /** importReferencesAction takes at most this many at once. */
 const MAX_IMPORT = 12
@@ -66,6 +66,10 @@ export function ReferencesPanel({ references, instagramUsername, discoveryReady 
           Contoh desain yang ingin ditiru gayanya: unggahan, post akunmu, atau post akun Business/Creator lain. Palet
           dihitung dari piksel gambar. Tulis catatan apa yang mau diambil dari tiap referensi, lalu jalankan analisis
           visual di bagian Visual. Referensi dari akun lain hanya acuan gaya, bukan untuk di-repost.
+        </p>
+        <p className="max-w-2xl text-sm text-zinc-500">
+          Label menentukan slide mana yang meniru gambar itu: Cover, Isi, atau CTA meniru layout-nya untuk slide
+          berperan sama; Umum dipinjam gayanya oleh slide yang belum punya referensi sesuai perannya.
         </p>
       </div>
 
@@ -492,7 +496,7 @@ const LABEL_ORDER = Object.keys(REFERENCE_LABELS) as ReferenceLabel[]
 
 /**
  * A group's slides as a swipeable strip, one per view, each with its label; the select under it changes the
- * visible slide's label. One-image groups show just the image.
+ * visible slide’s label, also for a one-image group.
  */
 function ReferenceSlides({ images }: { images: BrandReference['images'] }) {
   const strip = useRef<HTMLDivElement>(null)
@@ -559,25 +563,23 @@ function ReferenceSlides({ images }: { images: BrandReference['images'] }) {
           </button>
         )}
       </div>
-      {many && (
-        <div className="flex items-center justify-between gap-2 border-b border-zinc-100 px-3 py-2">
-          <label className="flex items-center gap-2 text-xs text-zinc-500">
-            Label slide {current + 1}
-            <select
-              value={labels[current]}
-              onChange={(event) => void relabel(event.target.value as ReferenceLabel)}
-              className="rounded-md border border-zinc-200 bg-white px-1.5 py-1 text-xs text-zinc-900"
-            >
-              {LABEL_ORDER.map((label) => (
-                <option key={label} value={label}>
-                  {REFERENCE_LABELS[label]}
-                </option>
-              ))}
-            </select>
-          </label>
-          {error && <span className="text-xs text-red-600">{error}</span>}
-        </div>
-      )}
+      <div className="flex items-center justify-between gap-2 border-b border-zinc-100 px-3 py-2">
+        <label className="flex items-center gap-2 text-xs text-zinc-500">
+          {many ? `Label slide ${current + 1}` : 'Label'}
+          <select
+            value={labels[current]}
+            onChange={(event) => void relabel(event.target.value as ReferenceLabel)}
+            className="rounded-md border border-zinc-200 bg-white px-1.5 py-1 text-xs text-zinc-900"
+          >
+            {LABEL_ORDER.map((label) => (
+              <option key={label} value={label}>
+                {REFERENCE_LABELS[label]}
+              </option>
+            ))}
+          </select>
+        </label>
+        {error && <span className="text-xs text-red-600">{error}</span>}
+      </div>
     </div>
   )
 }

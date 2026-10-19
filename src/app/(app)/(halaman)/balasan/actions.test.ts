@@ -36,6 +36,9 @@ const conversation = (lastIncomingAt: Date | null): Conversation => ({
   lastFromCustomer: true,
   lastMessageAt: NOW,
   lastIncomingAt,
+  seenAt: null,
+  profilePicUrl: null,
+  profileFetchedAt: NOW,
 })
 
 beforeEach(() => {

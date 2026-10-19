@@ -1,13 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { proxy } from './proxy'
 
-const session = vi.hoisted(() => ({ userId: null as string | null }))
+const session = vi.hoisted(() => ({ userId: null as string | null, email: 'pengguna@example.com' }))
 
 vi.mock('@supabase/ssr', () => ({
   createServerClient: () => ({
     auth: {
-      getClaims: async () => ({ data: session.userId ? { claims: { sub: session.userId } } : null, error: null }),
+      getClaims: async () => ({
+        data: session.userId ? { claims: { sub: session.userId, email: session.email } } : null,
+        error: null,
+      }),
     },
   }),
 }))
@@ -17,6 +20,12 @@ const visit = (path: string) => proxy(new NextRequest(`${ORIGIN}${path}`))
 
 beforeEach(() => {
   session.userId = null
+  session.email = 'pengguna@example.com'
+  vi.stubEnv('ADMIN_EMAILS', 'Owner@Example.com')
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
 })
 
 describe('proxy', () => {
@@ -48,5 +57,29 @@ describe('proxy', () => {
     session.userId = 'user-1'
     expect((await visit('/kalender')).headers.get('x-middleware-next')).toBe('1')
     expect((await visit('/masuk')).headers.get('location')).toBe(`${ORIGIN}/kalender`)
+  })
+
+  it('answers the admin pages with the not-found route for anyone but an admin', async () => {
+    session.userId = 'user-1'
+    for (const path of ['/admin', '/admin/pengguna?id=x', '/admin/pengaturan']) {
+      expect((await visit(path)).headers.get('x-middleware-rewrite'), path).toBe(`${ORIGIN}/_tidak-ditemukan`)
+    }
+    expect((await visit('/administrasi')).headers.get('x-middleware-rewrite')).toBeNull()
+
+    vi.stubEnv('ADMIN_EMAILS', '')
+    session.email = ''
+    expect((await visit('/admin')).headers.get('x-middleware-rewrite')).toBe(`${ORIGIN}/_tidak-ditemukan`)
+  })
+
+  it('lets an admin reach the admin pages, whatever the case of the email', async () => {
+    session.userId = 'admin-1'
+    session.email = 'owner@example.com'
+    const response = await visit('/admin/pengguna')
+    expect(response.headers.get('x-middleware-rewrite')).toBeNull()
+    expect(response.headers.get('x-middleware-next')).toBe('1')
+  })
+
+  it('still sends visitors without a session from the admin pages to sign in', async () => {
+    expect((await visit('/admin')).headers.get('location')).toBe(`${ORIGIN}/masuk?next=%2Fadmin`)
   })
 })

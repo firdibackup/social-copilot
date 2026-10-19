@@ -26,13 +26,15 @@ const SUCCESS_MESSAGES: Record<string, string> = {
 const ERROR_MESSAGES: Record<string, string> = {
   ditolak: 'Izin Instagram tidak disetujui. Hubungkan lagi dan setujui semua izin yang diminta.',
   state_tidak_valid: 'Sesi login kedaluwarsa atau tidak valid. Mulai lagi dari tombol Hubungkan Instagram.',
+  sesi_lain:
+    'Login Instagram selesai di sesi akun Carousely yang berbeda dari akun yang memulainya. Biasanya karena aplikasi dibuka di alamat lain (misalnya localhost) dari alamat tujuan Instagram, atau di sana masih masuk dengan akun lain. Buka aplikasi di alamat yang sama, masuk dengan akun ini, lalu hubungkan lagi.',
   gagal_mulai: 'Login Instagram gagal dimulai. Periksa konfigurasi Instagram dan Supabase di .env.local.',
   gagal_token: 'Kode login gagal ditukar menjadi token. Periksa INSTAGRAM_APP_SECRET dan INSTAGRAM_REDIRECT_URI.',
   gagal_profil: 'Token didapat, tapi profil Instagram gagal diambil. Coba hubungkan lagi.',
   gagal_database: 'Database tidak bisa diakses. Periksa konfigurasi Supabase di .env.local.',
   gagal_putus: 'Koneksi gagal diputus. Coba lagi.',
   akun_dipakai:
-    'Akun Instagram ini sudah tersambung ke pengguna Social Copilot lain. Putuskan dulu dari akun tersebut, atau hubungkan akun Instagram lain.',
+    'Akun Instagram ini sudah tersambung ke pengguna Carousely lain. Putuskan dulu dari akun tersebut, atau hubungkan akun Instagram lain.',
 }
 
 const UNKNOWN_ERROR = 'Terjadi kesalahan saat menghubungkan Instagram. Coba lagi.'
@@ -72,10 +74,18 @@ export async function InstagramSettings({ searchParams }: InstagramSettingsProps
   const error = errorCode ? (ERROR_MESSAGES[errorCode] ?? UNKNOWN_ERROR) : undefined
   // requireAccount() sends pages that show one account's data here while nothing is connected.
   const needsAccount = firstValue(params.perlu) === 'instagram' && result.kind === 'ok' && !result.connection
+  // Straight from the onboarding wizard: the last step.
+  const fromWizard = firstValue(params.baru) === '1' && result.kind === 'ok' && !result.connection
 
   return (
     <section id="instagram" aria-labelledby="instagram-heading" className="space-y-4">
-      {needsAccount && (
+      {fromWizard && (
+        <Notice tone="success">
+          Gaya brand tersimpan. Langkah terakhir: hubungkan Instagram. Logo, warna, dan contoh post diambil dari akunmu,
+          dan gaya yang kamu pilih tetap dipakai.
+        </Notice>
+      )}
+      {needsAccount && !fromWizard && (
         <Notice tone="warning">
           Hubungkan akun Instagram dulu untuk memakai Brand, Buat Konten, Kalender, Aset, dan Balasan.
         </Notice>
@@ -184,7 +194,7 @@ function ConnectLink({ label }: { label: string }) {
   return (
     <a
       href="/api/auth/instagram/start"
-      className="inline-flex items-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+      className="inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
     >
       {label}
     </a>

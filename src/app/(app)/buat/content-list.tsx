@@ -88,7 +88,10 @@ export function ContentList({ posts, ideas, selectedId, selectedIdeaId, classNam
                     <span className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-hairline bg-white text-ink-muted">
                       <Lightbulb size={18} strokeWidth={1.75} aria-hidden="true" />
                     </span>
-                    <span className="text-[14px] leading-snug font-medium text-ink">{idea.title}</span>
+                    <span className="min-w-0">
+                      <span className="block text-[14px] leading-snug font-medium text-ink">{idea.title}</span>
+                      {idea.script && <span className="mt-0.5 block text-xs text-ink-muted">Skrip siap · {idea.script.length} slide</span>}
+                    </span>
                   </Link>
                   <DeleteIdeaButton id={idea.id} />
                 </li>

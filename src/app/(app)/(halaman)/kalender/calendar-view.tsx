@@ -63,7 +63,7 @@ export async function CalendarView({ searchParams }: { searchParams: Promise<Sea
           </nav>
           <Link
             href="/buat"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
           >
             <Plus size={16} aria-hidden="true" />
             Post baru
@@ -161,7 +161,7 @@ function DayCell({ day, posts, inMonth, isToday, now }: DayCellProps) {
       <Link href={listHref(undefined, day)} aria-label={formatDay(day)} className="absolute inset-0 md:hidden" />
       <div className="flex items-center justify-between">
         <span
-          className={`flex size-6 items-center justify-center rounded-full text-xs ${isToday ? 'bg-zinc-900 font-medium text-white' : inMonth ? 'text-zinc-700' : 'text-zinc-400'}`}
+          className={`flex size-6 items-center justify-center rounded-full text-xs ${isToday ? 'bg-primary font-semibold text-white' : inMonth ? 'text-zinc-700' : 'text-zinc-400'}`}
         >
           {Number(day.slice(8))}
         </span>

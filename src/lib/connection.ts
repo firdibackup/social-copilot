@@ -27,6 +27,8 @@ export interface Connection {
   accountType: string
   tokenExpiresAt: Date
   status: ConnectionStatus
+  /** What the owner granted at the last login; Analitik checks it for the insights permission. */
+  scopes: string[]
 }
 
 interface ConnectionRow {
@@ -37,6 +39,7 @@ interface ConnectionRow {
   token_expires_at: string
   token_refreshed_at: string
   status: ConnectionStatus
+  scopes: string[]
 }
 
 export class NeedsReconnectError extends Error {
@@ -58,8 +61,11 @@ export async function createOAuthState(userId: string): Promise<string> {
   return state
 }
 
+/** `other_user`: the state is valid but was started by a different signed-in user, e.g. in another browser or host. */
+export type OAuthStateResult = 'ok' | 'invalid' | 'other_user'
+
 /** Deletes the state in the same query that checks it, so each state works exactly once. */
-export async function consumeOAuthState(state: string, userId: string): Promise<boolean> {
+export async function consumeOAuthState(state: string, userId: string): Promise<OAuthStateResult> {
   const rows: unknown = unwrap(
     await db()
       .from('oauth_states')
@@ -69,13 +75,19 @@ export async function consumeOAuthState(state: string, userId: string): Promise<
       .gt('created_at', stateCutoff())
       .select('state'),
   )
-  return Array.isArray(rows) && rows.length === 1
+  if (Array.isArray(rows) && rows.length === 1) return 'ok'
+  const other: unknown = unwrap(
+    await db().from('oauth_states').select('state').eq('state', state).gt('created_at', stateCutoff()).limit(1),
+  )
+  return Array.isArray(other) && other.length === 1 ? 'other_user' : 'invalid'
 }
 
 async function loadRow(userId: string): Promise<ConnectionRow | null> {
   const result = await db()
     .from('instagram_connections')
-    .select('instagram_user_id, username, account_type, access_token_enc, token_expires_at, token_refreshed_at, status')
+    .select(
+      'instagram_user_id, username, account_type, access_token_enc, token_expires_at, token_refreshed_at, status, scopes',
+    )
     .eq('user_id', userId)
     .maybeSingle()
   return unwrap(result) as ConnectionRow | null
@@ -89,6 +101,7 @@ export async function getConnection(userId: string): Promise<Connection | null> 
     accountType: row.account_type,
     tokenExpiresAt: new Date(row.token_expires_at),
     status: row.status,
+    scopes: row.scopes,
   }
 }
 
@@ -124,9 +137,63 @@ export async function saveConnection(
     status: 'active',
     connected_at: now,
     updated_at: now,
+    webhooks_subscribed_at: null,
+    webhooks_attempted_at: null,
+    dms_synced_at: null,
   })
   if (result.error?.code === UNIQUE_VIOLATION) throw new AccountTakenError('Akun Instagram dipakai pengguna lain')
   unwrap(result)
+}
+
+/**
+ * Starts the webhook subscription of an active connection that has none yet, unless a try started less than
+ * `cooldownMs` ago. One conditional update, so two tabs don't both subscribe. Returns the granted scopes when it
+ * claimed the try, which decide the fields to subscribe; null otherwise.
+ */
+export async function claimWebhookSubscription(userId: string, cooldownMs: number): Promise<string[] | null> {
+  const now = new Date()
+  const cutoff = new Date(now.getTime() - cooldownMs).toISOString()
+  const rows: unknown = unwrap(
+    await db()
+      .from('instagram_connections')
+      .update({ webhooks_attempted_at: now.toISOString() })
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .is('webhooks_subscribed_at', null)
+      .or(`webhooks_attempted_at.is.null,webhooks_attempted_at.lt.${cutoff}`)
+      .select('scopes'),
+  )
+  return Array.isArray(rows) && rows.length === 1 ? (rows[0] as { scopes: string[] }).scopes : null
+}
+
+export async function markWebhooksSubscribed(userId: string): Promise<void> {
+  unwrap(
+    await db()
+      .from('instagram_connections')
+      .update({ webhooks_subscribed_at: new Date().toISOString() })
+      .eq('user_id', userId),
+  )
+}
+
+/** Starts a pull of DMs unless one started less than `cooldownMs` ago; a conditional update, so two tabs don't both pull. */
+export async function claimDmSync(userId: string, cooldownMs: number): Promise<boolean> {
+  const now = new Date()
+  const cutoff = new Date(now.getTime() - cooldownMs).toISOString()
+  const rows: unknown = unwrap(
+    await db()
+      .from('instagram_connections')
+      .update({ dms_synced_at: now.toISOString() })
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .or(`dms_synced_at.is.null,dms_synced_at.lt.${cutoff}`)
+      .select('user_id'),
+  )
+  return Array.isArray(rows) && rows.length === 1
+}
+
+/** A failed pull frees its claim, so the next visit tries again. */
+export async function releaseDmSync(userId: string): Promise<void> {
+  unwrap(await db().from('instagram_connections').update({ dms_synced_at: null }).eq('user_id', userId))
 }
 
 /** Putuskan: the account's scheduled posts become drafts and the connection goes. Returns how many were drafted. */

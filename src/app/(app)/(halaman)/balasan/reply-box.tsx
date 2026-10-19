@@ -1,17 +1,10 @@
 'use client'
 
-import { Send } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
 import { Notice } from '@/components/notice'
 import { REPLY_MAX_LENGTH } from '@/lib/dm-templates'
-import { sendReply } from './actions'
-
-/** A template already filled in for this conversation. */
-export interface TemplateOption {
-  id: string
-  label: string
-  text: string
-}
+import { draftDmReply, sendReply } from './actions'
+import { Composer, type TemplateOption } from './composer'
+import { openRules } from './rules-events'
 
 /** The template whose keyword the customer's last message contains. */
 export interface Suggestion {
@@ -24,35 +17,10 @@ interface ReplyBoxProps {
   options: TemplateOption[]
   suggestion: Suggestion | null
   windowOpen: boolean
+  brand: { name: string; logoUrl: string | null }
 }
 
-const FIELD =
-  'block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-400 focus:outline-none disabled:bg-zinc-50'
-
-/**
- * The draft is controlled state sent through the action directly, not a form action: React resets uncontrolled
- * fields after a form action, which would wipe an edited reply when Instagram refuses it.
- */
-export function ReplyBox({ igsid, options, suggestion, windowOpen }: ReplyBoxProps) {
-  const [text, setText] = useState(suggestion?.text ?? '')
-  const [fromSuggestion, setFromSuggestion] = useState(suggestion !== null)
-  const [pending, setPending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setPending(true)
-    setError(null)
-    const failure = await sendReply(igsid, text).catch(() => 'Balasan gagal dikirim. Coba lagi.')
-    setPending(false)
-    if (failure) {
-      setError(failure)
-    } else {
-      setText('')
-      setFromSuggestion(false)
-    }
-  }
-
+export function ReplyBox({ igsid, options, suggestion, windowOpen, brand }: ReplyBoxProps) {
   if (!windowOpen) {
     return (
       <Notice tone="warning">
@@ -63,58 +31,18 @@ export function ReplyBox({ igsid, options, suggestion, windowOpen }: ReplyBoxPro
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3">
-      {options.length > 0 && (
-        <label className="block space-y-1 text-sm font-medium text-zinc-900">
-          <span>Pakai template</span>
-          <select
-            value=""
-            onChange={(event) => {
-              const option = options.find((item) => item.id === event.target.value)
-              if (option) {
-                setText(option.text)
-                setFromSuggestion(false)
-              }
-            }}
-            className={FIELD}
-          >
-            <option value="">Pilih template…</option>
-            {options.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-
-      <label className="block space-y-1 text-sm font-medium text-zinc-900">
-        <span>Balasan</span>
-        <textarea
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          rows={4}
-          maxLength={REPLY_MAX_LENGTH}
-          required
-          className={FIELD}
-        />
-      </label>
-      {fromSuggestion && suggestion && (
-        <p className="text-xs text-zinc-500">
-          Diisi dari aturan kata kunci “{suggestion.keyword}”. Periksa dulu, lalu kirim.
-        </p>
-      )}
-
-      {error && <Notice tone="error">{error}</Notice>}
-
-      <button
-        type="submit"
-        disabled={pending || text.trim() === ''}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
-      >
-        <Send size={16} aria-hidden="true" />
-        {pending ? 'Mengirim…' : 'Kirim'}
-      </button>
-    </form>
+    <Composer
+      placeholder="Tulis DM…"
+      maxLength={REPLY_MAX_LENGTH}
+      brand={brand}
+      initialText={suggestion?.text ?? ''}
+      send={(text) => sendReply(igsid, text)}
+      draft={(text) => draftDmReply(igsid, text)}
+      templates={options}
+      onEditTemplates={() => openRules(false)}
+      suggestionNote={
+        suggestion && <>Diisi dari aturan kata kunci “{suggestion.keyword}”. Periksa dulu, lalu kirim.</>
+      }
+    />
   )
 }

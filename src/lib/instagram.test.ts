@@ -11,9 +11,12 @@ import {
   fetchProfile,
   fetchRecentMedia,
   getContainerStatus,
+  getMediaInsights,
+  listInstagramConversations,
+  listMediaSince,
   publishContainer,
   sendDirectMessage,
-  subscribeToMessages,
+  subscribeToWebhooks,
 } from './instagram'
 
 const REDIRECT_URI = 'https://social-copilot.ngrok-free.app/api/auth/instagram/callback'
@@ -47,6 +50,7 @@ describe('buildAuthorizeUrl', () => {
       response_type: 'code',
       scope: INSTAGRAM_SCOPES.join(','),
       state: 'state-123',
+      force_reauth: 'true',
     })
   })
 })
@@ -249,33 +253,56 @@ describe('sendDirectMessage', () => {
 })
 
 describe('fetchCustomerProfile', () => {
-  it('reads username and name, leaving missing ones null', async () => {
+  it('reads username, name and picture, leaving missing ones null', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ username: 'budi', id: '9012' }))
 
-    await expect(fetchCustomerProfile('token-1', '9012')).resolves.toEqual({ username: 'budi', name: null })
+    await expect(fetchCustomerProfile('token-1', '9012')).resolves.toEqual({
+      username: 'budi',
+      name: null,
+      profilePicUrl: null,
+    })
     const url = new URL(String(fetchMock.mock.calls[0][0]))
     expect(url.pathname).toBe('/9012')
-    expect(url.searchParams.get('fields')).toBe('username,name')
+    expect(url.searchParams.get('fields')).toBe('username,name,profile_pic')
+  })
+
+  it('reads the profile picture URL', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ username: 'budi', name: 'Budi', profile_pic: 'https://cdn/b.jpg' }))
+
+    await expect(fetchCustomerProfile('token-1', '9012')).resolves.toEqual({
+      username: 'budi',
+      name: 'Budi',
+      profilePicUrl: 'https://cdn/b.jpg',
+    })
   })
 })
 
-describe('subscribeToMessages', () => {
-  it('subscribes the account to the messages field', async () => {
+describe('subscribeToWebhooks', () => {
+  it('subscribes the account to the messages and comments fields', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ success: true }))
 
-    await subscribeToMessages('token-1')
+    await subscribeToWebhooks('token-1', INSTAGRAM_SCOPES)
     const [url, init] = fetchMock.mock.calls[0]
     expect(String(url)).toBe('https://graph.instagram.com/me/subscribed_apps')
     expect(Object.fromEntries(init?.body as URLSearchParams)).toEqual({
-      subscribed_fields: 'messages',
+      subscribed_fields: 'messages,comments',
       access_token: 'token-1',
+    })
+  })
+
+  it('leaves comments out until their permission is granted, which Meta would refuse', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true }))
+
+    await subscribeToWebhooks('token-1', ['instagram_business_basic', 'instagram_business_manage_messages'])
+    expect(Object.fromEntries(fetchMock.mock.calls[0][1]?.body as URLSearchParams)).toMatchObject({
+      subscribed_fields: 'messages',
     })
   })
 
   it('fails when Meta does not confirm', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ success: false }))
 
-    await expect(subscribeToMessages('token-1')).rejects.toBeInstanceOf(InstagramApiError)
+    await expect(subscribeToWebhooks('token-1', INSTAGRAM_SCOPES)).rejects.toBeInstanceOf(InstagramApiError)
   })
 })
 
@@ -382,5 +409,178 @@ describe('fetchRecentMedia', () => {
     const [post] = await fetchRecentMedia('token', 12)
 
     expect(post.images).toHaveLength(20)
+  })
+})
+
+describe('listMediaSince', () => {
+  const since = new Date('2026-09-01T00:00:00Z')
+  const item = (id: string, timestamp: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    media_type: 'IMAGE',
+    media_product_type: 'FEED',
+    media_url: `https://cdn/${id}.jpg`,
+    timestamp,
+    ...extra,
+  })
+  const nextPage = (after: string) => ({ cursors: { after }, next: 'https://graph.instagram.com/next' })
+
+  it('follows cursors and stops at the first page that reaches past `since`', async () => {
+    // Arrange
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: [item('1', '2026-10-10T08:00:00+0000', { like_count: 4, comments_count: 1, caption: 'Halo' })],
+          paging: nextPage('cursor-1'),
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: [item('2', '2026-09-05T08:00:00+0000'), item('3', '2026-08-20T08:00:00+0000')],
+          paging: nextPage('cursor-2'),
+        }),
+      )
+
+    // Act
+    const result = await listMediaSince('token', since, 100)
+
+    // Assert
+    expect(result.isComplete).toBe(true)
+    expect(result.media.map((media) => media.id)).toEqual(['1', '2'])
+    expect(result.media[0]).toEqual({
+      id: '1',
+      mediaType: 'IMAGE',
+      productType: 'FEED',
+      caption: 'Halo',
+      permalink: null,
+      thumbnailUrl: 'https://cdn/1.jpg',
+      postedAt: new Date('2026-10-10T08:00:00Z'),
+      likes: 4,
+      comments: 1,
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const second = new URL(String(fetchMock.mock.calls[1][0]))
+    expect(second.pathname).toBe('/me/media')
+    expect(second.searchParams.get('after')).toBe('cursor-1')
+    expect(second.searchParams.get('fields')).toContain('media_product_type')
+  })
+
+  it('keeps an older pinned post out without stopping early', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ data: [item('9', '2026-01-01T08:00:00+0000'), item('1', '2026-10-10T08:00:00+0000')] }),
+    )
+
+    const result = await listMediaSince('token', since, 100)
+
+    expect(result.media.map((media) => media.id)).toEqual(['1'])
+  })
+
+  it('uses the thumbnail for videos and reports a list cut short by the cap', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: [
+          item('1', '2026-10-10T08:00:00+0000', {
+            media_type: 'VIDEO',
+            media_product_type: 'REELS',
+            media_url: 'https://cdn/1.mp4',
+            thumbnail_url: 'https://cdn/1-thumb.jpg',
+          }),
+          item('2', '2026-10-09T08:00:00+0000'),
+        ],
+        paging: nextPage('cursor-1'),
+      }),
+    )
+
+    const result = await listMediaSince('token', since, 1)
+
+    expect(result.isComplete).toBe(false)
+    expect(result.media).toHaveLength(1)
+    expect(result.media[0].thumbnailUrl).toBe('https://cdn/1-thumb.jpg')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips items without a numeric id or a readable timestamp', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ data: [item('abc', '2026-10-10T08:00:00+0000'), item('2', 'kemarin'), item('3', '2026-10-09T08:00:00+0000')] }),
+    )
+
+    const result = await listMediaSince('token', since, 100)
+
+    expect(result.media.map((media) => media.id)).toEqual(['3'])
+  })
+})
+
+describe('getMediaInsights', () => {
+  it('asks for every Analitik metric and parses the answer', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: [{ name: 'views', values: [{ value: 10 }] }] }))
+
+    const metrics = await getMediaInsights('token', '123')
+
+    expect(metrics.views).toBe(10)
+    expect(metrics.reach).toBeNull()
+    const url = new URL(String(fetchMock.mock.calls[0][0]))
+    expect(url.pathname).toBe('/123/insights')
+    expect(url.searchParams.get('metric')).toBe('views,reach,likes,comments,shares,saved,total_interactions')
+  })
+
+  it('throws Graph errors so the sync can count the post as failed', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ error: { message: 'Unsupported', code: 100 } }, 400))
+
+    await expect(getMediaInsights('token', '123')).rejects.toBeInstanceOf(InstagramApiError)
+  })
+})
+
+describe('listInstagramConversations', () => {
+  const ACCOUNT = '17841400000000001'
+  const conversation = (customer: string, updated: string, messages: unknown[], extra: unknown[] = []) => ({
+    id: `conv-${customer}`,
+    updated_time: updated,
+    participants: { data: [{ username: 'toko', id: ACCOUNT }, { username: 'sari', id: customer }, ...extra] },
+    messages: { data: messages },
+  })
+
+  it('reads each customer, who sent each message, and attachment-only messages as null text', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: [
+          conversation('9001', '2026-10-16T08:11:40+0000', [
+            { id: 'mid-2', created_time: '2026-10-16T08:11:40+0000', from: { id: ACCOUNT }, message: 'siap kak' },
+            { id: 'mid-1', created_time: '2026-10-16T08:11:21+0000', from: { id: '9001' }, message: '' },
+            { id: 'mid-x', created_time: 'not a date', from: { id: '9001' }, message: 'rusak' },
+          ]),
+          conversation('9002', '2026-10-15T00:00:00+0000', [], [{ username: 'teman', id: '9003' }]),
+        ],
+      }),
+    )
+
+    const conversations = await listInstagramConversations('token', ACCOUNT, 100)
+
+    expect(conversations).toEqual([
+      {
+        igsid: '9001',
+        updatedAt: new Date('2026-10-16T08:11:40Z'),
+        messages: [
+          { mid: 'mid-2', igsid: '9001', fromCustomer: false, text: 'siap kak', sentAt: new Date('2026-10-16T08:11:40Z') },
+          { mid: 'mid-1', igsid: '9001', fromCustomer: true, text: null, sentAt: new Date('2026-10-16T08:11:21Z') },
+        ],
+      },
+    ])
+    const url = new URL(String(fetchMock.mock.calls[0][0]))
+    expect(url.pathname).toBe('/me/conversations')
+    expect(url.searchParams.get('platform')).toBe('instagram')
+  })
+
+  it('pages by cursor and stops at max', async () => {
+    const page = (customer: string, after: string | null) =>
+      jsonResponse({
+        data: [conversation(customer, '2026-10-16T00:00:00+0000', [])],
+        ...(after ? { paging: { cursors: { after }, next: 'https://graph.instagram.com/next' } } : {}),
+      })
+    fetchMock.mockResolvedValueOnce(page('9001', 'c1')).mockResolvedValueOnce(page('9002', 'c2'))
+
+    const conversations = await listInstagramConversations('token', ACCOUNT, 2)
+
+    expect(conversations.map((item) => item.igsid)).toEqual(['9001', '9002'])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get('after')).toBe('c1')
   })
 })

@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { parseAdminEmails } from './lib/admin-options'
 
 /** Meta's DM webhook and Mayar's payment webhook: they send no cookies, so they skip the session round trip. */
 const WEBHOOKS = new Set(['/api/webhooks/instagram', '/api/webhooks/mayar'])
@@ -7,6 +8,10 @@ const WEBHOOKS = new Set(['/api/webhooks/instagram', '/api/webhooks/mayar'])
 const PUBLIC_PATHS = new Set(['/masuk', '/daftar', '/privasi'])
 /** Signed-in users who open these go to the app instead. */
 const AUTH_PAGES = new Set(['/masuk', '/daftar'])
+/** No route lives here, so a rewrite to it renders the app's ordinary 404 with a real 404 status. */
+const NOT_FOUND_PATH = '/_tidak-ditemukan'
+
+const isAdminPath = (pathname: string) => pathname === '/admin' || pathname.startsWith('/admin/')
 
 /**
  * Refreshes the Supabase session on every request and sends visitors without one to /masuk. Pages and server
@@ -41,6 +46,13 @@ export async function proxy(request: NextRequest) {
   )
   const { data } = await supabase.auth.getClaims()
   const signedIn = Boolean(data?.claims?.sub)
+  const email = typeof data?.claims?.email === 'string' ? data.claims.email.toLowerCase() : ''
+
+  // requireAdmin() runs inside Suspense, after the 200 is sent; answering here makes the admin pages a real 404
+  // for everyone else, exactly like a path that doesn't exist.
+  if (signedIn && isAdminPath(pathname) && !(email && parseAdminEmails(process.env.ADMIN_EMAILS).has(email))) {
+    return withCookies(response, NextResponse.rewrite(new URL(NOT_FOUND_PATH, request.url)))
+  }
 
   if (signedIn && AUTH_PAGES.has(pathname)) return redirectWithCookies(response, new URL('/kalender', request.url))
   if (!signedIn && !PUBLIC_PATHS.has(pathname)) {
@@ -53,9 +65,12 @@ export async function proxy(request: NextRequest) {
 
 /** A redirect that keeps whatever setAll wrote, e.g. the cleared cookies of a session that could not be refreshed. */
 function redirectWithCookies(from: NextResponse, url: URL): NextResponse {
-  const redirect = NextResponse.redirect(url)
-  for (const cookie of from.cookies.getAll()) redirect.cookies.set(cookie)
-  return redirect
+  return withCookies(from, NextResponse.redirect(url))
+}
+
+function withCookies(from: NextResponse, to: NextResponse): NextResponse {
+  for (const cookie of from.cookies.getAll()) to.cookies.set(cookie)
+  return to
 }
 
 export const config = {

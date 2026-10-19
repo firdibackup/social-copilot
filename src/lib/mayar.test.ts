@@ -3,7 +3,7 @@ import { createPaymentRequest, getPaymentRequest, MayarApiError, webhookPaymentI
 
 const fetchMock = vi.fn<typeof fetch>()
 const REQUEST = {
-  name: 'Social Copilot 30 hari',
+  name: 'Carousely 30 hari',
   amount: 99_000,
   email: 'budi@example.com',
   description: 'Langganan',
@@ -36,7 +36,7 @@ describe('createPaymentRequest', () => {
     expect(init?.method).toBe('POST')
     expect(new Headers(init?.headers).get('authorization')).toBe('Bearer secret-key')
     expect(JSON.parse(String(init?.body))).toEqual({
-      name: 'Social Copilot 30 hari',
+      name: 'Carousely 30 hari',
       amount: 99_000,
       email: 'budi@example.com',
       description: 'Langganan',

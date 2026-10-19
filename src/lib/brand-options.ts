@@ -1,4 +1,5 @@
 /** Fields, limits and validation of the brand kit, shared by the /brand page and the server. */
+import { isAccountKind, isDesignStyle } from './design-styles'
 
 export const BRAND_TEXT_LIMITS = {
   name: 100,
@@ -13,6 +14,8 @@ export const BRAND_TEXT_LIMITS = {
   headingFont: 100,
   bodyFont: 100,
   visualStyle: 2000,
+  accountKind: 20,
+  designStyle: 40,
 } as const
 
 export type BrandTextField = keyof typeof BRAND_TEXT_LIMITS
@@ -30,6 +33,8 @@ export const FIELD_LABELS: Record<BrandTextField, string> = {
   headingFont: 'Font judul',
   bodyFont: 'Font isi',
   visualStyle: 'Gaya visual',
+  accountKind: 'Jenis akun',
+  designStyle: 'Gaya desain',
 }
 
 export const COLOR_ROLES = {
@@ -82,10 +87,13 @@ export type BrandContext = Pick<BrandFields, ProfileField>
 
 export type ReferenceSource = 'upload' | 'website' | 'instagram' | 'discovery'
 
-/** What an image is inside its reference group: a carousel's cover, inner slides and closing slide, or a photo. */
+/**
+ * What an image is inside its reference group: a carousel's cover, inner slides and closing slide, or `single`
+ * (Umum), a style for any slide; one-image references start as Umum.
+ */
 export type ReferenceLabel = 'cover' | 'isi' | 'cta' | 'single'
 
-export const REFERENCE_LABELS: Record<ReferenceLabel, string> = { cover: 'Cover', isi: 'Isi', cta: 'CTA', single: 'Tunggal' }
+export const REFERENCE_LABELS: Record<ReferenceLabel, string> = { cover: 'Cover', isi: 'Isi', cta: 'CTA', single: 'Umum' }
 
 /** Instagram gives at most 20 slides per carousel. */
 export const MAX_GROUP_IMAGES = 20
@@ -104,21 +112,48 @@ export interface LabeledImage {
   label: ReferenceLabel
 }
 
-/**
- * The group image a slide follows: slide 1 (or a one-image post) the cover, the last slide of three or more the CTA, the middle
- * slides the inner ones in turn. A missing label falls back to the cover, a missing cover to the first image.
- */
-export function pickReferenceImage<T extends LabeledImage>(
-  images: T[],
-  slide: { index: number; count: number } | null,
-): T | null {
+/** A group's cover, else its photo, else its first image: what stands for the group as a whole. */
+export function coverOf<T extends LabeledImage>(images: T[]): T | null {
   const sorted = [...images].sort((a, b) => a.position - b.position)
-  const cover = sorted.find((image) => image.label === 'cover') ?? sorted.find((image) => image.label === 'single') ?? sorted[0]
-  if (!cover || !slide || slide.count <= 1 || slide.index <= 1) return cover ?? null
-  // Like labelsForCount: only a carousel of three or more ends with a CTA; two slides are cover and inner slide.
-  if (slide.count > 2 && slide.index >= slide.count) return sorted.find((image) => image.label === 'cta') ?? cover
-  const inner = sorted.filter((image) => image.label === 'isi')
-  return inner.length > 0 ? inner[(slide.index - 2) % inner.length] : cover
+  return sorted.find((image) => image.label === 'cover') ?? sorted.find((image) => image.label === 'single') ?? sorted[0] ?? null
+}
+
+/** What a carousel slide is. */
+export type SlideRole = Exclude<ReferenceLabel, 'single'>
+
+/** Each slide's role by its place, as labelsForCount labels a reference group; null for a one-image post. */
+export function slideRoles(count: number): (SlideRole | null)[] {
+  if (count <= 1) return count === 1 ? [null] : []
+  return labelsForCount(count) as SlideRole[]
+}
+
+/** A reference image a new post can follow, from one group or from all of the account's. */
+export interface PoolImage extends LabeledImage {
+  id: string
+}
+
+/** Picks one of `items`, or undefined when there are none. */
+export type Picker = <T>(items: T[]) => T | undefined
+
+export const pickFirst: Picker = (items) => items[0]
+export const pickRandom: Picker = (items) => items[Math.floor(Math.random() * items.length)]
+
+/**
+ * The reference image each slide follows, one per role so every inner slide shares one: the cover (or a one-image
+ * post) a cover, the inner slides an inner one, the CTA a CTA. A role without an image of its own label takes one
+ * Umum image, the same for every such role, else none: never the cover's, which made the inner and CTA slides
+ * copy it.
+ */
+export function planReferenceImages(pool: PoolImage[], roles: (SlideRole | null)[], pick: Picker): (string | null)[] {
+  const sorted = [...pool].sort((a, b) => a.position - b.position)
+  const withLabel = (label: ReferenceLabel) => sorted.filter((image) => image.label === label)
+  const general = pick(withLabel('single'))
+  const chosen: Record<SlideRole, PoolImage | undefined> = {
+    cover: pick(withLabel('cover')) ?? general,
+    isi: pick(withLabel('isi')) ?? general,
+    cta: pick(withLabel('cta')) ?? general,
+  }
+  return roles.map((role) => chosen[role ?? 'cover']?.id ?? null)
 }
 
 const ROLE_ORDER = Object.keys(COLOR_ROLES) as ColorRole[]
@@ -164,12 +199,14 @@ export const EMPTY_BRAND: BrandFields = {
   headingFont: '',
   bodyFont: '',
   visualStyle: '',
+  accountKind: '',
+  designStyle: '',
   colors: [],
 }
 
-type Json = Record<string, unknown>
+export type Json = Record<string, unknown>
 
-const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null
+export const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null
 /** Code points, as the counters and Postgres count them. */
 export const lengthOf = (text: string) => Array.from(text).length
 export const truncate = (text: string, max: number) => Array.from(text).slice(0, max).join('')
@@ -205,7 +242,7 @@ export function normalizeWebsiteUrl(input: string): string | null {
 }
 
 /** Trims, turns textarea CRLF into LF and checks the limit. */
-function readText(input: Json, field: BrandTextField): string | { error: string } {
+export function readText(input: Json, field: BrandTextField): string | { error: string } {
   const value = input[field]
   if (value === undefined) return ''
   if (typeof value !== 'string') return { error: 'Data brand tidak valid.' }
@@ -214,7 +251,7 @@ function readText(input: Json, field: BrandTextField): string | { error: string 
   return lengthOf(text) > limit ? { error: `${FIELD_LABELS[field]} maksimal ${limit} karakter.` } : text
 }
 
-function readColors(value: unknown): BrandColor[] | null {
+export function readColors(value: unknown): BrandColor[] | null {
   if (value === undefined) return []
   if (!Array.isArray(value) || value.length > MAX_COLORS) return null
   const colors: BrandColor[] = []
@@ -242,6 +279,8 @@ export function parseBrandFields(input: unknown): { fields: BrandFields } | { er
     if (lengthOf(url) > BRAND_TEXT_LIMITS.websiteUrl) return { error: 'Website maksimal 500 karakter.' }
     fields.websiteUrl = url
   }
+  if (fields.accountKind && !isAccountKind(fields.accountKind)) return { error: 'Jenis akun tidak dikenal.' }
+  if (fields.designStyle && !isDesignStyle(fields.designStyle)) return { error: 'Gaya desain tidak dikenal.' }
   const colors = readColors(input.colors)
   if (!colors) return { error: `Palet maksimal ${MAX_COLORS} warna, masing-masing dengan kode hex dan peran.` }
   fields.colors = colors

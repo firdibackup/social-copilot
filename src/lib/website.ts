@@ -7,16 +7,33 @@ const CSS_MAX_BYTES = 512 * 1024
 const MAX_STYLESHEETS = 3
 /** Enough page text for the AI to see what the brand sells and how it talks. */
 const TEXT_MAX_LENGTH = 6000
+const WEBSITE_TEXT_MAX_LENGTH = 30_000
 const MAX_COLORS = 8
 const MAX_NEUTRALS = 2
 const MAX_FONTS = 6
-const MAX_LOGOS = 4
-const MAX_IMAGES = 4
+const MAX_LOGOS = 8
+const MAX_IMAGES = 40
+const MAX_LINKED_PAGES = 10
+const MAX_PAGE_CANDIDATES = 60
+const MAX_IMAGE_CANDIDATES = 120
+const CRAWL_DEADLINE_MS = 45_000
+const PRIORITY_PATH = /produk|product|shop|menu|katalog|catalog|koleksi|collection/i
+const SKIP_PATH = /login|log-in|signin|sign-in|account|akun|cart|keranjang|checkout|search|cari|admin|logout|keluar/i
 /** Channel spread under which a colour reads as white, black or grey. */
 const NEUTRAL_CHROMA = 24
 const FONT_CSS_HOSTS = new Set(['fonts.googleapis.com', 'use.typekit.net', 'fonts.bunny.net'])
 
 /** What the page itself says, before any stylesheet is fetched. */
+export interface WebsiteImageCandidate {
+  url: string
+  pageUrl: string
+  alt: string
+  context: string
+  width: number | null
+  height: number | null
+  logo: boolean
+}
+
 export interface ExtractedPage {
   title: string
   description: string
@@ -30,6 +47,15 @@ export interface ExtractedPage {
   linkedFonts: string[]
   logoUrls: string[]
   imageUrls: string[]
+  links: string[]
+  images: WebsiteImageCandidate[]
+}
+
+export interface WebsitePageFacts {
+  url: string
+  title: string
+  description: string
+  text: string
 }
 
 export interface WebsiteFacts {
@@ -41,6 +67,9 @@ export interface WebsiteFacts {
   fonts: string[]
   logoUrls: string[]
   imageUrls: string[]
+  pages: WebsitePageFacts[]
+  images: WebsiteImageCandidate[]
+  warnings: string[]
 }
 
 /** The named entities Indonesian sites commonly use; numeric ones are decoded generally. */
@@ -71,17 +100,17 @@ function decodeEntities(text: string): string {
 
 const ATTRIBUTE = /([^\s=/"'>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g
 
+function attributesOf(body: string): Record<string, string> {
+  const attributes: Record<string, string> = {}
+  for (const [, key, double, single, bare] of body.matchAll(ATTRIBUTE)) {
+    attributes[key.toLowerCase()] = decodeEntities(double ?? single ?? bare ?? '')
+  }
+  return attributes
+}
+
 /** Attributes of every `<name …>` tag. Names are lowercased, values decoded. */
 function tagsOf(html: string, name: string): Record<string, string>[] {
-  const tags: Record<string, string>[] = []
-  for (const [, body] of html.matchAll(new RegExp(`<${name}\\b([^>]*)>`, 'gi'))) {
-    const attributes: Record<string, string> = {}
-    for (const [, key, double, single, bare] of body.matchAll(ATTRIBUTE)) {
-      attributes[key.toLowerCase()] = decodeEntities(double ?? single ?? bare ?? '')
-    }
-    tags.push(attributes)
-  }
-  return tags
+  return [...html.matchAll(new RegExp(`<${name}\\b([^>]*)>`, 'gi'))].map((match) => attributesOf(match[1]))
 }
 
 const collapse = (text: string) => text.replace(/\s+/g, ' ').trim()
@@ -100,6 +129,33 @@ function resolve(href: string | undefined, base: string): string | null {
 const isRasterUrl = (url: string) => !/\.(svg|ico)(\?|#|$)/i.test(url)
 
 const unique = (items: (string | null)[]) => [...new Set(items.filter((item): item is string => item !== null))]
+
+function canonicalUrl(value: string): string {
+  const url = new URL(value)
+  url.hash = ''
+  if (!url.search) url.pathname = url.pathname.replace(/\/+$/, '') || '/'
+  return url.toString()
+}
+
+const numericDimension = (value: string | undefined) => {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function srcsetUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  const choices = value
+    .split(',')
+    .map((item) => item.trim().split(/\s+/))
+    .filter((item) => item[0])
+  return choices.at(-1)?.[0]
+}
+
+function imageContext(html: string, offset: number): string {
+  const start = Math.max(0, offset - 240)
+  const end = Math.min(html.length, offset + 480)
+  return truncate(visibleText(html.slice(start, end)), 300)
+}
 
 function visibleText(html: string): string {
   const stripped = html
@@ -146,14 +202,51 @@ export function extractWebsite(html: string, pageUrl: string): ExtractedPage {
     .slice(0, MAX_STYLESHEETS)
   const linkedFonts = links.flatMap((tag) => (tag.href ? googleFontFamilies(resolve(tag.href, pageUrl) ?? '') : []))
 
-  const logoImages = tagsOf(html, 'img')
-    .filter((tag) => /logo/i.test([tag.src, tag.alt, tag.class, tag.id].join(' ')))
-    .map((tag) => resolve(tag.src ?? tag['data-src'], pageUrl))
+  const imageCandidates: WebsiteImageCandidate[] = []
+  for (const match of html.matchAll(/<img\b([^>]*)>/gi)) {
+    const tag = attributesOf(match[1])
+    const url = [tag.src, tag['data-src'], tag['data-lazy-src'], srcsetUrl(tag.srcset ?? tag['data-srcset'])]
+      .map((source) => resolve(source, pageUrl))
+      .find((source): source is string => source !== null) ?? null
+    if (!url || !isRasterUrl(url)) continue
+    imageCandidates.push({
+      url,
+      pageUrl,
+      alt: collapse(tag.alt ?? ''),
+      context: imageContext(html, match.index),
+      width: numericDimension(tag.width),
+      height: numericDimension(tag.height),
+      logo: /logo|brandmark|brand-mark/i.test([url, tag.alt, tag.class, tag.id].join(' ')),
+    })
+  }
+  for (const match of html.matchAll(/<source\b([^>]*)>/gi)) {
+    const tag = attributesOf(match[1])
+    const url = resolve(srcsetUrl(tag.srcset ?? tag['data-srcset']), pageUrl)
+    if (!url || !isRasterUrl(url)) continue
+    imageCandidates.push({
+      url,
+      pageUrl,
+      alt: '',
+      context: imageContext(html, match.index),
+      width: null,
+      height: null,
+      logo: false,
+    })
+  }
+  const logoImages = imageCandidates.filter((image) => image.logo).map((image) => image.url)
   const icons = links
     .filter((tag) => rels(tag).some((rel) => rel === 'icon' || rel === 'apple-touch-icon'))
     .sort((a, b) => Number(rels(b).includes('apple-touch-icon')) - Number(rels(a).includes('apple-touch-icon')))
     .map((tag) => resolve(tag.href, pageUrl))
   const ogImage = resolve(meta.get('og:image'), pageUrl)
+  const socialImages = unique([ogImage, resolve(meta.get('twitter:image'), pageUrl)]).filter(isRasterUrl)
+  for (const url of socialImages) {
+    if (!imageCandidates.some((image) => image.url === url)) {
+      imageCandidates.push({ url, pageUrl, alt: '', context: '', width: null, height: null, logo: false })
+    }
+  }
+  const pageLinks = unique(tagsOf(html, 'a').map((tag) => resolve(tag.href, pageUrl))).map(canonicalUrl)
+  const distinctImages = [...new Map(imageCandidates.map((image) => [image.url, image])).values()].slice(0, MAX_IMAGE_CANDIDATES)
 
   const inlineCss = [
     ...[...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map((match) => match[1]),
@@ -169,7 +262,9 @@ export function extractWebsite(html: string, pageUrl: string): ExtractedPage {
     inlineCss,
     linkedFonts,
     logoUrls: unique([...logoImages, ...icons, ogImage]).filter(isRasterUrl).slice(0, MAX_LOGOS),
-    imageUrls: unique([ogImage, resolve(meta.get('twitter:image'), pageUrl)]).filter(isRasterUrl).slice(0, MAX_IMAGES),
+    imageUrls: distinctImages.filter((image) => !image.logo).map((image) => image.url).slice(0, MAX_IMAGES),
+    links: pageLinks,
+    images: distinctImages,
   }
 }
 
@@ -264,27 +359,99 @@ export function cssFonts(css: string, linkedFonts: string[] = []): string[] {
 
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
 
-/** Reads the homepage and up to three of its own stylesheets. Throws RemoteFetchError with an owner-facing message. */
+const sameHost = (url: string, host: string) => {
+  try {
+    return new URL(url).hostname === host
+  } catch {
+    return false
+  }
+}
+
+export function prioritizeWebsiteLinks(links: string[], pageUrl: string): string[] {
+  const home = new URL(pageUrl)
+  const seen = new Set<string>()
+  return links
+    .map((link) => canonicalUrl(link))
+    .filter((link) => {
+      const url = new URL(link)
+      if (url.hostname !== home.hostname || url.pathname === home.pathname || SKIP_PATH.test(url.pathname)) return false
+      if (seen.has(link)) return false
+      seen.add(link)
+      return true
+    })
+    .sort((left, right) => Number(PRIORITY_PATH.test(new URL(right).pathname)) - Number(PRIORITY_PATH.test(new URL(left).pathname)))
+    .slice(0, MAX_PAGE_CANDIDATES)
+}
+
+function mergedImages(pages: { extracted: ExtractedPage }[]): WebsiteImageCandidate[] {
+  const byUrl = new Map<string, WebsiteImageCandidate>()
+  for (const { extracted } of pages) {
+    for (const image of extracted.images) {
+      const previous = byUrl.get(image.url)
+      if (!previous || (image.context.length + image.alt.length > previous.context.length + previous.alt.length)) {
+        byUrl.set(image.url, { ...image, logo: previous?.logo === true || image.logo })
+      }
+    }
+  }
+  return [...byUrl.values()]
+}
+
+/** Reads the homepage and up to ten useful pages on the same host, plus the homepage stylesheets. */
 export async function readWebsite(input: string): Promise<WebsiteFacts> {
   const url = normalizeWebsiteUrl(input)
   if (!url) throw new RemoteFetchError('Alamat website tidak valid.')
-  // ponytail: decoded as UTF-8 whatever the charset says; nearly every site today is UTF-8.
-  const page = await fetchPublic(url, HTML_MAX_BYTES)
-  if (!/text\/html|application\/xhtml/i.test(page.contentType)) throw new RemoteFetchError('Alamat itu bukan halaman web.')
+  const home = await fetchPublic(url, HTML_MAX_BYTES)
+  if (!/text\/html|application\/xhtml/i.test(home.contentType)) throw new RemoteFetchError('Alamat itu bukan halaman web.')
 
-  const extracted = extractWebsite(decode(page.bytes), page.url)
+  const first = extractWebsite(decode(home.bytes), home.url)
+  const host = new URL(home.url).hostname
+  const deadline = Date.now() + CRAWL_DEADLINE_MS
+  const pages = [{ url: home.url, extracted: first }]
+  const warnings: string[] = []
+  const queue = prioritizeWebsiteLinks(first.links, home.url)
+  const visited = new Set([canonicalUrl(home.url)])
+
+  while (queue.length > 0 && pages.length <= MAX_LINKED_PAGES && Date.now() < deadline) {
+    const next = queue.shift()
+    if (!next || visited.has(next)) continue
+    visited.add(next)
+    try {
+      const fetched = await fetchPublic(next, HTML_MAX_BYTES, { allowedHostname: host })
+      if (!sameHost(fetched.url, host) || !/text\/html|application\/xhtml/i.test(fetched.contentType)) continue
+      const extracted = extractWebsite(decode(fetched.bytes), fetched.url)
+      pages.push({ url: fetched.url, extracted })
+      for (const link of prioritizeWebsiteLinks(extracted.links, home.url)) {
+        if (!visited.has(link) && !queue.includes(link) && queue.length < MAX_PAGE_CANDIDATES) queue.push(link)
+      }
+    } catch {
+      warnings.push('Sebagian halaman website tidak bisa dibaca.')
+    }
+  }
+
+  if (queue.length > 0 && Date.now() >= deadline) warnings.push('Pembacaan website dihentikan karena batas waktu tercapai.')
+
   const sheets = await Promise.all(
-    extracted.stylesheetUrls.map((sheet) => fetchPublic(sheet, CSS_MAX_BYTES).then((file) => decode(file.bytes), () => '')),
+    first.stylesheetUrls.map((sheet) => fetchPublic(sheet, CSS_MAX_BYTES).then((file) => decode(file.bytes), () => '')),
   )
-  const css = [extracted.inlineCss, ...sheets].join('\n')
-  return {
-    url: page.url,
+  const css = [first.inlineCss, ...sheets].join('\n')
+  const images = mergedImages(pages)
+  const pageFacts = pages.map(({ url: pageUrl, extracted }) => ({
+    url: pageUrl,
     title: extracted.title,
     description: extracted.description,
     text: extracted.text,
-    colors: cssColors(css, extracted.themeColor),
-    fonts: cssFonts(css, extracted.linkedFonts),
-    logoUrls: extracted.logoUrls,
-    imageUrls: extracted.imageUrls,
+  }))
+  return {
+    url: home.url,
+    title: first.title,
+    description: first.description,
+    text: truncate(pageFacts.map((page) => page.text).filter(Boolean).join('\n\n'), WEBSITE_TEXT_MAX_LENGTH),
+    colors: cssColors(css, first.themeColor),
+    fonts: cssFonts(css, first.linkedFonts),
+    logoUrls: unique(pages.flatMap(({ extracted }) => extracted.logoUrls)).slice(0, MAX_LOGOS),
+    imageUrls: images.filter((image) => !image.logo).map((image) => image.url).slice(0, MAX_IMAGES),
+    pages: pageFacts,
+    images: images.slice(0, MAX_IMAGE_CANDIDATES),
+    warnings: [...new Set(warnings)],
   }
 }

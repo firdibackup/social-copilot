@@ -26,7 +26,7 @@ export function carouselGuide(hook: HookArchetype): string {
     'Panduan carousel (wajib):',
     `- Hook slide 1: 3–7 kata, bicara langsung ke pembaca, dan buat pembaca merasa rugi atau ketinggalan sesuatu yang spesifik (hasil apa, ke siapa), bukan pernyataan netral. Gaya hook post ini: ${HOOK_ARCHETYPES[hook]}`,
     '- Slide 2 melanjutkan janji hook tanpa basa-basi. Slide isi membayar janji itu persis: hook menyebut "5 cara" berarti ada 5 cara lengkap.',
-    '- Tiap slide isi berisi satu hal yang bisa langsung dipakai pembaca (langkah konkret, contoh kalimat, checklist, angka dari topik), bukan sekadar nama konsep. Maksimal 1–3 kalimat pendek atau 3 poin, dan tetap masuk akal kalau dibaca sendirian.',
+    '- Tiap slide isi berisi satu hal yang bisa langsung dipakai pembaca (langkah konkret, contoh kalimat, checklist, angka dari topik), bukan sekadar nama konsep. Jelaskan sampai pembaca benar-benar paham: subjudul lalu 2–3 kalimat lengkap atau 3–5 poin, tanpa singkatan, dan tetap masuk akal kalau dibaca sendirian.',
     '- Slide CTA: tepat satu ajakan yang paling cocok dengan topik (follow, simpan, bagikan, komentar, atau link di bio), bukan gabungan.',
     '- Hindari isi generik: kalau slide tetap masuk akal untuk topik lain, tulis ulang lebih spesifik. Jangan pakai frasa kosong seperti "game changer", "next level", "ubah segalanya", "solusi yang berhasil". Jangan ulangi pola kalimat yang sama di slide berbeda.',
     '- Pakai satu gaya sapaan secara konsisten, mengikuti gaya bahasa brand kalau ada.',

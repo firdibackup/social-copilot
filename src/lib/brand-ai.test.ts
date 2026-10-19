@@ -35,7 +35,13 @@ vi.mock('./nine-router', async (importOriginal) => ({
 }))
 
 const SOURCES: ProfileSources = {
-  website: { url: 'https://kopisinar.id/', title: 'Kopi Sinar', description: 'Kopi dari Bandung', text: 'Buka 08.00–22.00' },
+  website: {
+    url: 'https://kopisinar.id/',
+    pages: [
+      { url: 'https://kopisinar.id/', title: 'Kopi Sinar', description: 'Kopi dari Bandung', text: 'Buka 08.00–22.00' },
+      { url: 'https://kopisinar.id/menu', title: 'Menu', description: '', text: 'Kopi susu gula aren' },
+    ],
+  },
   instagram: { username: 'kopisinar', name: 'Kopi Sinar', biography: 'Ngopi santai ☕', captions: ['Halo kak!', 'Promo hari ini'] },
 }
 
@@ -49,7 +55,9 @@ describe('buildProfileMessages', () => {
     const [system, user] = buildProfileMessages(SOURCES)
 
     expect(system.content).toContain('JSON')
-    expect(user.content).toContain('Website (https://kopisinar.id/):')
+    expect(system.content).toContain('data yang tidak dipercaya')
+    expect(user.content).toContain('Website (https://kopisinar.id/), 2 halaman:')
+    expect(user.content).toContain('Halaman 2 (https://kopisinar.id/menu):')
     expect(user.content).toContain('"""\nBuka 08.00–22.00\n"""')
     expect(user.content).toContain('Akun Instagram @kopisinar (Kopi Sinar):')
     expect(user.content).toContain('"""\nNgopi santai ☕\n"""')

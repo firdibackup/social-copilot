@@ -7,7 +7,11 @@ import {
   normalizeWebsiteUrl,
   parseBrandFields,
   parsePalette,
-  pickReferenceImage,
+  pickFirst,
+  planReferenceImages,
+  REFERENCE_LABELS,
+  slideRoles,
+  type PoolImage,
 } from './brand-options'
 
 describe('parseBrandFields', () => {
@@ -91,37 +95,63 @@ describe('labelsForCount', () => {
   })
 })
 
-describe('pickReferenceImage', () => {
-  const group = labelsForCount(4).map((label, position) => ({ position, label })) // cover isi isi cta
-
+describe('slideRoles', () => {
   it.each([
-    [null, 0],
-    [{ index: 1, count: 1 }, 0],
-    [{ index: 1, count: 7 }, 0],
-    [{ index: 7, count: 7 }, 3],
-    [{ index: 2, count: 7 }, 1],
-    [{ index: 3, count: 7 }, 2],
-    [{ index: 4, count: 7 }, 1],
-  ])('maps slide %j to position %i', (slide, position) => {
-    expect(pickReferenceImage(group, slide)?.position).toBe(position)
+    [0, []],
+    [1, [null]],
+    [2, ['cover', 'isi']],
+    [5, ['cover', 'isi', 'isi', 'isi', 'cta']],
+  ] as const)('gives %i slides the roles %j', (count, roles) => {
+    expect(slideRoles(count)).toEqual(roles)
+  })
+})
+
+describe('planReferenceImages', () => {
+  const image = (id: string, label: PoolImage['label'], position = 0): PoolImage => ({ id, label, position })
+  const group = [image('cover', 'cover', 0), image('isi-1', 'isi', 1), image('isi-2', 'isi', 2), image('cta', 'cta', 3)]
+
+  it('gives each role an image of its own label, the same inner image to every inner slide', () => {
+    expect(planReferenceImages(group, slideRoles(5), pickFirst)).toEqual(['cover', 'isi-1', 'isi-1', 'isi-1', 'cta'])
   })
 
-  it('falls back to the cover without a cta, and to the first image without a cover', () => {
-    const noCta = [
-      { position: 1, label: 'isi' as const },
-      { position: 0, label: 'cover' as const },
-    ]
-    expect(pickReferenceImage(noCta, { index: 3, count: 3 })?.position).toBe(0)
-    expect(pickReferenceImage([{ position: 0, label: 'isi' as const }], { index: 1, count: 2 })?.position).toBe(0)
-    expect(pickReferenceImage([], null)).toBeNull()
+  it('never lends the cover to an inner or CTA slide that has no image of its own label', () => {
+    expect(planReferenceImages([image('cover', 'cover')], slideRoles(3), pickFirst)).toEqual(['cover', null, null])
+    expect(planReferenceImages([image('isi', 'isi')], slideRoles(3), pickFirst)).toEqual([null, 'isi', null])
   })
 
-  it('gives the second of two slides an inner slide, as labelsForCount labels two images', () => {
-    expect(pickReferenceImage(group, { index: 2, count: 2 })?.position).toBe(1)
+  it('fills every role without an image of its own label with one Umum image', () => {
+    const pool = [image('cover', 'cover'), image('umum-1', 'single', 1), image('umum-2', 'single', 2)]
+
+    expect(planReferenceImages(pool, slideRoles(4), pickFirst)).toEqual(['cover', 'umum-1', 'umum-1', 'umum-1'])
+    expect(planReferenceImages([image('umum', 'single'), image('isi', 'isi', 1)], slideRoles(3), pickFirst)).toEqual([
+      'umum',
+      'isi',
+      'umum',
+    ])
   })
 
-  it('uses a single image for every slide', () => {
-    expect(pickReferenceImage([{ position: 0, label: 'single' as const }], { index: 5, count: 5 })?.position).toBe(0)
+  it('lets a pool of Umum images alone lend its style to every slide', () => {
+    expect(planReferenceImages([image('photo', 'single')], slideRoles(4), pickFirst)).toEqual(['photo', 'photo', 'photo', 'photo'])
+  })
+
+  it('names the photo label Umum', () => {
+    expect(REFERENCE_LABELS.single).toBe('Umum')
+  })
+
+  it('gives a one-image post the cover, else a photo', () => {
+    expect(planReferenceImages(group, slideRoles(1), pickFirst)).toEqual(['cover'])
+    expect(planReferenceImages([image('photo', 'single'), image('isi', 'isi')], [null], pickFirst)).toEqual(['photo'])
+  })
+
+  it('picks within each label with the picker it is given, once per role', () => {
+    const last = <T,>(items: T[]) => items.at(-1)
+    const pool = [...group, image('cover-2', 'cover', 4), image('cta-2', 'cta', 5)]
+
+    expect(planReferenceImages(pool, slideRoles(4), last)).toEqual(['cover-2', 'isi-2', 'isi-2', 'cta-2'])
+  })
+
+  it('gives every slide nothing without references', () => {
+    expect(planReferenceImages([], slideRoles(3), pickFirst)).toEqual([null, null, null])
   })
 })
 

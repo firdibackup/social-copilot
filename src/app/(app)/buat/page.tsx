@@ -5,9 +5,9 @@ import { Suspense } from 'react'
 import { Notice } from '@/components/notice'
 import { getPlan } from '@/lib/app-settings'
 import { remainingCredits } from '@/lib/ai'
-import { listAssets } from '@/lib/assets'
+import { listAssets, listProductGroups } from '@/lib/assets'
 import { requireAccount } from '@/lib/auth'
-import { getBrandKit, listReferences } from '@/lib/brand'
+import { getBrandKit } from '@/lib/brand'
 import { getConnection } from '@/lib/connection'
 import { describeError, loadErrorMessage } from '@/lib/errors'
 import { slotOn, suggestedSlot } from '@/lib/format'
@@ -56,7 +56,6 @@ const toView = (slide: SlideRecord): SlideView => ({
   format: slide.format,
   status: slide.status === 'ready' ? 'generating' : slide.status,
   error: slide.error,
-  stale: slide.stale,
 })
 
 /**
@@ -74,7 +73,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
 
   let data
   try {
-    const [posts, ideas, post, slides, idea, instagram, kit, references, library, credits, plan] = await Promise.all([
+    const [posts, ideas, post, slides, idea, instagram, kit, products, library, credits, plan] = await Promise.all([
       listContentPosts(userId, accountId),
       listIdeas(userId, accountId),
       postId ? getPost(userId, postId) : null,
@@ -82,7 +81,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
       !postId && isUuid(ideaParam) ? getIdea(userId, ideaParam) : null,
       getConnection(userId),
       getBrandKit(userId, accountId),
-      listReferences(userId, accountId),
+      listProductGroups(userId, accountId),
       listAssets(userId, accountId),
       // Shown as a hint only; every request checks the credits again.
       remainingCredits(userId).then(
@@ -91,7 +90,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
       ),
       getPlan(),
     ])
-    data = { posts, ideas, post, slides, idea, instagram, kit, references, library, credits, plan }
+    data = { posts, ideas, post, slides, idea, instagram, kit, products, library, credits, plan }
   } catch (error) {
     console.error('[buat] gagal memuat:', describeError(error))
     return (
@@ -101,7 +100,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
     )
   }
 
-  const { posts, ideas, post, slides, idea, instagram, kit, references, library, credits, plan } = data
+  const { posts, ideas, post, slides, idea, instagram, kit, products, library, credits, plan } = data
   const now = new Date()
   const day = firstValue(params.tanggal) ?? ''
   const daySlot = day ? slotOn(day, now) : null
@@ -152,11 +151,11 @@ async function Workspace({ searchParams }: BuatPageProps) {
           slides={slides.map(toView)}
           idea={idea}
           account={{ username: instagram?.username ?? null, avatarUrl: kit.logoUrl }}
-          references={references.map((reference) => ({
-            id: reference.id,
-            url: reference.images[0]?.url ?? '',
-            label: reference.sourceLabel || 'Referensi',
-            slideCount: reference.images.length,
+          products={products.map((product) => ({
+            id: product.id,
+            label: product.title,
+            description: product.description,
+            imageCount: product.imageCount,
           }))}
           hasLogo={kit.logoUrl !== null}
           credits={credits}

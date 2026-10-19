@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { addReference, loadVisualReferences, setLogo, updateBrandKit, updateReference } from './brand'
+import { addReference, getBrandFields, loadVisualReferences, setLogo, updateBrandKit, updateReference } from './brand'
 import { analyzeProfile, analyzeVisual } from './brand-ai'
+import { EMPTY_BRAND } from './brand-options'
 import { syncNewAccount } from './brand-sync'
 import { getValidAccessToken } from './connection'
 import { paletteFromBytes } from './image-palette'
@@ -12,6 +13,7 @@ vi.mock('./instagram', () => ({ fetchOwnProfile: vi.fn(), fetchRecentMedia: vi.f
 vi.mock('./brand-ai', () => ({ analyzeProfile: vi.fn(), analyzeVisual: vi.fn() }))
 vi.mock('./brand', () => ({
   addReference: vi.fn(),
+  getBrandFields: vi.fn(),
   loadVisualReferences: vi.fn(),
   setLogo: vi.fn(),
   updateBrandKit: vi.fn(),
@@ -97,6 +99,24 @@ describe('syncNewAccount', () => {
     expect(updateBrandKit).toHaveBeenCalledWith(USER, ACCOUNT, expect.objectContaining({ name: 'Kopi' }))
     expect(addReference).toHaveBeenCalledTimes(3)
     expect(lastKitUpdate()).toEqual({ syncStatus: 'failed' })
+  })
+
+  it('keeps what the owner answered in the onboarding and fills only the empty fields', async () => {
+    vi.mocked(getBrandFields).mockResolvedValue({
+      ...EMPTY_BRAND,
+      name: 'Kopi Sinar',
+      designStyle: 'minimalis',
+      visualStyle: 'Bersih dan terang',
+      colors: [{ hex: '#0f766e', role: 'utama' }],
+    })
+
+    await syncNewAccount(USER, ACCOUNT)
+
+    const patches = vi.mocked(updateBrandKit).mock.calls.map((call) => call[2])
+    expect(patches).toContainEqual({ category: 'Kafe', description: 'Kopi enak', voice: 'santai' })
+    expect(patches.some((patch) => 'name' in patch || 'colors' in patch || 'visualStyle' in patch)).toBe(false)
+    expect(addReference).toHaveBeenCalledTimes(3)
+    expect(updateReference).toHaveBeenCalledWith(USER, 'ref-x', { description: 'Cover gelap' })
   })
 
   it('ends as failed without touching anything when Instagram can’t be read', async () => {

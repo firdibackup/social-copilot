@@ -37,7 +37,7 @@ describe('GET /api/auth/facebook/callback', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.mocked(currentUser).mockResolvedValue({ id: USER, email: 'owner@example.com' })
     vi.mocked(currentPeriod).mockResolvedValue(PERIOD)
-    vi.mocked(consumeOAuthState).mockResolvedValue(true)
+    vi.mocked(consumeOAuthState).mockResolvedValue('ok')
     vi.mocked(getConnectedAccountId).mockResolvedValue('17841400000000001')
     vi.mocked(exchangeFacebookCode).mockResolvedValue('short-token')
     vi.mocked(exchangeForLongLivedUserToken).mockResolvedValue('long-token')
@@ -69,9 +69,17 @@ describe('GET /api/auth/facebook/callback', () => {
   })
 
   it('rejects a reused or unknown state', async () => {
-    vi.mocked(consumeOAuthState).mockResolvedValue(false)
+    vi.mocked(consumeOAuthState).mockResolvedValue('invalid')
 
     expect(redirectParams(await callback('code=abc&state=old'))).toEqual({ fb_error: 'state_tidak_valid' })
+    expect(exchangeFacebookCode).not.toHaveBeenCalled()
+  })
+
+  it('explains a state another signed-in user started', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(consumeOAuthState).mockResolvedValue('other_user')
+
+    expect(redirectParams(await callback('code=abc&state=s1'))).toEqual({ fb_error: 'sesi_lain' })
     expect(exchangeFacebookCode).not.toHaveBeenCalled()
   })
 

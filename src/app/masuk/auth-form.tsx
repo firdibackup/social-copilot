@@ -2,14 +2,15 @@
 
 import Link from 'next/link'
 import { useActionState, type ReactNode } from 'react'
+import { CarouselyLogo } from '@/components/brand-mark'
 import { Notice } from '@/components/notice'
 import { signIn, signUp } from './actions'
 
 const LABEL = 'block space-y-1 text-sm font-medium text-zinc-900'
 const FIELD =
-  'block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-normal text-zinc-900 focus:border-zinc-400 focus:outline-none'
+  'block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-normal text-zinc-900 focus:outline-none'
 const PRIMARY_BUTTON =
-  'flex w-full justify-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50'
+  'flex w-full justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-50'
 
 const MODES = {
   masuk: {
@@ -28,14 +29,14 @@ const MODES = {
 
 export function AuthCard({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-10">
+    <main className="flex min-h-screen items-center justify-center bg-bg px-4 py-10">
       <div className="w-full max-w-sm space-y-6">
         <header className="space-y-2 text-center">
-          <p className="font-semibold tracking-tight text-zinc-900">Social Copilot</p>
+          <CarouselyLogo size={36} className="justify-center" />
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">{title}</h1>
           <p className="text-sm text-zinc-500">{description}</p>
         </header>
-        <div className="rounded-xl border border-zinc-200 bg-white p-6">{children}</div>
+        <div className="rounded-2xl border border-hairline bg-paper p-6">{children}</div>
       </div>
     </main>
   )

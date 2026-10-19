@@ -4,7 +4,7 @@ import { parseAdjustment, parseAdminEmails, parseGrantDays, parsePassword, parse
 const SETTINGS = {
   textModel: ' cc/claude-haiku-4-5-20251001 ',
   imageModel: '',
-  planName: 'Social Copilot 30 hari',
+  planName: 'Carousely 30 hari',
   planPrice: '99.000',
   planDays: '30',
   planCredits: '10000',
@@ -34,7 +34,7 @@ describe('parseSettings', () => {
       settings: {
         textModel: 'cc/claude-haiku-4-5-20251001',
         imageModel: null,
-        plan: { name: 'Social Copilot 30 hari', priceIdr: 99_000, days: 30, credits: 10_000 },
+        plan: { name: 'Carousely 30 hari', priceIdr: 99_000, days: 30, credits: 10_000 },
       },
     })
   })

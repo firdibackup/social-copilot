@@ -19,3 +19,13 @@ describe('carouselGuide', () => {
     expect(guide).not.toContain(HOOK_ARCHETYPES.curiosity)
   })
 })
+
+describe('carouselGuide on inner slides', () => {
+  it('asks for complete sentences until the reader understands, without abbreviations', () => {
+    const guide = carouselGuide('story')
+
+    expect(guide).toContain('2–3 kalimat lengkap atau 3–5 poin')
+    expect(guide).toContain('tanpa singkatan')
+    expect(guide).not.toContain('1–3 kalimat pendek')
+  })
+})

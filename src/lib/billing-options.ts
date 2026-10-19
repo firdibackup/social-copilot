@@ -12,7 +12,7 @@ export interface Plan {
  * The plan until an admin changes it in /admin/pengaturan (app_settings; getPlan() in src/lib/app-settings.ts).
  * A table of plans comes with the second plan.
  */
-export const DEFAULT_PLAN: Plan = { name: 'Social Copilot 30 hari', priceIdr: 99_000, days: 30, credits: 10_000 }
+export const DEFAULT_PLAN: Plan = { name: 'Carousely 30 hari', priceIdr: 99_000, days: 30, credits: 10_000 }
 
 /** One image. Images cost the most at 9Router, so they weigh the most. */
 export const IMAGE_CREDITS = 20
@@ -27,12 +27,21 @@ export const TASK_CREDITS: Record<LoggedTask, number> = {
   slide_edit: IMAGE_CREDITS,
   caption_edit: 2,
   content_ideas: 2,
+  content_script: 3,
   brand_profile: 5,
   brand_visual: 10,
+  website_catalog: 10,
+  /** Per photo, not per request: one request tags a batch of photos (tagCost). */
+  asset_tags: 1,
+  /** The ✨ AI button of a DM or comment reply. */
+  reply_draft: 1,
 }
 
 /** A new post with `slides` images: its caption and plan plus every image. */
 export const contentCost = (slides: number) => TASK_CREDITS.content + slides * IMAGE_CREDITS
+
+/** Tagging `photos` photos with AI. */
+export const tagCost = (photos: number) => photos * TASK_CREDITS.asset_tags
 
 /**
  * Share of the period's `credits` spent, 0–100, rounded down so 100% means truly spent. Multiplying first keeps it

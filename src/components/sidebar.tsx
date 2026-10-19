@@ -90,15 +90,6 @@ export function AdminSection() {
 
 function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   const Icon = item.icon
-  if (item.isComingSoon) {
-    return (
-      <span aria-disabled="true" title="Segera hadir" className={`${ITEM_CLASS} cursor-not-allowed text-ink-soft`}>
-        <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-        {item.label}
-        <span className="ml-auto rounded-full bg-zinc-200/70 px-2 py-0.5 text-[11px] font-medium text-zinc-500">Segera</span>
-      </span>
-    )
-  }
   return (
     <Link
       href={item.href}

@@ -7,8 +7,8 @@ import { uploadAsset, type UploadResult } from '@/app/(app)/(halaman)/aset/actio
 import type { Asset } from '@/lib/assets'
 import { toInstagramJpeg } from '@/lib/image'
 
-/** Crops and re-encodes for Instagram in the browser, then stores it in Aset. */
-export async function prepareAndUpload(file: File): Promise<UploadResult> {
+/** Crops and re-encodes for Instagram in the browser, then stores it in Aset, inside product `groupId` if given. */
+export async function prepareAndUpload(file: File, groupId?: string): Promise<UploadResult> {
   let prepared
   try {
     prepared = await toInstagramJpeg(file)
@@ -20,6 +20,7 @@ export async function prepareAndUpload(file: File): Promise<UploadResult> {
   formData.set('file', prepared.blob, 'foto.jpg')
   formData.set('width', String(prepared.width))
   formData.set('height', String(prepared.height))
+  if (groupId) formData.set('groupId', groupId)
   try {
     return await uploadAsset(formData)
   } catch {

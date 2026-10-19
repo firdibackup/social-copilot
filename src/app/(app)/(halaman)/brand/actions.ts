@@ -2,10 +2,13 @@
 
 import { refresh } from 'next/cache'
 import { aiErrorMessage } from '@/lib/ai'
+import { listActiveWebsiteAssets } from '@/lib/assets'
 import { requireAccount, type AccountScope } from '@/lib/auth'
 import {
   addReference,
   deleteReference,
+  loadLogoBytes,
+  loadLogoImage,
   loadVisualReferences,
   ReferenceLimitError,
   removeLogo,
@@ -13,6 +16,7 @@ import {
   setLogo,
   setReferenceImageLabel,
   updateReference,
+  VISUAL_BODY_BUDGET,
   type ReferencePatch,
 } from '@/lib/brand'
 import { analyzeProfile, analyzeVisual, type ProfileDraft, type ProfileSources } from '@/lib/brand-ai'
@@ -33,6 +37,8 @@ import { describeError } from '@/lib/errors'
 import { discoverAccount, parseInstagramUsername } from '@/lib/facebook'
 import { FacebookReconnectError, getDiscoveryAccount, markFacebookNeedsReconnect } from '@/lib/facebook-connection'
 import { imageType, isJpeg, MAX_IMAGE_BYTES } from '@/lib/image'
+import { paletteFromBytes } from '@/lib/image-palette'
+import { toReferenceDataUrl } from '@/lib/slide-image'
 import { fetchOwnProfile, fetchRecentMedia, InstagramApiError, type InstagramPost } from '@/lib/instagram'
 import { isUuid } from '@/lib/params'
 import { fetchImage, RemoteFetchError } from '@/lib/web-fetch'
@@ -127,8 +133,9 @@ export async function analyzeProfileAction(websiteUrl: unknown, includeInstagram
   const [site, instagram] = await Promise.all([url ? readSite(url) : null, includeInstagram === true ? readInstagram(userId) : null])
   const warnings = [site, instagram].flatMap((read) => (read && 'warning' in read ? [read.warning] : []))
   const website = site && 'value' in site ? site.value : null
+  if (website) warnings.push(...website.warnings)
   const sources: ProfileSources = {
-    website: website && { url: website.url, title: website.title, description: website.description, text: website.text },
+    website: website && { url: website.url, pages: website.pages },
     instagram: instagram && 'value' in instagram ? instagram.value : null,
   }
   if (!sources.website && !sources.instagram) return { error: warnings.join(' ') }
@@ -360,7 +367,7 @@ export async function deleteReferenceAction(id: unknown): Promise<ActionError> {
   return null
 }
 
-export type VisualResult = { visualStyle: string; used: number; skipped: number } | { error: string }
+export type VisualResult = { visualStyle: string; colors: string[]; used: number; skipped: number } | { error: string }
 
 /** Vision analysis of the newest references. Descriptions are saved; the style guide only fills the form. */
 export async function analyzeVisualAction(): Promise<VisualResult> {
@@ -372,13 +379,42 @@ export async function analyzeVisualAction(): Promise<VisualResult> {
     console.error('[brand] referensi gagal dibaca:', describeError(error))
     return { error: `Referensi gagal dibaca. ${DATABASE}` }
   }
-  const { references, skipped } = selection
+  let { references, skipped } = selection
+  let colors: string[] = []
+  const explicitIds = new Set(references.map((reference) => reference.id))
+  if (references.length < 2) {
+    try {
+      const [logo, logoBytes, assets] = await Promise.all([
+        loadLogoImage(userId),
+        loadLogoBytes(userId),
+        listActiveWebsiteAssets(userId),
+      ])
+      if (logoBytes) colors = await paletteFromBytes(logoBytes)
+      const fallback = [
+        ...(logo ? [{ id: 'logo', note: 'Logo brand; analisis warna, bentuk, dan tipografinya tanpa mengarang gaya foto.', dataUrl: logo }] : []),
+        ...(await Promise.all(
+          assets.map(async (asset) => ({ id: `asset:${asset.id}`, note: 'Foto aktif dari website brand.', dataUrl: await toReferenceDataUrl(asset.bytes) })),
+        )),
+      ].filter((reference) => !references.some((item) => item.dataUrl === reference.dataUrl))
+      let used = references.reduce((total, reference) => total + reference.dataUrl.length, 0)
+      references = [...references, ...fallback.filter((reference) => {
+        if (used + reference.dataUrl.length > VISUAL_BODY_BUDGET) {
+          skipped += 1
+          return false
+        }
+        used += reference.dataUrl.length
+        return true
+      })]
+    } catch (error) {
+      console.error('[brand] fallback visual gagal dibaca:', describeError(error))
+    }
+  }
   if (references.length === 0) {
     return {
       error:
         skipped > 0
-          ? 'Referensi terbaru terlalu besar untuk dikirim ke 9Router (batas 1 MB per permintaan). Unggah versi yang lebih kecil.'
-          : 'Tambahkan referensi desain dulu.',
+          ? 'Gambar terbaru terlalu besar untuk dikirim ke 9Router (batas 1 MB per permintaan).'
+          : 'Tambahkan referensi desain, logo, atau gambar website aktif dulu.',
     }
   }
 
@@ -394,7 +430,8 @@ export async function analyzeVisualAction(): Promise<VisualResult> {
   await Promise.all(
     references.map(async (reference, index) => {
       const description = analysis.descriptions[index]
-      if (!description || described.has(reference.id)) return
+       if (!description || !explicitIds.has(reference.id) || described.has(reference.id)) return
+
       described.add(reference.id)
       // The style guide is the main result; a description that fails to save is only logged.
       await updateReference(userId, reference.id, { description }).catch((error: unknown) =>
@@ -403,7 +440,7 @@ export async function analyzeVisualAction(): Promise<VisualResult> {
     }),
   )
   refresh()
-  return { visualStyle: analysis.visualStyle, used: references.length, skipped }
+  return { visualStyle: analysis.visualStyle, colors, used: references.length, skipped }
 }
 
 async function storeLogo({ userId, accountId }: AccountScope, bytes: Uint8Array): Promise<ActionError> {

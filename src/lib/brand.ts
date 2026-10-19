@@ -1,18 +1,19 @@
 import 'server-only'
 import { randomUUID } from 'node:crypto'
 import {
+  coverOf,
   EMPTY_BRAND,
   isHex,
   labelsForCount,
   MAX_GROUP_IMAGES,
   MAX_REFERENCES,
-  pickReferenceImage,
   PROFILE_FIELDS,
   type BrandColor,
   type BrandContext,
   type BrandFields,
   type BrandKit,
   type BrandReference,
+  type PoolImage,
   type ReferenceLabel,
   type ReferenceSource,
   type SyncStatus,
@@ -59,6 +60,8 @@ interface KitRow {
   heading_font: string
   body_font: string
   visual_style: string
+  account_kind: string
+  design_style: string
   logo_path: string | null
   sync_status: SyncStatus
   updated_at: string
@@ -83,7 +86,7 @@ interface ReferenceRow {
 }
 
 const KIT_COLUMNS =
-  'name, category, description, website_url, audience, voice, words_use, words_avoid, facts, colors, heading_font, body_font, visual_style, logo_path, sync_status, updated_at'
+  'name, category, description, website_url, audience, voice, words_use, words_avoid, facts, colors, heading_font, body_font, visual_style, account_kind, design_style, logo_path, sync_status, updated_at'
 const REFERENCE_COLUMNS = 'id, source, source_label, permalink, palette, description, note'
 
 const bucket = () => db().storage.from(BUCKET)
@@ -115,6 +118,8 @@ function toFields(row: KitRow): BrandFields {
     headingFont: row.heading_font,
     bodyFont: row.body_font,
     visualStyle: row.visual_style,
+    accountKind: row.account_kind,
+    designStyle: row.design_style,
     colors: colorsFrom(row.colors),
   }
 }
@@ -161,9 +166,14 @@ export async function hasBrandKit(userId: string, accountId: string): Promise<bo
   return count > 0
 }
 
-/** Claims the new-account fill with a running kit row. False when another request claimed it first. */
-export async function startBrandSync(userId: string, accountId: string): Promise<boolean> {
-  const result = await db().from('brand_kit').insert({ user_id: userId, account_id: accountId, sync_status: 'running' })
+/**
+ * Claims the new-account fill with a running kit row, seeded with `seed` (the onboarding answers as columns).
+ * False when another request claimed it first.
+ */
+export async function startBrandSync(userId: string, accountId: string, seed: Record<string, unknown> = {}): Promise<boolean> {
+  const result = await db()
+    .from('brand_kit')
+    .insert({ ...seed, user_id: userId, account_id: accountId, sync_status: 'running' })
   if (result.error?.code === UNIQUE_VIOLATION) return false
   unwrap(result)
   return true
@@ -183,6 +193,14 @@ const COLUMN_OF: Record<keyof BrandFields, string> = {
   headingFont: 'heading_font',
   bodyFont: 'body_font',
   visualStyle: 'visual_style',
+  accountKind: 'account_kind',
+  designStyle: 'design_style',
+}
+
+/** The kit's fields, or null without a kit: the new-account fill keeps what the onboarding put there. */
+export async function getBrandFields(userId: string, accountId: string): Promise<BrandFields | null> {
+  const row = await loadKit(userId, accountId)
+  return row ? toFields(row) : null
 }
 
 /** Changes only the given fields, unlike saveBrandKit: the new-account fill saves step by step. */
@@ -234,6 +252,8 @@ export async function saveBrandKit(userId: string, accountId: string, fields: Br
         heading_font: fields.headingFont,
         body_font: fields.bodyFont,
         visual_style: fields.visualStyle,
+        account_kind: fields.accountKind,
+        design_style: fields.designStyle,
         // The owner's own save settles a fill that failed; its notice has done its job.
         sync_status: null,
         updated_at: new Date().toISOString(),
@@ -441,15 +461,17 @@ export interface BrandVisual {
   colors: BrandColor[]
   headingFont: string
   bodyFont: string
+  /** A DESIGN_STYLES id, or empty. */
+  designStyle: string
 }
 
 /** Null when none of it is filled in. */
 export async function getBrandVisual(userId: string): Promise<BrandVisual | null> {
   const row = await loadConnectedKit(userId)
   if (!row) return null
-  const { name, category, visualStyle, colors, headingFont, bodyFont } = toFields(row)
-  const visual = { name, category, visualStyle, colors, headingFont, bodyFont }
-  const filled = colors.length > 0 || [name, category, visualStyle, headingFont, bodyFont].some(Boolean)
+  const { name, category, visualStyle, colors, headingFont, bodyFont, designStyle } = toFields(row)
+  const visual = { name, category, visualStyle, colors, headingFont, bodyFont, designStyle }
+  const filled = colors.length > 0 || [name, category, visualStyle, headingFont, bodyFont, designStyle].some(Boolean)
   return filled ? visual : null
 }
 
@@ -461,36 +483,50 @@ export interface ReferenceImage {
 }
 
 /**
- * The image of a reference group that a slide follows (see pickReferenceImage), with its bytes. `slide` is null
- * for a one-image post. Null when the reference no longer exists.
+ * The reference images a new post can follow (see planReferenceImages): every image of the account's groups, or
+ * of the one group the owner picked. Empty when that group is gone.
  */
-export async function loadReferenceImage(
-  userId: string,
-  id: string,
-  slide: { index: number; count: number } | null,
-): Promise<ReferenceImage | null> {
-  const row = unwrap(
+export async function listReferencePool(userId: string, accountId: string, referenceId: string | null): Promise<PoolImage[]> {
+  let query = db()
+    .from('brand_reference_images')
+    .select('id, position, label, brand_references!inner(account_id)')
+    .eq('user_id', userId)
+    .eq('brand_references.account_id', accountId)
+  if (referenceId) query = query.eq('reference_id', referenceId)
+  const rows: PoolImage[] = unwrap(await query)
+  return rows.map(({ id, position, label }) => ({ id, position, label }))
+}
+
+/** One reference image a slide follows, with its bytes and its group's note. Null when it no longer exists. */
+export async function loadReferenceImage(userId: string, imageId: string): Promise<ReferenceImage | null> {
+  const image = unwrap(
     await db()
-      .from('brand_references')
-      .select('note, brand_reference_images(position, label, storage_path, content_type)')
-      .eq('id', id)
+      .from('brand_reference_images')
+      .select('label, storage_path, brand_references(note)')
+      .eq('id', imageId)
       .eq('user_id', userId)
       .maybeSingle(),
-  ) as { note: string; brand_reference_images: ImageRow[] } | null
-  const image = row && pickReferenceImage(row.brand_reference_images, slide)
-  if (!row || !image) return null
-  // Small, like the slide-1 image beside it: a full-size Instagram photo can take most of the 1 MB request alone,
-  // and then it was the reference, not slide 1, that got left out.
+  ) as { label: ReferenceLabel; storage_path: string; brand_references: { note: string } | null } | null
+  if (!image) return null
+  // Small, like the sibling slide beside it: a full-size Instagram photo can take most of the 1 MB request alone.
   const { data, error } = await bucket().download(image.storage_path)
   if (error) throw new Error(`Supabase Storage: ${error.message}`)
   const dataUrl = await toReferenceDataUrl(new Uint8Array(await data.arrayBuffer()))
-  return { dataUrl, note: row.note, label: image.label }
+  return { dataUrl, note: image.brand_references?.note ?? '', label: image.label }
 }
 
 const TYPE_BY_EXTENSION = Object.fromEntries(Object.entries(EXTENSIONS).map(([type, ext]) => [ext, type])) as Record<
   string,
   ImageType
 >
+
+export async function loadLogoBytes(userId: string): Promise<Uint8Array | null> {
+  const path = (await loadConnectedKit(userId))?.logo_path
+  if (!path) return null
+  const { data, error } = await bucket().download(path)
+  if (error) throw new Error(`Supabase Storage: ${error.message}`)
+  return new Uint8Array(await data.arrayBuffer())
+}
 
 /** The logo as a data URL, or null when there is none. Its type comes from the extension `setLogo` gave it. */
 export async function loadLogoImage(userId: string): Promise<string | null> {
@@ -502,7 +538,7 @@ export async function loadLogoImage(userId: string): Promise<string | null> {
 /** What the vision model sees of a group: its cover, one inner slide and its CTA. */
 function visualImagesOf(images: ImageRow[]): ImageRow[] {
   const sorted = [...images].sort((x, y) => x.position - y.position)
-  const cover = pickReferenceImage(sorted, null)
+  const cover = coverOf(sorted)
   const inner = sorted.find((image) => image.label === 'isi')
   const cta = sorted.find((image) => image.label === 'cta')
   return [cover, inner, cta].filter((image, index, all): image is ImageRow => !!image && all.indexOf(image) === index)

@@ -1,16 +1,31 @@
+import { lookup } from 'node:dns/promises'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchImage, fetchPublic, isPublicHost, RemoteFetchError } from './web-fetch'
+import { fetchImage, fetchPublic, isPublicAddress, isPublicHost, RemoteFetchError } from './web-fetch'
+
+vi.mock('node:dns/promises', () => ({ lookup: vi.fn() }))
 
 const fetchMock = vi.fn<typeof fetch>()
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0])
 
 beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock)
+  vi.mocked(lookup).mockResolvedValue([{ address: '203.0.113.10', family: 4 }] as never)
 })
 
 afterEach(() => {
   vi.unstubAllGlobals()
   fetchMock.mockReset()
+})
+
+describe('isPublicAddress', () => {
+  it.each(['127.0.0.1', '10.1.2.3', '169.254.1.1', '100.64.0.1', '224.0.0.1', '::1', 'fd00::1', 'fe80::1', 'ff02::1', '::ffff:192.168.1.1'])(
+    'rejects %s',
+    (address) => expect(isPublicAddress(address)).toBe(false),
+  )
+
+  it.each(['8.8.8.8', '172.32.0.1', '2001:4860::8888'])('accepts %s', (address) => {
+    expect(isPublicAddress(address)).toBe(true)
+  })
 })
 
 describe('isPublicHost', () => {
@@ -37,6 +52,22 @@ describe('fetchPublic', () => {
     expect(new TextDecoder().decode(page.bytes)).toBe('<html></html>')
     expect(page).toMatchObject({ contentType: 'text/html', url: 'https://kopisinar.id/home' })
     expect(String(fetchMock.mock.calls[1][0])).toBe('https://kopisinar.id/home')
+  })
+
+  it('refuses a public name that resolves into the local network', async () => {
+    vi.mocked(lookup).mockResolvedValue([{ address: '127.0.0.1', family: 4 }] as never)
+
+    await expect(fetchPublic('https://kopisinar.id', 1024)).rejects.toThrow('Alamat jaringan lokal atau privat tidak diambil.')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses a redirect outside an allowed website host', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: 'https://cdn.other.com/page' } }))
+
+    await expect(fetchPublic('https://kopisinar.id', 1024, { allowedHostname: 'kopisinar.id' })).rejects.toThrow(
+      'Redirect keluar dari domain website tidak diikuti.',
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('refuses a redirect into the local network before following it', async () => {

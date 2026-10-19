@@ -3,24 +3,37 @@ import { lengthOf } from './brand-options'
 import { isImageFormat, MAX_SLIDES, type ImageFormat } from './image-options'
 import { isUuid } from './params'
 
-export const TOPIC_MAX_LENGTH = 500
+export const TOPIC_MAX_LENGTH = 5000
 export const INSTRUCTION_MAX_LENGTH = 500
 export const DEFAULT_SLIDES = 3
 export { MAX_SLIDES }
+
+/** The composer's reference choice that lets the server pick from all of the account's references. */
+export const AUTO_REFERENCE = 'auto'
+export const AUTO_PRODUCT = 'auto'
 
 /** What the composer sends to make a new post. */
 export interface ContentRequest {
   topic: string
   slides: number
   format: ImageFormat
-  /** A brand reference every slide follows. */
+  /** Which references the slides follow: all of the account's (AUTO_REFERENCE, by label), one group's id, or none. */
   referenceId: string | null
+  /** Product groups the planner may choose from: all active groups, one group, or none. */
+  productGroupId: string | null
   includeLogo: boolean
   /** The idea the topic came from, used up when the post is made. */
   ideaId: string | null
 }
 
 /** A brand reference the composer offers. */
+export interface ProductOption {
+  id: string
+  label: string
+  description: string
+  imageCount: number
+}
+
 export interface ReferenceOption {
   id: string
   url: string
@@ -42,6 +55,7 @@ export function parseContentRequest(value: unknown): { request: ContentRequest }
   const topic = text(value.topic)
   const { slides, format } = value
   const referenceId = optionalId(value.referenceId)
+  const productGroupId = optionalId(value.productGroupId)
   const ideaId = optionalId(value.ideaId)
 
   if (!topic) return { error: 'Tulis topik atau ide konten dulu.' }
@@ -50,9 +64,14 @@ export function parseContentRequest(value: unknown): { request: ContentRequest }
     return { error: `Jumlah slide 1–${MAX_SLIDES}.` }
   }
   if (!isImageFormat(format)) return { error: 'Format gambar tidak dikenal.' }
-  if (referenceId !== null && !isUuid(referenceId)) return { error: 'Referensi tidak ditemukan.' }
+  if (referenceId !== null && referenceId !== AUTO_REFERENCE && !isUuid(referenceId)) {
+    return { error: 'Referensi tidak ditemukan.' }
+  }
+  if (productGroupId !== null && productGroupId !== AUTO_PRODUCT && !isUuid(productGroupId)) {
+    return { error: 'Produk tidak ditemukan.' }
+  }
   if (ideaId !== null && !isUuid(ideaId)) return { error: 'Ide tidak ditemukan.' }
-  return { request: { topic, slides, format, referenceId, includeLogo: value.includeLogo === true, ideaId } }
+  return { request: { topic, slides, format, referenceId, productGroupId, includeLogo: value.includeLogo === true, ideaId } }
 }
 
 /** An edit the owner typed into the composer. */

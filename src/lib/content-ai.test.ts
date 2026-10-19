@@ -8,18 +8,22 @@ import {
   buildCaptionEditMessages,
   buildContentMessages,
   buildIdeasMessages,
+  buildScriptMessages,
   buildSlideRevisionMessages,
   editCaption,
   parseCaption,
   parseContentPlan,
   parseIdeas,
+  parseScriptAnswer,
   parseSlide,
   planContent,
   reviseSlide,
   suggestIdeas,
+  writeScript,
 } from './content-ai'
 import type { ContentRequest } from './content-options'
 import { chatCompletion, RouterApiError } from './nine-router'
+import { scriptHeadline, type ScriptSlide } from './script-options'
 
 const database = vi.hoisted(() => ({ inserted: [] as { table: string; row: unknown }[] }))
 
@@ -66,6 +70,7 @@ const REQUEST: ContentRequest = {
   slides: 2,
   format: '4:5',
   referenceId: null,
+  productGroupId: null,
   includeLogo: false,
   ideaId: null,
 }
@@ -79,6 +84,11 @@ const PLAN_ANSWER = JSON.stringify({
   ],
 })
 
+const SCRIPT: ScriptSlide[] = [
+  { label: 'Hook', title: 'Jangan Asal Pakai IN, ON, dan AT!', body: 'Ketiganya berarti "di", tetapi penggunaannya berbeda.' },
+  { label: 'IN', title: 'IN = Di dalam', body: '- In the room — Di dalam ruangan' },
+]
+
 const rows = () => database.inserted.map((insert) => insert.row)
 
 describe('buildContentMessages', () => {
@@ -88,6 +98,31 @@ describe('buildContentMessages', () => {
     expect(user).toContain('slide 1 = cover')
     expect(user).toContain('slide 2–4 = isi, satu poin per slide')
     expect(user).toContain('slide 5 = CTA')
+  })
+
+  it('asks for complete words and sentences, up to 300 characters a slide', () => {
+    const [system] = buildContentMessages('Tips seduh', 3, null)
+
+    expect(system.content).toContain('maksimal 300 karakter')
+    expect(system.content).toContain('jangan pakai singkatan seperti "yg", "dgn"')
+  })
+
+  it('shows the planner an attached image and asks what each slide does with it', () => {
+    const user = buildContentMessages('Layout ikuti gambar ini', 3, null, 'story', [], 'data:image/jpeg;base64,AQI=')[1].content
+
+    if (typeof user === 'string') throw new Error('expected text and an image')
+    expect(user).toContainEqual({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,AQI=' } })
+    const text = user.find((part) => part.type === 'text')
+    expect(text).toMatchObject({ text: expect.stringContaining('Owner melampirkan satu gambar') })
+    expect(text).toMatchObject({ text: expect.stringContaining('"attachment": "…"') })
+    expect(text).toMatchObject({ text: expect.stringContaining('tentukan dari isi gambarnya') })
+  })
+
+  it('sends plain text without an attachment field when no image was attached', () => {
+    const user = buildContentMessages('Tips seduh', 3, null)[1].content
+
+    expect(typeof user).toBe('string')
+    expect(user).not.toContain('"attachment"')
   })
 
   it('plans two slides as cover and inner slide, and one image without roles', () => {
@@ -149,14 +184,26 @@ describe('parseContentPlan', () => {
       title: 'Seduh kopi di rumah',
       caption: 'Pagi lebih enak dengan kopi buatan sendiri.\n\n#kopi',
       slides: [
-        { headline: '3 langkah seduh', scene: 'Meja kayu dengan V60' },
-        { headline: 'Selamat mencoba', scene: 'Cangkir kopi di jendela' },
+        { headline: '3 langkah seduh', scene: 'Meja kayu dengan V60', productGroupId: null, attachment: '' },
+        { headline: 'Selamat mencoba', scene: 'Cangkir kopi di jendela', productGroupId: null, attachment: '' },
       ],
     })
   })
 
+  it('keeps a known product group and rejects an invented one', () => {
+    const product = { id: '00000000-0000-4000-8000-000000000099', title: 'Kopi Botol', description: 'Botol cokelat' }
+    const answer = JSON.stringify({
+      caption: 'Halo',
+      slides: [{ headline: 'Kopi', scene: 'Botol di meja', productGroupId: product.id }],
+    })
+    expect(parseContentPlan(answer, 1, [product]).slides[0].productGroupId).toBe(product.id)
+    expect(() => parseContentPlan(answer, 1)).toThrow(AiOutputError)
+  })
+
   it('keeps only as many slides as were paid for', () => {
-    expect(parseContentPlan(PLAN_ANSWER, 1).slides).toEqual([{ headline: '3 langkah seduh', scene: 'Meja kayu dengan V60' }])
+    expect(parseContentPlan(PLAN_ANSWER, 1).slides).toEqual([
+      { headline: '3 langkah seduh', scene: 'Meja kayu dengan V60', productGroupId: null, attachment: '' },
+    ])
   })
 
   it('drops slides without a scene before counting', () => {
@@ -165,7 +212,60 @@ describe('parseContentPlan', () => {
       slides: [{ headline: 'Tanpa adegan', scene: ' ' }, 'teks', { headline: '', scene: 'Kafe' }],
     })
 
-    expect(parseContentPlan(answer, 1).slides).toEqual([{ headline: '', scene: 'Kafe' }])
+    expect(parseContentPlan(answer, 1).slides).toEqual([{ headline: '', scene: 'Kafe', productGroupId: null, attachment: '' }])
+  })
+
+  it('cuts an overlong headline after its last full sentence, never inside a word', () => {
+    const sentence = 'Kopi enak itu seimbang. '
+    const answer = JSON.stringify({ caption: 'Halo', slides: [{ headline: sentence.repeat(17), scene: 'Kafe' }] })
+
+    expect(parseContentPlan(answer, 1).slides[0].headline).toBe(sentence.repeat(12).trim())
+  })
+
+  it('cuts a headline without spaces at 300, and keeps a full stop that ends right at the limit', () => {
+    const headline = (value: string) =>
+      parseContentPlan(JSON.stringify({ caption: 'Halo', slides: [{ headline: value, scene: 'Kafe' }] }), 1).slides[0].headline
+
+    expect(headline('a'.repeat(400))).toBe('a'.repeat(300))
+    expect(headline(`${'b'.repeat(299)}. lanjutan kalimat`)).toBe(`${'b'.repeat(299)}.`)
+    expect(headline(`${'kata '.repeat(70)}`)).toBe('kata '.repeat(60).trim())
+  })
+
+  it('never cuts a web address at one of its dots', () => {
+    const answer = JSON.stringify({ caption: 'Halo', slides: [{ headline: `${'b'.repeat(292)} tokoku.co.id ada`, scene: 'Kafe' }] })
+
+    expect(parseContentPlan(answer, 1).slides[0].headline).toBe('b'.repeat(292))
+  })
+
+  it('keeps each slide’s instruction for an attached image only when one was attached, cut to 300', () => {
+    const answer = JSON.stringify({
+      caption: 'Halo',
+      slides: [
+        { headline: 'A', scene: 'x', attachment: ' Follow its layout. ' },
+        { headline: 'B', scene: 'y', attachment: 'n'.repeat(400) },
+      ],
+    })
+
+    expect(parseContentPlan(answer, 2, [], true).slides.map((slide) => slide.attachment)).toEqual([
+      'Follow its layout.',
+      'n'.repeat(300),
+    ])
+    expect(parseContentPlan(answer, 2).slides.map((slide) => slide.attachment)).toEqual(['', ''])
+  })
+
+  it('lets every slide follow an attached image the planner used nowhere', () => {
+    const answer = JSON.stringify({
+      caption: 'Halo',
+      slides: [
+        { headline: 'A', scene: 'x', attachment: ' ' },
+        { headline: 'B', scene: 'y', attachment: 5 },
+      ],
+    })
+
+    expect(parseContentPlan(answer, 2, [], true).slides.map((slide) => slide.attachment)).toEqual([
+      "Use this image as its content suits: follow its layout and style if it is a finished design, or show it in this slide if it is a photo.",
+      "Use this image as its content suits: follow its layout and style if it is a finished design, or show it in this slide if it is a photo.",
+    ])
   })
 
   it.each([
@@ -189,14 +289,14 @@ describe('parseContentPlan', () => {
     const answer = JSON.stringify({
       title: '😀'.repeat(200),
       caption: '😀'.repeat(2300),
-      slides: [{ headline: '😀'.repeat(200), scene: '😀'.repeat(1100) }],
+      slides: [{ headline: '😀'.repeat(400), scene: '😀'.repeat(1100) }],
     })
 
     const plan = parseContentPlan(answer, 1)
 
     expect(Array.from(plan.title)).toHaveLength(120)
     expect(Array.from(plan.caption)).toHaveLength(2200)
-    expect(Array.from(plan.slides[0].headline)).toHaveLength(150)
+    expect(Array.from(plan.slides[0].headline)).toHaveLength(300)
     expect(Array.from(plan.slides[0].scene)).toHaveLength(1000)
   })
 })
@@ -217,6 +317,57 @@ describe('parseIdeas', () => {
 
   it.each([['no ideas', '{"ideas": []}'], ['a provider notice', 'Maaf, coba lagi.']])('throws an AiOutputError for %s', (_label, answer) => {
     expect(() => parseIdeas(answer)).toThrow(AiOutputError)
+  })
+})
+
+describe('buildScriptMessages', () => {
+  it('lets the AI pick 2–10 slides as Hook, points and CTA, and quotes the idea', () => {
+    const user = String(buildScriptMessages('Bedanya IN, ON, AT', BRAND, 'curiosity')[1].content)
+
+    expect(user).toMatch(/^Tentang brand/)
+    expect(user).toContain('2–10 slide')
+    expect(user).toContain('slide 1 = Hook')
+    expect(user).toContain('Panduan carousel (wajib)')
+    expect(user).toContain('"label": "…", "title": "…", "body": "…"')
+    expect(user).toContain('Ide:\n"""\nBedanya IN, ON, AT\n"""')
+  })
+})
+
+describe('parseScriptAnswer', () => {
+  it('trims each slide and drops empty ones', () => {
+    const answer = JSON.stringify({
+      slides: [{ label: ' Hook ', title: ' Judul ', body: ' Isi\r\nbaris ' }, { label: 'x', title: '', body: '' }, { title: 'CTA' }],
+    })
+
+    expect(parseScriptAnswer(answer)).toEqual([
+      { label: 'Hook', title: 'Judul', body: 'Isi\nbaris' },
+      { label: '', title: 'CTA', body: '' },
+    ])
+  })
+
+  it('cuts the body so title and body fit 300 code points on the image', () => {
+    const [slide] = parseScriptAnswer(JSON.stringify({ slides: [{ title: 'Judul', body: '😀'.repeat(400) }, { title: 'CTA' }] }))
+
+    expect(Array.from(scriptHeadline(slide))).toHaveLength(300)
+  })
+
+  it('keeps at most ten slides', () => {
+    expect(parseScriptAnswer(JSON.stringify({ slides: Array.from({ length: 12 }, (_, index) => ({ title: `S${index}` })) }))).toHaveLength(10)
+  })
+
+  it.each([['one slide', '{"slides": [{"title": "Satu"}]}'], ['no JSON', 'Maaf.']])('throws an AiOutputError for %s', (_label, answer) => {
+    expect(() => parseScriptAnswer(answer)).toThrow(AiOutputError)
+  })
+})
+
+describe('buildContentMessages with a script', () => {
+  it('fixes the slide count and quotes each slide text to copy', () => {
+    const user = String(buildContentMessages('IN, ON, AT', 5, null, 'story', [], null, SCRIPT)[1].content)
+
+    expect(user).toContain('carousel 2 slide')
+    expect(user).toContain('tepat 2 slide')
+    expect(user).toContain('Slide 1 (Hook):\n"""\nJangan Asal Pakai IN, ON, dan AT!')
+    expect(user).not.toContain('Panduan carousel')
   })
 })
 
@@ -279,6 +430,15 @@ describe('buildSlideRevisionMessages', () => {
     expect(user).toContain('(kosong: gambar tanpa teks)')
     expect(user).toContain('(belum ada: tulis dari permintaan owner)')
   })
+
+  it('shows an attached image and says it goes to the image model with the request', () => {
+    const user = buildSlideRevisionMessages({ headline: 'Pagi', scene: 'Kafe' }, 'pakai foto ini', 'data:image/jpeg;base64,AQI=')[1]
+      .content
+
+    if (typeof user === 'string') throw new Error('expected text and an image')
+    expect(user).toContainEqual({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,AQI=' } })
+    expect(user.find((part) => part.type === 'text')).toMatchObject({ text: expect.stringContaining('Owner melampirkan satu gambar') })
+  })
 })
 
 describe('parseSlide', () => {
@@ -308,6 +468,20 @@ describe('requests', () => {
   })
 
   describe('planContent', () => {
+    it('shows the planner an attached image and logs only that there was one', async () => {
+      vi.mocked(chatCompletion).mockResolvedValue(PLAN_ANSWER)
+
+      const { plan } = await planContent(USER, REQUEST, async () => 'post-1', [], 'data:image/jpeg;base64,AQI=')
+
+      expect(JSON.stringify(vi.mocked(chatCompletion).mock.calls[0][0])).toContain('data:image/jpeg;base64,AQI=')
+      expect(plan.slides.map((slide) => slide.attachment)).toEqual([
+        "Use this image as its content suits: follow its layout and style if it is a finished design, or show it in this slide if it is a photo.",
+        "Use this image as its content suits: follow its layout and style if it is a finished design, or show it in this slide if it is a photo.",
+      ])
+      expect(rows()[0]).toMatchObject({ input: expect.objectContaining({ attachment: true }) })
+      expect(JSON.stringify(rows())).not.toContain('AQI=')
+    })
+
     it('charges the post and every slide once, saves the plan and logs it', async () => {
       vi.mocked(chatCompletion).mockResolvedValue(PLAN_ANSWER)
       const save = vi.fn(async () => 'post-1')
@@ -323,7 +497,15 @@ describe('requests', () => {
           row: expect.objectContaining({
             task: 'content',
             credits: 43,
-            input: { topic: REQUEST.topic, slides: 2, format: '4:5', ideaId: 'idea-1' },
+            input: {
+              topic: REQUEST.topic,
+              slides: 2,
+              format: '4:5',
+              ideaId: 'idea-1',
+              productIds: [],
+              attachment: false,
+              scripted: false,
+            },
             output: plan,
             status: 'ok',
           }),
@@ -363,6 +545,46 @@ describe('requests', () => {
       await planContent(USER, REQUEST, async () => 'post-1')
 
       expect(String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)).not.toContain('Tentang brand')
+    })
+  })
+
+  describe('planContent with a script', () => {
+    it('keeps each slide text exactly as scripted and logs that the post was scripted', async () => {
+      vi.mocked(chatCompletion).mockResolvedValue(PLAN_ANSWER)
+
+      const { plan } = await planContent(USER, REQUEST, async () => 'post-1', [], null, SCRIPT)
+
+      expect(plan.slides.map((slide) => slide.headline)).toEqual([
+        'Jangan Asal Pakai IN, ON, dan AT!\nKetiganya berarti "di", tetapi penggunaannya berbeda.',
+        'IN = Di dalam\n- In the room — Di dalam ruangan',
+      ])
+      expect(rows()[0]).toMatchObject({ input: expect.objectContaining({ scripted: true }) })
+    })
+
+    it('refuses a slide count that differs from the script before asking', async () => {
+      await expect(planContent(USER, { ...REQUEST, slides: 3 }, async () => 'post-1', [], null, SCRIPT)).rejects.toThrow()
+      expect(chatCompletion).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('writeScript', () => {
+    it('saves the script inside the charged request and logs the idea', async () => {
+      vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({ slides: SCRIPT }))
+      const save = vi.fn(async () => {})
+
+      await expect(writeScript(USER, { id: 'idea-1', title: 'IN, ON, AT' }, save)).resolves.toEqual(SCRIPT)
+      expect(save).toHaveBeenCalledWith(SCRIPT)
+      expect(String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)).toContain('Nama: Kopi Sinar')
+      expect(rows()).toEqual([
+        expect.objectContaining({ task: 'content_script', credits: 3, input: { ideaId: 'idea-1', idea: 'IN, ON, AT' } }),
+      ])
+    })
+
+    it('costs nothing when the script cannot be stored', async () => {
+      vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({ slides: SCRIPT }))
+
+      await expect(writeScript(USER, { id: 'idea-1', title: 'IN' }, async () => Promise.reject(new Error('gone')))).rejects.toThrow()
+      expect(rows()).toEqual([expect.objectContaining({ status: 'failed', credits: 0 })])
     })
   })
 

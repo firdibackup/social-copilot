@@ -1,20 +1,56 @@
 @import "tailwindcss";
 
+/*
+ * Carousely brand tokens: the one source for color, type and radius. Every page reads them through Tailwind
+ * classes (bg-primary, text-ink, border-hairline, font-display…) or as plain CSS variables (var(--color-primary)).
+ */
 @theme inline {
-  --font-sans: var(--font-geist-sans);
+  --font-display: var(--font-bricolage), "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
 }
 
-/* Design tokens, as classes like bg-bg, bg-paper, text-ink, text-ink-muted, border-hairline and bg-accent. */
 @theme {
-  --color-bg: #fafafa;
-  --color-paper: #ffffff;
-  --color-ink: #18181b;
-  --color-ink-muted: #6b6b76;
-  --color-ink-soft: #8a8794;
-  --color-hairline: #e7e5ec;
-  --color-accent: #0f766e;
-  --color-accent-deep: #115e59;
-  --color-accent-soft: #e6f4f1;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Roboto, sans-serif;
+
+  /* Brand palette, as named in the brand guidelines. */
+  --color-primary: #6558f5;
+  --color-primary-hover: #5145d8;
+  --color-lavender: #e9e5ff;
+  --color-mint: #b8f3d6;
+  --color-text: #171827;
+  --color-text-secondary: #6b6d80;
+  --color-background: #f8f8fc;
+  --color-surface: #ffffff;
+  --color-border: #e7e7f0;
+  --color-focus: #a9a1ff;
+  /* Text on mint: mint is never a background for white text. */
+  --color-mint-ink: #0b5c3b;
+
+  /* The app's semantic names, mapped onto the palette. */
+  --color-bg: var(--color-background);
+  --color-paper: var(--color-surface);
+  --color-ink: var(--color-text);
+  --color-ink-muted: var(--color-text-secondary);
+  --color-ink-soft: #8a8c9e;
+  --color-hairline: var(--color-border);
+  --color-accent: var(--color-primary);
+  --color-accent-deep: var(--color-primary-hover);
+  --color-accent-soft: var(--color-lavender);
+
+  /* Neutrals tinted toward the brand's ink, so older zinc classes land on the same greys. */
+  --color-zinc-50: #f8f8fc;
+  --color-zinc-100: #f1f1f7;
+  --color-zinc-200: #e7e7f0;
+  --color-zinc-300: #d3d4e0;
+  --color-zinc-400: #a2a4b6;
+  --color-zinc-500: #6b6d80;
+  --color-zinc-600: #555769;
+  --color-zinc-700: #404254;
+  --color-zinc-800: #2a2c3d;
+  --color-zinc-900: #171827;
+  --color-zinc-950: #0e0f1a;
+
+  /* Buttons and fields are 10px; cards stay on rounded-xl (12px) and rounded-2xl (16px). */
+  --radius-lg: 0.625rem;
 
   --animate-fade-in: fade-in 180ms ease-out;
   --animate-modal-in: modal-in 200ms ease-out;
@@ -51,9 +87,56 @@
   }
 }
 
+@layer base {
+  :root {
+    accent-color: var(--color-primary);
+    caret-color: var(--color-primary);
+    scrollbar-color: var(--color-zinc-300) transparent;
+  }
+
+  ::selection {
+    background-color: var(--color-lavender);
+    color: var(--color-text);
+  }
+
+  /* Headings speak in Bricolage; small uppercase section labels stay in the UI face. */
+  :where(h1, h2):not(.uppercase) {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  :focus-visible {
+    outline-color: var(--color-primary);
+  }
+}
+
+/*
+ * Outside any layer on purpose: it must win over the fields' own focus:border-* classes. Borderless editors
+ * (border-0) keep their quiet focus.
+ */
+:where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]), textarea, select):not(.border-0):focus-visible {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-focus) 45%, transparent);
+  outline: none;
+}
+
+/* The Carousely loop, one sprite frame per step; brand-mark.tsx sets size, frame count and timing. */
+.carousely-loop {
+  background-size: var(--loop-size) calc(var(--loop-size) * var(--loop-frames));
+  background-repeat: no-repeat;
+  animation-name: carousely-loop;
+  animation-iteration-count: infinite;
+}
+
+@keyframes carousely-loop {
+  to {
+    background-position: 0 calc(var(--loop-size) * var(--loop-frames) * -1);
+  }
+}
+
 /* An image the AI is still making. */
 .shimmer {
-  background-image: linear-gradient(100deg, #f4f4f5 30%, #e4e4e7 50%, #f4f4f5 70%);
+  background-image: linear-gradient(100deg, var(--color-zinc-100) 30%, var(--color-zinc-200) 50%, var(--color-zinc-100) 70%);
   background-size: 200% 100%;
   animation: var(--animate-sweep);
 }

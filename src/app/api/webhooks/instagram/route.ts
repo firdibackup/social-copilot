@@ -1,8 +1,11 @@
-import { findUserByInstagramId, getValidAccessToken } from '@/lib/connection'
+import { getCurrentPeriod } from '@/lib/billing'
+import { markReplies, saveComments } from '@/lib/comments'
+import { findUserByInstagramId, getConnection, getValidAccessToken } from '@/lib/connection'
 import { needsProfile, recordMessage, saveProfile } from '@/lib/dm'
-import { entryAccountIds, hasValidSignature, parseMessageEvents } from '@/lib/dm-webhook'
+import { entryAccountIds, hasValidSignature, parseCommentEvents, parseMessageEvents } from '@/lib/dm-webhook'
 import { env } from '@/lib/env'
 import { describeError } from '@/lib/errors'
+import { isOwnComment } from '@/lib/inbox-rules'
 import { fetchCustomerProfile } from '@/lib/instagram'
 
 /** Meta's check when the callback URL is saved in the app dashboard: echo the challenge for our verify token. */
@@ -14,9 +17,9 @@ export function GET(request: Request): Response {
 }
 
 /**
- * DMs to and from every connected account. Each entry goes to the user who connected its account, and accounts
- * no user has are skipped. Answers 200 once they are stored; an error status makes Meta retry, and `mid` keeps
- * the retry from storing a message twice.
+ * DMs to and from every connected account, and comments on its posts. Each entry goes to the user who connected its
+ * account; accounts no user has, and users without an active subscription, are skipped. Answers 200 once they are
+ * stored; an error status makes Meta retry, and `mid` or the comment id keeps the retry from storing twice.
  */
 export async function POST(request: Request): Promise<Response> {
   const rawBody = Buffer.from(await request.arrayBuffer())
@@ -34,16 +37,33 @@ export async function POST(request: Request): Promise<Response> {
   try {
     for (const accountId of entryAccountIds(payload)) {
       const userId = await findUserByInstagramId(accountId)
-      if (!userId) continue
+      if (!userId || !(await getCurrentPeriod(userId))) continue
       for (const event of parseMessageEvents(payload, accountId)) {
         if ((await recordMessage(userId, event)) && event.fromCustomer) await fillProfile(userId, event.igsid)
       }
+      await storeComments(userId, accountId, payload)
     }
   } catch (error) {
     console.error('[balasan] webhook gagal disimpan:', describeError(error))
     return new Response(null, { status: 500 })
   }
   return new Response('EVENT_RECEIVED')
+}
+
+async function storeComments(userId: string, accountId: string, payload: unknown): Promise<void> {
+  const comments = parseCommentEvents(payload, accountId)
+  if (comments.length === 0) return
+  const ownerUsername = (await getConnection(userId))?.username ?? null
+  await saveComments(
+    userId,
+    accountId,
+    comments.map((comment) => ({ ...comment, isFromOwner: isOwnComment(comment, accountId, ownerUsername) })),
+    'insert',
+  )
+  await markReplies(
+    userId,
+    comments.map((comment) => comment.mediaId),
+  )
 }
 
 /** Best effort: until the profile API answers, the inbox shows the customer without a name. */

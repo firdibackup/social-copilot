@@ -305,6 +305,10 @@ export async function logAdminAction(
 
 const targetOf = (user: User) => ({ id: user.id, email: user.email ?? '' })
 
+function refuseSelf(admin: SessionUser, userId: string, message: string): void {
+  if (admin.id === userId) throw new AdminError(message)
+}
+
 /** Free subscription days, stacked after any period the user already has. */
 export async function grantDays(admin: SessionUser, userId: string, days: number): Promise<void> {
   const user = await authUser(userId)
@@ -314,15 +318,22 @@ export async function grantDays(admin: SessionUser, userId: string, days: number
 
 /** Ends the current period now and cancels periods paid ahead. */
 export async function endSubscription(admin: SessionUser, userId: string): Promise<void> {
+  refuseSelf(admin, userId, 'Tidak bisa menghentikan langganan sendiri.')
   const user = await authUser(userId)
   const changed: unknown = unwrap(await db().rpc('admin_end_subscription', { p_user_id: userId }))
   if (changed === 0) throw new AdminError('Pengguna ini tidak punya langganan aktif.')
   await logAdminAction(admin, 'end_subscription', targetOf(user), { periods: changed })
 }
 
-/** Gives credits back (positive) or takes them (negative) in the current period. */
+/**
+ * Gives credits back (positive) or takes them (negative) in the current period. Without one there is nothing to
+ * adjust: credits_used() counts from the start of the next period, so the row would never count.
+ */
 export async function adjustCredits(admin: SessionUser, userId: string, amount: number, note: string | null): Promise<void> {
   const user = await authUser(userId)
+  if (!(await overviewRows(userId)).get(userId)?.period_start) {
+    throw new AdminError('Pengguna ini tidak punya periode aktif, jadi kreditnya tidak bisa diubah.')
+  }
   unwrap(await db().from('credit_adjustments').insert({ user_id: userId, amount, note, created_by: admin.id }))
   await logAdminAction(admin, 'adjust_credits', targetOf(user), { amount, note })
 }
@@ -351,10 +362,6 @@ export async function setPassword(admin: SessionUser, userId: string, password: 
     throw new Error(`Supabase Auth: ${error.message}`)
   }
   await logAdminAction(admin, 'set_password', targetOf(user))
-}
-
-function refuseSelf(admin: SessionUser, userId: string, message: string): void {
-  if (admin.id === userId) throw new AdminError(message)
 }
 
 /**

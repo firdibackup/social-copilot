@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
-import { hasValidSignature, parseMessageEvents } from './dm-webhook'
+import { entryAccountIds, hasValidSignature, parseCommentEvents, parseMessageEvents } from './dm-webhook'
 
 const ACCOUNT = '17841400000000001'
 const CUSTOMER = '901234567890'
@@ -98,5 +98,80 @@ describe('parseMessageEvents', () => {
     )
     vi.useRealTimers()
     expect(event.sentAt).toEqual(new Date('2026-10-16T05:00:00Z'))
+  })
+})
+
+describe('parseCommentEvents', () => {
+  const MEDIA = '18000000000000001'
+  const change = (value: Record<string, unknown>) => ({ field: 'comments', value })
+  const comments = (...changes: unknown[]) => ({
+    object: 'instagram',
+    entry: [{ id: ACCOUNT, time: 1792130400, changes }],
+  })
+
+  it('reads a comment and a reply, with the entry time in seconds', () => {
+    const events = parseCommentEvents(
+      comments(
+        change({ id: '18100000000000001', text: 'berapa kak?', from: { id: CUSTOMER, username: 'budi' }, media: { id: MEDIA } }),
+        change({ id: '18100000000000002', text: 'DM ya', from: { id: ACCOUNT }, media: { id: MEDIA }, parent_id: '18100000000000001' }),
+      ),
+      ACCOUNT,
+    )
+    expect(events).toEqual([
+      {
+        id: '18100000000000001',
+        mediaId: MEDIA,
+        parentId: null,
+        fromId: CUSTOMER,
+        username: 'budi',
+        text: 'berapa kak?',
+        createdAt: new Date(1792130400 * 1000),
+        isHidden: false,
+      },
+      {
+        id: '18100000000000002',
+        mediaId: MEDIA,
+        parentId: '18100000000000001',
+        fromId: ACCOUNT,
+        username: null,
+        text: 'DM ya',
+        createdAt: new Date(1792130400 * 1000),
+        isHidden: false,
+      },
+    ])
+  })
+
+  it('reads field and value on the entry itself, and a time already in milliseconds', () => {
+    const events = parseCommentEvents(
+      {
+        object: 'instagram',
+        entry: [{ id: ACCOUNT, time: 1792130400000, field: 'comments', value: { id: '1', media: { id: MEDIA } } }],
+      },
+      ACCOUNT,
+    )
+    expect(events).toMatchObject([{ id: '1', text: '', fromId: null, createdAt: new Date(1792130400000) }])
+  })
+
+  it('skips other accounts, other fields and comments without numeric ids', () => {
+    const valid = { id: '1', media: { id: MEDIA } }
+    expect(parseCommentEvents(comments(change(valid)), '999')).toEqual([])
+    expect(parseCommentEvents(comments({ field: 'mentions', value: valid }), ACCOUNT)).toEqual([])
+    expect(parseCommentEvents(comments(change({ id: 'abc', media: { id: MEDIA } })), ACCOUNT)).toEqual([])
+    expect(parseCommentEvents(comments(change({ id: '1' })), ACCOUNT)).toEqual([])
+    expect(parseCommentEvents(comments(change({ ...valid, parent_id: '1,2' })), ACCOUNT)).toEqual([])
+    expect(parseCommentEvents({ object: 'page', entry: [] }, ACCOUNT)).toEqual([])
+    expect(parseCommentEvents(null, ACCOUNT)).toEqual([])
+  })
+
+  it('ignores DMs in the same payload', () => {
+    expect(parseCommentEvents(payload({ sender: { id: CUSTOMER }, message: { mid: 'm1' } }), ACCOUNT)).toEqual([])
+  })
+})
+
+describe('entryAccountIds', () => {
+  it('lists each account once', () => {
+    const body = { object: 'instagram', entry: [{ id: ACCOUNT }, { id: ACCOUNT }, { id: '2' }] }
+    expect(entryAccountIds(body)).toEqual([ACCOUNT, '2'])
+    expect(entryAccountIds({ object: 'page', entry: [{ id: '1' }] })).toEqual([])
   })
 })

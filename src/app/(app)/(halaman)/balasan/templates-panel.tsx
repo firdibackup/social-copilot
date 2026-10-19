@@ -1,10 +1,11 @@
 'use client'
 
 import { ChevronRight, Plus } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Notice } from '@/components/notice'
 import { BUILT_IN_VARIABLES, KEYWORD_MAX_LENGTH, REPLY_MAX_LENGTH, type DmTemplate } from '@/lib/dm-templates'
 import { deleteTemplateAction, saveTemplateAction, saveVariablesAction } from './actions'
+import { onOpenRules, openRules } from './rules-events'
 
 interface TemplatesPanelProps {
   templates: DmTemplate[]
@@ -21,14 +22,39 @@ const BUTTON =
 
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
 
+/** + Auto DM in the page header: opens the form for a new rule. */
+export function NewRuleButton() {
+  return (
+    <button
+      type="button"
+      onClick={() => openRules(true)}
+      className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800"
+    >
+      <Plus size={16} aria-hidden="true" />
+      Auto DM
+    </button>
+  )
+}
+
 /** The "Aturan Auto DM" section: reply templates, their keywords, and the owner's variables. */
 export function TemplatesPanel({ templates, variablesText }: TemplatesPanelProps) {
   const [open, setOpen] = useState(false)
   // 'new', the template being edited, or null when the form is closed.
   const [editing, setEditing] = useState<DmTemplate | 'new' | null>(null)
+  const section = useRef<HTMLElement>(null)
+
+  useEffect(
+    () =>
+      onOpenRules(({ newRule }) => {
+        setOpen(true)
+        if (newRule) setEditing('new')
+        requestAnimationFrame(() => section.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+      }),
+    [],
+  )
 
   return (
-    <section aria-labelledby="aturan-auto-dm" className="space-y-4">
+    <section ref={section} id="aturan" aria-labelledby="aturan-auto-dm" className="scroll-mt-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <button
           type="button"
@@ -39,17 +65,6 @@ export function TemplatesPanel({ templates, variablesText }: TemplatesPanelProps
         >
           <ChevronRight size={18} aria-hidden="true" className={open ? 'rotate-90' : undefined} />
           Aturan Auto DM ({templates.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setOpen(true)
-            setEditing('new')
-          }}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
-        >
-          <Plus size={16} aria-hidden="true" />
-          Auto DM
         </button>
       </div>
 
@@ -71,7 +86,7 @@ export function TemplatesPanel({ templates, variablesText }: TemplatesPanelProps
 
           {templates.length === 0 ? (
             <p className="rounded-xl border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500">
-              Belum ada aturan. Klik Auto DM untuk membuat yang pertama.
+              Belum ada aturan. Klik + Auto DM untuk membuat yang pertama.
             </p>
           ) : (
             <ul className="divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 bg-white">

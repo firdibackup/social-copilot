@@ -147,7 +147,7 @@ export async function startCheckout(userId: string, email: string, now = new Dat
       name: plan.name,
       amount: plan.priceIdr,
       email,
-      description: `Langganan Social Copilot ${plan.days} hari`,
+      description: `Langganan Carousely ${plan.days} hari`,
       redirectUrl: appUrl('/langganan', { bayar: 'selesai' }),
       expiredAt: expiresAt,
     })

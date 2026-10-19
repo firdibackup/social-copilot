@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { currentPeriod, currentUser } from '@/lib/auth'
 import { after } from 'next/server'
 import { hasBrandKit, startBrandSync } from '@/lib/brand'
+import { getCompletedAnswers } from '@/lib/onboarding'
+import { EMPTY_ANSWERS } from '@/lib/onboarding-options'
 import { syncNewAccount } from '@/lib/brand-sync'
 import {
   AccountTakenError,
@@ -11,6 +13,8 @@ import {
   getConnectedAccountId,
   saveConnection,
 } from '@/lib/connection'
+import { deleteOtherFacebookConnections } from '@/lib/facebook-connection'
+import { ensureWebhookSubscription } from '@/lib/inbox-sync'
 import { exchangeCodeForToken, exchangeForLongLivedToken, fetchProfile } from '@/lib/instagram'
 import { GET } from './route'
 
@@ -24,8 +28,14 @@ vi.mock('@/lib/connection', async (importOriginal) => ({
   claimOrphanRows: vi.fn(),
 }))
 vi.mock('next/server', () => ({ after: vi.fn() }))
+vi.mock('@/lib/facebook-connection', () => ({ deleteOtherFacebookConnections: vi.fn() }))
 vi.mock('@/lib/brand', () => ({ hasBrandKit: vi.fn(), startBrandSync: vi.fn() }))
 vi.mock('@/lib/brand-sync', () => ({ syncNewAccount: vi.fn() }))
+vi.mock('@/lib/inbox-sync', () => ({ ensureWebhookSubscription: vi.fn() }))
+vi.mock('@/lib/onboarding', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/onboarding')>()),
+  getCompletedAnswers: vi.fn(),
+}))
 vi.mock('@/lib/instagram', () => ({
   exchangeCodeForToken: vi.fn(),
   exchangeForLongLivedToken: vi.fn(),
@@ -40,6 +50,10 @@ const LONG_TOKEN = { accessToken: 'long-token', expiresAt: new Date('2026-12-13T
 const callback = (query: string) =>
   GET(new Request(`https://social-copilot.ngrok-free.app/api/auth/instagram/callback?${query}`))
 
+function runAfterTasks() {
+  for (const [task] of vi.mocked(after).mock.calls) void (task as () => unknown)()
+}
+
 function redirectTarget(response: Response) {
   const location = new URL(response.headers.get('location') ?? '')
   return { path: `${location.origin}${location.pathname}`, params: Object.fromEntries(location.searchParams) }
@@ -51,7 +65,7 @@ describe('GET /api/auth/instagram/callback', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.mocked(currentUser).mockResolvedValue({ id: USER, email: 'owner@example.com' })
     vi.mocked(currentPeriod).mockResolvedValue(PERIOD)
-    vi.mocked(consumeOAuthState).mockResolvedValue(true)
+    vi.mocked(consumeOAuthState).mockResolvedValue('ok')
     vi.mocked(saveConnection).mockResolvedValue()
     vi.mocked(exchangeCodeForToken).mockResolvedValue({
       accessToken: 'short-token',
@@ -74,18 +88,35 @@ describe('GET /api/auth/instagram/callback', () => {
 
       expect(redirectTarget(response).params).toEqual({ ig: 'connected' })
       expect(hasBrandKit).toHaveBeenCalledWith(USER, PROFILE.userId)
-      expect(startBrandSync).toHaveBeenCalledWith(USER, PROFILE.userId)
-      expect(after).toHaveBeenCalledTimes(1)
-      const task = vi.mocked(after).mock.calls[0][0] as () => unknown
-      task()
+      expect(startBrandSync).toHaveBeenCalledWith(USER, PROFILE.userId, {})
+      runAfterTasks()
       expect(syncNewAccount).toHaveBeenCalledWith(USER, PROFILE.userId)
+    })
+
+    it('seeds the new account’s brand with the onboarding answers', async () => {
+      vi.mocked(hasBrandKit).mockResolvedValue(false)
+      vi.mocked(getCompletedAnswers).mockResolvedValue({
+        ...EMPTY_ANSWERS,
+        name: 'Kopi Sinar',
+        designStyle: 'minimalis',
+        headingFont: 'Plus Jakarta Sans',
+      })
+
+      await connect()
+
+      expect(startBrandSync).toHaveBeenCalledWith(USER, PROFILE.userId, {
+        name: 'Kopi Sinar',
+        design_style: 'minimalis',
+        heading_font: 'Plus Jakarta Sans',
+      })
     })
 
     it('leaves an account that already has a brand as it is', async () => {
       await connect()
 
       expect(startBrandSync).not.toHaveBeenCalled()
-      expect(after).not.toHaveBeenCalled()
+      runAfterTasks()
+      expect(syncNewAccount).not.toHaveBeenCalled()
     })
 
     it('does not start a second fill another tab already started', async () => {
@@ -94,7 +125,16 @@ describe('GET /api/auth/instagram/callback', () => {
 
       await connect()
 
-      expect(after).not.toHaveBeenCalled()
+      runAfterTasks()
+      expect(syncNewAccount).not.toHaveBeenCalled()
+    })
+
+    it('subscribes the account to the DM and comment webhooks after the redirect', async () => {
+      await connect()
+
+      expect(ensureWebhookSubscription).not.toHaveBeenCalled()
+      runAfterTasks()
+      expect(ensureWebhookSubscription).toHaveBeenCalledWith(USER)
     })
 
     it('turns the previous account’s scheduled posts into drafts when another account logs in', async () => {
@@ -103,6 +143,14 @@ describe('GET /api/auth/instagram/callback', () => {
       await connect()
 
       expect(draftScheduledPosts).toHaveBeenCalledWith(USER, 'ig-old')
+    })
+
+    it('removes Facebook Page tokens of other accounts once the new account is saved', async () => {
+      vi.mocked(getConnectedAccountId).mockResolvedValue('ig-old')
+
+      await connect()
+
+      expect(deleteOtherFacebookConnections).toHaveBeenCalledWith(USER, PROFILE.userId)
     })
 
     it('keeps scheduled posts when the same account reconnects', async () => {
@@ -130,6 +178,7 @@ describe('GET /api/auth/instagram/callback', () => {
 
       expect(draftScheduledPosts).not.toHaveBeenCalled()
       expect(claimOrphanRows).not.toHaveBeenCalled()
+      expect(deleteOtherFacebookConnections).not.toHaveBeenCalled()
     })
   })
 
@@ -181,8 +230,18 @@ describe('GET /api/auth/instagram/callback', () => {
     expect(exchangeCodeForToken).not.toHaveBeenCalled()
   })
 
-  it('rejects an unknown or expired state, or one another user started', async () => {
-    vi.mocked(consumeOAuthState).mockResolvedValue(false)
+  it('explains a state another signed-in user started, without logging in', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(consumeOAuthState).mockResolvedValue('other_user')
+
+    const response = await callback('code=abc&state=s1')
+
+    expect(redirectTarget(response).params).toEqual({ ig_error: 'sesi_lain' })
+    expect(exchangeCodeForToken).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unknown or expired state', async () => {
+    vi.mocked(consumeOAuthState).mockResolvedValue('invalid')
 
     const response = await callback('code=abc&state=forged')
 

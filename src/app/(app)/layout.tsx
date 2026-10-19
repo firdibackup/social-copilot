@@ -6,6 +6,7 @@ import { AccountEmail } from '@/components/account-email'
 import { Breadcrumb } from '@/components/breadcrumb'
 import { InstagramStatus, StatusLine } from '@/components/instagram-status'
 import { MobileNav } from '@/components/mobile-nav'
+import { NotificationBell } from '@/components/notification-bell'
 import { AdminSection, Sidebar } from '@/components/sidebar'
 import { CreditBar, CreditMeter, RenewalBanner } from '@/components/subscription-status'
 import { WorkspaceBadge, WorkspaceLine } from '@/components/workspace-badge'
@@ -56,20 +57,23 @@ export default function AppLayout({ children }: AppLayoutProps) {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-paper md:rounded-2xl md:border md:border-hairline">
           <header className="flex h-14 shrink-0 items-center gap-2 border-b border-hairline px-5">
             <Breadcrumb />
-            {/* The sidebar's Langganan and Keluar, which the phone's bottom bar has no room for. */}
-            <div className="ml-auto flex items-center gap-1 md:hidden">
-              <Suspense fallback={null}>
-                <AdminNav phone />
-              </Suspense>
-              <Link href="/langganan" className={PHONE_ACTION}>
-                <CreditCard size={16} strokeWidth={1.75} aria-hidden="true" />
-                Langganan
-              </Link>
-              <form action={signOut}>
-                <button type="submit" aria-label="Keluar" className={PHONE_ACTION}>
-                  <LogOut size={16} strokeWidth={1.75} aria-hidden="true" />
-                </button>
-              </form>
+            <div className="ml-auto flex items-center gap-1">
+              <NotificationBell />
+              {/* The sidebar's Langganan and Keluar, which the phone's bottom bar has no room for. */}
+              <div className="flex items-center gap-1 md:hidden">
+                <Suspense fallback={null}>
+                  <AdminNav phone />
+                </Suspense>
+                <Link href="/langganan" className={PHONE_ACTION}>
+                  <CreditCard size={16} strokeWidth={1.75} aria-hidden="true" />
+                  Langganan
+                </Link>
+                <form action={signOut}>
+                  <button type="submit" aria-label="Keluar" className={PHONE_ACTION}>
+                    <LogOut size={16} strokeWidth={1.75} aria-hidden="true" />
+                  </button>
+                </form>
+              </div>
             </div>
           </header>
           <Suspense fallback={null}>

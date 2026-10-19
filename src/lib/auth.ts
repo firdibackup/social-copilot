@@ -8,6 +8,8 @@ import { parseAdminEmails } from './admin-options'
 import { getCurrentPeriod, type Period } from './billing'
 import { getConnectedAccountId } from './connection'
 import { env } from './env'
+import { describeError } from './errors'
+import { isOnboarded } from './onboarding'
 
 export interface SessionUser {
   id: string
@@ -70,12 +72,25 @@ export async function requireAdmin(): Promise<SessionUser> {
 export const currentPeriod = cache(async (userId: string): Promise<Period | null> => getCurrentPeriod(userId))
 
 /**
+ * Whether the user finished the onboarding wizard. Cached per request. A database error lets the user through:
+ * the wizard only seeds the brand, and the app must not lock everyone out over it.
+ */
+export const currentOnboarded = cache(async (userId: string): Promise<boolean> =>
+  isOnboarded(userId).catch((error: unknown) => {
+    console.error('[auth] status onboarding tidak terbaca:', describeError(error))
+    return true
+  }),
+)
+
+/**
  * The signed-in user's id, for everything behind the subscription: the app pages, their actions and the OAuth
- * routes. Without a paid period covering now, the user goes to /langganan.
+ * routes. Without a paid period covering now, the user goes to /langganan; after paying, to the onboarding wizard
+ * at /mulai until it is finished or skipped.
  */
 export async function requireActiveUser(): Promise<string> {
   const userId = await requireUser()
   if (!(await currentPeriod(userId))) redirect('/langganan')
+  if (!(await currentOnboarded(userId))) redirect('/mulai')
   return userId
 }
 

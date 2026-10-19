@@ -7,7 +7,10 @@ const DIALOG_URL = `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth`
 const GRAPH_URL = `https://graph.facebook.com/${GRAPH_VERSION}/`
 const DISCOVERY_MEDIA_LIMIT = 24
 
-/** Business Discovery needs the first four; business_management lists Pages owned through Business Manager. */
+/**
+ * Business Discovery needs the first four; business_management lists Pages owned through Business Manager.
+ * instagram_manage_insights is required by the business_discovery endpoint itself, even though no insights are read.
+ */
 export const FACEBOOK_SCOPES = [
   'instagram_basic',
   'instagram_manage_insights',

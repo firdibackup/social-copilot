@@ -37,7 +37,7 @@ describe('chatCompletion', () => {
       model: 'cc/claude-haiku-4-5-20251001',
       messages: MESSAGES,
       stream: false,
-      max_tokens: 4096,
+      max_tokens: 16_000,
     })
   })
 

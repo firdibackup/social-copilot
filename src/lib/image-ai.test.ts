@@ -1,10 +1,17 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AiLimitError } from './ai'
+import { loadProductImages } from './assets'
+import { loadAttachment } from './attachments'
 import { getBrandVisual, loadLogoImage, loadReferenceImage, VISUAL_BODY_BUDGET, type BrandVisual } from './brand'
-import { buildImagePrompt, drawImage, imageErrorMessage, imageLog, slideRole } from './image-ai'
+import { buildImagePrompt, drawImage, imageErrorMessage, imageLog } from './image-ai'
 import type { ImageInput } from './image-options'
 import { generateImage, RouterApiError } from './nine-router'
 import { SlideImageError } from './slide-image'
+
+vi.mock('./assets', () => ({ loadProductImages: vi.fn() }))
+vi.mock('./attachments', () => ({ loadAttachment: vi.fn() }))
 
 vi.mock('./brand', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./brand')>()),
@@ -19,7 +26,7 @@ vi.mock('./nine-router', async (importOriginal) => ({
 }))
 
 const USER = 'user-1'
-const REFERENCE_ID = '00000000-0000-4000-8000-000000000001'
+const REFERENCE_IMAGE_ID = '00000000-0000-4000-8000-000000000001'
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4])
 
 const BRAND: BrandVisual = {
@@ -32,20 +39,27 @@ const BRAND: BrandVisual = {
   ],
   headingFont: 'Inter',
   bodyFont: '',
+  designStyle: '',
 }
 
 const INPUT: ImageInput = {
   scene: 'Pria muda di kafe dengan laptop',
   headline: 'Aku cuma bisa bilang “thank you”',
   format: '4:5',
-  referenceId: null,
+  referenceImageId: null,
+  example: null,
+  productGroupId: null,
   includeLogo: false,
-  previousImage: null,
+  siblingImage: null,
   currentImage: null,
+  attachment: null,
   slide: null,
 }
 
 const dataUrl = (fill: string, length: number) => `data:image/jpeg;base64,${fill.repeat(length)}`
+const exampleFile = (key: string) =>
+  `data:image/jpeg;base64,${readFileSync(join(process.cwd(), 'assets', 'contoh-desain', `${key}.jpg`)).toString('base64')}`
+const inner = { index: 2, count: 5, role: 'isi' as const }
 
 describe('buildImagePrompt', () => {
   it('quotes the headline and carries the brand style, colours by role and fonts', () => {
@@ -55,7 +69,7 @@ describe('buildImagePrompt', () => {
     expect(prompt).toContain('Scene: Pria muda di kafe dengan laptop')
     expect(prompt).toContain('render exactly this text and no other words: "Aku cuma bisa bilang “thank you”"')
     expect(prompt).not.toContain('line breaks')
-    expect(prompt).toContain('in Inter or a close match')
+    expect(prompt).toContain('Set it in Inter bold, or a close match.')
     expect(prompt).toContain('Brand: Salah dulu English (Belajar bahasa Inggris).')
     expect(prompt).toContain('Brand colours: primary #181818, accent #e8b04b.')
     expect(prompt).toContain('Brand fonts: headings Inter.')
@@ -83,12 +97,22 @@ describe('buildImagePrompt', () => {
     expect(prompt).toContain('Brand fonts: headings Inter, body Lora.')
   })
 
-  it('leaves out the brand lines and the font hint without a brand', () => {
+  it('falls back to a clean default style and modern fonts without a brand', () => {
     const prompt = buildImagePrompt({ ...INPUT, format: '1:1' }, null, [])
 
     expect(prompt).toContain('1:1 square')
     expect(prompt).not.toContain('Brand')
-    expect(prompt).not.toContain('close match')
+    expect(prompt).toContain('Design style: Minimalis Modern.')
+    expect(prompt).toContain('Set it in Plus Jakarta Sans bold, or a close match.')
+  })
+
+  it('always forbids squashed fonts, shadows and garish text colours when there is text', () => {
+    const prompt = buildImagePrompt(INPUT, BRAND, [])
+
+    expect(prompt).toContain('never condensed, compressed, squashed')
+    expect(prompt).toContain('no drop shadows, outlines, strokes, glows')
+    expect(prompt).toContain('no rainbow, neon or multi-coloured words')
+    expect(buildImagePrompt({ ...INPUT, headline: '' }, BRAND, [])).not.toContain('drop shadows')
   })
 
   it('keeps the line breaks of a multi-line text', () => {
@@ -96,6 +120,7 @@ describe('buildImagePrompt', () => {
 
     expect(prompt).toContain('"Make vs Do\nI make coffee.\nI do my homework."')
     expect(prompt).toContain('Keep its line breaks; the first line is the headline.')
+    expect(prompt).toContain('first line in Plus Jakarta Sans bold and the other lines in Inter regular')
   })
 
   it('forbids any text without a headline, except a logo that was sent', () => {
@@ -106,31 +131,154 @@ describe('buildImagePrompt', () => {
   })
 
   it('names the input images in the order they are sent', () => {
-    const prompt = buildImagePrompt({ ...INPUT, slide: { index: 2, count: 5 } }, null, [
+    const prompt = buildImagePrompt({ ...INPUT, slide: { index: 2, count: 5, role: 'isi' } }, null, [
       { kind: 'current' },
-      { kind: 'previous' },
+      { kind: 'sibling' },
       { kind: 'reference', note: 'ambil layout-nya saja' },
       { kind: 'logo' },
     ])
 
     expect(prompt).toContain('slide 2 of 5 of one carousel')
     expect(prompt).toContain('image1 is the current version of this slide')
-    expect(prompt).toContain('image2 is slide 1 of this carousel')
-    expect(prompt).toContain('image3 is a design reference')
+    expect(prompt).toContain('image2 is another inner content slide of this carousel')
+    expect(prompt).toContain('image3 is a general style reference')
     expect(prompt).toContain('"ambil layout-nya saja"')
     expect(prompt).toContain('image4 is the brand logo')
   })
 
-  it('says nothing about a carousel for a single image', () => {
-    expect(buildImagePrompt({ ...INPUT, slide: { index: 1, count: 1 } }, null, [])).not.toContain('carousel')
+  it('stacks text and imagery in bands and keeps everything inside the frame, with or without text', () => {
+    for (const headline of ['Judul', '']) {
+      const prompt = buildImagePrompt({ ...INPUT, headline }, BRAND, [])
+
+      expect(prompt).toContain('stack the text and the imagery in full-width horizontal bands')
+      expect(prompt).toContain('never set the text in a column beside a photo')
+      expect(prompt).toContain('fully inside the frame with clear margins')
+    }
+  })
+
+  it('keeps every word of the text and lets the text lead an inner slide', () => {
+    const cover = buildImagePrompt({ ...INPUT, slide: { ...inner, role: 'cover' } }, null, [])
+    const isi = buildImagePrompt({ ...INPUT, slide: inner }, null, [])
+
+    expect(isi).toContain('never abbreviate, shorten, paraphrase or leave out words')
+    expect(isi).toContain('make the photo or graphic smaller, never the text')
+    expect(isi).toContain('the text is the main element and takes the larger share of the slide')
+    expect(cover).toContain('never abbreviate')
+    expect(cover).not.toContain('the text is the main element')
+    expect(buildImagePrompt({ ...INPUT, headline: '', slide: inner }, null, [])).not.toContain('never abbreviate')
+  })
+
+  it('follows an attached image the way the owner asked, over the other images and the layout', () => {
+    const prompt = buildImagePrompt({ ...INPUT, slide: inner }, null, [{ kind: 'attachment', note: 'ikuti layout gambar ini' }])
+
+    expect(prompt).toContain('image1 is an image the owner attached, with this instruction for this slide: "ikuti layout gambar ini".')
+    expect(prompt).toContain('the instruction wins')
+    expect(prompt).toContain('If the instruction doesn’t say how, decide from the image')
+  })
+
+  it('says nothing about a carousel or a role for a single image', () => {
+    const prompt = buildImagePrompt({ ...INPUT, slide: { index: 1, count: 1, role: null } }, null, [])
+
+    expect(prompt).not.toContain('carousel')
+    expect(prompt).not.toContain('cover')
+  })
+})
+
+describe('design styles in the prompt', () => {
+  const minimal: BrandVisual = { ...BRAND, visualStyle: '', designStyle: 'minimalis', headingFont: '', bodyFont: '' }
+  const carousel = (role: 'cover' | 'isi' | 'cta', images: Parameters<typeof buildImagePrompt>[2] = []) =>
+    buildImagePrompt({ ...INPUT, slide: { index: 2, count: 5, role } }, minimal, images)
+
+  it('gives the cover, the inner slides and the CTA their own layout from the chosen style', () => {
+    expect(carousel('cover')).toContain('Cover layout: a small label above a large bold headline')
+    expect(carousel('isi')).toContain('Inner slide layout: a small slide number top-left')
+    expect(carousel('cta')).toContain('CTA layout: centred, one short bold line')
+    expect(carousel('isi')).not.toContain('Cover layout')
+    for (const role of ['cover', 'isi', 'cta'] as const) expect(carousel(role)).toContain('Design style: Minimalis Modern.')
+  })
+
+  it('takes the style’s fonts when the owner picked none', () => {
+    expect(carousel('cover')).toContain('Set it in Plus Jakarta Sans bold')
+    const bold = buildImagePrompt(INPUT, { ...minimal, designStyle: 'bold' }, [])
+    expect(bold).toContain('Set it in Poppins bold')
+    expect(buildImagePrompt(INPUT, { ...minimal, designStyle: 'bold', headingFont: 'Montserrat' }, [])).toContain(
+      'Set it in Montserrat bold',
+    )
+  })
+
+  it('mixes a reference with the chosen style: the reference’s layout, the style’s typography', () => {
+    const prompt = carousel('isi', [{ kind: 'reference', label: 'isi' }])
+
+    expect(prompt).toContain('The reference decides the layout and composition; the design style below decides the fonts')
+    expect(prompt).toContain('Design style: Minimalis Modern.')
+    expect(prompt).not.toContain('Inner slide layout: a small slide number top-left')
+  })
+
+  it('leaves how a photo meets the text to the reference or example, with no fade of its own', () => {
+    expect(carousel('cover', [{ kind: 'reference', label: 'cover' }])).not.toMatch(/fade|blend|gentle gradient/i)
+    expect(carousel('cover', [{ kind: 'example' }])).not.toMatch(/fade|blend|gentle gradient/i)
+  })
+
+  it('lets a later inner slide follow its sibling rather than the recipe', () => {
+    expect(carousel('isi', [{ kind: 'sibling' }])).not.toContain('Inner slide layout')
+  })
+
+  it('copies the layout of a style example, never its brand, and takes the brand colours when there are some', () => {
+    const prompt = carousel('isi', [{ kind: 'example' }])
+
+    expect(prompt).toContain('image1 is an example inner content slide in this design style: follow its layout')
+    expect(prompt).toContain('do not copy its words, logo, brand name, people or products')
+    expect(prompt).toContain('use the brand colours below instead of its colours')
+    expect(prompt).not.toContain('Inner slide layout')
+    expect(prompt).not.toContain('The reference decides the layout')
+    const colourless = buildImagePrompt({ ...INPUT, slide: inner }, null, [{ kind: 'example' }])
+    expect(colourless).toContain('image1 is an example inner content slide')
+    expect(colourless).not.toContain('use the brand colours')
+  })
+
+  it('calls a style example of a one-image post an example post', () => {
+    expect(buildImagePrompt(INPUT, null, [{ kind: 'example' }])).toContain('image1 is an example post in this design style')
+  })
+
+  it('takes only the style of an Umum reference on an inner slide, which keeps its own layout', () => {
+    const prompt = carousel('isi', [{ kind: 'reference', label: 'single' }])
+
+    expect(prompt).toContain('image1 is a general style reference: take its colours, type feel and mood')
+    expect(prompt).toContain('Inner slide layout: a small slide number top-left')
+    expect(prompt).not.toContain('The reference decides the layout')
+  })
+
+  it('follows the composition of an Umum reference on the cover', () => {
+    const prompt = carousel('cover', [{ kind: 'reference', label: 'single' }])
+
+    expect(prompt).toContain('image1 is a design reference: follow its style, composition and mood')
+    expect(prompt).toContain('The reference decides the layout and composition')
+    expect(prompt).not.toContain('Cover layout:')
+  })
+
+  it('keeps the owner’s own visual style in charge when no style was picked, with plain role layouts', () => {
+    const prompt = buildImagePrompt({ ...INPUT, slide: { index: 1, count: 3, role: 'cover' } }, BRAND, [])
+
+    expect(prompt).not.toContain('Design style:')
+    expect(prompt).toContain('Visual style: Foto realistis')
+    expect(prompt).toContain('Cover layout: the hook as a large headline')
+  })
+
+  it('marks the past posts’ style as mood only when a style was picked too', () => {
+    const prompt = buildImagePrompt(INPUT, { ...BRAND, designStyle: 'elegan' }, [])
+
+    expect(prompt).toContain('Design style: Elegan Premium.')
+    expect(prompt).toContain("Visual style of the owner's past posts (take its mood and imagery; the design style above decides the typography)")
   })
 })
 
 describe('drawImage', () => {
   beforeEach(() => {
     vi.mocked(getBrandVisual).mockReset().mockResolvedValue(BRAND)
+    vi.mocked(loadProductImages).mockReset().mockResolvedValue([])
     vi.mocked(loadReferenceImage).mockReset().mockResolvedValue({ dataUrl: dataUrl('R', 400_000), note: 'layout', label: 'single' })
     vi.mocked(loadLogoImage).mockReset().mockResolvedValue(dataUrl('L', 600_000))
+    vi.mocked(loadAttachment).mockReset()
     vi.mocked(generateImage).mockReset().mockResolvedValue(JPEG.toString('base64'))
   })
 
@@ -152,28 +300,102 @@ describe('drawImage', () => {
     expect(vi.mocked(generateImage).mock.calls[0][0].size).toBe('1024x1024')
   })
 
-  it('sends the current slide, the reference and slide 1 in that order, and skips a logo that no longer fits 1 MB', async () => {
+  it('puts product images before the design reference and preserves their identity in the prompt', async () => {
+    const product = dataUrl('P', 200_000)
+    vi.mocked(loadProductImages).mockResolvedValue([{ dataUrl: product, title: 'Kopi Botol' }])
+
+    const drawn = await drawImage(USER, {
+      ...INPUT,
+      productGroupId: '00000000-0000-4000-8000-000000000099',
+      referenceImageId: REFERENCE_IMAGE_ID,
+    })
+
+    expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([product, dataUrl('R', 400_000)])
+    expect(drawn.sent).toEqual(['product', 'reference'])
+    expect(drawn.prompt).toContain('preserve its shape, colour, packaging, label and visible branding exactly')
+  })
+
+  it('sends the current slide and the reference, and skips a logo that no longer fits 1 MB', async () => {
     const currentImage = dataUrl('C', 100_000)
-    const previousImage = dataUrl('P', 300_000)
 
-    const drawn = await drawImage(USER, { ...INPUT, currentImage, previousImage, referenceId: REFERENCE_ID, includeLogo: true })
+    const drawn = await drawImage(USER, { ...INPUT, currentImage, referenceImageId: REFERENCE_IMAGE_ID, includeLogo: true })
 
-    expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([currentImage, dataUrl('R', 400_000), previousImage])
-    expect(drawn.sent).toEqual(['current', 'reference', 'previous'])
+    expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([currentImage, dataUrl('R', 400_000)])
+    expect(drawn.sent).toEqual(['current', 'reference'])
     expect(drawn.skipped).toEqual(['logo (terlalu besar untuk batas 1 MB 9Router)'])
     expect(drawn.prompt).toContain('image2 is a design reference')
     expect(drawn.prompt).not.toContain('brand logo')
   })
 
-  it('keeps the reference over slide 1 when only one of them fits', async () => {
-    vi.mocked(loadReferenceImage).mockResolvedValue({ dataUrl: dataUrl('R', 600_000), note: '', label: 'cta' })
-    const previousImage = dataUrl('P', 500_000)
+  it('lets an inner slide follow its reference, not the first inner slide made', async () => {
+    vi.mocked(loadReferenceImage).mockResolvedValue({ dataUrl: dataUrl('R', 100_000), note: '', label: 'isi' })
 
-    const drawn = await drawImage(USER, { ...INPUT, previousImage, referenceId: REFERENCE_ID, slide: { index: 5, count: 5 } })
+    const drawn = await drawImage(USER, {
+      ...INPUT,
+      siblingImage: dataUrl('S', 100_000),
+      referenceImageId: REFERENCE_IMAGE_ID,
+      slide: { index: 3, count: 5, role: 'isi' },
+    })
 
     expect(drawn.sent).toEqual(['reference'])
-    expect(drawn.skipped).toEqual(['slide 1 (terlalu besar untuk batas 1 MB 9Router)'])
-    expect(drawn.prompt).toContain('image1 is the CTA slide')
+    expect(drawn.skipped).toEqual([])
+    expect(drawn.prompt).toContain('image1 is an inner content slide')
+  })
+
+  it('lets an inner slide follow its style example, not the first inner slide made', async () => {
+    const drawn = await drawImage(USER, { ...INPUT, siblingImage: dataUrl('S', 100), example: 'langkah-bernomor', slide: inner })
+
+    expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([exampleFile('langkah-bernomor')])
+    expect(drawn.sent).toEqual(['example'])
+  })
+
+  it('lets an inner slide without a reference or example follow the first inner slide made', async () => {
+    const siblingImage = dataUrl('S', 100)
+
+    const drawn = await drawImage(USER, { ...INPUT, siblingImage, slide: inner })
+
+    expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([siblingImage])
+    expect(drawn.sent).toEqual(['sibling'])
+  })
+
+  it('sends an attached image right after the current slide, before products and the style example', async () => {
+    const currentImage = dataUrl('C', 100)
+    const attached = dataUrl('A', 100)
+    const product = dataUrl('P', 100)
+    vi.mocked(loadProductImages).mockResolvedValue([{ dataUrl: product, title: 'Kopi Botol' }])
+
+    const drawn = await drawImage(USER, {
+      ...INPUT,
+      currentImage,
+      attachment: { dataUrl: attached, note: 'pakai foto ini' },
+      productGroupId: '00000000-0000-4000-8000-000000000099',
+      example: 'bento-produk',
+    })
+
+    expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([currentImage, attached, product, exampleFile('bento-produk')])
+    expect(drawn.sent).toEqual(['current', 'attachment', 'product', 'example'])
+    expect(drawn.prompt).toContain('image2 is an image the owner attached, with this instruction for this slide: "pakai foto ini".')
+  })
+
+  it('loads a stored attachment by its path', async () => {
+    const stored = dataUrl('A', 100)
+    vi.mocked(loadAttachment).mockResolvedValue(stored)
+    const path = `${USER}/lampiran/00000000-0000-4000-8000-000000000005.jpg`
+
+    const drawn = await drawImage(USER, { ...INPUT, attachment: { path, note: 'Follow its layout.' } })
+
+    expect(loadAttachment).toHaveBeenCalledWith(USER, path)
+    expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([stored])
+    expect(drawn.sent).toEqual(['attachment'])
+  })
+
+  it('reports a stored attachment and a style example that are gone', async () => {
+    vi.mocked(loadAttachment).mockResolvedValue(null)
+
+    const drawn = await drawImage(USER, { ...INPUT, attachment: { path: 'x', note: '' }, example: 'hilang' })
+
+    expect(drawn.sent).toEqual([])
+    expect(drawn.skipped).toEqual(['lampiran (tidak ditemukan)', 'contoh gaya (tidak ditemukan)'])
   })
 
   it('fills the budget exactly, and numbers the next images from image1 after one too big to send', async () => {
@@ -192,17 +414,11 @@ describe('drawImage', () => {
     vi.mocked(loadReferenceImage).mockResolvedValue(null)
     vi.mocked(loadLogoImage).mockResolvedValue(null)
 
-    const drawn = await drawImage(USER, { ...INPUT, referenceId: REFERENCE_ID, includeLogo: true })
+    const drawn = await drawImage(USER, { ...INPUT, referenceImageId: REFERENCE_IMAGE_ID, includeLogo: true })
 
-    expect(loadReferenceImage).toHaveBeenCalledWith(USER, REFERENCE_ID, null)
+    expect(loadReferenceImage).toHaveBeenCalledWith(USER, REFERENCE_IMAGE_ID)
     expect(drawn.skipped).toEqual(['referensi (tidak ditemukan)', 'logo (tidak ditemukan)'])
     expect(drawn.sent).toEqual([])
-  })
-
-  it('asks for the reference image that matches the slide’s place in the carousel', async () => {
-    await drawImage(USER, { ...INPUT, referenceId: REFERENCE_ID, slide: { index: 5, count: 5 } })
-
-    expect(loadReferenceImage).toHaveBeenCalledWith(USER, REFERENCE_ID, { index: 5, count: 5 })
   })
 
   it('loads only the images the input asks for', async () => {
@@ -232,9 +448,9 @@ describe('drawImage', () => {
 
 describe('imageLog', () => {
   it('keeps the byte count, the prompt and what was sent, never image data', () => {
-    const drawn = { bytes: new Uint8Array(1234), prompt: 'Kafe', sent: ['previous' as const], skipped: ['logo (tidak ditemukan)'] }
+    const drawn = { bytes: new Uint8Array(1234), prompt: 'Kafe', sent: ['sibling' as const], skipped: ['logo (tidak ditemukan)'] }
 
-    expect(imageLog(drawn)).toEqual({ bytes: 1234, prompt: 'Kafe', sent: ['previous'], skipped: ['logo (tidak ditemukan)'] })
+    expect(imageLog(drawn)).toEqual({ bytes: 1234, prompt: 'Kafe', sent: ['sibling'], skipped: ['logo (tidak ditemukan)'] })
   })
 })
 
@@ -250,9 +466,9 @@ describe('imageErrorMessage', () => {
       'Gambar gagal dibuat: Codex did not return an image.',
     )
     expect(imageErrorMessage(new RouterApiError('model is not supported', 400))).toBe(
-      '9Router menolak permintaan gambar: model is not supported Periksa ROUTER_IMAGE_MODEL di .env.local.',
+      '9Router menolak permintaan gambar: model is not supported Periksa model gambar di Admin › Pengaturan.',
     )
-    expect(imageErrorMessage(new RouterApiError('model not found', 404))).toContain('ROUTER_IMAGE_MODEL')
+    expect(imageErrorMessage(new RouterApiError('model not found', 404))).toContain('Admin › Pengaturan')
   })
 
   it('shortens a long provider message', () => {
@@ -265,42 +481,38 @@ describe('imageErrorMessage', () => {
   })
 })
 
-describe('slideRole', () => {
-  it.each([
-    [null, null],
-    [{ index: 1, count: 1 }, null],
-    [{ index: 1, count: 5 }, 'cover'],
-    [{ index: 3, count: 5 }, 'isi'],
-    [{ index: 5, count: 5 }, 'cta'],
-    [{ index: 2, count: 2 }, 'isi'],
-  ] as const)('slide %j is %s', (slide, role) => {
-    expect(slideRole(slide)).toBe(role)
-  })
-})
-
 describe('slide roles in the prompt', () => {
   it('tells the model which slide it makes and which slide of the reference to follow', () => {
-    const prompt = buildImagePrompt({ ...INPUT, slide: { index: 5, count: 5 } }, null, [
+    const prompt = buildImagePrompt({ ...INPUT, slide: { index: 5, count: 5, role: 'cta' } }, null, [
       { kind: 'reference', label: 'cta' },
-      { kind: 'previous' },
     ])
 
     expect(prompt).toContain('This is the closing call-to-action slide.')
     expect(prompt).toContain("image1 is the CTA slide of the owner's reference carousel: copy its layout for this slide")
-    expect(prompt).toContain('image2 is slide 1 of this carousel: keep the same colours, fonts, lighting and people, but not its layout')
   })
 
-  it('describes cover and inner slides', () => {
-    expect(buildImagePrompt({ ...INPUT, slide: { index: 1, count: 5 } }, null, [])).toContain('This is the cover slide')
-    expect(buildImagePrompt({ ...INPUT, slide: { index: 3, count: 5 } }, null, [{ kind: 'reference', label: 'isi' }])).toContain(
-      "image1 is an inner content slide of the owner's reference carousel",
-    )
+  it('takes the role the plan gave the slide, not its place', () => {
+    const prompt = buildImagePrompt({ ...INPUT, slide: { index: 3, count: 3, role: 'isi' } }, null, [])
+
+    expect(prompt).toContain('This is an inner content slide')
+    expect(prompt).not.toContain('call-to-action')
   })
 
-  it('keeps slide 1 as the layout guide without a reference', () => {
-    const prompt = buildImagePrompt({ ...INPUT, slide: { index: 3, count: 5 } }, null, [{ kind: 'previous' }])
+  it('keeps inner and CTA slides apart from the cover’s look', () => {
+    const prompt = (role: 'cover' | 'isi' | 'cta') => buildImagePrompt({ ...INPUT, slide: { index: 2, count: 5, role } }, null, [])
 
-    expect(prompt).toContain('keep the same people, colours, lighting, typography and layout')
+    expect(prompt('cover')).toContain('This is the cover slide')
+    expect(prompt('cover')).not.toContain('Do not make it look like a cover')
+    expect(prompt('isi')).toContain('Do not make it look like a cover')
+    expect(prompt('cta')).toContain('Do not make it look like a cover')
+    expect(prompt('isi')).toContain('All slides share one design system')
+    expect(prompt('isi')).toContain('each have their own layout for their role')
+  })
+
+  it('describes the inner slide of a reference', () => {
+    expect(
+      buildImagePrompt({ ...INPUT, slide: { index: 3, count: 5, role: 'isi' } }, null, [{ kind: 'reference', label: 'isi' }]),
+    ).toContain("image1 is an inner content slide of the owner's reference carousel")
   })
 
   it('keeps the neutral reference wording for a single photo', () => {

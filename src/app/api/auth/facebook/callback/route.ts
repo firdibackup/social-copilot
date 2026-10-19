@@ -8,6 +8,7 @@ import { saveFacebookConnection } from '@/lib/facebook-connection'
 type CallbackErrorCode =
   | 'ditolak'
   | 'state_tidak_valid'
+  | 'sesi_lain'
   | 'gagal_token'
   | 'gagal_page'
   | 'tanpa_instagram'
@@ -38,7 +39,12 @@ async function completeLogin(userId: string, params: URLSearchParams): Promise<C
   const code = params.get('code')
   if (!state || !code) return { fb_error: 'state_tidak_valid' }
   // A state another user created fails here: their login must not land in this session.
-  if (!(await step('gagal_database', () => consumeOAuthState(state, userId)))) return { fb_error: 'state_tidak_valid' }
+  const stateResult = await step('gagal_database', () => consumeOAuthState(state, userId))
+  if (stateResult === 'other_user') {
+    console.warn('[facebook] callback: state dibuat pengguna lain; sesi di host callback berbeda dengan host awal')
+    return { fb_error: 'sesi_lain' }
+  }
+  if (stateResult !== 'ok') return { fb_error: 'state_tidak_valid' }
 
   const shortLived = await step('gagal_token', () => exchangeFacebookCode(code))
   const longLived = await step('gagal_token', () => exchangeForLongLivedUserToken(shortLived))

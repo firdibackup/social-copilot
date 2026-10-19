@@ -1,4 +1,5 @@
 /** Choices and limits of AI slides, shared by the editor and the server. */
+import type { SlideRole } from './brand-options'
 
 /**
  * `size` is what 9Router is asked for; `width` × `height` is what gets stored and published, whatever size the
@@ -18,7 +19,8 @@ export const isImageFormat = (value: unknown): value is ImageFormat =>
 
 export const MAX_SLIDES = 10
 export const SCENE_MAX_LENGTH = 1000
-export const HEADLINE_MAX_LENGTH = 150
+/** Room for an inner slide's subheading and two or three complete sentences. */
+export const HEADLINE_MAX_LENGTH = 300
 
 export interface Slide {
   /** Written into the image exactly; empty means no text at all. */
@@ -27,15 +29,26 @@ export interface Slide {
   scene: string
 }
 
+/** An image the owner attached, with what it should do on this slide: sent with an edit, or stored for a new post. */
+export type ImageAttachment = { note: string } & ({ dataUrl: string } | { path: string })
+
 export interface ImageInput extends Slide {
   format: ImageFormat
-  /** A brand reference whose style to follow. */
-  referenceId: string | null
+  /** The one brand reference image this slide follows, chosen for its role when the post was made. */
+  referenceImageId: string | null
+  /** A design style's example slide (a key of assets/contoh-desain), for an account without references. */
+  example: string | null
+  /** Product identity to preserve, separate from the design reference. */
+  productGroupId: string | null
   includeLogo: boolean
-  /** Slide 1 as a data URL, so later slides keep its look. */
-  previousImage: string | null
+  /**
+   * Another inner slide as a data URL, so inner slides keep one look; sent only when the slide has no reference or
+   * example image of its own. Never the cover.
+   */
+  siblingImage: string | null
   /** The slide's own image when the owner edits it: everything the edit doesn't ask for stays. */
   currentImage: string | null
-  /** Position in a carousel, when there is one. */
-  slide: { index: number; count: number } | null
+  attachment: ImageAttachment | null
+  /** Position in a carousel and the role the plan gave it, when there is one. */
+  slide: { index: number; count: number; role: SlideRole | null } | null
 }

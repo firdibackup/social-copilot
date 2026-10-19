@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import type { PostComment } from './instagram'
 
 /** One DM from a Meta `messages` webhook, seen from the conversation with the customer. */
 export interface MessageEvent {
@@ -12,6 +13,10 @@ export interface MessageEvent {
 }
 
 const SIGNATURE_PREFIX = 'sha256='
+/** Graph ids are digits; comment ids also go into PostgREST filters. */
+const NUMERIC_ID = /^\d+$/
+/** `entry.time` is in seconds; anything this large is already milliseconds. */
+const MILLISECONDS_FROM = 1e12
 
 type Json = Record<string, unknown>
 
@@ -27,7 +32,7 @@ export function hasValidSignature(rawBody: Buffer, header: string | null, appSec
   return received.length === expected.length && timingSafeEqual(received, expected)
 }
 
-/** The accounts a webhook payload carries DMs for: its distinct `entry.id`s. */
+/** The accounts a webhook payload carries DMs or comments for: its distinct `entry.id`s. */
 export function entryAccountIds(payload: unknown): string[] {
   if (!isObject(payload) || payload.object !== 'instagram' || !Array.isArray(payload.entry)) return []
   return [...new Set(payload.entry.filter(isObject).map((entry) => String(entry.id)))]
@@ -60,6 +65,50 @@ export function parseMessageEvents(payload: unknown, accountId: string): Message
           fromCustomer,
           text: typeof message.text === 'string' ? message.text : null,
           sentAt: typeof event.timestamp === 'number' ? new Date(event.timestamp) : new Date(),
+        },
+      ]
+    })
+  })
+}
+
+const numericId = (value: unknown) => (typeof value === 'string' && NUMERIC_ID.test(value) ? value : null)
+
+function entryTime(value: unknown): Date {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return new Date()
+  return new Date(value < MILLISECONDS_FROM ? value * 1000 : value)
+}
+
+/**
+ * New comments on `accountId`'s posts from a `comments` webhook. Meta sends them as `entry.changes[]`; its Instagram
+ * Login example puts `field` and `value` on the entry itself, so both shapes are read. The payload has no time of
+ * its own, so the entry's stands in, and it never says whether a comment is hidden.
+ */
+export function parseCommentEvents(payload: unknown, accountId: string): PostComment[] {
+  if (!isObject(payload) || payload.object !== 'instagram' || !Array.isArray(payload.entry)) return []
+
+  return payload.entry.flatMap((entry: unknown) => {
+    if (!isObject(entry) || String(entry.id) !== accountId) return []
+    const changes: unknown[] = Array.isArray(entry.changes) ? entry.changes : [entry]
+
+    return changes.flatMap((change): PostComment[] => {
+      if (!isObject(change) || change.field !== 'comments' || !isObject(change.value)) return []
+      const { value } = change
+      const id = numericId(value.id)
+      const mediaId = isObject(value.media) ? numericId(value.media.id) : null
+      const parentId = value.parent_id === undefined ? null : numericId(value.parent_id)
+      if (!id || !mediaId || (value.parent_id !== undefined && !parentId)) return []
+      const from = isObject(value.from) ? value.from : {}
+
+      return [
+        {
+          id,
+          mediaId,
+          parentId,
+          fromId: idOf(from),
+          username: typeof from.username === 'string' && from.username !== '' ? from.username : null,
+          text: typeof value.text === 'string' ? value.text : '',
+          createdAt: entryTime(entry.time),
+          isHidden: false,
         },
       ]
     })

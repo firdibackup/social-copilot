@@ -9,6 +9,7 @@ const INPUT = {
   slides: 3,
   format: '4:5',
   referenceId: null,
+  productGroupId: null,
   includeLogo: false,
   ideaId: null,
 }
@@ -30,6 +31,12 @@ describe('parseContentRequest', () => {
     expect(parseContentRequest(input)).toEqual({ request: input })
   })
 
+  it('accepts Otomatis for references and products', () => {
+    expect(parseContentRequest({ ...INPUT, referenceId: 'auto', productGroupId: 'auto' })).toEqual({
+      request: { ...INPUT, referenceId: 'auto', productGroupId: 'auto' },
+    })
+  })
+
   it.each([1, 10])('accepts %i slides', (slides) => {
     expect(parseContentRequest({ ...INPUT, slides })).toEqual({ request: { ...INPUT, slides } })
   })
@@ -42,11 +49,11 @@ describe('parseContentRequest', () => {
     expect(parseContentRequest({ ...INPUT, topic })).toEqual({ error: 'Tulis topik atau ide konten dulu.' })
   })
 
-  it('counts code points, so a topic of 500 emoji fits and 501 does not', () => {
-    expect(parseContentRequest({ ...INPUT, topic: '😀'.repeat(500) })).toEqual({
-      request: { ...INPUT, topic: '😀'.repeat(500) },
+  it('counts code points, so a topic of 5000 emoji fits and 5001 does not', () => {
+    expect(parseContentRequest({ ...INPUT, topic: '😀'.repeat(5000) })).toEqual({
+      request: { ...INPUT, topic: '😀'.repeat(5000) },
     })
-    expect(parseContentRequest({ ...INPUT, topic: '😀'.repeat(501) })).toEqual({ error: 'Topik maksimal 500 karakter.' })
+    expect(parseContentRequest({ ...INPUT, topic: '😀'.repeat(5001) })).toEqual({ error: 'Topik maksimal 5000 karakter.' })
   })
 
   it.each([
@@ -73,11 +80,12 @@ describe('parseContentRequest', () => {
     ['undefined', undefined],
     ['an empty string', ''],
   ])('reads a reference and an idea given as %s as none', (_label, empty) => {
-    expect(parseContentRequest({ ...INPUT, referenceId: empty, ideaId: empty })).toEqual({ request: INPUT })
+    expect(parseContentRequest({ ...INPUT, referenceId: empty, productGroupId: empty, ideaId: empty })).toEqual({ request: INPUT })
   })
 
   it('refuses a reference or an idea that is not a uuid', () => {
     expect(parseContentRequest({ ...INPUT, referenceId: 'ref-1' })).toEqual({ error: 'Referensi tidak ditemukan.' })
+    expect(parseContentRequest({ ...INPUT, productGroupId: 'product-1' })).toEqual({ error: 'Produk tidak ditemukan.' })
     expect(parseContentRequest({ ...INPUT, ideaId: 'idea-1' })).toEqual({ error: 'Ide tidak ditemukan.' })
     expect(parseContentRequest({ ...INPUT, ideaId: 7 })).toEqual({ error: 'Ide tidak ditemukan.' })
   })

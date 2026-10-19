@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { connection } from 'next/server'
-import { currentPeriod, requireActiveUser } from '@/lib/auth'
+import { currentPeriod, requireUser } from '@/lib/auth'
 import { getUsage } from '@/lib/billing'
 import { describeError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
@@ -11,7 +11,7 @@ const WARN_DAYS = 3
 /** The share of this period's AI credits spent, or null when it can't be read (logged). */
 async function loadUsage(): Promise<number | null> {
   await connection()
-  const userId = await requireActiveUser()
+  const userId = await requireUser()
   try {
     const period = await currentPeriod(userId)
     return period ? (await getUsage(userId, period)).percent : null
@@ -47,7 +47,7 @@ export function CreditBar({ percent }: { percent: number | null }) {
 /** When the subscription ends within WARN_DAYS days, how many are left; otherwise null. */
 async function loadRenewal(): Promise<{ daysLeft: number; activeUntil: Date } | null> {
   await connection()
-  const userId = await requireActiveUser()
+  const userId = await requireUser()
   const period = await currentPeriod(userId).catch(() => null)
   if (!period) return null
   const daysLeft = Math.ceil((period.activeUntil.getTime() - new Date().getTime()) / DAY_MS)

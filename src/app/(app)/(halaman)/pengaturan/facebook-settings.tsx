@@ -16,6 +16,8 @@ const SUCCESS_MESSAGES: Record<string, string> = {
 const ERROR_MESSAGES: Record<string, string> = {
   ditolak: 'Izin Facebook tidak disetujui. Hubungkan lagi dan setujui semua izin yang diminta.',
   state_tidak_valid: 'Sesi login kedaluwarsa atau tidak valid. Mulai lagi dari tombol Hubungkan Facebook.',
+  sesi_lain:
+    'Login Facebook selesai di sesi akun Carousely yang berbeda dari akun yang memulainya. Biasanya karena aplikasi dibuka di alamat lain (misalnya localhost) dari alamat tujuan Facebook, atau di sana masih masuk dengan akun lain. Buka aplikasi di alamat yang sama, masuk dengan akun ini, lalu hubungkan lagi.',
   gagal_mulai:
     'Login Facebook gagal dimulai. Periksa FACEBOOK_APP_ID, FACEBOOK_REDIRECT_URI, dan konfigurasi Supabase di .env.local.',
   gagal_token: 'Kode login gagal ditukar menjadi token. Periksa FACEBOOK_APP_SECRET dan FACEBOOK_REDIRECT_URI.',
@@ -105,7 +107,7 @@ function ConnectLink({ label }: { label: string }) {
   return (
     <a
       href="/api/auth/facebook/start"
-      className="inline-flex items-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+      className="inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
     >
       {label}
     </a>

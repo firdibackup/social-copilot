@@ -25,7 +25,7 @@ export async function signIn(_previous: AuthState, formData: FormData): Promise<
   const { error } = await (await authClient()).auth.signInWithPassword({ email, password })
   if (error) {
     if (error.code === 'invalid_credentials') return { error: 'Email atau password salah.', email }
-    if (error.code === 'email_not_confirmed') return { error: 'Akun ini belum aktif. Hubungi admin Social Copilot.', email }
+    if (error.code === 'email_not_confirmed') return { error: 'Akun ini belum aktif. Hubungi admin Carousely.', email }
     console.error('[auth] masuk gagal:', describeError(error))
     return { error: UNREACHABLE, email }
   }
@@ -50,9 +50,9 @@ export async function signUp(_previous: AuthState, formData: FormData): Promise<
     return { error: UNREACHABLE, email }
   }
   // Without auto confirm, Supabase would wait for an email link; there is no SMTP to send one.
-  if (!data.session) return { error: 'Akun dibuat, tapi belum aktif. Hubungi admin Social Copilot.', email }
+  if (!data.session) return { error: 'Akun dibuat, tapi belum aktif. Hubungi admin Carousely.', email }
   if (paymentsEnabled()) redirect('/langganan')
-  // Testing without payments: the new user is subscribed at once and goes straight to connecting Instagram.
+  // Testing without payments: the new user is subscribed at once and goes straight to the onboarding wizard.
   const granted = await grantFreePeriod(data.session.user.id).then(
     () => true,
     (error: unknown) => {
@@ -60,7 +60,7 @@ export async function signUp(_previous: AuthState, formData: FormData): Promise<
       return false
     },
   )
-  redirect(granted ? '/pengaturan#instagram' : '/langganan')
+  redirect(granted ? '/mulai' : '/langganan')
 }
 
 export async function signOut(): Promise<void> {

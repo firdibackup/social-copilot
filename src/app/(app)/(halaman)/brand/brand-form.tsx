@@ -2,7 +2,8 @@
 
 import { ImagePlus, Plus, Sparkles, X } from 'lucide-react'
 import { useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { MediaImage } from '@/components/media-image'
+import { DesignStylePicker, FontPreview, FontSelect } from '@/components/design-style-picker'
+import { ExternalImage, MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
 import {
   BRAND_TEXT_LIMITS,
@@ -18,9 +19,16 @@ import {
   type ColorRole,
 } from '@/lib/brand-options'
 import {
+  ACCOUNT_KINDS,
+  DEFAULT_BODY_FONT,
+  DEFAULT_HEADING_FONT,
+  designStyleOf,
+  isAccountKind,
+  type AccountKind,
+} from '@/lib/design-styles'
+import {
   analyzeProfileAction,
   analyzeVisualAction,
-  importReferencesAction,
   logoFromUrlAction,
   removeLogoAction,
   saveBrandAction,
@@ -44,20 +52,12 @@ const SUGGESTED = 'border-amber-300 bg-amber-50/40'
 const LOGO_TYPES = 'image/png,image/jpeg,image/webp'
 const MAX_REFERENCE_SUGGESTIONS = 10
 
-/** Images from other sites (website logos, Instagram's CDN): no referrer, and plain <img> like MediaImage. */
-export function ExternalImage({ src, className }: { src: string; className?: string }) {
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" className={className} />
-}
-
 /** The editable part of the kit; the logo has its own actions. */
 function fieldsOf(kit: BrandKit): BrandFields {
   const fields: Partial<BrandKit> = { ...kit }
   delete fields.logoUrl
   return fields as BrandFields
 }
-const hostOf = (url: string) => new URL(url).hostname.replace(/^www\./, '')
-
 interface BrandFormProps {
   kit: BrandKit
   references: BrandReference[]
@@ -125,6 +125,7 @@ export function BrandForm({ kit, references, instagramUsername, visualLimit }: B
         websiteSuggested={suggested.has('websiteUrl')}
         instagramUsername={instagramUsername}
         website={website}
+        hasLogo={kit.logoUrl !== null}
         onResult={(draft, suggestions) => {
           applyDraft(draft)
           setWebsite(suggestions)
@@ -132,9 +133,10 @@ export function BrandForm({ kit, references, instagramUsername, visualLimit }: B
       />
 
       <Section title="Identitas">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           {text('name', { placeholder: 'mis. Kopi Sinar' })}
           {text('category', { placeholder: 'mis. Kedai kopi' })}
+          <AccountKindField value={fields.accountKind} onChange={(value) => update('accountKind', value)} />
         </div>
         {text('description', { rows: 3, placeholder: 'Apa yang ditawarkan dan apa bedanya.' })}
       </Section>
@@ -157,6 +159,17 @@ export function BrandForm({ kit, references, instagramUsername, visualLimit }: B
       </Section>
 
       <Section title="Visual">
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-zinc-900">{FIELD_LABELS.designStyle}</p>
+          <p className="text-xs text-zinc-500">
+            Menentukan font, perlakuan teks, dan kesan desain. Referensi Instagram tetap jadi acuan susunan layout.
+          </p>
+          <DesignStylePicker
+            value={fields.designStyle}
+            onChange={(value) => update('designStyle', value)}
+            palette={primaryPalette(fields.colors)}
+          />
+        </div>
         <LogoField logoUrl={kit.logoUrl} />
         <PaletteField
           colors={fields.colors}
@@ -169,7 +182,12 @@ export function BrandForm({ kit, references, instagramUsername, visualLimit }: B
           value={fields.visualStyle}
           suggested={suggested.has('visualStyle')}
           onChange={(value) => update('visualStyle', value)}
-          onAnalyzed={(visualStyle) => applyDraft({ visualStyle })}
+          onAnalyzed={(visualStyle, colors) => {
+            applyDraft({ visualStyle })
+            if (fields.colors.length === 0 && colors.length > 0) {
+              update('colors', colors.slice(0, MAX_COLORS).map((hex, index) => ({ hex, role: ROLE_ORDER[index] ?? 'aksen' })))
+            }
+          }}
           referenceCount={Math.min(references.length, visualLimit)}
         />
       </Section>
@@ -250,11 +268,12 @@ interface AnalysisCardProps {
   websiteSuggested: boolean
   instagramUsername: string | null
   website: WebsiteSuggestions | null
+  hasLogo: boolean
   onResult: (draft: Partial<Record<BrandTextField, string>>, website: WebsiteSuggestions | null) => void
 }
 
 function AnalysisCard(props: AnalysisCardProps) {
-  const { websiteUrl, onWebsiteUrlChange, websiteSuggested, instagramUsername, website, onResult } = props
+  const { websiteUrl, onWebsiteUrlChange, websiteSuggested, instagramUsername, website, hasLogo, onResult } = props
   const [includeInstagram, setIncludeInstagram] = useState(instagramUsername !== null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -285,8 +304,7 @@ function AnalysisCard(props: AnalysisCardProps) {
           Isi otomatis
         </h2>
         <p className="text-sm text-zinc-500">
-          AI membaca halaman depan website dan bio serta 12 caption terbaru akunmu, lalu mengisi form di bawah sebagai
-          draf. Warna, font, dan logo dari website muncul sebagai saran.
+          AI membaca halaman depan dan hingga 10 halaman lain, ditambah bio serta 12 caption terbaru akunmu. Hasilnya hanya mengisi draf.
         </p>
       </div>
       <label className={LABEL}>
@@ -318,12 +336,12 @@ function AnalysisCard(props: AnalysisCardProps) {
           {warning}
         </Notice>
       ))}
-      {website && <WebsiteImages website={website} />}
+      {website && <WebsiteImages website={website} hasLogo={hasLogo} />}
     </section>
   )
 }
 
-function WebsiteImages({ website }: { website: WebsiteSuggestions }) {
+function WebsiteImages({ website, hasLogo }: { website: WebsiteSuggestions; hasLogo: boolean }) {
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -335,30 +353,15 @@ function WebsiteImages({ website }: { website: WebsiteSuggestions }) {
   }
 
   const useAsLogo = (url: string) => run(url, () => logoFromUrlAction(url), 'Logo dipasang.')
-  const addReference = (url: string) =>
-    run(
-      url,
-      async () => {
-        const response = await importReferencesAction([
-          { imageUrls: [url], permalink: website.url, source: 'website', sourceLabel: hostOf(website.url) },
-        ])
-        if ('error' in response) return response.error
-        return response.failed[0] ?? null
-      },
-      'Ditambahkan ke referensi.',
-    )
-
-  if (website.logoUrls.length === 0 && website.imageUrls.length === 0) return null
+  if ((hasLogo || website.logoUrls.length === 0) && website.imageUrls.length === 0) return null
   return (
     <div className="space-y-3">
-      <ImageChoices title="Kandidat logo" urls={website.logoUrls} busy={busy} label="Pakai sebagai logo" onPick={useAsLogo} />
-      <ImageChoices
-        title="Gambar dari website"
-        urls={website.imageUrls}
-        busy={busy}
-        label="Tambah ke referensi"
-        onPick={addReference}
-      />
+      {!hasLogo && (
+        <ImageChoices title="Kandidat logo" urls={website.logoUrls} busy={busy} label="Pakai sebagai logo" onPick={useAsLogo} />
+      )}
+      {website.imageUrls.length > 0 && (
+        <p className="text-xs text-zinc-500">Gambar website dikelola di Aset, bukan Referensi desain.</p>
+      )}
       {message && <Notice tone={message.ok ? 'success' : 'error'}>{message.text}</Notice>}
     </div>
   )
@@ -582,38 +585,59 @@ interface FontFieldsProps {
 }
 
 function FontFields({ fields, suggested, fonts, onChange }: FontFieldsProps) {
+  const style = designStyleOf(fields.designStyle)
+  const recommended = { headingFont: style?.headingFont ?? DEFAULT_HEADING_FONT, bodyFont: style?.bodyFont ?? DEFAULT_BODY_FONT }
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <div className="grid gap-4 sm:grid-cols-2">
         {(['headingFont', 'bodyFont'] as const).map((field) => (
-          <label key={field} className={LABEL}>
-            <span>{FIELD_LABELS[field]}</span>
-            <input
-              value={fields[field]}
-              onChange={(event) => onChange(field, event.target.value)}
-              maxLength={BRAND_TEXT_LIMITS[field]}
-              list="brand-fonts"
-              placeholder={field === 'headingFont' ? 'mis. Playfair Display' : 'mis. Inter'}
-              className={`${FIELD} ${suggested.has(field) ? SUGGESTED : ''}`}
-            />
-          </label>
+          <FontSelect
+            key={field}
+            label={FIELD_LABELS[field]}
+            value={fields[field]}
+            onChange={(value) => onChange(field, value)}
+            recommended={recommended[field]}
+            extra={fonts}
+            className={suggested.has(field) ? SUGGESTED : ''}
+          />
         ))}
       </div>
-      <datalist id="brand-fonts">
-        {fonts.map((font) => (
-          <option key={font} value={font} />
-        ))}
-      </datalist>
+      <FontPreview heading={fields.headingFont || recommended.headingFont} body={fields.bodyFont || recommended.bodyFont} />
       {fonts.length > 0 && <p className="text-xs text-zinc-500">Font di website: {fonts.join(', ')}.</p>}
     </div>
   )
+}
+
+function AccountKindField({ value, onChange }: { value: string; onChange: (value: AccountKind | '') => void }) {
+  return (
+    <label className={LABEL}>
+      <span>{FIELD_LABELS.accountKind}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(isAccountKind(event.target.value) ? event.target.value : '')}
+        className={FIELD}
+      >
+        <option value="">Belum dipilih</option>
+        {(Object.keys(ACCOUNT_KINDS) as AccountKind[]).map((kind) => (
+          <option key={kind} value={kind}>
+            {ACCOUNT_KINDS[kind].label}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
+const primaryPalette = (colors: BrandColor[]) => {
+  const hex = colors.find((color) => color.role === 'utama')?.hex
+  return hex ? { accent: hex } : undefined
 }
 
 interface VisualStyleFieldProps {
   value: string
   suggested: boolean
   onChange: (value: string) => void
-  onAnalyzed: (visualStyle: string) => void
+  onAnalyzed: (visualStyle: string, colors: string[]) => void
   referenceCount: number
 }
 
@@ -632,12 +656,16 @@ function VisualStyleField({ value, suggested, onChange, onAnalyzed, referenceCou
       setError(response.error)
       return
     }
-    onAnalyzed(response.visualStyle)
+    onAnalyzed(response.visualStyle, response.colors)
     const skipped =
       response.skipped > 0
         ? ` ${response.skipped} referensi lain dilewati karena permintaan ke 9Router dibatasi 1 MB.`
         : ''
-    setSummary(`Dianalisis dari ${response.used} referensi; deskripsinya tersimpan di kartu referensi.${skipped}`)
+    setSummary(
+      referenceCount === 0
+        ? `Dianalisis dari ${response.used} logo atau gambar website aktif.${skipped}`
+        : `Dianalisis dari ${response.used} referensi; deskripsinya tersimpan di kartu referensi.${skipped}`,
+    )
   }
 
   return (
@@ -650,12 +678,12 @@ function VisualStyleField({ value, suggested, onChange, onAnalyzed, referenceCou
         rows={5}
         placeholder="Komposisi, mood, tipografi, jenis foto, elemen grafis yang khas."
       />
-      <button type="button" onClick={analyze} disabled={pending || referenceCount === 0} className={BUTTON}>
+      <button type="button" onClick={analyze} disabled={pending} className={BUTTON}>
         <Sparkles size={16} aria-hidden="true" />
         {pending
           ? 'AI sedang melihat referensi…'
           : referenceCount === 0
-            ? 'Tambahkan referensi di bawah untuk analisis visual'
+            ? 'Analisis visual dari logo atau Aset website'
             : `Analisis visual (sampai ${referenceCount} referensi terbaru)`}
       </button>
       {summary && <p className="text-xs text-zinc-500">{summary}</p>}

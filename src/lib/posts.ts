@@ -1,6 +1,6 @@
 import 'server-only'
 import { signMediaUrls } from './assets'
-import { truncate } from './brand-options'
+import { truncate, type SlideRole } from './brand-options'
 import type { ContentPlan } from './content-ai'
 import type { ContentRequest } from './content-options'
 import type { PostStatus } from './post-status'
@@ -304,22 +304,47 @@ export class ContentError extends Error {
   override name = 'ContentError'
 }
 
-/** The draft of an AI post with its slides waiting for their images, in one transaction (see create_content). */
-export async function createContentPost(userId: string, request: ContentRequest, plan: ContentPlan): Promise<string> {
+/** What each slide of a new post follows: its role, and a brand reference image or a style example. */
+export interface SlideReference {
+  role: SlideRole | null
+  referenceImageId: string | null
+  example: string | null
+}
+
+/**
+ * The draft of an AI post with its slides waiting for their images, in one transaction (see create_content). The
+ * owner's stored attachment goes only to the slides the plan uses it on.
+ */
+export async function createContentPost(
+  userId: string,
+  request: ContentRequest,
+  plan: ContentPlan,
+  references: SlideReference[],
+  attachmentPath: string | null = null,
+): Promise<string> {
   const { data, error } = await db().rpc('create_content', {
     p_user_id: userId,
     p_title: plan.title,
     p_caption: plan.caption,
-    p_slides: plan.slides.map((slide) => ({
-      headline: slide.headline,
-      scene: slide.scene,
-      format: request.format,
-      reference_id: request.referenceId,
-      include_logo: request.includeLogo,
-    })),
+    p_slides: plan.slides.map((slide, index) => {
+      const attached = attachmentPath !== null && slide.attachment !== ''
+      return {
+        headline: slide.headline,
+        scene: slide.scene,
+        format: request.format,
+        role: references[index]?.role ?? null,
+        reference_image_id: references[index]?.referenceImageId ?? null,
+        example: references[index]?.example ?? null,
+        product_group_id: slide.productGroupId,
+        include_logo: request.includeLogo,
+        attachment_path: attached ? attachmentPath : null,
+        attachment_note: attached ? slide.attachment : '',
+      }
+    }),
     p_idea_id: request.ideaId,
   })
   if (error?.message === 'invalid_reference') throw new ContentError('Referensi brand tidak ditemukan.')
+  if (error?.message === 'invalid_product') throw new ContentError('Produk tidak ditemukan.')
   if (error) throw new Error(`Supabase: ${error.message}`)
   return data as string
 }

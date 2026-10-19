@@ -42,6 +42,16 @@ export function formatShortDate(date: Date): string {
   return shortDateFormat.format(date)
 }
 
+/** e.g. "18 Okt, 23.15": a message's time in a thread. */
+export function formatShortDateTime(date: Date): string {
+  return `${formatShortDate(date)}, ${formatTime(date)}`
+}
+
+/** A list's time column: today's items show the time, older ones the date. */
+export function formatListTime(date: Date, now: Date): string {
+  return wibDateKey(date) === wibDateKey(now) ? formatTime(date) : formatShortDate(date)
+}
+
 const shiftToWib = (date: Date) => new Date(date.getTime() + WIB_OFFSET_MS).toISOString()
 
 /** The `<input type="datetime-local">` value for a moment, in WIB. */

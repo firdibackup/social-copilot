@@ -37,6 +37,7 @@ export function InstagramDisconnectButton({ username, scheduledCount }: Instagra
           </h2>
           <div className="space-y-2 text-sm text-zinc-600">
             <p>Selama akun lain terhubung, ini akan disembunyikan: {HIDDEN}.</p>
+            <p>Token akses Instagram dihapus, begitu juga koneksi Facebook-nya kalau ada.</p>
             {scheduledCount > 0 && (
               <p className="font-medium text-zinc-900">{scheduledCount} posting terjadwal akan kembali jadi draft.</p>
             )}

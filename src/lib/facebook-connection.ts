@@ -66,8 +66,24 @@ export async function saveFacebookConnection(userId: string, page: InstagramPage
   )
 }
 
-export async function deleteFacebookConnection(userId: string, accountId: string): Promise<void> {
-  unwrap(await db().from('facebook_connections').delete().eq('user_id', userId).eq('instagram_user_id', accountId))
+/** Every Page token of the user, so none is left behind whichever Instagram account it belonged to. */
+export async function deleteFacebookConnection(userId: string): Promise<void> {
+  unwrap(await db().from('facebook_connections').delete().eq('user_id', userId))
+}
+
+/** Whether any Page token of the user is stored, whichever Instagram account it belongs to. */
+export async function hasFacebookConnection(userId: string): Promise<boolean> {
+  const { count, error } = await db()
+    .from('facebook_connections')
+    .select('user_id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+  if (error || count === null) throw new Error(`Supabase: ${error?.message || 'koneksi Facebook tidak terbaca'}`)
+  return count > 0
+}
+
+/** After an Instagram account is connected, the Page tokens of the accounts it replaced go. */
+export async function deleteOtherFacebookConnections(userId: string, accountId: string): Promise<void> {
+  unwrap(await db().from('facebook_connections').delete().eq('user_id', userId).neq('instagram_user_id', accountId))
 }
 
 export async function markFacebookNeedsReconnect(userId: string, accountId: string): Promise<void> {

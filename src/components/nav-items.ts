@@ -14,7 +14,6 @@ export interface NavItem {
   href: string
   label: string
   icon: LucideIcon
-  isComingSoon?: boolean
   /** Left out of the phone's bottom bar, which has room for six. */
   desktopOnly?: boolean
 }
@@ -24,7 +23,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: '/kalender', label: 'Kalender', icon: CalendarDays },
   { href: '/buat', label: 'Buat', icon: WandSparkles },
   { href: '/balasan', label: 'Balasan', icon: MessageCircle },
-  { href: '/analitik', label: 'Analitik', icon: ChartNoAxesColumn, isComingSoon: true, desktopOnly: true },
+  { href: '/analitik', label: 'Analitik', icon: ChartNoAxesColumn, desktopOnly: true },
   { href: '/aset', label: 'Aset', icon: ImageIcon },
   { href: '/brand', label: 'Brand', icon: Palette },
   { href: '/pengaturan', label: 'Pengaturan', icon: Settings },

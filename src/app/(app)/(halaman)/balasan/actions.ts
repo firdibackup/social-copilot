@@ -1,34 +1,46 @@
 'use server'
 
 import { refresh } from 'next/cache'
+import { aiErrorMessage } from '@/lib/ai'
 import { requireAccount } from '@/lib/auth'
-import { getPublishingAccount, getValidAccessToken, markNeedsReconnect, NeedsReconnectError } from '@/lib/connection'
-import { deleteTemplate, getConversation, isReplyWindowOpen, recordMessage, saveTemplate, saveVariables } from '@/lib/dm'
+import { getPublishingAccount } from '@/lib/connection'
+import {
+  deleteTemplate,
+  getConversation,
+  isReplyWindowOpen,
+  listMessages,
+  markConversationSeen,
+  recordMessage,
+  saveTemplate,
+  saveVariables,
+} from '@/lib/dm'
 import { KEYWORD_MAX_LENGTH, parseVariables, REPLY_MAX_LENGTH } from '@/lib/dm-templates'
 import { describeError } from '@/lib/errors'
-import { InstagramApiError, sendDirectMessage, subscribeToMessages } from '@/lib/instagram'
+import { PROFILE_BATCH, readProfiles, syncConversations } from '@/lib/inbox-sync'
+import { sendDirectMessage } from '@/lib/instagram'
 import { isUuid } from '@/lib/params'
+import { draftReply, REPLY_CONTEXT_MESSAGES } from '@/lib/reply-ai'
+import { instagramErrorMessage, text, type ActionError, type DraftResult, type SyncState } from './action-utils'
 
-/** Each action returns a message for the owner, or null when it worked. */
-type ActionError = string | null
-
-const RECONNECT = 'Token Instagram kedaluwarsa atau dicabut. Hubungkan ulang di Pengaturan.'
 const WINDOW_CLOSED =
   'Sudah lewat 24 jam sejak pesan terakhir pelanggan, jadi Instagram tidak menerima balasan dari aplikasi. Balas lewat aplikasi Instagram.'
 
-const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
-
-/** Owner-facing text for an Instagram call that failed. */
-async function instagramErrorMessage(userId: string, error: unknown, context: string): Promise<string> {
-  if (error instanceof NeedsReconnectError) return RECONNECT
-  if (error instanceof InstagramApiError && error.isInvalidToken) {
-    await markNeedsReconnect(userId)
-    return RECONNECT
+/** Opening the DM tab and Muat ulang: stores the DMs Instagram has that the webhook never brought, at most every 10 minutes. */
+export async function syncDmsAction(): Promise<SyncState> {
+  const { userId } = await requireAccount()
+  let result: SyncState
+  try {
+    const synced = await syncConversations(userId)
+    if (synced === 'cooldown') return { status: 'cooldown', message: 'DM baru saja ditarik dari Instagram.' }
+    result = {
+      status: 'done',
+      message: synced.messages > 0 ? `${synced.messages} pesan ditarik dari Instagram.` : 'Semua DM sudah ada.',
+    }
+  } catch (error) {
+    result = { status: 'error', message: await instagramErrorMessage(userId, error, 'DM gagal ditarik') }
   }
-  console.error(`[balasan] ${context}:`, describeError(error))
-  return error instanceof InstagramApiError
-    ? `Instagram menolak: ${error.message}`
-    : 'Instagram atau database tidak bisa dihubungi. Coba lagi.'
+  refresh()
+  return result
 }
 
 export async function sendReply(igsid: unknown, reply: unknown): Promise<ActionError> {
@@ -105,13 +117,52 @@ export async function saveVariablesAction(lines: unknown): Promise<ActionError> 
   return null
 }
 
-/** Asks Meta to send the connected account's DMs to the webhook. */
-export async function subscribeAction(): Promise<ActionError> {
-  const { userId } = await requireAccount()
+export async function syncProfilesAction(value: unknown): Promise<void> {
+  const { userId, accountId } = await requireAccount()
+  if (!Array.isArray(value)) return
+  const ids = [...new Set(value.filter((item): item is string => typeof item === 'string' && item !== ''))].slice(0, PROFILE_BATCH)
   try {
-    await subscribeToMessages(await getValidAccessToken(userId))
-    return null
+    const conversations = (
+      await Promise.all(ids.map((igsid) => getConversation(userId, accountId, igsid)))
+    ).filter((conversation) => conversation !== null)
+    if ((await readProfiles(userId, conversations)).length > 0) refresh()
   } catch (error) {
-    return instagramErrorMessage(userId, error, 'langganan DM gagal')
+    console.error('[balasan] profil lama gagal diisi:', describeError(error))
+  }
+}
+
+/**
+ * Called by the open thread once it shows, never while rendering. No refresh(): the list's dot goes on the next
+ * navigation, and the bell polls on its own.
+ */
+export async function markConversationSeenAction(igsid: unknown): Promise<void> {
+  const { userId, accountId } = await requireAccount()
+  if (typeof igsid !== 'string' || igsid === '') return
+  try {
+    await markConversationSeen(userId, accountId, igsid)
+  } catch (error) {
+    console.error('[balasan] status dibaca gagal disimpan:', describeError(error))
+  }
+}
+
+/** ✨ AI in a DM: writes a reply from the conversation, or tidies the owner's draft. Sends nothing. */
+export async function draftDmReply(igsid: unknown, draft: unknown): Promise<DraftResult> {
+  const { userId, accountId } = await requireAccount()
+  const customer = typeof igsid === 'string' ? igsid : ''
+  const ownerDraft = typeof draft === 'string' ? draft.slice(0, REPLY_MAX_LENGTH) : ''
+  try {
+    const conversation = customer ? await getConversation(userId, accountId, customer) : null
+    if (!conversation) return { error: 'Percakapan tidak ditemukan.' }
+    const messages = (await listMessages(userId, customer)).slice(-REPLY_CONTEXT_MESSAGES)
+    if (messages.length === 0 && !ownerDraft.trim()) return { error: 'Belum ada pesan untuk dibalas.' }
+    const reply = await draftReply(userId, {
+      channel: 'dm',
+      lines: messages.map((message) => ({ fromCustomer: message.fromCustomer, text: message.text })),
+      draft: ownerDraft,
+    })
+    return { draft: reply }
+  } catch (error) {
+    console.error('[balasan] draf AI gagal:', describeError(error))
+    return { error: aiErrorMessage(error) }
   }
 }

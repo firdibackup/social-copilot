@@ -81,8 +81,12 @@ export type LoggedTask =
   | 'slide_edit'
   | 'caption_edit'
   | 'content_ideas'
+  | 'content_script'
   | 'brand_profile'
   | 'brand_visual'
+  | 'website_catalog'
+  | 'asset_tags'
+  | 'reply_draft'
 
 interface GenerationLog {
   user_id: string

@@ -5,9 +5,9 @@ export const CARD_TITLE = 'text-sm font-semibold text-zinc-900'
 export const LABEL = 'block space-y-1 text-sm font-medium text-zinc-900'
 export const HINT = 'text-xs font-normal text-zinc-500'
 export const FIELD =
-  'block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-normal text-zinc-900 focus:border-zinc-400 focus:outline-none'
+  'block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-normal text-zinc-900 focus:outline-none'
 export const PRIMARY_BUTTON =
-  'inline-flex items-center justify-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50'
+  'inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-50'
 export const BUTTON =
   'inline-flex items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:opacity-50'
 export const DANGER_BUTTON =
@@ -23,8 +23,12 @@ export const TASK_LABELS: Record<string, string> = {
   slide_edit: 'Edit slide',
   caption_edit: 'Edit caption',
   content_ideas: 'Ide konten',
+  content_script: 'Skrip konten',
   brand_profile: 'Profil brand',
   brand_visual: 'Gaya visual',
+  website_catalog: 'Katalog website',
+  asset_tags: 'Tag foto',
+  reply_draft: 'Draf balasan',
 }
 
 export const ACTION_LABELS: Record<string, string> = {

@@ -1,21 +1,29 @@
-import type { Metadata } from "next";
-import { Geist } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Bricolage_Grotesque } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+/** The brand face, for headings only; body and UI text use the system (San Francisco) stack in globals.css. */
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
   subsets: ["latin"],
+  weight: ["600", "700"],
 });
 
 export const metadata: Metadata = {
-  title: { default: "Social Copilot", template: "%s · Social Copilot" },
+  title: { default: "Carousely", template: "%s · Carousely" },
   description: "Jadwalkan konten, buat draf dengan AI, dan balas DM Instagram dari satu tempat.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#f8f8fc",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="id" className={`${geistSans.variable} h-full antialiased`}>
-      <body className="min-h-full bg-white font-sans text-zinc-900">{children}</body>
+    <html lang="id" className={`${bricolage.variable} h-full antialiased`}>
+      <body className="min-h-full bg-white font-sans text-ink" suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }

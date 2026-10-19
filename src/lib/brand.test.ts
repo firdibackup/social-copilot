@@ -6,6 +6,7 @@ import {
   deleteReference,
   getBrandKit,
   hasBrandKit,
+  listReferencePool,
   listReferences,
   loadReferenceImage,
   loadVisualReferences,
@@ -109,56 +110,54 @@ describe('listReferences', () => {
   })
 })
 
+describe('listReferencePool', () => {
+  it('lists every image of the account’s groups with its label', async () => {
+    const { chains } = useDb([
+      { data: [{ id: 'img-1', position: 0, label: 'cover', brand_references: { account_id: 'ig-1' } }], error: null },
+    ])
+
+    await expect(listReferencePool('user-1', 'ig-1', null)).resolves.toEqual([{ id: 'img-1', position: 0, label: 'cover' }])
+
+    expect(chains[0][0]).toEqual(['from', 'brand_reference_images'])
+    expect(filtered(chains[0], 'user_id', 'user-1')).toBe(true)
+    expect(filtered(chains[0], 'brand_references.account_id', 'ig-1')).toBe(true)
+    expect(chains[0].some((call) => call[1] === 'reference_id')).toBe(false)
+  })
+
+  it('keeps to the one group the owner picked', async () => {
+    const { chains } = useDb([{ data: [], error: null }])
+
+    await listReferencePool('user-1', 'ig-1', 'ref-1')
+
+    expect(filtered(chains[0], 'reference_id', 'ref-1')).toBe(true)
+  })
+})
+
 describe('loadReferenceImage', () => {
-  it('sends the chosen slide small, with its label, so it always fits next to slide 1', async () => {
+  it('sends the image small, with its label and its group’s note, so it fits next to another slide', async () => {
     const big = await sharp({ create: { width: 1080, height: 1350, channels: 3, background: { r: 200, g: 40, b: 40 } } })
       .jpeg({ quality: 95 })
       .toBuffer()
-    const { storage } = useDb([
-      {
-        data: {
-          note: '',
-          brand_reference_images: [
-            { position: 0, label: 'cover', storage_path: 'u/cover.jpg', content_type: 'image/jpeg' },
-            { position: 1, label: 'cta', storage_path: 'u/cta.jpg', content_type: 'image/jpeg' },
-          ],
-        },
-        error: null,
-      },
+    const { chains, storage } = useDb([
+      { data: { label: 'cta', storage_path: 'u/cta.jpg', brand_references: { note: 'warna' } }, error: null },
     ])
     storage.download.mockResolvedValue({ data: new Blob([new Uint8Array(big)]), error: null } as never)
 
-    const image = await loadReferenceImage('user-1', 'ref-1', { index: 3, count: 3 })
+    const image = await loadReferenceImage('user-1', 'img-3')
 
-    expect(image?.label).toBe('cta')
+    expect(filtered(chains[0], 'id', 'img-3')).toBe(true)
+    expect(filtered(chains[0], 'user_id', 'user-1')).toBe(true)
+    expect(storage.download).toHaveBeenCalledWith('u/cta.jpg')
+    expect(image).toMatchObject({ label: 'cta', note: 'warna' })
     expect(image?.dataUrl.startsWith('data:image/jpeg;base64,')).toBe(true)
     const { width } = await sharp(Buffer.from(image!.dataUrl.split(',')[1], 'base64')).metadata()
     expect(width).toBe(640)
   })
 
-  it('loads the image the slide follows', async () => {
-    const { storage } = useDb([
-      {
-        data: {
-          note: 'warna',
-          brand_reference_images: [
-            { position: 0, label: 'cover', storage_path: 'u/cover.jpg', content_type: 'image/jpeg' },
-            { position: 1, label: 'isi', storage_path: 'u/isi.jpg', content_type: 'image/jpeg' },
-            { position: 2, label: 'cta', storage_path: 'u/cta.jpg', content_type: 'image/jpeg' },
-          ],
-        },
-        error: null,
-      },
-    ])
+  it('is null when the image is gone', async () => {
+    useDb([{ data: null, error: null }])
 
-    const small = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#000000' } }).jpeg().toBuffer()
-    storage.download.mockResolvedValue({ data: new Blob([new Uint8Array(small)]), error: null } as never)
-
-    const image = await loadReferenceImage('user-1', 'ref-1', { index: 3, count: 3 })
-
-    expect(storage.download).toHaveBeenCalledWith('u/cta.jpg')
-    expect(image?.note).toBe('warna')
-    expect(image?.dataUrl).toMatch(/^data:image\/jpeg;base64,/)
+    await expect(loadReferenceImage('user-1', 'img-3')).resolves.toBeNull()
   })
 })
 

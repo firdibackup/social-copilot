@@ -1,4 +1,5 @@
 import 'server-only'
+import type { SlideRole } from './brand-options'
 import { isImageFormat, type ImageFormat } from './image-options'
 import { db, unwrap } from './supabase'
 
@@ -12,12 +13,20 @@ export interface SlideRecord {
   headline: string
   scene: string
   format: ImageFormat
-  referenceId: string | null
+  /** What the plan made it; null for a one-image post. */
+  role: SlideRole | null
+  /** The reference image it follows (see planReferenceImages). */
+  referenceImageId: string | null
+  /** The style example it follows when the account had no references (see planStyleExamples). */
+  example: string | null
+  /** The product group the planner chose; retries and edits preserve it. */
+  productGroupId: string | null
   includeLogo: boolean
+  /** The owner's image this slide uses and what it does with it; null when it uses none. */
+  attachmentPath: string | null
+  attachmentNote: string
   status: SlideStatus
   error: string | null
-  /** A generating slide whose generator has evidently died: it can be taken again (see claim_slide). */
-  stale: boolean
 }
 
 interface SlideRow {
@@ -27,15 +36,20 @@ interface SlideRow {
   headline: string
   scene: string
   format: string
-  reference_id: string | null
+  role: SlideRole | null
+  reference_image_id: string | null
+  example: string | null
+  product_group_id: string | null
   include_logo: boolean
+  attachment_path: string | null
+  attachment_note: string
   status: SlideStatus
   error: string | null
   claimed_at: string | null
 }
 
-const COLUMNS = 'id, post_id, position, headline, scene, format, reference_id, include_logo, status, error, claimed_at'
-const STALE_MS = 5 * 60 * 1000
+const COLUMNS =
+  'id, post_id, position, headline, scene, format, role, reference_image_id, example, product_group_id, include_logo, attachment_path, attachment_note, status, error, claimed_at'
 
 /** A refusal from the slide functions. The message is safe to show to the owner. */
 export class SlideError extends Error {
@@ -57,7 +71,7 @@ function check(error: { message: string } | null): void {
   throw refusal ? new SlideError(refusal) : new Error(`Supabase: ${error.message}`)
 }
 
-function toSlide(row: SlideRow, now: number): SlideRecord {
+function toSlide(row: SlideRow): SlideRecord {
   return {
     id: row.id,
     postId: row.post_id,
@@ -65,16 +79,20 @@ function toSlide(row: SlideRow, now: number): SlideRecord {
     headline: row.headline,
     scene: row.scene,
     format: isImageFormat(row.format) ? row.format : '4:5',
-    referenceId: row.reference_id,
+    role: row.role,
+    referenceImageId: row.reference_image_id,
+    example: row.example,
+    productGroupId: row.product_group_id,
     includeLogo: row.include_logo,
+    attachmentPath: row.attachment_path,
+    attachmentNote: row.attachment_note,
     status: row.status,
     error: row.error,
-    stale: row.status === 'generating' && row.claimed_at !== null && now - new Date(row.claimed_at).getTime() > STALE_MS,
   }
 }
 
 /** Slides of a post whose image isn't in it yet: waiting, being made, or failed. In carousel order. */
-export async function listUnfinishedSlides(userId: string, postId: string, now = new Date()): Promise<SlideRecord[]> {
+export async function listUnfinishedSlides(userId: string, postId: string): Promise<SlideRecord[]> {
   const rows: SlideRow[] = unwrap(
     await db()
       .from('post_slides')
@@ -84,7 +102,7 @@ export async function listUnfinishedSlides(userId: string, postId: string, now =
       .neq('status', 'ready')
       .order('position'),
   )
-  return rows.map((row) => toSlide(row, now.getTime()))
+  return rows.map(toSlide)
 }
 
 /** True while an image of the post is still to come, when saving the post's photos would race attach_slide. */
@@ -110,15 +128,77 @@ export async function findSlideByAsset(userId: string, assetId: string): Promise
       .order('created_at', { ascending: false })
       .limit(1),
   )
-  return rows[0] ? toSlide(rows[0], Date.now()) : null
+  return rows[0] ? toSlide(rows[0]) : null
 }
 
-/** Takes the slide for this generator, or null when it is ready, gone, or being made elsewhere. */
-export async function claimSlide(userId: string, slideId: string): Promise<SlideRecord | null> {
-  const { data, error } = await db().rpc('claim_slide', { p_user_id: userId, p_id: slideId })
+/**
+ * The first of the post's photos (`assetIds`, in carousel order) that is an inner AI slide, leaving out
+ * `exceptAssetId`: what the other inner slides keep their look from. Null when none is made yet. Never a cover
+ * or CTA, so those never lend their layout to an inner slide.
+ */
+export async function findInnerSlideAsset(
+  userId: string,
+  postId: string,
+  assetIds: string[],
+  exceptAssetId: string | null = null,
+): Promise<string | null> {
+  const ids = assetIds.filter((id) => id !== exceptAssetId)
+  if (ids.length === 0) return null
+  const rows: { asset_id: string }[] = unwrap(
+    await db()
+      .from('post_slides')
+      .select('asset_id')
+      .eq('user_id', userId)
+      .eq('post_id', postId)
+      .eq('role', 'isi')
+      .eq('status', 'ready')
+      .in('asset_id', ids),
+  )
+  const inner = new Set(rows.map((row) => row.asset_id))
+  return ids.find((id) => inner.has(id)) ?? null
+}
+
+/** A slide the worker took: whose it is, its post's Instagram account, and how many times the worker has taken it. */
+export interface ClaimedSlide {
+  userId: string
+  /** The account the post belongs to, so the image lands in that account's Aset; null for an old post without one. */
+  accountId: string | null
+  attemptCount: number
+  slide: SlideRecord
+}
+
+/** The worker's next slide due (see claim_next_slide), or null when none is. */
+export async function claimNextSlide(): Promise<ClaimedSlide | null> {
+  const { data, error } = await db().rpc('claim_next_slide')
   check(error)
-  const rows = (data ?? []) as SlideRow[]
-  return rows[0] ? toSlide(rows[0], Date.now()) : null
+  const row = ((data ?? []) as (SlideRow & { user_id: string; attempt_count: number })[])[0]
+  if (!row) return null
+  const post: { account_id: string | null } | null = unwrap(
+    await db().from('posts').select('account_id').eq('id', row.post_id).maybeSingle(),
+  )
+  return {
+    userId: row.user_id,
+    accountId: post?.account_id ?? null,
+    attemptCount: row.attempt_count,
+    slide: toSlide(row),
+  }
+}
+
+/** Back in the queue after `delayMs`, for a failure that may pass. Only a slide still being made. */
+export async function requeueSlide(slideId: string, message: string, delayMs: number): Promise<void> {
+  const { error } = await db().rpc('requeue_slide', {
+    p_id: slideId,
+    p_error: message,
+    p_delay: `${Math.round(delayMs / 1000)} seconds`,
+  })
+  check(error)
+}
+
+/** The owner's Coba lagi: a failed slide waits for the worker again. False when it isn't failed (anymore). */
+export async function retrySlide(userId: string, slideId: string): Promise<boolean> {
+  const { data, error } = await db().rpc('retry_slide', { p_user_id: userId, p_id: slideId })
+  check(error)
+  return data === true
 }
 
 /** The image is in the post. */
@@ -127,7 +207,7 @@ export async function attachSlide(slideId: string, assetId: string): Promise<voi
   check(error)
 }
 
-/** Back in the queue with the reason, for the owner to try again. Only a slide still being made. */
+/** Failed with the reason, for the owner to try again. Only a slide still being made. */
 export async function failSlide(slideId: string, message: string): Promise<void> {
   unwrap(
     await db()
@@ -159,8 +239,11 @@ export interface Replacement {
   headline: string
   scene: string
   format: ImageFormat
-  referenceId: string | null
+  role: SlideRole | null
+  referenceImageId: string | null
+  productGroupId: string | null
   includeLogo: boolean
+  example: string | null
 }
 
 /** An edited slide's new image takes the old one's place, and keeps its prompt for the next edit. */
@@ -173,8 +256,11 @@ export async function replaceSlide(userId: string, replacement: Replacement): Pr
     p_headline: replacement.headline,
     p_scene: replacement.scene,
     p_format: replacement.format,
-    p_reference_id: replacement.referenceId,
+    p_role: replacement.role,
+    p_reference_image_id: replacement.referenceImageId,
+    p_product_group_id: replacement.productGroupId,
     p_include_logo: replacement.includeLogo,
+    p_example: replacement.example,
   })
   check(error)
 }

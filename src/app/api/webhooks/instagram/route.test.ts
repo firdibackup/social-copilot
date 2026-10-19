@@ -1,11 +1,15 @@
 import { createHmac } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { findUserByInstagramId, getValidAccessToken } from '@/lib/connection'
+import { getCurrentPeriod } from '@/lib/billing'
+import { markReplies, saveComments } from '@/lib/comments'
+import { findUserByInstagramId, getConnection, getValidAccessToken } from '@/lib/connection'
 import { needsProfile, recordMessage, saveProfile } from '@/lib/dm'
 import { fetchCustomerProfile } from '@/lib/instagram'
 import { GET, POST } from './route'
 
-vi.mock('@/lib/connection', () => ({ findUserByInstagramId: vi.fn(), getValidAccessToken: vi.fn() }))
+vi.mock('@/lib/billing', () => ({ getCurrentPeriod: vi.fn() }))
+vi.mock('@/lib/comments', () => ({ markReplies: vi.fn(), saveComments: vi.fn() }))
+vi.mock('@/lib/connection', () => ({ findUserByInstagramId: vi.fn(), getConnection: vi.fn(), getValidAccessToken: vi.fn() }))
 vi.mock('@/lib/dm', () => ({ needsProfile: vi.fn(), recordMessage: vi.fn(), saveProfile: vi.fn() }))
 vi.mock('@/lib/instagram', () => ({ fetchCustomerProfile: vi.fn() }))
 
@@ -38,10 +42,22 @@ beforeEach(() => {
   vi.stubEnv('INSTAGRAM_APP_SECRET', 'app-secret')
   vi.stubEnv('INSTAGRAM_WEBHOOK_VERIFY_TOKEN', 'verify-me')
   vi.mocked(findUserByInstagramId).mockImplementation(async (account) => OWNERS[account] ?? null)
+  vi.mocked(getCurrentPeriod).mockResolvedValue({
+    start: new Date('2026-10-01'),
+    end: new Date('2026-10-31'),
+    activeUntil: new Date('2026-10-31'),
+  })
   vi.mocked(recordMessage).mockResolvedValue(true)
   vi.mocked(needsProfile).mockResolvedValue(true)
   vi.mocked(getValidAccessToken).mockResolvedValue('token')
-  vi.mocked(fetchCustomerProfile).mockResolvedValue({ username: 'budi', name: 'Budi' })
+  vi.mocked(fetchCustomerProfile).mockResolvedValue({ username: 'budi', name: 'Budi', profilePicUrl: null })
+  vi.mocked(getConnection).mockResolvedValue({
+    username: 'tokosaya',
+    accountType: 'BUSINESS',
+    tokenExpiresAt: new Date('2026-12-01'),
+    status: 'active',
+    scopes: [],
+  })
 })
 
 afterEach(() => {
@@ -75,7 +91,7 @@ describe('POST /api/webhooks/instagram', () => {
     })
     expect(getValidAccessToken).toHaveBeenCalledWith(USER)
     expect(fetchCustomerProfile).toHaveBeenCalledWith('token', CUSTOMER)
-    expect(saveProfile).toHaveBeenCalledWith(USER, CUSTOMER, { username: 'budi', name: 'Budi' })
+    expect(saveProfile).toHaveBeenCalledWith(USER, CUSTOMER, { username: 'budi', name: 'Budi', profilePicUrl: null })
   })
 
   it('stores each entry for the user who connected its account and skips accounts nobody has', async () => {
@@ -129,6 +145,52 @@ describe('POST /api/webhooks/instagram', () => {
 
     expect((await webhook(message('m1'))).status).toBe(200)
     expect(recordMessage).not.toHaveBeenCalled()
+  })
+
+  it('acknowledges messages for a user without an active subscription, without storing them', async () => {
+    vi.mocked(getCurrentPeriod).mockResolvedValue(null)
+
+    expect((await webhook(message('m1'))).status).toBe(200)
+    expect(getCurrentPeriod).toHaveBeenCalledWith(USER)
+    expect(recordMessage).not.toHaveBeenCalled()
+  })
+
+  it("stores new comments, marking the account's own as the owner's, then marks replied threads", async () => {
+    const comment = (id: string, from: Record<string, string>, extra: Record<string, unknown> = {}) => ({
+      field: 'comments',
+      value: { id, text: 'berapa kak?', from, media: { id: '18000000000000001' }, ...extra },
+    })
+    const body = {
+      object: 'instagram',
+      entry: [
+        {
+          id: ACCOUNT,
+          time: 1792130400,
+          changes: [
+            comment('18100000000000001', { id: CUSTOMER, username: 'budi' }),
+            comment('18100000000000002', { id: ACCOUNT, username: 'tokosaya' }, { parent_id: '18100000000000001' }),
+          ],
+        },
+      ],
+    }
+
+    expect((await webhook(body)).status).toBe(200)
+    expect(recordMessage).not.toHaveBeenCalled()
+    expect(saveComments).toHaveBeenCalledWith(
+      USER,
+      ACCOUNT,
+      [
+        expect.objectContaining({ id: '18100000000000001', isFromOwner: false, createdAt: new Date(1792130400000) }),
+        expect.objectContaining({ id: '18100000000000002', parentId: '18100000000000001', isFromOwner: true }),
+      ],
+      'insert',
+    )
+    expect(markReplies).toHaveBeenCalledWith(USER, ['18000000000000001', '18000000000000001'])
+  })
+
+  it('stores no comments for a DM-only payload', async () => {
+    expect((await webhook(message('m1'))).status).toBe(200)
+    expect(saveComments).not.toHaveBeenCalled()
   })
 
   it('rejects a signed body that is not JSON', async () => {

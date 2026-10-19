@@ -1,5 +1,5 @@
 import { connection } from 'next/server'
-import { requireActiveUser } from '@/lib/auth'
+import { requireUser } from '@/lib/auth'
 import { getBrandKit } from '@/lib/brand'
 import { getConnectedAccountId, getConnection } from '@/lib/connection'
 import { describeError } from '@/lib/errors'
@@ -7,7 +7,7 @@ import { Avatar } from './avatar'
 
 async function loadWorkspace(): Promise<{ name: string; logoUrl: string | null }> {
   await connection()
-  const userId = await requireActiveUser()
+  const userId = await requireUser()
   try {
     const [accountId, instagram] = await Promise.all([getConnectedAccountId(userId), getConnection(userId)])
     // The brand belongs to the connected account; without one there is no brand to show.

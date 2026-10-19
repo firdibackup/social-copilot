@@ -2,10 +2,13 @@ import 'server-only'
 import { imageModel, textModel } from './app-settings'
 import { env } from './env'
 
-/** Combos may try several providers in turn before one answers. */
-const REQUEST_TIMEOUT_MS = 60_000
-/** Room for three captions in JSON; the models stop well before this. */
-const MAX_TOKENS = 4096
+/** Combos may try several providers in turn before one answers; a thinking model's 5-slide plan took 40–50 s. */
+const REQUEST_TIMEOUT_MS = 120_000
+/**
+ * Thinking models spend their reasoning from this budget too: Claude Sonnet 5 used 3,500–4,700 tokens for a
+ * 5-slide plan from a long topic, and at 4,096 it was cut off mid-JSON (finish_reason max_tokens).
+ */
+const MAX_TOKENS = 16_000
 
 /** OpenAI-style parts. Images go as data URLs: verified with Claude Haiku 4.5 through 9Router on 2026-10-16. */
 export type ContentPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }

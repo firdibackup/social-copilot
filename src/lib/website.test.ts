@@ -1,5 +1,8 @@
+import { lookup } from 'node:dns/promises'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cssColors, cssFonts, extractWebsite, readWebsite } from './website'
+import { cssColors, cssFonts, extractWebsite, prioritizeWebsiteLinks, readWebsite } from './website'
+
+vi.mock('node:dns/promises', () => ({ lookup: vi.fn() }))
 
 const PAGE = `<!doctype html>
 <html>
@@ -17,10 +20,13 @@ const PAGE = `<!doctype html>
   <script>var secret = "not page text";</script>
 </head>
 <body>
-  <header><img src="/img/logo-sinar.png" alt="Kopi Sinar"></header>
+  <header><img src="/img/logo-sinar.png" alt="Kopi Sinar" class="site-logo"></header>
   <!-- hidden comment -->
   <h1>Ngopi santai, kak!</h1>
   <p style="color:#E8B04B">Buka setiap hari 08.00&ndash;22.00 &#8212; Jl. Braga 1</p>
+  <a href="/tentang">Tentang</a><a href="/produk/kopi">Produk</a>
+  <img src="/img/kopi.jpg" alt="Kopi susu" width="800" height="1000">
+  <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" data-src="/img/lazy.jpg" alt="Kopi lazy">
 </body>
 </html>`
 
@@ -46,7 +52,19 @@ describe('extractWebsite', () => {
       'https://kopisinar.id/touch.png',
       'https://kopisinar.id/og.jpg',
     ])
-    expect(page.imageUrls).toEqual(['https://kopisinar.id/og.jpg'])
+    expect(page.imageUrls).toEqual([
+      'https://kopisinar.id/img/kopi.jpg',
+      'https://kopisinar.id/img/lazy.jpg',
+      'https://kopisinar.id/og.jpg',
+    ])
+  })
+
+  it('reads internal links and ordinary content images with context', () => {
+    expect(page.links).toEqual(['https://kopisinar.id/tentang', 'https://kopisinar.id/produk/kopi'])
+    expect(page.images).toContainEqual(
+      expect.objectContaining({ url: 'https://kopisinar.id/img/kopi.jpg', alt: 'Kopi susu', width: 800, height: 1000 }),
+    )
+    expect(page.images).toContainEqual(expect.objectContaining({ url: 'https://kopisinar.id/img/lazy.jpg', alt: 'Kopi lazy' }))
   })
 
   it('reads the theme colour, Google Fonts and inline CSS', () => {
@@ -91,10 +109,29 @@ describe('cssFonts', () => {
   })
 })
 
+describe('prioritizeWebsiteLinks', () => {
+  it('puts product pages first and excludes unsafe or irrelevant pages', () => {
+    expect(
+      prioritizeWebsiteLinks(
+        [
+          'https://kopisinar.id/tentang',
+          'https://kopisinar.id/checkout',
+          'https://other.id/product',
+          'https://kopisinar.id/produk/kopi',
+        ],
+        'https://kopisinar.id/',
+      ),
+    ).toEqual(['https://kopisinar.id/produk/kopi', 'https://kopisinar.id/tentang'])
+  })
+})
+
 describe('readWebsite', () => {
   const fetchMock = vi.fn<typeof fetch>()
 
-  beforeEach(() => vi.stubGlobal('fetch', fetchMock))
+  beforeEach(() => {
+    vi.stubGlobal('fetch', fetchMock)
+    vi.mocked(lookup).mockResolvedValue([{ address: '203.0.113.10', family: 4 }] as never)
+  })
   afterEach(() => {
     vi.unstubAllGlobals()
     fetchMock.mockReset()
@@ -113,7 +150,8 @@ describe('readWebsite', () => {
     expect(facts.url).toBe('https://kopisinar.id/')
     expect(facts.colors.slice(0, 4)).toEqual(['#7a3e1d', '#e8b04b', '#1d4ed8', '#123456'])
     expect(facts.fonts).toEqual(['Playfair Display', 'Inter', 'Lora'])
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock).toHaveBeenCalledTimes(5)
+    expect(facts.pages).toHaveLength(3)
   })
 
   it('still answers when a stylesheet fails', async () => {

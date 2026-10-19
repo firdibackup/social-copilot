@@ -1,11 +1,20 @@
 import 'server-only'
+import { METRICS, parseInsights, type Metrics } from './analytics-metrics'
 import { MAX_GROUP_IMAGES } from './brand-options'
+import type { MessageEvent } from './dm-webhook'
 import { env } from './env'
+
+/** Analitik needs it; accounts connected before it existed must reconnect once. */
+export const INSIGHTS_SCOPE = 'instagram_business_manage_insights'
+/** The Komentar tab needs it, the same way. */
+export const COMMENTS_SCOPE = 'instagram_business_manage_comments'
 
 export const INSTAGRAM_SCOPES = [
   'instagram_business_basic',
   'instagram_business_content_publish',
   'instagram_business_manage_messages',
+  INSIGHTS_SCOPE,
+  COMMENTS_SCOPE,
 ] as const
 
 const AUTHORIZE_URL = 'https://www.instagram.com/oauth/authorize'
@@ -145,6 +154,7 @@ export function buildAuthorizeUrl(state: string): string {
     response_type: 'code',
     scope: INSTAGRAM_SCOPES.join(','),
     state,
+    force_reauth: 'true',
   }).toString()
   return url.toString()
 }
@@ -276,6 +286,196 @@ export async function fetchRecentMedia(accessToken: string, limit: number): Prom
   return toPosts(body.data)
 }
 
+/** One of the account's own posts, for Analitik. `thumbnailUrl` is a signed CDN link: never log it. */
+export interface OwnMedia {
+  id: string
+  mediaType: string
+  productType: string | null
+  caption: string
+  permalink: string | null
+  thumbnailUrl: string | null
+  postedAt: Date
+  /** From the media itself, so a post whose insights fail still shows them. */
+  likes: number | null
+  comments: number | null
+}
+
+const OWN_MEDIA_FIELDS =
+  'id,caption,media_type,media_product_type,permalink,media_url,thumbnail_url,timestamp,like_count,comments_count'
+const MEDIA_PAGE_SIZE = 50
+/** Media and comment ids are numeric; the syncs pass them into PostgREST `in` filters. */
+const NUMERIC_ID = /^\d+$/
+
+const optionalCount = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : null)
+
+function toOwnMedia(item: unknown): OwnMedia | null {
+  if (!isObject(item) || typeof item.id !== 'string' || !NUMERIC_ID.test(item.id)) return null
+  // Graph writes `+0000`, which Date parses.
+  const postedAt = new Date(typeof item.timestamp === 'string' ? item.timestamp : '')
+  const mediaType = optionalString(item.media_type)
+  if (Number.isNaN(postedAt.getTime()) || !mediaType) return null
+  return {
+    id: item.id,
+    mediaType,
+    productType: optionalString(item.media_product_type),
+    caption: optionalString(item.caption) ?? '',
+    permalink: optionalString(item.permalink),
+    // A video's media_url is the video file; its still is thumbnail_url.
+    thumbnailUrl: optionalString(item.thumbnail_url) ?? (mediaType === 'VIDEO' ? null : optionalString(item.media_url)),
+    postedAt,
+    likes: optionalCount(item.like_count),
+    comments: optionalCount(item.comments_count),
+  }
+}
+
+/** The cursor of the next page, only when Graph says there is one. */
+function nextCursor(body: Json): string | null {
+  const paging = body.paging
+  if (!isObject(paging) || typeof paging.next !== 'string' || !isObject(paging.cursors)) return null
+  return optionalString(paging.cursors.after)
+}
+
+export interface MediaSince {
+  /** Newest first. */
+  media: OwnMedia[]
+  /** False when `max` cut the list before it reached `since`. */
+  isComplete: boolean
+}
+
+/**
+ * The account's posts from `since` on, at most `max`. Stories aren't in /me/media. Pinned posts come first whatever
+ * their age, so an older post doesn't end the walk; a page whose last post is older does.
+ */
+export async function listMediaSince(accessToken: string, since: Date, max: number): Promise<MediaSince> {
+  let media: OwnMedia[] = []
+  let after: string | null = null
+  do {
+    const body = await request(
+      graphUrl('/me/media', {
+        fields: OWN_MEDIA_FIELDS,
+        limit: String(MEDIA_PAGE_SIZE),
+        access_token: accessToken,
+        ...(after ? { after } : {}),
+      }),
+    )
+    const page = (Array.isArray(body.data) ? body.data : []).flatMap((item) => toOwnMedia(item) ?? [])
+    media = [...media, ...page.filter((item) => item.postedAt >= since)]
+    if (media.length > max) return { media: media.slice(0, max), isComplete: false }
+    const last = page.at(-1)
+    if (!last || last.postedAt < since) break
+    after = nextCursor(body)
+  } while (after)
+  return { media, isComplete: true }
+}
+
+/** Lifetime insights of one post. Throws on any Graph error, so the caller can count that post alone as failed. */
+export async function getMediaInsights(accessToken: string, mediaId: string): Promise<Metrics> {
+  const body = await request(graphUrl(`/${mediaId}/insights`, { metric: METRICS.join(','), access_token: accessToken }))
+  return parseInsights(body)
+}
+
+/** A comment on one of the account's posts, or a reply to one. */
+export interface PostComment {
+  id: string
+  mediaId: string
+  /** The top-level comment a reply belongs to; null for a top-level comment. */
+  parentId: string | null
+  fromId: string | null
+  username: string | null
+  text: string
+  createdAt: Date
+  isHidden: boolean
+}
+
+export interface MediaComments {
+  /** Top-level comments newest first, each followed by its replies. */
+  comments: PostComment[]
+  /** False when `max` or a long reply thread cut the list short. */
+  isComplete: boolean
+}
+
+const COMMENT_FIELDS = 'id,text,timestamp,username,from,hidden,parent_id'
+/** Graph's most per page of /comments. */
+const COMMENT_PAGE_SIZE = 50
+
+function toComment(item: unknown, mediaId: string, parentId: string | null): PostComment | null {
+  if (!isObject(item) || typeof item.id !== 'string' || !NUMERIC_ID.test(item.id)) return null
+  const createdAt = new Date(typeof item.timestamp === 'string' ? item.timestamp : '')
+  if (Number.isNaN(createdAt.getTime())) return null
+  const from = isObject(item.from) ? item.from : {}
+  return {
+    id: item.id,
+    mediaId,
+    parentId: optionalString(item.parent_id) ?? parentId,
+    fromId: optionalString(from.id),
+    username: optionalString(item.username) ?? optionalString(from.username),
+    text: typeof item.text === 'string' ? item.text : '',
+    createdAt,
+    isHidden: item.hidden === true,
+  }
+}
+
+/** A top-level comment and the replies Graph sent with it. */
+function threadOf(item: unknown, mediaId: string): { comments: PostComment[]; isComplete: boolean } {
+  const comment = toComment(item, mediaId, null)
+  if (!comment || !isObject(item)) return { comments: [], isComplete: true }
+  const replies = isObject(item.replies) ? item.replies : {}
+  const data = Array.isArray(replies.data) ? replies.data : []
+  return {
+    comments: [comment, ...data.flatMap((reply) => toComment(reply, mediaId, comment.id) ?? [])],
+    // ponytail: only the first page of a thread's replies; page through /{comment}/replies when threads run long.
+    isComplete: nextCursor(replies) === null,
+  }
+}
+
+/** A post's comments with their replies, at most `max` top-level ones. */
+export async function listMediaComments(accessToken: string, mediaId: string, max: number): Promise<MediaComments> {
+  let comments: PostComment[] = []
+  let topLevel = 0
+  let isComplete = true
+  let after: string | null = null
+  do {
+    const body = await request(
+      graphUrl(`/${mediaId}/comments`, {
+        fields: `${COMMENT_FIELDS},replies{${COMMENT_FIELDS}}`,
+        limit: String(COMMENT_PAGE_SIZE),
+        access_token: accessToken,
+        ...(after ? { after } : {}),
+      }),
+    )
+    const threads = (Array.isArray(body.data) ? body.data : []).map((item) => threadOf(item, mediaId))
+    comments = [...comments, ...threads.flatMap((thread) => thread.comments)]
+    isComplete = isComplete && threads.every((thread) => thread.isComplete)
+    topLevel += threads.length
+    after = nextCursor(body)
+    if (after && topLevel >= max) return { comments, isComplete: false }
+  } while (after)
+  return { comments, isComplete }
+}
+
+/** A public reply under a comment. Returns the new comment's id. */
+export async function replyToComment(accessToken: string, commentId: string, message: string): Promise<string> {
+  const body = await graphPost(`/${commentId}/replies`, { message, access_token: accessToken })
+  return readString(body, 'id')
+}
+
+function expectSuccess(body: Json, action: string): void {
+  if (body.success !== true) throw new InstagramApiError(`Instagram tidak mengonfirmasi ${action}`, null, 200)
+}
+
+/** Hides a comment from everyone but its author, or shows it again. The owner's own comments can't be hidden. */
+export async function setCommentHidden(accessToken: string, commentId: string, hidden: boolean): Promise<void> {
+  expectSuccess(await graphPost(`/${commentId}`, { hide: String(hidden), access_token: accessToken }), 'perubahan komentar')
+}
+
+export async function deleteComment(accessToken: string, commentId: string): Promise<void> {
+  const body = await request(new URL(`/${commentId}`, GRAPH_URL), {
+    method: 'DELETE',
+    headers: { authorization: `Bearer ${accessToken}` },
+  })
+  expectSuccess(body, 'penghapusan komentar')
+}
+
 /** Creates a media container. `params` are the /media fields: image_url, caption, is_carousel_item, children… */
 export async function createContainer(
   accessToken: string,
@@ -308,12 +508,26 @@ export async function getPermalink(accessToken: string, mediaId: string): Promis
 export interface CustomerProfile {
   username: string | null
   name: string | null
+  /** A signed CDN link that expires within days: never log it. */
+  profilePicUrl: string | null
 }
 
 /** Profile of someone who has messaged the account. `igsid` is the sender id from the webhook. */
 export async function fetchCustomerProfile(accessToken: string, igsid: string): Promise<CustomerProfile> {
-  const body = await request(graphUrl(`/${igsid}`, { fields: 'username,name', access_token: accessToken }))
-  return { username: optionalString(body.username), name: optionalString(body.name) }
+  const body = await request(graphUrl(`/${igsid}`, { fields: 'username,name,profile_pic', access_token: accessToken }))
+  return {
+    username: optionalString(body.username),
+    name: optionalString(body.name),
+    profilePicUrl: optionalString(body.profile_pic),
+  }
+}
+
+function sendMessage(accessToken: string, userId: string, recipient: Record<string, string>, text: string): Promise<Json> {
+  return request(new URL(`/${userId}/messages`, GRAPH_URL), {
+    method: 'POST',
+    headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ recipient, message: { text } }),
+  })
 }
 
 /**
@@ -326,16 +540,100 @@ export async function sendDirectMessage(
   recipientId: string,
   text: string,
 ): Promise<string> {
-  const body = await request(new URL(`/${userId}/messages`, GRAPH_URL), {
-    method: 'POST',
-    headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ recipient: { id: recipientId }, message: { text } }),
-  })
-  return readString(body, 'message_id')
+  return readString(await sendMessage(accessToken, userId, { id: recipientId }, text), 'message_id')
 }
 
-/** Asks Meta to send this account's DMs to the app's webhook. Safe to repeat. */
-export async function subscribeToMessages(accessToken: string): Promise<void> {
-  const body = await graphPost('/me/subscribed_apps', { subscribed_fields: 'messages', access_token: accessToken })
-  if (body.success !== true) throw new InstagramApiError('Instagram tidak mengonfirmasi langganan DM', null, 200)
+export interface PrivateReply {
+  messageId: string
+  /** The commenter's Instagram-scoped id: the DM conversation the reply starts. */
+  recipientId: string | null
+}
+
+/**
+ * A DM to the author of a comment on the account's posts. Meta takes one per comment, within 7 days of it; the
+ * conversation continues only once the commenter answers.
+ */
+export async function sendPrivateReply(
+  accessToken: string,
+  userId: string,
+  commentId: string,
+  text: string,
+): Promise<PrivateReply> {
+  const body = await sendMessage(accessToken, userId, { comment_id: commentId }, text)
+  return { messageId: readString(body, 'message_id'), recipientId: optionalString(body.recipient_id) }
+}
+
+export interface InstagramConversation {
+  /** The customer's Instagram-scoped id, the same id the webhook sends. */
+  igsid: string
+  updatedAt: Date
+  /** Newest first. Message ids are the webhook's `mid`. */
+  messages: MessageEvent[]
+}
+
+/** Instagram gives the details of only a conversation's 20 newest messages. */
+const CONVERSATION_FIELDS = 'updated_time,participants,messages.limit(20){id,created_time,from,message}'
+const CONVERSATION_PAGE_SIZE = 25
+
+function dateOf(value: unknown): Date | null {
+  const date = new Date(typeof value === 'string' ? value : '')
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function toConversationMessage(item: unknown, accountId: string, igsid: string): MessageEvent | null {
+  if (!isObject(item) || typeof item.id !== 'string' || item.id === '') return null
+  const sentAt = dateOf(item.created_time)
+  const from = isObject(item.from) ? optionalString(item.from.id) : null
+  if (!sentAt || (from !== igsid && from !== accountId)) return null
+  return { mid: item.id, igsid, fromCustomer: from === igsid, text: optionalString(item.message), sentAt }
+}
+
+function toConversation(item: unknown, accountId: string): InstagramConversation | null {
+  if (!isObject(item)) return null
+  const participants = isObject(item.participants) && Array.isArray(item.participants.data) ? item.participants.data : []
+  const customers = participants.flatMap((participant) => {
+    const id = isObject(participant) ? optionalString(participant.id) : null
+    return id && id !== accountId && NUMERIC_ID.test(id) ? [id] : []
+  })
+  const updatedAt = dateOf(item.updated_time)
+  // A thread with more than one other person isn't a DM the inbox can answer.
+  if (customers.length !== 1 || !updatedAt) return null
+  const igsid = customers[0]
+  const messages = isObject(item.messages) && Array.isArray(item.messages.data) ? item.messages.data : []
+  return { igsid, updatedAt, messages: messages.flatMap((message) => toConversationMessage(message, accountId, igsid) ?? []) }
+}
+
+/** The account's DM conversations, newest first, at most `max`, each with its newest messages. */
+export async function listInstagramConversations(
+  accessToken: string,
+  accountId: string,
+  max: number,
+): Promise<InstagramConversation[]> {
+  let conversations: InstagramConversation[] = []
+  let read = 0
+  let after: string | null = null
+  do {
+    const body = await request(
+      graphUrl('/me/conversations', {
+        platform: 'instagram',
+        fields: CONVERSATION_FIELDS,
+        limit: String(CONVERSATION_PAGE_SIZE),
+        access_token: accessToken,
+        ...(after ? { after } : {}),
+      }),
+    )
+    const page = Array.isArray(body.data) ? body.data : []
+    conversations = [...conversations, ...page.flatMap((item) => toConversation(item, accountId) ?? [])]
+    read += page.length
+    after = nextCursor(body)
+  } while (after && read < max)
+  return conversations.slice(0, max)
+}
+
+/** Asks Meta to send this account's DMs and comments to the app's webhook. Safe to repeat. */
+export async function subscribeToWebhooks(accessToken: string, scopes: readonly string[]): Promise<void> {
+  // Meta refuses the whole call for a field whose permission wasn't granted; comments wait for a reconnect.
+  const fields = scopes.includes(COMMENTS_SCOPE) ? 'messages,comments' : 'messages'
+  const body = await graphPost('/me/subscribed_apps', { subscribed_fields: fields, access_token: accessToken })
+  expectSuccess(body, 'langganan DM dan komentar')
 }

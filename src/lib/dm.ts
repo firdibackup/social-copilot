@@ -1,6 +1,7 @@
 import 'server-only'
 import type { DmTemplate, Variables } from './dm-templates'
 import type { MessageEvent } from './dm-webhook'
+import { isProfileStale } from './inbox-rules'
 import type { CustomerProfile } from './instagram'
 import { db, unwrap } from './supabase'
 
@@ -19,6 +20,12 @@ export interface Conversation {
   lastFromCustomer: boolean
   lastMessageAt: Date
   lastIncomingAt: Date | null
+  /** When the owner last opened it; see isConversationUnread. */
+  seenAt: Date | null
+  /** A signed CDN link that expires: never log it. */
+  profilePicUrl: string | null
+  /** When the profile was last read from Instagram; see isProfileStale. */
+  profileFetchedAt: Date | null
 }
 
 export interface DmMessage {
@@ -36,6 +43,9 @@ interface ConversationRow {
   last_from_customer: boolean
   last_message_at: string
   last_incoming_at: string | null
+  seen_at: string | null
+  profile_pic_url: string | null
+  profile_fetched_at: string | null
 }
 
 interface MessageRow {
@@ -45,7 +55,10 @@ interface MessageRow {
   sent_at: string
 }
 
-const CONVERSATION_COLUMNS = 'igsid, username, name, last_text, last_from_customer, last_message_at, last_incoming_at'
+const CONVERSATION_COLUMNS =
+  'igsid, username, name, last_text, last_from_customer, last_message_at, last_incoming_at, seen_at, profile_pic_url, profile_fetched_at'
+
+const toDate = (value: string | null) => (value ? new Date(value) : null)
 
 function toConversation(row: ConversationRow): Conversation {
   return {
@@ -55,7 +68,10 @@ function toConversation(row: ConversationRow): Conversation {
     lastText: row.last_text,
     lastFromCustomer: row.last_from_customer,
     lastMessageAt: new Date(row.last_message_at),
-    lastIncomingAt: row.last_incoming_at ? new Date(row.last_incoming_at) : null,
+    lastIncomingAt: toDate(row.last_incoming_at),
+    seenAt: toDate(row.seen_at),
+    profilePicUrl: row.profile_pic_url,
+    profileFetchedAt: toDate(row.profile_fetched_at),
   }
 }
 
@@ -79,15 +95,101 @@ export async function recordMessage(userId: string, event: MessageEvent): Promis
   return stored === true
 }
 
-export async function needsProfile(userId: string, igsid: string): Promise<boolean> {
-  const row = unwrap(
-    await db().from('dm_conversations').select('username').eq('user_id', userId).eq('igsid', igsid).maybeSingle(),
-  ) as { username: string | null } | null
-  return row !== null && row.username === null
+/** The ids of the stored messages of these conversations sent at or after `since`. */
+export async function listStoredMids(userId: string, igsids: readonly string[], since: Date): Promise<Set<string>> {
+  if (igsids.length === 0) return new Set()
+  // ponytail: one page of rows (PostgREST's max_rows); a message past it is recorded again, which stores nothing.
+  const rows = unwrap(
+    await db()
+      .from('dm_messages')
+      .select('mid')
+      .eq('user_id', userId)
+      .in('igsid', [...igsids])
+      .gte('sent_at', since.toISOString()),
+  ) as { mid: string }[]
+  return new Set(rows.map((row) => row.mid))
 }
 
+/** Never read, or read over 3 days ago, when its picture link has likely expired. */
+export async function needsProfile(userId: string, igsid: string): Promise<boolean> {
+  const row = unwrap(
+    await db()
+      .from('dm_conversations')
+      .select('profile_fetched_at')
+      .eq('user_id', userId)
+      .eq('igsid', igsid)
+      .maybeSingle(),
+  ) as { profile_fetched_at: string | null } | null
+  return row !== null && isProfileStale(toDate(row.profile_fetched_at), new Date())
+}
+
+/** A username or name Instagram leaves out keeps the stored one, e.g. the username a private reply took from the comment. */
 export async function saveProfile(userId: string, igsid: string, profile: CustomerProfile): Promise<void> {
-  unwrap(await db().from('dm_conversations').update(profile).eq('user_id', userId).eq('igsid', igsid))
+  unwrap(
+    await db()
+      .from('dm_conversations')
+      .update({
+        ...(profile.username && { username: profile.username }),
+        ...(profile.name && { name: profile.name }),
+        profile_pic_url: profile.profilePicUrl,
+        profile_fetched_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId)
+      .eq('igsid', igsid),
+  )
+}
+
+/**
+ * A profile read that failed (e.g. a customer who only got a private reply and hasn't written yet) waits the same
+ * 3 days before the next try, so the inbox doesn't ask Instagram again on every visit.
+ */
+export async function markProfileTried(userId: string, igsid: string): Promise<void> {
+  unwrap(
+    await db()
+      .from('dm_conversations')
+      .update({ profile_fetched_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('igsid', igsid),
+  )
+}
+
+/** A conversation the owner started with a private reply: its username comes from the comment. */
+export async function nameConversation(userId: string, igsid: string, username: string): Promise<void> {
+  unwrap(
+    await db().from('dm_conversations').update({ username }).eq('user_id', userId).eq('igsid', igsid).is('username', null),
+  )
+}
+
+export async function setConversationReadState(
+  userId: string,
+  accountId: string,
+  igsid: string,
+  read: boolean,
+): Promise<void> {
+  unwrap(
+    await db()
+      .from('dm_conversations')
+      .update({ seen_at: read ? new Date().toISOString() : null })
+      .eq('user_id', userId)
+      .eq('account_id', accountId)
+      .eq('igsid', igsid),
+  )
+}
+
+export async function markConversationSeen(userId: string, accountId: string, igsid: string): Promise<void> {
+  await setConversationReadState(userId, accountId, igsid, true)
+}
+
+/** The bell's Tandai semua dibaca. Only conversations the customer wrote last can be unread. */
+export async function markAllConversationsSeen(userId: string, accountId: string): Promise<void> {
+  unwrap(
+    await db()
+      .from('dm_conversations')
+      .update({ seen_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('account_id', accountId)
+      .eq('last_from_customer', true),
+  )
 }
 
 /** The account's inbox, newest first. `waitingOnly` keeps the conversations whose last message came from the customer. */
@@ -101,6 +203,11 @@ export async function listConversations(userId: string, accountId: string, waiti
     .limit(CONVERSATION_LIMIT)
   if (waitingOnly) query = query.eq('last_from_customer', true)
   return (unwrap(await query) as ConversationRow[]).map(toConversation)
+}
+
+/** The bell's recent candidates: conversations that still wait for the owner, newest first. */
+export async function listNotificationConversations(userId: string, accountId: string): Promise<Conversation[]> {
+  return listConversations(userId, accountId, true)
 }
 
 /** Null also when the conversation belongs to an account that isn't the connected one. */

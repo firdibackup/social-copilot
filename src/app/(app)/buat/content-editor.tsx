@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, LoaderCircle, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
@@ -10,24 +10,32 @@ import { PostStatusBadge } from '@/components/post-status-badge'
 import type { Asset } from '@/lib/assets'
 import { contentCost, formatCreditShare, TASK_CREDITS } from '@/lib/billing-options'
 import { CAPTION_MAX_HASHTAGS, CAPTION_MAX_LENGTH, CAPTION_MAX_MENTIONS, inspectCaption } from '@/lib/caption'
-import { DEFAULT_SLIDES, MAX_SLIDES, type ReferenceOption } from '@/lib/content-options'
+import {
+  AUTO_PRODUCT,
+  AUTO_REFERENCE,
+  DEFAULT_SLIDES,
+  MAX_SLIDES,
+  type ProductOption,
+} from '@/lib/content-options'
 import type { Slot } from '@/lib/format'
 import type { Idea } from '@/lib/ideas'
 import { IMAGE_FORMATS, isImageFormat, type ImageFormat } from '@/lib/image-options'
 import type { Post, PostMedia } from '@/lib/posts'
+import { scriptHeadline } from '@/lib/script-options'
 import { Composer } from './composer'
 import {
   createContentAction,
   deleteSlideAction,
   editCaptionAction,
   editSlideAction,
-  generateSlideAction,
+  retrySlideAction,
   saveContentAction,
 } from './content-actions'
 import { MoreMenu } from './more-menu'
 import { PhotoPicker } from './photo-picker'
 import { PostMockup, type SlideItem, type SlideView } from './post-mockup'
 import { ScheduleButton } from './schedule-button'
+import { formatScript, useScriptText } from './script-text'
 
 const MAX_MEDIA = 10
 const AUTOSAVE_MS = 1000
@@ -53,7 +61,7 @@ interface ContentEditorProps {
   /** The idea a new post starts from (`?ide=`). */
   idea: Idea | null
   account: EditorAccount
-  references: ReferenceOption[]
+  products: ProductOption[]
   hasLogo: boolean
   /** Credits left in the period; null when they couldn't be read (the server still checks). */
   credits: number | null
@@ -85,7 +93,7 @@ export function ContentEditor({
   slides,
   idea,
   account,
-  references,
+  products,
   hasLogo,
   credits,
   planCredits,
@@ -107,7 +115,7 @@ export function ContentEditor({
   const [notice, setNotice] = useState<{ tone: NoticeTone; text: string } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [remaking, setRemaking] = useState(false)
-  const [running, setRunning] = useState<string | null>(null)
+  const [retrying, setRetrying] = useState<string | null>(null)
   const [version, setVersion] = useState(0)
   const [savedVersion, setSavedVersion] = useState(0)
   const [saving, setSaving] = useState(false)
@@ -116,10 +124,17 @@ export function ContentEditor({
   const [undo, setUndo] = useState<{ before: string; after: string } | null>(null)
   const [slideCount, setSlideCount] = useState(DEFAULT_SLIDES)
   const [format, setFormat] = useState<ImageFormat>('4:5')
-  const [referenceId, setReferenceId] = useState('')
+  const [productGroupId, setProductGroupId] = useState(AUTO_PRODUCT)
   const [includeLogo, setIncludeLogo] = useState(false)
   const pickerRef = useRef<HTMLDialogElement>(null)
-  const started = useRef<string | null>(null)
+  const short = (cost: number) => credits !== null && cost > credits
+  const draft = useScriptText(post ? null : idea, !short(TASK_CREDITS.content_script), (text) =>
+    setNotice({ tone: 'error', text: `Skrip gagal disusun: ${text} Anda tetap bisa kirim idenya sebagai topik.` }),
+  )
+  const read = post ? null : draft.read
+  const script = read && 'script' in read ? read : null
+  const scriptError = read && 'error' in read ? read.error : null
+  const newSlides = script?.script.length ?? slideCount
 
   const unsaved = version !== savedVersion
 
@@ -138,40 +153,30 @@ export function ContentEditor({
     ...media.map((item): SlideItem => ({ kind: 'image', key: item.assetId, media: item })),
     ...slides.map((slide): SlideItem => ({ kind: 'slide', key: slide.id, slide })),
   ]
-  const activeIndex = Math.min(active, Math.max(items.length - 1, 0))
+  const inProgress = slides.some((slide) => slide.status === 'pending' || slide.status === 'generating')
+  const locked = !editable || inProgress
+  // While photos can be added, the add card follows the last slide. A new post gets it once it has photos, so a
+  // picker closed without Selesai can be opened again.
+  const canAdd = (post !== null || media.length > 0) && !locked && busy === null && items.length < MAX_MEDIA
+  const activeIndex = Math.min(active, Math.max(canAdd ? items.length : items.length - 1, 0))
   const current = items[activeIndex]
   const first = media[0]
   const ratio = first ? `${first.width} / ${first.height}` : slides[0]?.format === '1:1' ? '1 / 1' : '4 / 5'
-  const inProgress = slides.some((slide) => slide.status === 'pending' || slide.status === 'generating')
-  const locked = !editable || inProgress
+  const openPicker = () => pickerRef.current?.showModal()
 
-  // The generation queue runs one slide at a time in carousel order, so every later slide can follow slide 1.
-  const head = slides.find((slide) => slide.status !== 'failed')
-  const nextId = head && (head.status === 'pending' || head.stale) ? head.id : null
-  const waiting = head !== undefined && nextId === null
-
-  async function generate(slideId: string) {
-    setRunning(slideId)
-    const error = await generateSlideAction(slideId).catch(() => FAILED)
-    setRunning(null)
-    started.current = null
-    if (error) setNotice({ tone: 'error', text: error })
-    router.refresh()
-  }
-
-  const startNext = useEffectEvent((slideId: string) => void generate(slideId))
+  // The worker makes the slides, one at a time per post in carousel order: look again until they land.
   useEffect(() => {
-    if (!nextId || started.current === nextId) return
-    started.current = nextId
-    startNext(nextId)
-  }, [nextId])
-
-  // A slide made in another tab, or here before a refresh: look again until it lands.
-  useEffect(() => {
-    if (!waiting) return
+    if (!inProgress) return
     const timer = setInterval(() => router.refresh(), POLL_MS)
     return () => clearInterval(timer)
-  }, [waiting, router])
+  }, [inProgress, router])
+
+  async function retry(slideId: string) {
+    setRetrying(slideId)
+    const error = await retrySlideAction(slideId).catch(() => FAILED)
+    setRetrying(null)
+    if (error) setNotice({ tone: 'error', text: error })
+  }
 
   async function persist(upTo: number): Promise<boolean> {
     if (!post) return true
@@ -262,25 +267,37 @@ export function ContentEditor({
     if (error) setNotice({ tone: 'error', text: error })
   }
 
-  const short = (cost: number) => credits !== null && cost > credits
-  let composer: { placeholder: string; cost: number; blocked: string | null; send: (text: string) => Promise<boolean> }
+  let composer: {
+    placeholder: string
+    cost: number
+    blocked: string | null
+    send: (text: string, attachment: string | null) => Promise<boolean>
+  }
 
   if (!post) {
-    const cost = contentCost(slideCount)
+    const cost = contentCost(newSlides)
     composer = {
       placeholder: 'Tulis topik atau ide konten…',
       cost,
-      blocked: short(cost) ? SHORT : null,
-      send: async (topic) => {
+      blocked: scriptError ?? (short(cost) ? SHORT : null),
+      send: async (text, attachment) => {
         setNotice(null)
-        setBusy('Menyusun caption dan rencana slide…')
+        setBusy(script ? 'Menyusun caption dan visual dari skrip…' : 'Menyusun caption dan rencana slide…')
+        // The slides follow the account's references, or the design style's examples when it has none; a specific
+        // design or footage comes as an attached image. A script keeps each slide's text as written.
+        const topic = script
+          ? [idea?.title, script.intro].filter(Boolean).join('\n\n') || scriptHeadline(script.script[0])
+          : text
         const result = await createContentAction({
           topic,
-          slides: slideCount,
+          slides: newSlides,
           format,
-          referenceId: referenceId || null,
+          referenceId: AUTO_REFERENCE,
+          productGroupId: products.length > 0 ? productGroupId || null : null,
           includeLogo,
           ideaId: idea?.id ?? null,
+          script: script?.script ?? null,
+          attachment,
         }).catch(() => ({ error: FAILED }))
         if ('error' in result) {
           setBusy(null)
@@ -324,18 +341,22 @@ export function ContentEditor({
           ? WAIT
           : !image
             ? items.length === 0
-              ? 'Tambahkan foto dengan tombol +.'
-              : 'Slide ini belum jadi.'
+              ? 'Tambahkan foto lewat kartu Tambah foto.'
+              : current
+                ? 'Slide ini belum jadi.'
+                : 'Pilih slide yang mau diubah.'
             : short(cost)
               ? SHORT
               : null,
-      send: async (instruction) => {
+      send: async (instruction, attachment) => {
         if (!image) return false
         setNotice(null)
         if (!(await flush())) return false
         setBusy(`Membuat ulang slide ${number}…`)
         setRemaking(true)
-        const error = await editSlideAction({ postId: post.id, assetId: image.assetId, instruction }).catch(() => FAILED)
+        const error = await editSlideAction({ postId: post.id, assetId: image.assetId, instruction, attachment }).catch(
+          () => FAILED,
+        )
         setBusy(null)
         setRemaking(false)
         if (error) {
@@ -350,16 +371,22 @@ export function ContentEditor({
 
   const options = !post ? (
     <>
-      <label className={CHIP}>
-        Slide
-        <select value={slideCount} onChange={(event) => setSlideCount(Number(event.target.value))} className={CHIP_SELECT}>
-          {Array.from({ length: MAX_SLIDES }, (_, index) => index + 1).map((count) => (
-            <option key={count} value={count}>
-              {count}
-            </option>
-          ))}
-        </select>
-      </label>
+      {read ? (
+        <span className={CHIP} title="Jumlah slide mengikuti baris Slide di skrip">
+          Skrip <span className="font-medium text-ink">{script ? `${script.script.length} slide` : 'belum valid'}</span>
+        </span>
+      ) : (
+        <label className={CHIP}>
+          Slide
+          <select value={slideCount} onChange={(event) => setSlideCount(Number(event.target.value))} className={CHIP_SELECT}>
+            {Array.from({ length: MAX_SLIDES }, (_, index) => index + 1).map((count) => (
+              <option key={count} value={count}>
+                {count}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <label className={CHIP}>
         Format
         <select
@@ -374,15 +401,15 @@ export function ContentEditor({
           ))}
         </select>
       </label>
-      {references.length > 0 && (
+      {products.length > 0 && (
         <label className={CHIP}>
-          Referensi
-          <select value={referenceId} onChange={(event) => setReferenceId(event.target.value)} className={`${CHIP_SELECT} max-w-40`}>
+          Produk
+          <select value={productGroupId} onChange={(event) => setProductGroupId(event.target.value)} className={`${CHIP_SELECT} max-w-40`}>
+            <option value={AUTO_PRODUCT}>Otomatis</option>
             <option value="">Tanpa</option>
-            {references.map((reference) => (
-              <option key={reference.id} value={reference.id}>
-                {reference.label}
-                {reference.slideCount > 1 && ` (${reference.slideCount} slide)`}
+            {products.map((product) => (
+              <option key={product.id} value={product.id}>
+                {product.label} ({product.imageCount})
               </option>
             ))}
           </select>
@@ -394,12 +421,37 @@ export function ContentEditor({
           Logo
         </label>
       )}
+      {idea && (
+        <span className="ml-auto flex items-center gap-2">
+          {(draft.saveError ?? draft.saveState) && (
+            <span role={draft.saveError ? 'alert' : 'status'} className={`text-xs ${draft.saveError ? 'text-red-700' : 'text-ink-soft'}`}>
+              {draft.saveError ?? draft.saveState}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (!read || window.confirm('Susun ulang skrip? Teks di kotak, termasuk perubahan Anda, akan diganti.')) void draft.write()
+            }}
+            disabled={draft.writing || busy !== null || short(TASK_CREDITS.content_script)}
+            title={
+              short(TASK_CREDITS.content_script)
+                ? SHORT
+                : `AI menulis skrip slide demi slide dari ide ini (≈ ${formatCreditShare(TASK_CREDITS.content_script, planCredits)} kuota)`
+            }
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent-soft disabled:text-ink-soft disabled:hover:bg-transparent"
+          >
+            {draft.writing ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> : <RefreshCw size={14} aria-hidden="true" />}
+            {read ? 'Susun ulang' : 'Susun skrip'}
+          </button>
+        </span>
+      )}
     </>
   ) : editable ? (
     <div className="flex items-center gap-1 text-xs text-ink-muted">
       Ubah:
       <TargetButton active={target === 'slide'} onClick={() => setTarget('slide')}>
-        Slide {activeIndex + 1}
+        {current ? `Slide ${activeIndex + 1}` : 'Slide'}
       </TargetButton>
       <TargetButton active={target === 'caption'} onClick={() => setTarget('caption')}>
         Caption
@@ -487,17 +539,41 @@ export function ContentEditor({
             onSelect={selectSlide}
             ratio={ratio}
             remaking={remaking}
-            running={running}
+            running={retrying}
             editable={!locked && busy === null}
-            onRemove={(assetId) => change({ media: media.filter((item) => item.assetId !== assetId) })}
+            onRemove={(assetId) => {
+              const next = media.filter((item) => item.assetId !== assetId)
+              change({ media: next })
+              // Stay on a slide rather than land on the add card when the last photo goes.
+              setActive((index) => Math.min(index, Math.max(next.length + slides.length - 1, 0)))
+            }}
             onMove={movePhoto}
-            onRetry={(slideId) => running === null && void generate(slideId)}
+            onRetry={(slideId) => retrying === null && void retry(slideId)}
             onDropSlide={(slideId) => void dropSlide(slideId)}
             caption={captionArea}
+            onAdd={canAdd ? openPicker : undefined}
+            maxSlides={MAX_MEDIA}
             empty={
-              post
-                ? 'Post ini belum punya foto. Tambahkan dengan tombol + di bawah.'
-                : `Tulis topik di bawah: AI menyusun caption dan ${slideCount} slide sekaligus.`
+              post ? (
+                'Post ini belum punya foto.'
+              ) : (
+                <span className="flex flex-col items-center gap-3">
+                  {draft.writing
+                    ? 'AI sedang menyusun skrip dari ide ini di kotak bawah…'
+                    : script
+                      ? `Ubah skrip di kotak bawah bila perlu, lalu kirim: AI membuat caption dan ${script.script.length} slide persis dari teksnya.`
+                      : `Tulis topik di bawah: AI menyusun caption dan ${slideCount} slide sekaligus.`}
+                  {busy === null && (
+                    <button
+                      type="button"
+                      onClick={openPicker}
+                      className="rounded-lg border border-hairline bg-white px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-zinc-50"
+                    >
+                      Pakai foto sendiri
+                    </button>
+                  )}
+                </span>
+              )
             }
           />
         </div>
@@ -509,9 +585,12 @@ export function ContentEditor({
             placeholder={composer.placeholder}
             cost={`${post ? '' : '≈ '}${formatCreditShare(composer.cost, planCredits)} kuota`}
             blocked={composer.blocked}
-            busyLabel={busy}
-            initialText={idea?.title}
-            onAttach={!locked && busy === null ? () => pickerRef.current?.showModal() : undefined}
+            busyLabel={busy ?? (draft.writing ? 'Menyusun skrip dari ide…' : null)}
+            text={post ? undefined : draft.text}
+            onTextChange={post ? undefined : draft.setText}
+            readOnly={draft.writing}
+            format={post ? undefined : formatScript}
+            canAttach={!post || target === 'slide'}
             onSend={composer.send}
           >
             {options}
