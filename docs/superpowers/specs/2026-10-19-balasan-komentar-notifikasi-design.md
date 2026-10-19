@@ -104,7 +104,7 @@
 - Klik membuka dropdown 10 item terbaru, gabungan DM dan komentar (avatar/@username, potongan teks, waktu, jenis).
   - Tiap item menuju `/balasan?c=…` atau `/balasan?tab=komentar&post=…`.
   - Ada tombol **Tandai semua dibaca**.
-- Diperbarui tiap 60 detik selama app terbuka lewat server action atau route handler, dan saat berpindah halaman. Tidak ada tabel notifikasi: angka dihitung dari `seen_at`.
+- Diperbarui tiap 10 detik selama tab terlihat, saat tab dibuka kembali, lewat server action atau route handler, dan saat berpindah halaman. Tidak ada tabel notifikasi: angka dihitung dari `seen_at`.
 - Pengguna tanpa akun Instagram atau tanpa langganan aktif tidak melihat angka.
 
 ## Data

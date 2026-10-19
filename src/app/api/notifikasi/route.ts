@@ -9,8 +9,9 @@ const NO_STORE = { 'cache-control': 'no-store' }
 const OFF: NotificationFeed = { status: 'active', count: 0, items: [] }
 
 /**
- * The bell polls this every 60 seconds. A route rather than a server action: actions run one at a time per page,
- * so a poll would wait behind a slow ✨ AI request, and a poll would hold up the owner's own actions.
+ * The bell polls this every 10 seconds and when its tab is shown again. A route rather than a server action: actions
+ * run one at a time per page, so a poll would wait behind a slow ✨ AI request, and a poll would hold up the owner's
+ * own actions.
  */
 export async function GET(): Promise<Response> {
   const user = await currentUser()

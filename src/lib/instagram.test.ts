@@ -13,6 +13,7 @@ import {
   getContainerStatus,
   getMediaInsights,
   listInstagramConversations,
+  listMediaComments,
   listMediaSince,
   publishContainer,
   sendDirectMessage,
@@ -582,5 +583,30 @@ describe('listInstagramConversations', () => {
     expect(conversations.map((item) => item.igsid)).toEqual(['9001', '9002'])
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get('after')).toBe('c1')
+  })
+})
+
+describe('listMediaComments', () => {
+  const comment = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    text: `teks ${id}`,
+    timestamp: '2026-10-18T08:00:00+0000',
+    username: 'pelanggan',
+    ...extra,
+  })
+
+  it('stores a reply once although Graph lists it at the top level and under its parent', async () => {
+    // Arrange
+    const reply = comment('202', { parent_id: '101' })
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: [reply, comment('101', { replies: { data: [reply] } })] }))
+
+    // Act
+    const result = await listMediaComments('token', '555', 200)
+
+    // Assert
+    expect(result.comments.map((item) => [item.id, item.parentId])).toEqual([
+      ['202', '101'],
+      ['101', null],
+    ])
   })
 })

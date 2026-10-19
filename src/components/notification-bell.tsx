@@ -19,7 +19,8 @@ import type { Notification, NotificationFeed } from '@/lib/inbox-rules'
 import { markAllSeenAction, setNotificationReadAction } from './notification-actions'
 import { ProfileAvatar } from './profile-avatar'
 
-const POLL_MS = 60_000
+// ponytail: polling (5 queries a poll per open tab); push through Supabase Realtime or SSE when users grow.
+const POLL_MS = 10_000
 /** Sent when Balasan marks a thread or post read: opening one only changes the query, which the pathname misses. */
 export const NOTIFICATIONS_CHANGED = 'notifikasi:berubah'
 const BADGE_MAX = 99
@@ -64,12 +65,16 @@ export function NotificationBell() {
 
   useEffect(() => {
     const first = window.setTimeout(load, 1500)
-    const timer = window.setInterval(() => {
+    const poll = () => {
       if (document.visibilityState === 'visible') void load()
-    }, POLL_MS)
+    }
+    const timer = window.setInterval(poll, POLL_MS)
+    // Coming back to the tab shows what arrived meanwhile at once, not at the next tick.
+    document.addEventListener('visibilitychange', poll)
     return () => {
       window.clearTimeout(first)
       window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', poll)
     }
   }, [load, pathname])
 

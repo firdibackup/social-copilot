@@ -388,7 +388,7 @@ export interface PostComment {
 }
 
 export interface MediaComments {
-  /** Top-level comments newest first, each followed by its replies. */
+  /** Top-level comments newest first, each followed by its replies; every id once. */
   comments: PostComment[]
   /** False when `max` or a long reply thread cut the list short. */
   isComplete: boolean
@@ -444,7 +444,10 @@ export async function listMediaComments(accessToken: string, mediaId: string, ma
       }),
     )
     const threads = (Array.isArray(body.data) ? body.data : []).map((item) => threadOf(item, mediaId))
-    comments = [...comments, ...threads.flatMap((thread) => thread.comments)]
+    // Graph lists a reply at the top level too, beside its parent's `replies`; one upsert can't take an id twice.
+    const known = new Set(comments.map((comment) => comment.id))
+    const fresh = threads.flatMap((thread) => thread.comments).filter((comment) => !known.has(comment.id) && known.add(comment.id))
+    comments = [...comments, ...fresh]
     isComplete = isComplete && threads.every((thread) => thread.isComplete)
     topLevel += threads.length
     after = nextCursor(body)
