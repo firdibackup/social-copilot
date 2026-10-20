@@ -1,4 +1,5 @@
 import 'server-only'
+import type { SuggestedIdea } from './content-ai'
 import { parseScript, type ScriptSlide } from './script-options'
 import { db, unwrap } from './supabase'
 
@@ -9,6 +10,7 @@ const RECENT_POSTS = 20
 export interface Idea {
   id: string
   title: string
+  pillarId: string | null
   /** The slide-by-slide script written from the idea, once the owner asked for one. */
   script: ScriptSlide[] | null
 }
@@ -16,13 +18,14 @@ export interface Idea {
 interface IdeaRow {
   id: string
   title: string
+  pillar_id: string | null
   script: unknown
 }
 
 /** A stored script that no longer passes the checks is dropped rather than failing the page. */
 const toIdea = (row: IdeaRow): Idea => {
   const parsed = row.script === null ? null : parseScript(row.script)
-  return { id: row.id, title: row.title, script: parsed && 'script' in parsed ? parsed.script : null }
+  return { id: row.id, title: row.title, pillarId: row.pillar_id, script: parsed && 'script' in parsed ? parsed.script : null }
 }
 
 /** The account's ideas, newest first. */
@@ -30,7 +33,7 @@ export async function listIdeas(userId: string, accountId: string): Promise<Idea
   const rows = unwrap(
     await db()
       .from('content_ideas')
-      .select('id, title, script')
+      .select('id, title, pillar_id, script')
       .eq('user_id', userId)
       .eq('account_id', accountId)
       .order('created_at', { ascending: false })
@@ -41,13 +44,17 @@ export async function listIdeas(userId: string, accountId: string): Promise<Idea
 
 export async function getIdea(userId: string, id: string): Promise<Idea | null> {
   const row = unwrap(
-    await db().from('content_ideas').select('id, title, script').eq('id', id).eq('user_id', userId).maybeSingle(),
+    await db().from('content_ideas').select('id, title, pillar_id, script').eq('id', id).eq('user_id', userId).maybeSingle(),
   ) as IdeaRow | null
   return row ? toIdea(row) : null
 }
 
-export async function addIdeas(userId: string, titles: string[]): Promise<void> {
-  unwrap(await db().from('content_ideas').insert(titles.map((title) => ({ user_id: userId, title }))))
+export async function addIdeas(userId: string, ideas: SuggestedIdea[]): Promise<void> {
+  unwrap(
+    await db()
+      .from('content_ideas')
+      .insert(ideas.map((idea) => ({ user_id: userId, title: idea.title, pillar_id: idea.pillarId }))),
+  )
 }
 
 /** Stores the idea's script; false when the idea is gone (used up by a post, or deleted). */

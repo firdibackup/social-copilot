@@ -11,15 +11,17 @@ import {
   loadLogoImage,
   loadVisualReferences,
   ReferenceLimitError,
+  getBrandContext,
   removeLogo,
   saveBrandKit,
+  saveStrategy,
   setLogo,
   setReferenceImageLabel,
   updateReference,
   VISUAL_BODY_BUDGET,
   type ReferencePatch,
 } from '@/lib/brand'
-import { analyzeProfile, analyzeVisual, type ProfileDraft, type ProfileSources } from '@/lib/brand-ai'
+import { analyzeProfile, analyzeStrategy, analyzeVisual, type ProfileDraft, type ProfileSources } from '@/lib/brand-ai'
 import {
   DESCRIPTION_MAX_LENGTH,
   lengthOf,
@@ -43,6 +45,7 @@ import { fetchOwnProfile, fetchRecentMedia, InstagramApiError, type InstagramPos
 import { isUuid } from '@/lib/params'
 import { fetchImage, RemoteFetchError } from '@/lib/web-fetch'
 import { readWebsite } from '@/lib/website'
+import { parseStrategy, type ContentStrategy } from '@/lib/strategy-options'
 
 /** Each action returns a message for the owner, or null when it worked. */
 type ActionError = string | null
@@ -87,6 +90,41 @@ export async function saveBrandAction(input: unknown): Promise<ActionError> {
   }
   refresh()
   return null
+}
+
+/** The strategy card's save, apart from the brand form. */
+export async function saveStrategyAction(input: unknown): Promise<ActionError> {
+  const { userId, accountId } = await requireAccount()
+  const parsed = parseStrategy(input)
+  if ('error' in parsed) return parsed.error
+  try {
+    await saveStrategy(userId, accountId, parsed.strategy)
+  } catch (error) {
+    console.error('[brand] strategi gagal disimpan:', describeError(error))
+    return `Strategi gagal disimpan. ${DATABASE}`
+  }
+  refresh()
+  return null
+}
+
+export type StrategyResult = { strategy: ContentStrategy; warnings: string[] } | { error: string }
+
+/** A strategy draft from the saved brand profile and the account's newest captions. Nothing is saved. */
+export async function generateStrategyAction(): Promise<StrategyResult> {
+  const { userId } = await requireAccount()
+  try {
+    const brand = await getBrandContext(userId)
+    if (!brand || !(brand.name || brand.description)) {
+      return { error: 'Isi dan simpan dulu nama atau deskripsi brand di bawah, supaya strateginya sesuai bisnismu.' }
+    }
+    const instagram = await readInstagram(userId)
+    const recent = 'value' in instagram ? instagram.value.captions : []
+    const warnings = 'warning' in instagram ? [instagram.warning] : []
+    return { strategy: await analyzeStrategy(userId, { brand, recent }), warnings }
+  } catch (error) {
+    console.error('[brand] strategi gagal disusun:', describeError(error))
+    return { error: aiErrorMessage(error) }
+  }
 }
 
 /** Colours, fonts and images the website offers, shown next to the draft for the owner to pick from. */

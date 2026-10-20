@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildMonthGrid, parseMonth, shiftMonth } from './calendar'
+import { buildMonthGrid, parseMonth, shiftMonth, weekCounts } from './calendar'
 
 describe('buildMonthGrid', () => {
   it('starts on Monday and pads with the neighbouring months', () => {
@@ -18,6 +18,21 @@ describe('buildMonthGrid', () => {
 
   it('crosses into the next year', () => {
     expect(buildMonthGrid('2026-12').at(-1)?.at(-1)).toBe('2027-01-03')
+  })
+})
+
+describe('weekCounts', () => {
+  it('counts repeated post day keys in their Monday-to-Sunday weeks', () => {
+    const weeks = [
+      ['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04'],
+      ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11'],
+    ]
+
+    expect(weekCounts(weeks, ['2026-09-28', '2026-10-01', '2026-10-01', '2026-10-11', '2026-10-12'])).toEqual([3, 1])
+  })
+
+  it('returns zero for weeks without posts', () => {
+    expect(weekCounts([['2026-10-05']], [])).toEqual([0])
   })
 })
 

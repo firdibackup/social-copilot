@@ -1,6 +1,7 @@
 import 'server-only'
 import { METRICS, parseInsights, type Metrics } from './analytics-metrics'
 import { MAX_GROUP_IMAGES } from './brand-options'
+import type { OutgoingDm } from './auto-dm-rules'
 import type { MessageEvent } from './dm-webhook'
 import { env } from './env'
 
@@ -335,6 +336,14 @@ function nextCursor(body: Json): string | null {
   return optionalString(paging.cursors.after)
 }
 
+/** The account's newest posts, one page, for picking the post an Auto DM rule listens to. */
+export async function fetchOwnMedia(accessToken: string, limit: number): Promise<OwnMedia[]> {
+  const body = await request(
+    graphUrl('/me/media', { fields: OWN_MEDIA_FIELDS, limit: String(limit), access_token: accessToken }),
+  )
+  return (Array.isArray(body.data) ? body.data : []).flatMap((item) => toOwnMedia(item) ?? [])
+}
+
 export interface MediaSince {
   /** Newest first. */
   media: OwnMedia[]
@@ -525,13 +534,19 @@ export async function fetchCustomerProfile(accessToken: string, igsid: string): 
   }
 }
 
-function sendMessage(accessToken: string, userId: string, recipient: Record<string, string>, text: string): Promise<Json> {
+function sendMessage(accessToken: string, userId: string, recipient: Record<string, string>, message: Json): Promise<Json> {
   return request(new URL(`/${userId}/messages`, GRAPH_URL), {
     method: 'POST',
     headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ recipient, message: { text } }),
+    body: JSON.stringify({ recipient, message }),
   })
 }
+
+/** Text alone, or Meta's button template (1–3 buttons, text up to 640 characters). */
+const toMessage = ({ text, buttons }: OutgoingDm): Json =>
+  buttons.length === 0
+    ? { text }
+    : { attachment: { type: 'template', payload: { template_type: 'button', text, buttons } } }
 
 /**
  * Sends a text DM and returns its message id, which the webhook echo carries as `mid`. Meta only accepts it
@@ -543,7 +558,7 @@ export async function sendDirectMessage(
   recipientId: string,
   text: string,
 ): Promise<string> {
-  return readString(await sendMessage(accessToken, userId, { id: recipientId }, text), 'message_id')
+  return readString(await sendMessage(accessToken, userId, { id: recipientId }, { text }), 'message_id')
 }
 
 export interface PrivateReply {
@@ -562,8 +577,31 @@ export async function sendPrivateReply(
   commentId: string,
   text: string,
 ): Promise<PrivateReply> {
-  const body = await sendMessage(accessToken, userId, { comment_id: commentId }, text)
+  const body = await sendMessage(accessToken, userId, { comment_id: commentId }, { text })
   return { messageId: readString(body, 'message_id'), recipientId: optionalString(body.recipient_id) }
+}
+
+/**
+ * An Auto DM: as a private reply to a comment (`{ comment_id }`, once per comment within 7 days) or to a customer
+ * whose 24-hour window is open (`{ id }`). Buttons go out as a button template.
+ */
+export async function sendAutoDm(
+  accessToken: string,
+  userId: string,
+  recipient: { comment_id: string } | { id: string },
+  dm: OutgoingDm,
+): Promise<PrivateReply> {
+  const body = await sendMessage(accessToken, userId, recipient, toMessage(dm))
+  return { messageId: readString(body, 'message_id'), recipientId: optionalString(body.recipient_id) }
+}
+
+/** Whether the customer follows the account. Instagram answers only once they have messaged or tapped a button. */
+export async function fetchFollowsBusiness(accessToken: string, igsid: string): Promise<boolean> {
+  const body = await request(graphUrl(`/${igsid}`, { fields: 'is_user_follow_business', access_token: accessToken }))
+  if (typeof body.is_user_follow_business !== 'boolean') {
+    throw new InstagramApiError('Instagram tidak memberi status follow', null, 200)
+  }
+  return body.is_user_follow_business
 }
 
 export interface InstagramConversation {
@@ -633,10 +671,10 @@ export async function listInstagramConversations(
   return conversations.slice(0, max)
 }
 
-/** Asks Meta to send this account's DMs and comments to the app's webhook. Safe to repeat. */
+/** Asks Meta to send this account's DMs, Auto DM button taps and comments to the app's webhook. Safe to repeat. */
 export async function subscribeToWebhooks(accessToken: string, scopes: readonly string[]): Promise<void> {
   // Meta refuses the whole call for a field whose permission wasn't granted; comments wait for a reconnect.
-  const fields = scopes.includes(COMMENTS_SCOPE) ? 'messages,comments' : 'messages'
+  const fields = scopes.includes(COMMENTS_SCOPE) ? 'messages,messaging_postbacks,comments' : 'messages,messaging_postbacks'
   const body = await graphPost('/me/subscribed_apps', { subscribed_fields: fields, access_token: accessToken })
   expectSuccess(body, 'langganan DM dan komentar')
 }

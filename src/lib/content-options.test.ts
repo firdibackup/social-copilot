@@ -10,6 +10,7 @@ const INPUT = {
   format: '4:5',
   referenceId: null,
   productGroupId: null,
+  pillarId: null,
   includeLogo: false,
   ideaId: null,
 }
@@ -35,6 +36,17 @@ describe('parseContentRequest', () => {
     expect(parseContentRequest({ ...INPUT, referenceId: 'auto', productGroupId: 'auto' })).toEqual({
       request: { ...INPUT, referenceId: 'auto', productGroupId: 'auto' },
     })
+  })
+
+  it('accepts an optional valid pillar id', () => {
+    expect(parseContentRequest({ ...INPUT, pillarId: 'edukasi-kopi' })).toEqual({
+      request: { ...INPUT, pillarId: 'edukasi-kopi' },
+    })
+    expect(parseContentRequest({ ...INPUT, pillarId: '' })).toEqual({ request: INPUT })
+  })
+
+  it.each(['Pilar Besar', 'pilar_1', 'a'.repeat(41), 7])('refuses invalid pillar id %s', (pillarId) => {
+    expect(parseContentRequest({ ...INPUT, pillarId })).toEqual({ error: 'Pilar tidak dikenal.' })
   })
 
   it.each([1, 10])('accepts %i slides', (slides) => {

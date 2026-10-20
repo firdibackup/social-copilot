@@ -74,7 +74,11 @@ export async function createContentAction(input: unknown): Promise<CreateResult>
     const scripted = isObject(input) && input.script != null ? parseScript(input.script) : null
     if (scripted && 'error' in scripted) return scripted
     const script = scripted?.script ?? null
-    const request = script ? { ...parsed.request, slides: script.length } : parsed.request
+    const brand = await loadBrandContext(userId)
+    const pillarId = brand?.strategy?.pillars.some((pillar) => pillar.id === parsed.request.pillarId)
+      ? parsed.request.pillarId
+      : null
+    const request = { ...parsed.request, ...(script ? { slides: script.length } : {}), pillarId }
     const attachment = await readAttachment(isObject(input) ? input.attachment : null)
     if (attachment && 'error' in attachment) return attachment
     const [references, listedProducts] = await Promise.all([

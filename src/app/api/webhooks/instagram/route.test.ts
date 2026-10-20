@@ -1,5 +1,7 @@
 import { createHmac } from 'node:crypto'
+import { after } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { runAutoDm } from '@/lib/auto-dm-runner'
 import { getCurrentPeriod } from '@/lib/billing'
 import { markReplies, saveComments } from '@/lib/comments'
 import { findUserByInstagramId, getConnection, getValidAccessToken } from '@/lib/connection'
@@ -7,6 +9,8 @@ import { needsProfile, recordMessage, saveProfile } from '@/lib/dm'
 import { fetchCustomerProfile } from '@/lib/instagram'
 import { GET, POST } from './route'
 
+vi.mock('next/server', () => ({ after: vi.fn() }))
+vi.mock('@/lib/auto-dm-runner', () => ({ runAutoDm: vi.fn() }))
 vi.mock('@/lib/billing', () => ({ getCurrentPeriod: vi.fn() }))
 vi.mock('@/lib/comments', () => ({ markReplies: vi.fn(), saveComments: vi.fn() }))
 vi.mock('@/lib/connection', () => ({ findUserByInstagramId: vi.fn(), getConnection: vi.fn(), getValidAccessToken: vi.fn() }))
@@ -186,6 +190,64 @@ describe('POST /api/webhooks/instagram', () => {
       'insert',
     )
     expect(markReplies).toHaveBeenCalledWith(USER, ['18000000000000001', '18000000000000001'])
+  })
+
+  it('hands new customer messages, button taps and comments to Auto DM after answering', async () => {
+    const body = {
+      object: 'instagram',
+      entry: [
+        {
+          id: ACCOUNT,
+          time: 1792130400,
+          messaging: [
+            { sender: { id: CUSTOMER }, recipient: { id: ACCOUNT }, timestamp: 1792130400000, message: { mid: 'm1', text: 'MAU' } },
+            {
+              sender: { id: CUSTOMER },
+              recipient: { id: ACCOUNT },
+              timestamp: 1792130401000,
+              postback: { mid: 'p1', title: 'Kirim linknya', payload: 'autodm:rule' },
+            },
+          ],
+          changes: [
+            {
+              field: 'comments',
+              value: { id: '18100000000000001', text: 'MAU', from: { id: CUSTOMER, username: 'budi' }, media: { id: '18000000000000001' } },
+            },
+          ],
+        },
+      ],
+    }
+
+    expect((await webhook(body)).status).toBe(200)
+    // The tap is stored as the customer's message, which opens the reply window.
+    expect(recordMessage).toHaveBeenCalledWith(USER, {
+      mid: 'p1',
+      igsid: CUSTOMER,
+      fromCustomer: true,
+      text: 'Kirim linknya',
+      sentAt: new Date(1792130401000),
+    })
+    expect(runAutoDm).not.toHaveBeenCalled()
+    const task = vi.mocked(after).mock.calls[0][0]
+    if (typeof task === 'function') await task()
+    expect(runAutoDm).toHaveBeenCalledWith(USER, ACCOUNT, [
+      { kind: 'dm', message: expect.objectContaining({ mid: 'm1', text: 'MAU' }) },
+      { kind: 'postback', postback: expect.objectContaining({ mid: 'p1', payload: 'autodm:rule' }) },
+      { kind: 'comment', comment: expect.objectContaining({ id: '18100000000000001', isFromOwner: false }) },
+    ])
+  })
+
+  it('leaves Auto DM out for messages it already stored and for its own echoes', async () => {
+    vi.mocked(recordMessage).mockResolvedValue(false)
+    expect((await webhook(message('m1'))).status).toBe(200)
+
+    vi.mocked(recordMessage).mockResolvedValue(true)
+    const echo = message('m2', { is_echo: true })
+    echo.entry[0].messaging[0].sender = { id: ACCOUNT }
+    echo.entry[0].messaging[0].recipient = { id: CUSTOMER }
+    expect((await webhook(echo)).status).toBe(200)
+
+    expect(after).not.toHaveBeenCalled()
   })
 
   it('stores no comments for a DM-only payload', async () => {

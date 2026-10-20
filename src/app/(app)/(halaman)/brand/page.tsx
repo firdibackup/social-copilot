@@ -9,6 +9,7 @@ import { describeError, loadErrorMessage } from '@/lib/errors'
 import { getFacebookConnection } from '@/lib/facebook-connection'
 import { BrandForm } from './brand-form'
 import { ReferencesPanel } from './references-panel'
+import { StrategyCard } from './strategy-card'
 import { SyncRefresher } from './sync-refresher'
 
 export const metadata: Metadata = { title: 'Brand' }
@@ -63,6 +64,7 @@ async function BrandStudio() {
           Sebagian brand gagal disiapkan otomatis. Lengkapi lewat tombol analisis di bawah.
         </Notice>
       )}
+      <StrategyCard strategy={data.kit.strategy} syncing={syncing === 'running'} />
       {/* The form copies the kit into state once: remount it when the fill finishes, or it keeps the empty kit. */}
       <BrandForm
         key={syncing ?? 'siap'}

@@ -26,6 +26,7 @@ export const TASK_LABELS: Record<string, string> = {
   content_script: 'Skrip konten',
   brand_profile: 'Profil brand',
   brand_visual: 'Gaya visual',
+  brand_strategy: 'Strategi konten',
   website_catalog: 'Katalog website',
   asset_tags: 'Tag foto',
   reply_draft: 'Draf balasan',

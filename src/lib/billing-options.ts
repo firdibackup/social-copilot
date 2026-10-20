@@ -30,6 +30,7 @@ export const TASK_CREDITS: Record<LoggedTask, number> = {
   content_script: 3,
   brand_profile: 5,
   brand_visual: 10,
+  brand_strategy: 5,
   website_catalog: 10,
   /** Per photo, not per request: one request tags a batch of photos (tagCost). */
   asset_tags: 1,

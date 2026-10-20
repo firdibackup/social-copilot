@@ -7,7 +7,7 @@ import { getPlan } from '@/lib/app-settings'
 import { remainingCredits } from '@/lib/ai'
 import { listAssets, listProductGroups } from '@/lib/assets'
 import { requireAccount } from '@/lib/auth'
-import { getBrandKit } from '@/lib/brand'
+import { getBrandKit, getStrategy } from '@/lib/brand'
 import { getConnection } from '@/lib/connection'
 import { describeError, loadErrorMessage } from '@/lib/errors'
 import { slotOn, suggestedSlot } from '@/lib/format'
@@ -73,7 +73,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
 
   let data
   try {
-    const [posts, ideas, post, slides, idea, instagram, kit, products, library, credits, plan] = await Promise.all([
+    const [posts, ideas, post, slides, idea, instagram, kit, strategy, products, library, credits, plan] = await Promise.all([
       listContentPosts(userId, accountId),
       listIdeas(userId, accountId),
       postId ? getPost(userId, postId) : null,
@@ -81,6 +81,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
       !postId && isUuid(ideaParam) ? getIdea(userId, ideaParam) : null,
       getConnection(userId),
       getBrandKit(userId, accountId),
+      getStrategy(userId).catch(() => null),
       listProductGroups(userId, accountId),
       listAssets(userId, accountId),
       // Shown as a hint only; every request checks the credits again.
@@ -90,7 +91,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
       ),
       getPlan(),
     ])
-    data = { posts, ideas, post, slides, idea, instagram, kit, products, library, credits, plan }
+    data = { posts, ideas, post, slides, idea, instagram, kit, strategy, products, library, credits, plan }
   } catch (error) {
     console.error('[buat] gagal memuat:', describeError(error))
     return (
@@ -100,7 +101,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
     )
   }
 
-  const { posts, ideas, post, slides, idea, instagram, kit, products, library, credits, plan } = data
+  const { posts, ideas, post, slides, idea, instagram, kit, strategy, products, library, credits, plan } = data
   const now = new Date()
   const day = firstValue(params.tanggal) ?? ''
   const daySlot = day ? slotOn(day, now) : null
@@ -142,6 +143,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
         ideas={ideas}
         selectedId={post?.id ?? null}
         selectedIdeaId={idea?.id ?? null}
+        strategy={strategy}
         className={editing ? 'hidden md:flex' : 'flex'}
       />
       <section aria-label="Editor" className={`min-h-0 min-w-0 flex-1 flex-col ${editing ? 'flex' : 'hidden md:flex'}`}>
@@ -151,6 +153,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
           slides={slides.map(toView)}
           idea={idea}
           account={{ username: instagram?.username ?? null, avatarUrl: kit.logoUrl }}
+          strategy={strategy}
           products={products.map((product) => ({
             id: product.id,
             label: product.title,

@@ -12,6 +12,16 @@ export interface MessageEvent {
   sentAt: Date
 }
 
+/** A tap on a postback button (Auto DM's opener and "Sudah follow"), from a `messaging_postbacks` webhook. */
+export interface PostbackEvent {
+  mid: string
+  igsid: string
+  /** The button's text, which the thread shows as the customer's message. */
+  title: string
+  payload: string
+  sentAt: Date
+}
+
 const SIGNATURE_PREFIX = 'sha256='
 /** Graph ids are digits; comment ids also go into PostgREST filters. */
 const NUMERIC_ID = /^\d+$/
@@ -64,6 +74,33 @@ export function parseMessageEvents(payload: unknown, accountId: string): Message
           igsid,
           fromCustomer,
           text: typeof message.text === 'string' ? message.text : null,
+          sentAt: typeof event.timestamp === 'number' ? new Date(event.timestamp) : new Date(),
+        },
+      ]
+    })
+  })
+}
+
+/** The button taps in a webhook payload for `accountId`. Always the customer's: the account taps nothing. */
+export function parsePostbackEvents(payload: unknown, accountId: string): PostbackEvent[] {
+  if (!isObject(payload) || payload.object !== 'instagram' || !Array.isArray(payload.entry)) return []
+
+  return payload.entry.flatMap((entry: unknown) => {
+    if (!isObject(entry) || String(entry.id) !== accountId || !Array.isArray(entry.messaging)) return []
+
+    return entry.messaging.flatMap((event: unknown): PostbackEvent[] => {
+      if (!isObject(event) || !isObject(event.postback)) return []
+      const { postback } = event
+      const igsid = idOf(event.sender)
+      if (typeof postback.mid !== 'string' || postback.mid === '' || typeof postback.payload !== 'string' || !igsid) {
+        return []
+      }
+      return [
+        {
+          mid: postback.mid,
+          igsid,
+          title: typeof postback.title === 'string' ? postback.title : '',
+          payload: postback.payload,
           sentAt: typeof event.timestamp === 'number' ? new Date(event.timestamp) : new Date(),
         },
       ]

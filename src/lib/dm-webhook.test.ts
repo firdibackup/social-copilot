@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
-import { entryAccountIds, hasValidSignature, parseCommentEvents, parseMessageEvents } from './dm-webhook'
+import { entryAccountIds, hasValidSignature, parseCommentEvents, parseMessageEvents, parsePostbackEvents } from './dm-webhook'
 
 const ACCOUNT = '17841400000000001'
 const CUSTOMER = '901234567890'
@@ -98,6 +98,31 @@ describe('parseMessageEvents', () => {
     )
     vi.useRealTimers()
     expect(event.sentAt).toEqual(new Date('2026-10-16T05:00:00Z'))
+  })
+})
+
+describe('parsePostbackEvents', () => {
+  it('reads a tap on a postback button', () => {
+    const events = parsePostbackEvents(
+      payload({
+        sender: { id: CUSTOMER },
+        recipient: { id: ACCOUNT },
+        timestamp: 1792130400000,
+        postback: { mid: 'p1', title: 'Kirim linknya', payload: 'autodm:rule' },
+      }),
+      ACCOUNT,
+    )
+    expect(events).toEqual([
+      { mid: 'p1', igsid: CUSTOMER, title: 'Kirim linknya', payload: 'autodm:rule', sentAt: new Date(1792130400000) },
+    ])
+  })
+
+  it('skips messages, postbacks without a payload or mid, and other accounts', () => {
+    const tap = { sender: { id: CUSTOMER }, recipient: { id: ACCOUNT }, postback: { mid: 'p1', title: 'Ya', payload: 'x' } }
+    expect(parsePostbackEvents(payload({ sender: { id: CUSTOMER }, message: { mid: 'm1', text: 'hai' } }), ACCOUNT)).toEqual([])
+    expect(parsePostbackEvents(payload({ ...tap, postback: { mid: 'p1', title: 'Ya' } }), ACCOUNT)).toEqual([])
+    expect(parsePostbackEvents(payload({ ...tap, postback: { title: 'Ya', payload: 'x' } }), ACCOUNT)).toEqual([])
+    expect(parsePostbackEvents(payload(tap), 'another-account')).toEqual([])
   })
 })
 

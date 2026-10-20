@@ -1,8 +1,9 @@
 import 'server-only'
+import { markDmSent } from './comments'
 import type { DmTemplate, Variables } from './dm-templates'
 import type { MessageEvent } from './dm-webhook'
 import { isProfileStale } from './inbox-rules'
-import type { CustomerProfile } from './instagram'
+import type { CustomerProfile, PrivateReply } from './instagram'
 import { db, unwrap } from './supabase'
 
 /** Meta accepts replies from the app until 24 hours after the customer's last message. */
@@ -160,6 +161,19 @@ export async function nameConversation(userId: string, igsid: string, username: 
   )
 }
 
+/** After a private reply: the comment counts as answered, and the DM opens the commenter's conversation. */
+export async function recordPrivateReply(
+  userId: string,
+  comment: { commentId: string; username: string | null },
+  sent: PrivateReply,
+  text: string,
+): Promise<void> {
+  await markDmSent(userId, comment.commentId)
+  if (!sent.recipientId) return
+  await recordMessage(userId, { mid: sent.messageId, igsid: sent.recipientId, fromCustomer: false, text, sentAt: new Date() })
+  if (comment.username) await nameConversation(userId, sent.recipientId, comment.username)
+}
+
 export async function setConversationReadState(
   userId: string,
   accountId: string,
@@ -192,8 +206,17 @@ export async function markAllConversationsSeen(userId: string, accountId: string
   )
 }
 
-/** The account's inbox, newest first. `waitingOnly` keeps the conversations whose last message came from the customer. */
-export async function listConversations(userId: string, accountId: string, waitingOnly: boolean): Promise<Conversation[]> {
+/**
+ * The account's inbox, newest first. `waitingOnly` keeps the conversations whose last message came from the customer;
+ * `igsids` keeps only those conversations.
+ */
+export async function listConversations(
+  userId: string,
+  accountId: string,
+  waitingOnly: boolean,
+  igsids?: readonly string[],
+): Promise<Conversation[]> {
+  if (igsids?.length === 0) return []
   let query = db()
     .from('dm_conversations')
     .select(CONVERSATION_COLUMNS)
@@ -202,6 +225,7 @@ export async function listConversations(userId: string, accountId: string, waiti
     .order('last_message_at', { ascending: false })
     .limit(CONVERSATION_LIMIT)
   if (waitingOnly) query = query.eq('last_from_customer', true)
+  if (igsids) query = query.in('igsid', [...igsids])
   return (unwrap(await query) as ConversationRow[]).map(toConversation)
 }
 

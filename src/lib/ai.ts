@@ -7,6 +7,7 @@ import { lengthOf, truncate, type BrandContext } from './brand-options'
 import { ConfigError, describeError } from './errors'
 import { formatShortDate } from './format'
 import { RouterApiError } from './nine-router'
+import { describeStrategy } from './strategy-options'
 import { db, unwrap } from './supabase'
 
 type Json = Record<string, unknown>
@@ -28,11 +29,12 @@ const BRAND_LINES: [keyof BrandContext, string][] = [
   ['wordsAvoid', 'Hindari kata atau gaya ini'],
 ]
 
-/** The brand kit as prompt text. Facts are owner text, so they are quoted. */
+/** The brand kit as prompt text, with its content strategy. Facts are owner text, so they are quoted. */
 export function describeBrand(brand: BrandContext): string {
   const lines = BRAND_LINES.filter(([field]) => brand[field]).map(([field, label]) => `${label}: ${brand[field]}`)
   if (brand.facts) lines.push(`Fakta brand yang boleh dipakai:\n${quote(brand.facts)}`)
-  return ['Tentang brand (ikuti gaya bahasanya):', ...lines, '', ''].join('\n')
+  const strategy = brand.strategy ? ['', describeStrategy(brand.strategy)] : []
+  return ['Tentang brand (ikuti gaya bahasanya):', ...lines, ...strategy, '', ''].join('\n')
 }
 
 /** The model answered, but not with the JSON asked for. `snippet` is the start of its answer. */
@@ -84,6 +86,7 @@ export type LoggedTask =
   | 'content_script'
   | 'brand_profile'
   | 'brand_visual'
+  | 'brand_strategy'
   | 'website_catalog'
   | 'asset_tags'
   | 'reply_draft'

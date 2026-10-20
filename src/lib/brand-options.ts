@@ -1,5 +1,6 @@
 /** Fields, limits and validation of the brand kit, shared by the /brand page and the server. */
 import { isAccountKind, isDesignStyle } from './design-styles'
+import type { ContentStrategy } from './strategy-options'
 
 export const BRAND_TEXT_LIMITS = {
   name: 100,
@@ -68,6 +69,8 @@ export type SyncStatus = 'running' | 'failed' | null
 export interface BrandKit extends BrandFields {
   logoUrl: string | null
   syncStatus: SyncStatus
+  /** Saved on its own card, apart from the form's fields. */
+  strategy: ContentStrategy | null
 }
 
 /** What the AI reads from websites and captions, and what the caption prompts use. */
@@ -83,7 +86,9 @@ export const PROFILE_FIELDS = [
 ] as const satisfies readonly BrandTextField[]
 
 export type ProfileField = (typeof PROFILE_FIELDS)[number]
-export type BrandContext = Pick<BrandFields, ProfileField>
+export type ProfileText = Pick<BrandFields, ProfileField>
+/** The profile text for prompts, with the content strategy when the owner has one. */
+export type BrandContext = ProfileText & { strategy?: ContentStrategy | null }
 
 export type ReferenceSource = 'upload' | 'website' | 'instagram' | 'discovery'
 

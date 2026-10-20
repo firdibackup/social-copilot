@@ -96,6 +96,21 @@ export async function saveComments(
   )
 }
 
+/** The account's public reply, just sent under `parentId`: stored at once, and its thread counts as replied. */
+export async function recordOwnReply(
+  userId: string,
+  accountId: string,
+  reply: { id: string; mediaId: string; parentId: string; text: string },
+): Promise<void> {
+  await saveComments(
+    userId,
+    accountId,
+    [{ ...reply, fromId: accountId, username: null, createdAt: new Date(), isHidden: false, isFromOwner: true }],
+    'insert',
+  )
+  await markReplies(userId, [reply.mediaId])
+}
+
 /** Marks comments of these posts replied where the owner has since commented in their thread. */
 export async function markReplies(userId: string, mediaIds: readonly string[]): Promise<void> {
   if (mediaIds.length === 0) return

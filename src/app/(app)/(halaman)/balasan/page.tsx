@@ -2,9 +2,10 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
+import { Plus } from 'lucide-react'
 import { Notice } from '@/components/notice'
 import { requireAccount } from '@/lib/auth'
-import { getBrandKit } from '@/lib/brand'
+import { latestRuns, listRules } from '@/lib/auto-dm'
 import { getConnection, type Connection } from '@/lib/connection'
 import { getVariables, listTemplates } from '@/lib/dm'
 import { formatVariables, type DmTemplate } from '@/lib/dm-templates'
@@ -13,8 +14,9 @@ import { COMMENTS_SCOPE } from '@/lib/instagram'
 import { firstValue, type SearchParams } from '@/lib/params'
 import { Comments, commentsHref, loadComments, type CommentsData } from './comments'
 import { FilterSelect, RefreshButton, type Pull } from './controls'
-import { dmHref, Inbox, loadInbox, type Brand, type Filter } from './inbox'
-import { NewRuleButton, TemplatesPanel } from './templates-panel'
+import { AutoDmRules, type RuleCard } from './auto-dm-rules'
+import { dmHref, Inbox, loadBrand, loadInbox, type Brand, type DmFilter, type Filter } from './inbox'
+import { TemplatesPanel } from './templates-panel'
 
 export const metadata: Metadata = { title: 'Balasan' }
 
@@ -30,7 +32,7 @@ export default function BalasanPage({ searchParams }: BalasanPageProps) {
       <Suspense fallback={<p className="text-sm text-zinc-500">Memuat balasan…</p>}>
         <BalasanView searchParams={searchParams} />
       </Suspense>
-      <Suspense fallback={<p className="text-sm text-zinc-500">Memuat aturan…</p>}>
+      <Suspense fallback={<p className="text-sm text-zinc-500">Memuat template…</p>}>
         <Templates />
       </Suspense>
     </div>
@@ -39,20 +41,14 @@ export default function BalasanPage({ searchParams }: BalasanPageProps) {
 
 const RECONNECT_LINK = 'font-medium underline underline-offset-2'
 
-async function loadBrand(userId: string, accountId: string, instagram: Connection | null): Promise<Brand> {
-  const kit = await getBrandKit(userId, accountId).catch((error: unknown) => {
-    console.error('[balasan] brand gagal dimuat:', describeError(error))
-    return null
-  })
-  return { name: kit?.name || (instagram ? `@${instagram.username}` : 'Brand'), logoUrl: kit?.logoUrl ?? null }
-}
-
 async function BalasanView({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
   await connection()
   const { userId, accountId } = await requireAccount()
   const tab: Tab = firstValue(params.tab) === 'komentar' ? 'komentar' : 'dm'
-  const filter: Filter = firstValue(params.filter) === 'semua' ? 'semua' : 'belum'
+  const filterParam = firstValue(params.filter)
+  const filter: Filter = filterParam === 'semua' ? 'semua' : 'belum'
+  const dmFilter: DmFilter = filterParam === 'otomatis' ? 'otomatis' : filter
   const now = new Date()
 
   let instagram: Connection | null
@@ -72,8 +68,8 @@ async function BalasanView({ searchParams }: { searchParams: Promise<SearchParam
         <div className="max-w-xl space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Balasan</h1>
           <p className="text-zinc-500">
-            DM dan komentar Instagram yang masuk. Template dan ✨ AI hanya mengisi draf; kamu tetap memeriksa dan
-            menekan Kirim sendiri.
+            DM dan komentar Instagram yang masuk. Template dan ✨ AI hanya mengisi draf yang kamu kirim sendiri;
+            Aturan Auto DM yang aktif membalas komentar dan DM yang cocok secara otomatis.
           </p>
         </div>
         <RefreshButton key={tab} pull={pull} />
@@ -81,24 +77,33 @@ async function BalasanView({ searchParams }: { searchParams: Promise<SearchParam
 
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-zinc-200">
         <nav aria-label="Jenis balasan" className="flex gap-6">
-          <TabLink href={dmHref(filter)} active={tab === 'dm'} label="DM" />
+          <TabLink href={dmHref(dmFilter)} active={tab === 'dm'} label="DM" />
           <TabLink href={commentsHref(filter)} active={tab === 'komentar'} label="Komentar" />
         </nav>
         <div className="flex items-center gap-2 pb-2">
           <FilterSelect
-            value={filter}
+            value={tab === 'dm' ? dmFilter : filter}
             hrefs={
               tab === 'dm'
-                ? { belum: dmHref('belum'), semua: dmHref('semua') }
+                ? { belum: dmHref('belum'), semua: dmHref('semua'), otomatis: dmHref('otomatis') }
                 : { belum: commentsHref('belum'), semua: commentsHref('semua') }
             }
           />
-          <NewRuleButton />
+          <Link
+            href="/balasan/auto-dm"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800"
+          >
+            <Plus size={16} aria-hidden="true" />
+            Auto DM
+          </Link>
         </div>
       </div>
 
       {tab === 'dm' ? (
-        <DmTab userId={userId} accountId={accountId} filter={filter} params={params} brand={brand} now={now} />
+        <div className="space-y-8">
+          <DmTab userId={userId} accountId={accountId} filter={dmFilter} params={params} brand={brand} now={now} />
+          <RulesSection userId={userId} accountId={accountId} username={instagram?.username ?? 'akunmu'} />
+        </div>
       ) : (
         <CommentsTab
           userId={userId}
@@ -137,7 +142,7 @@ interface TabProps {
   now: Date
 }
 
-async function DmTab({ userId, accountId, filter, params, brand, now }: TabProps) {
+async function DmTab({ userId, accountId, filter, params, brand, now }: Omit<TabProps, 'filter'> & { filter: DmFilter }) {
   const selectedId = firstValue(params.c)
   let data: Awaited<ReturnType<typeof loadInbox>>
   try {
@@ -147,6 +152,22 @@ async function DmTab({ userId, accountId, filter, params, brand, now }: TabProps
     return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
   }
   return <Inbox {...data} filter={filter} selectedId={selectedId} brand={brand} now={now} />
+}
+
+async function RulesSection({ userId, accountId, username }: { userId: string; accountId: string; username: string }) {
+  let cards: RuleCard[]
+  try {
+    const rules = await listRules(userId, accountId)
+    const runs = await latestRuns(
+      userId,
+      rules.map((rule) => rule.id),
+    )
+    cards = rules.map((rule) => ({ rule, run: runs.get(rule.id) ?? null }))
+  } catch (error) {
+    console.error('[auto-dm] aturan gagal dimuat:', describeError(error))
+    return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
+  }
+  return <AutoDmRules cards={cards} username={username} />
 }
 
 async function CommentsTab({ instagram, ...props }: TabProps & { instagram: Connection | null }) {
@@ -203,7 +224,7 @@ async function Templates() {
     templates = list
     variablesText = formatVariables(variables)
   } catch (error) {
-    console.error('[balasan] aturan gagal dimuat:', describeError(error))
+    console.error('[balasan] template gagal dimuat:', describeError(error))
     return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
   }
   return <TemplatesPanel templates={templates} variablesText={variablesText} />

@@ -5,7 +5,8 @@ import { MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
 import { LateBadge, PostStatusBadge, STATUS_DOT_CLASS } from '@/components/post-status-badge'
 import { requireAccount } from '@/lib/auth'
-import { buildMonthGrid, formatDay, formatMonth, parseMonth, shiftMonth } from '@/lib/calendar'
+import { getStrategy } from '@/lib/brand'
+import { buildMonthGrid, formatDay, formatMonth, parseMonth, shiftMonth, weekCounts } from '@/lib/calendar'
 import { describeError, loadErrorMessage } from '@/lib/errors'
 import { formatDateTime, formatTime, parseWibInput, wibDateKey } from '@/lib/format'
 import { firstValue, type SearchParams } from '@/lib/params'
@@ -15,6 +16,7 @@ import { listPosts, type Post } from '@/lib/posts'
 const DAY_MS = 24 * 60 * 60 * 1000
 const WEEKDAYS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
 const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/
+const WEEKLY_POST_STATUSES = new Set<PostStatus>(['scheduled', 'publishing', 'published'])
 
 /** Start and end (exclusive) of WIB calendar days, or null for a malformed day. */
 function wibDayRange(firstDay: string, lastDay = firstDay): { from: Date; to: Date } | null {
@@ -39,13 +41,23 @@ export async function CalendarView({ searchParams }: { searchParams: Promise<Sea
   const { userId, accountId } = await requireAccount()
   const now = new Date()
   const isList = firstValue(params.tampilan) === 'daftar'
+  const strategy = await getStrategy(userId).catch((error) => {
+    console.error('[kalender] gagal memuat strategi:', describeError(error))
+    return null
+  })
 
   let body
   try {
     body = isList ? (
       await PostList({ userId, accountId, statusParam: firstValue(params.status), dayParam: firstValue(params.tanggal), now })
     ) : (
-      await MonthView({ userId, accountId, month: parseMonth(firstValue(params.bulan)) ?? wibDateKey(now).slice(0, 7), now })
+      await MonthView({
+        userId,
+        accountId,
+        month: parseMonth(firstValue(params.bulan)) ?? wibDateKey(now).slice(0, 7),
+        now,
+        postsPerWeek: strategy?.postsPerWeek ?? null,
+      })
     )
   } catch (error) {
     console.error('[kalender] gagal memuat:', describeError(error))
@@ -55,7 +67,15 @@ export async function CalendarView({ searchParams }: { searchParams: Promise<Sea
   return (
     <>
       <header className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Kalender</h1>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Kalender</h1>
+          <p className="mt-0.5 text-xs text-zinc-500 sm:text-sm">
+            {strategy ? `Target ${strategy.postsPerWeek} post/minggu · ` : null}
+            <Link href="/brand" className="underline decoration-zinc-300 underline-offset-2 hover:text-zinc-900">
+              {strategy ? 'Atur di Brand' : 'Atur target frekuensi di Brand'}
+            </Link>
+          </p>
+        </div>
         <div className="flex items-center gap-2">
           <nav aria-label="Tampilan" className="inline-flex rounded-lg border border-zinc-200 p-0.5 text-sm">
             <ViewLink href="/kalender" active={!isList} label="Bulan" />
@@ -90,7 +110,19 @@ function ViewLink({ href, active, label }: { href: string; active: boolean; labe
   )
 }
 
-async function MonthView({ userId, accountId, month, now }: { userId: string; accountId: string; month: string; now: Date }) {
+async function MonthView({
+  userId,
+  accountId,
+  month,
+  now,
+  postsPerWeek,
+}: {
+  userId: string
+  accountId: string
+  month: string
+  now: Date
+  postsPerWeek: number | null
+}) {
   const weeks = buildMonthGrid(month)
   const range = wibDayRange(weeks[0][0], weeks.at(-1)!.at(-1)!)!
   const posts = await listPosts(userId, accountId, range)
@@ -102,6 +134,12 @@ async function MonthView({ userId, accountId, month, now }: { userId: string; ac
     const key = wibDateKey(post.scheduledAt)
     byDay.set(key, [...(byDay.get(key) ?? []), post])
   }
+  const counts = weekCounts(
+    weeks,
+    posts.flatMap((post) =>
+      post.scheduledAt && WEEKLY_POST_STATUSES.has(post.status) ? [wibDateKey(post.scheduledAt)] : [],
+    ),
+  )
   const today = wibDateKey(now)
 
   return (
@@ -128,16 +166,20 @@ async function MonthView({ userId, accountId, month, now }: { userId: string; ac
           ))}
         </div>
         <div className="grid grid-cols-7">
-          {weeks.flat().map((day) => (
-            <DayCell
-              key={day}
-              day={day}
-              posts={byDay.get(day) ?? []}
-              inMonth={day.startsWith(month)}
-              isToday={day === today}
-              now={now}
-            />
-          ))}
+          {weeks.flatMap((week, weekIndex) =>
+            week.map((day, dayIndex) => (
+              <DayCell
+                key={day}
+                day={day}
+                posts={byDay.get(day) ?? []}
+                inMonth={day.startsWith(month)}
+                isToday={day === today}
+                now={now}
+                weeklyCount={dayIndex === 0 && postsPerWeek !== null ? counts[weekIndex] : undefined}
+                weeklyTarget={dayIndex === 0 ? postsPerWeek : null}
+              />
+            )),
+          )}
         </div>
       </div>
     </section>
@@ -150,28 +192,41 @@ interface DayCellProps {
   inMonth: boolean
   isToday: boolean
   now: Date
+  weeklyCount?: number
+  weeklyTarget: number | null
 }
 
-function DayCell({ day, posts, inMonth, isToday, now }: DayCellProps) {
+function DayCell({ day, posts, inMonth, isToday, now, weeklyCount, weeklyTarget }: DayCellProps) {
   return (
     <div
       className={`group relative min-h-16 border-r border-b border-zinc-100 p-1 md:min-h-28 md:p-1.5 [&:nth-child(7n)]:border-r-0 ${inMonth ? '' : 'bg-zinc-50/70'}`}
     >
       {/* On phones the whole cell opens that day's list; chips only fit on wider screens. */}
       <Link href={listHref(undefined, day)} aria-label={formatDay(day)} className="absolute inset-0 md:hidden" />
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-0.5">
         <span
-          className={`flex size-6 items-center justify-center rounded-full text-xs ${isToday ? 'bg-primary font-semibold text-white' : inMonth ? 'text-zinc-700' : 'text-zinc-400'}`}
+          className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs ${isToday ? 'bg-primary font-semibold text-white' : inMonth ? 'text-zinc-700' : 'text-zinc-400'}`}
         >
           {Number(day.slice(8))}
         </span>
-        <Link
-          href={`/buat?tanggal=${day}`}
-          aria-label={`Post baru ${formatDay(day)}`}
-          className="hidden rounded p-0.5 text-zinc-400 opacity-0 group-hover:opacity-100 hover:bg-zinc-100 hover:text-zinc-900 focus:opacity-100 md:block"
-        >
-          <Plus size={14} aria-hidden="true" />
-        </Link>
+        <div className="flex flex-col items-end gap-0.5">
+          {weeklyCount !== undefined && weeklyTarget !== null && (
+            <span
+              title="post minggu ini"
+              aria-label={`${weeklyCount} dari target ${weeklyTarget} post minggu ini`}
+              className={`rounded px-1 py-0.5 text-[10px] font-semibold leading-none tabular-nums ${weeklyCount >= weeklyTarget ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}
+            >
+              {weeklyCount}/{weeklyTarget}
+            </span>
+          )}
+          <Link
+            href={`/buat?tanggal=${day}`}
+            aria-label={`Post baru ${formatDay(day)}`}
+            className="hidden rounded p-0.5 text-zinc-400 opacity-0 group-hover:opacity-100 hover:bg-zinc-100 hover:text-zinc-900 focus:opacity-100 md:block"
+          >
+            <Plus size={14} aria-hidden="true" />
+          </Link>
+        </div>
       </div>
 
       <ul className="mt-1 hidden space-y-1 md:block">

@@ -76,23 +76,37 @@ export function RefreshButton({ pull }: { pull: Pull }) {
   )
 }
 
+const FILTER_LABELS = { belum: 'Belum dibales', semua: 'Semua', otomatis: 'Otomatis' } as const
+
+type FilterValue = keyof typeof FILTER_LABELS
+
 interface FilterSelectProps {
-  value: 'belum' | 'semua'
-  /** Where each choice leads; the selected item and post stay out, since they may not be in the new list. */
-  hrefs: Record<'belum' | 'semua', string>
+  value: FilterValue
+  /**
+   * Where each offered choice leads, in this order; the selected item and post stay out, since they may not be in
+   * the new list.
+   */
+  hrefs: Partial<Record<FilterValue, string>>
 }
 
 export function FilterSelect({ value, hrefs }: FilterSelectProps) {
   const router = useRouter()
+  const choices = Object.entries(hrefs) as [FilterValue, string][]
   return (
     <select
       aria-label="Filter"
       value={value}
-      onChange={(event) => router.push(hrefs[event.target.value === 'semua' ? 'semua' : 'belum'])}
+      onChange={(event) => {
+        const href = choices.find(([choice]) => choice === event.target.value)?.[1]
+        if (href) router.push(href)
+      }}
       className="rounded-lg border border-zinc-200 bg-white py-1.5 pr-8 pl-3 text-sm font-medium text-zinc-800 focus:border-zinc-400 focus:outline-none"
     >
-      <option value="belum">Belum dibales</option>
-      <option value="semua">Semua</option>
+      {choices.map(([choice]) => (
+        <option key={choice} value={choice}>
+          {FILTER_LABELS[choice]}
+        </option>
+      ))}
     </select>
   )
 }

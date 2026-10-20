@@ -1,5 +1,5 @@
 import 'server-only'
-import { AiOutputError, cleanList, describeBrand, loadBrandContext, quote, readJson, runLogged, snippetOf } from './ai'
+import { AiOutputError, describeBrand, loadBrandContext, quote, readJson, runLogged, snippetOf } from './ai'
 import { contentCost } from './billing-options'
 import { truncate, type BrandContext } from './brand-options'
 import { CAPTION_MAX_LENGTH } from './caption'
@@ -9,6 +9,7 @@ import { isUuid } from './params'
 import { HEADLINE_MAX_LENGTH, MAX_SLIDES, SCENE_MAX_LENGTH, type Slide } from './image-options'
 import { chatCompletion, type ChatMessage } from './nine-router'
 import { cleanScriptSlide, scriptHeadline, type ScriptSlide } from './script-options'
+import { pillarOf, pillarQuota } from './strategy-options'
 
 export const TITLE_MAX_LENGTH = 120
 export const IDEA_MAX_LENGTH = 200
@@ -117,6 +118,14 @@ function slideStructure(slides: number): string {
 
 const allowedFacts = (brand: BrandContext | null) => (brand?.facts ? 'topik dan fakta brand di atas' : 'topik di atas')
 
+function pillarInstruction(brand: BrandContext | null, pillarId: string | null): string {
+  const strategy = brand?.strategy ?? null
+  if (!strategy?.pillars.length) return ''
+  const pillar = pillarOf(strategy, pillarId)
+  if (!pillar) return 'Pilih pilar konten yang paling sesuai dengan topik ini, lalu sesuaikan sudut pandang dan isinya.'
+  return `Post ini untuk pilar "${pillar.name}"${pillar.detail ? ` (${pillar.detail})` : ''}. Sesuaikan sudut pandang dan isinya dengan pilar itu.`
+}
+
 export interface ProductCandidate {
   id: string
   title: string
@@ -144,8 +153,9 @@ export function buildContentMessages(
   products: ProductCandidate[] = [],
   attachment: string | null = null,
   script: ScriptSlide[] | null = null,
+  pillarId: string | null = null,
 ): ChatMessage[] {
-  if (script) return buildScriptedContentMessages(topic, script, brand, products, attachment)
+  if (script) return buildScriptedContentMessages(topic, script, brand, products, attachment, pillarId)
   const carousel = slides > 1
   const attached = attachment ? ', "attachment": "…"' : ''
   return [
@@ -155,6 +165,7 @@ export function buildContentMessages(
       content: withImage(
         [
           `${brand ? describeBrand(brand) : ''}Tugas: buat satu post Instagram tentang topik di bawah, berupa ${carousel ? `carousel ${slides} slide` : 'satu gambar'}.`,
+          pillarInstruction(brand, pillarId),
           '- title: judul singkat post untuk daftar konten, maksimal 8 kata.',
           `- caption: 2–4 paragraf pendek, sekitar 300–700 karakter sebelum hashtag: kalimat pembuka yang menarik, isi, lalu ajakan bertindak (CTA). Tutup dengan 3–8 hashtag relevan di baris terakhir.${carousel ? ' Ajak pembaca menggeser carousel kalau sesuai.' : ''}`,
           `- slides: tepat ${slides} slide, berurutan.${carousel ? ` Susunannya: ${slideStructure(slides)}.` : ''}`,
@@ -183,6 +194,7 @@ function buildScriptedContentMessages(
   brand: BrandContext | null,
   products: ProductCandidate[],
   attachment: string | null,
+  pillarId: string | null,
 ): ChatMessage[] {
   const slides = script.length
   const carousel = slides > 1
@@ -194,6 +206,7 @@ function buildScriptedContentMessages(
       content: withImage(
         [
           `${brand ? describeBrand(brand) : ''}Tugas: buat satu post Instagram dari skrip yang sudah disetujui owner, berupa ${carousel ? `carousel ${slides} slide` : 'satu gambar'}.`,
+          pillarInstruction(brand, pillarId),
           '- title: judul singkat post untuk daftar konten, maksimal 8 kata.',
           `- caption: 2–4 paragraf pendek, sekitar 300–700 karakter sebelum hashtag, yang mendukung isi skrip tanpa menyalin semuanya: kalimat pembuka yang menarik, isi, lalu ajakan bertindak yang sama dengan slide terakhir skrip. Tutup dengan 3–8 hashtag relevan di baris terakhir.${carousel ? ' Ajak pembaca menggeser carousel kalau sesuai.' : ''}`,
           `- slides: tepat ${slides} slide, sama urutannya dengan skrip. headline: salin teks slide itu dari skrip persis, tanpa diubah. scene: visual yang paling membantu teks slide itu terbaca dan dipahami; slide 1 harus membuat orang berhenti menggulir.`,
@@ -297,7 +310,9 @@ export function planContent<T>(
     async () => {
       const brand = await loadBrandContext(userId)
       const plan = parseContentPlan(
-        await chatCompletion(buildContentMessages(request.topic, request.slides, brand, pickHook(), products, attachment, script)),
+        await chatCompletion(
+          buildContentMessages(request.topic, request.slides, brand, pickHook(), products, attachment, script, request.pillarId),
+        ),
         request.slides,
         products,
         attachment !== null,
@@ -311,21 +326,49 @@ export function planContent<T>(
 
 export function buildIdeasMessages(brand: BrandContext, recent: string[]): ChatMessage[] {
   const avoid = recent.length > 0 ? ['', `Jangan ulangi ide atau post yang sudah ada:\n${quote(recent.join('\n'))}`] : []
+  const pillars = brand.strategy?.pillars ?? []
+  const quota = pillarQuota(pillars, IDEAS_COUNT)
+  const strategyGuide =
+    pillars.length > 0
+      ? [
+          'Ikuti pembagian pilar ini dengan jumlah yang tepat:',
+          ...pillars.map((pillar, index) => `- ${pillar.name} (${pillar.id}): ${quota[index]} ide`),
+        ]
+      : []
   return [
     { role: 'system', content: IDEAS_SYSTEM },
     {
       role: 'user',
       content: [
         `${describeBrand(brand)}Tugas: beri ${IDEAS_COUNT} ide post Instagram yang berbeda-beda untuk brand ini: campuran edukasi atau tips, cerita di balik layar, promosi, dan interaksi dengan pengikut. Setiap ide berupa satu kalimat pendek, maksimal 12 kata, yang cukup jelas untuk dijadikan topik post.`,
-        `Format JSON: {"ideas": ["…"]}`,
+        ...strategyGuide,
+        pillars.length > 0 ? 'Format JSON: {"ideas": [{"title": "…", "pillarId": "…"}]}' : 'Format JSON: {"ideas": ["…"]}',
         ...avoid,
       ].join('\n'),
     },
   ]
 }
 
-export function parseIdeas(content: string): string[] {
-  const ideas = cleanList(readJson(content)?.ideas, IDEAS_COUNT).map((idea) => truncate(idea, IDEA_MAX_LENGTH))
+export interface SuggestedIdea {
+  title: string
+  pillarId: string | null
+}
+
+export function parseIdeas(content: string, validPillarIds: Iterable<string> = []): SuggestedIdea[] {
+  const listed = readJson(content)?.ideas
+  const ids = new Set(validPillarIds)
+  const seen = new Set<string>()
+  const ideas: SuggestedIdea[] = []
+  if (Array.isArray(listed)) {
+    for (const item of listed) {
+      const title = typeof item === 'string' ? item.trim() : isObject(item) ? text(item.title) : ''
+      if (!title || seen.has(title)) continue
+      seen.add(title)
+      const pillarId = isObject(item) && typeof item.pillarId === 'string' && ids.has(item.pillarId) ? item.pillarId : null
+      ideas.push({ title: truncate(title, IDEA_MAX_LENGTH), pillarId })
+      if (ideas.length === IDEAS_COUNT) break
+    }
+  }
   if (ideas.length === 0) throw new AiOutputError(snippetOf(content))
   return ideas
 }
@@ -335,10 +378,13 @@ export function suggestIdeas(
   userId: string,
   brand: BrandContext,
   recent: string[],
-  save: (ideas: string[]) => Promise<void>,
-): Promise<string[]> {
+  save: (ideas: SuggestedIdea[]) => Promise<void>,
+): Promise<SuggestedIdea[]> {
   return runLogged(userId, 'content_ideas', { recent: recent.length }, async () => {
-    const ideas = parseIdeas(await chatCompletion(buildIdeasMessages(brand, recent)))
+    const ideas = parseIdeas(
+      await chatCompletion(buildIdeasMessages(brand, recent)),
+      brand.strategy?.pillars.map((pillar) => pillar.id),
+    )
     await save(ideas)
     return ideas
   })

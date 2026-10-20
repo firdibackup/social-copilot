@@ -71,6 +71,7 @@ const REQUEST: ContentRequest = {
   format: '4:5',
   referenceId: null,
   productGroupId: null,
+  pillarId: null,
   includeLogo: false,
   ideaId: null,
 }
@@ -308,11 +309,30 @@ describe('parseIdeas', () => {
     const parsed = parseIdeas(JSON.stringify({ ideas }))
 
     expect(parsed).toHaveLength(10)
-    expect(parsed.slice(0, 2)).toEqual(['Satu', 'Ide 0'])
+    expect(parsed.slice(0, 2)).toEqual([
+      { title: 'Satu', pillarId: null },
+      { title: 'Ide 0', pillarId: null },
+    ])
   })
 
   it('cuts an idea to 200 code points', () => {
-    expect(Array.from(parseIdeas(JSON.stringify({ ideas: ['😀'.repeat(300)] }))[0])).toHaveLength(200)
+    expect(Array.from(parseIdeas(JSON.stringify({ ideas: ['😀'.repeat(300)] }))[0].title)).toHaveLength(200)
+  })
+
+  it('accepts objects and keeps only valid pillar ids', () => {
+    const answer = JSON.stringify({
+      ideas: [
+        { title: 'Tips seduh', pillarId: 'edukasi' },
+        { title: 'Promo akhir pekan', pillarId: 'tidak-ada' },
+        { title: 'Cerita barista' },
+      ],
+    })
+
+    expect(parseIdeas(answer, ['edukasi', 'cerita'])).toEqual([
+      { title: 'Tips seduh', pillarId: 'edukasi' },
+      { title: 'Promo akhir pekan', pillarId: null },
+      { title: 'Cerita barista', pillarId: null },
+    ])
   })
 
   it.each([['no ideas', '{"ideas": []}'], ['a provider notice', 'Maaf, coba lagi.']])('throws an AiOutputError for %s', (_label, answer) => {
@@ -382,6 +402,30 @@ describe('buildIdeasMessages', () => {
 
   it('leaves out the avoid list when there is nothing to avoid', () => {
     expect(buildIdeasMessages(BRAND, [])[1].content).not.toContain('Jangan ulangi')
+  })
+
+  it('asks for exact per-pillar counts following their shares', () => {
+    const brand: BrandContext = {
+      ...BRAND,
+      strategy: {
+        identity: 'Teman ngopi sehari-hari',
+        tone: 'Santai',
+        focus: 'engagement',
+        postsPerWeek: 3,
+        pillars: [
+          { id: 'edukasi', name: 'Edukasi Kopi', detail: 'Tips seduh', share: 60 },
+          { id: 'cerita', name: 'Cerita Kedai', detail: 'Di balik layar', share: 30 },
+          { id: 'promo', name: 'Promo', detail: 'Penawaran', share: 10 },
+        ],
+      },
+    }
+
+    const user = String(buildIdeasMessages(brand, [])[1].content)
+
+    expect(user).toContain('Edukasi Kopi (edukasi): 6 ide')
+    expect(user).toContain('Cerita Kedai (cerita): 3 ide')
+    expect(user).toContain('Promo (promo): 1 ide')
+    expect(user).toContain('{"ideas": [{"title": "…", "pillarId": "…"}]}')
   })
 })
 
@@ -593,8 +637,14 @@ describe('requests', () => {
       vi.mocked(chatCompletion).mockResolvedValue('{"ideas": ["Satu", "Dua"]}')
       const save = vi.fn(async () => {})
 
-      await expect(suggestIdeas(USER, BRAND, ['Promo Senin'], save)).resolves.toEqual(['Satu', 'Dua'])
-      expect(save).toHaveBeenCalledWith(['Satu', 'Dua'])
+      await expect(suggestIdeas(USER, BRAND, ['Promo Senin'], save)).resolves.toEqual([
+        { title: 'Satu', pillarId: null },
+        { title: 'Dua', pillarId: null },
+      ])
+      expect(save).toHaveBeenCalledWith([
+        { title: 'Satu', pillarId: null },
+        { title: 'Dua', pillarId: null },
+      ])
       expect(rows()).toEqual([expect.objectContaining({ task: 'content_ideas', credits: 2, input: { recent: 1 } })])
     })
 

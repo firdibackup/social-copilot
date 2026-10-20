@@ -1,8 +1,16 @@
+import { after } from 'next/server'
+import { runAutoDm, type AutoDmTrigger } from '@/lib/auto-dm-runner'
 import { getCurrentPeriod } from '@/lib/billing'
-import { markReplies, saveComments } from '@/lib/comments'
+import { markReplies, saveComments, type CommentInput } from '@/lib/comments'
 import { findUserByInstagramId, getConnection, getValidAccessToken } from '@/lib/connection'
 import { needsProfile, recordMessage, saveProfile } from '@/lib/dm'
-import { entryAccountIds, hasValidSignature, parseCommentEvents, parseMessageEvents } from '@/lib/dm-webhook'
+import {
+  entryAccountIds,
+  hasValidSignature,
+  parseCommentEvents,
+  parseMessageEvents,
+  parsePostbackEvents,
+} from '@/lib/dm-webhook'
 import { env } from '@/lib/env'
 import { describeError } from '@/lib/errors'
 import { isOwnComment } from '@/lib/inbox-rules'
@@ -17,9 +25,10 @@ export function GET(request: Request): Response {
 }
 
 /**
- * DMs to and from every connected account, and comments on its posts. Each entry goes to the user who connected its
- * account; accounts no user has, and users without an active subscription, are skipped. Answers 200 once they are
- * stored; an error status makes Meta retry, and `mid` or the comment id keeps the retry from storing twice.
+ * DMs to and from every connected account, Auto DM button taps, and comments on its posts. Each entry goes to the
+ * user who connected its account; accounts no user has, and users without an active subscription, are skipped.
+ * Answers 200 once they are stored; an error status makes Meta retry, and `mid` or the comment id keeps the retry
+ * from storing twice. Auto DM rules answer afterwards, so Meta isn't kept waiting on Instagram calls.
  */
 export async function POST(request: Request): Promise<Response> {
   const rawBody = Buffer.from(await request.arrayBuffer())
@@ -38,10 +47,22 @@ export async function POST(request: Request): Promise<Response> {
     for (const accountId of entryAccountIds(payload)) {
       const userId = await findUserByInstagramId(accountId)
       if (!userId || !(await getCurrentPeriod(userId))) continue
+      const triggers: AutoDmTrigger[] = []
       for (const event of parseMessageEvents(payload, accountId)) {
-        if ((await recordMessage(userId, event)) && event.fromCustomer) await fillProfile(userId, event.igsid)
+        if (!(await recordMessage(userId, event)) || !event.fromCustomer) continue
+        await fillProfile(userId, event.igsid)
+        triggers.push({ kind: 'dm', message: event })
       }
-      await storeComments(userId, accountId, payload)
+      for (const postback of parsePostbackEvents(payload, accountId)) {
+        // The tapped button reads as the customer's message, which also opens the 24-hour reply window.
+        const { mid, igsid, title, sentAt } = postback
+        const event = { mid, igsid, fromCustomer: true, text: title || null, sentAt }
+        if (!(await recordMessage(userId, event))) continue
+        await fillProfile(userId, postback.igsid)
+        triggers.push({ kind: 'postback', postback })
+      }
+      for (const comment of await storeComments(userId, accountId, payload)) triggers.push({ kind: 'comment', comment })
+      if (triggers.length > 0) after(() => runAutoDm(userId, accountId, triggers))
     }
   } catch (error) {
     console.error('[balasan] webhook gagal disimpan:', describeError(error))
@@ -50,20 +71,18 @@ export async function POST(request: Request): Promise<Response> {
   return new Response('EVENT_RECEIVED')
 }
 
-async function storeComments(userId: string, accountId: string, payload: unknown): Promise<void> {
-  const comments = parseCommentEvents(payload, accountId)
-  if (comments.length === 0) return
+/** Returns the stored comments; a retry's comments come back too, and Auto DM's claim skips them. */
+async function storeComments(userId: string, accountId: string, payload: unknown): Promise<CommentInput[]> {
+  const parsed = parseCommentEvents(payload, accountId)
+  if (parsed.length === 0) return []
   const ownerUsername = (await getConnection(userId))?.username ?? null
-  await saveComments(
-    userId,
-    accountId,
-    comments.map((comment) => ({ ...comment, isFromOwner: isOwnComment(comment, accountId, ownerUsername) })),
-    'insert',
-  )
+  const comments = parsed.map((comment) => ({ ...comment, isFromOwner: isOwnComment(comment, accountId, ownerUsername) }))
+  await saveComments(userId, accountId, comments, 'insert')
   await markReplies(
     userId,
     comments.map((comment) => comment.mediaId),
   )
+  return comments
 }
 
 /** Best effort: until the profile API answers, the inbox shows the customer without a name. */

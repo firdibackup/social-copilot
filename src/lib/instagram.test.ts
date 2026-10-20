@@ -7,6 +7,8 @@ import {
   exchangeCodeForToken,
   exchangeForLongLivedToken,
   fetchCustomerProfile,
+  fetchFollowsBusiness,
+  fetchOwnMedia,
   fetchOwnProfile,
   fetchProfile,
   fetchRecentMedia,
@@ -16,6 +18,7 @@ import {
   listMediaComments,
   listMediaSince,
   publishContainer,
+  sendAutoDm,
   sendDirectMessage,
   subscribeToWebhooks,
 } from './instagram'
@@ -253,6 +256,72 @@ describe('sendDirectMessage', () => {
   })
 })
 
+describe('sendAutoDm', () => {
+  it('sends a private reply with buttons as a button template', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ recipient_id: '9012', message_id: 'mid-1' }))
+
+    const buttons = [{ type: 'postback' as const, title: 'Kirim linknya', payload: 'autodm:rule' }]
+    await expect(sendAutoDm('token-1', '1784', { comment_id: '555' }, { text: 'Mau linknya?', buttons })).resolves.toEqual({
+      messageId: 'mid-1',
+      recipientId: '9012',
+    })
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toBe('https://graph.instagram.com/1784/messages')
+    expect(JSON.parse(String(init?.body))).toEqual({
+      recipient: { comment_id: '555' },
+      message: {
+        attachment: { type: 'template', payload: { template_type: 'button', text: 'Mau linknya?', buttons } },
+      },
+    })
+  })
+
+  it('sends plain text when there are no buttons', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ message_id: 'mid-2' }))
+
+    await sendAutoDm('token-1', '1784', { id: '9012' }, { text: 'Ini linknya', buttons: [] })
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      recipient: { id: '9012' },
+      message: { text: 'Ini linknya' },
+    })
+  })
+})
+
+describe('fetchFollowsBusiness', () => {
+  it('reads whether the customer follows the account', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ is_user_follow_business: true, id: '9012' }))
+
+    await expect(fetchFollowsBusiness('token-1', '9012')).resolves.toBe(true)
+    expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('fields')).toBe('is_user_follow_business')
+  })
+
+  it('fails when Instagram leaves the field out, instead of guessing', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ id: '9012' }))
+
+    await expect(fetchFollowsBusiness('token-1', '9012')).rejects.toBeInstanceOf(InstagramApiError)
+  })
+})
+
+describe('fetchOwnMedia', () => {
+  it('lists one page of the account’s posts, videos with their still', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        data: [
+          { id: '111', media_type: 'IMAGE', media_url: 'https://cdn/a.jpg', timestamp: '2026-10-18T10:00:00+0000' },
+          { id: '222', media_type: 'VIDEO', thumbnail_url: 'https://cdn/b.jpg', timestamp: '2026-10-17T10:00:00+0000' },
+          { id: 'bad', media_type: 'IMAGE', timestamp: '2026-10-17T10:00:00+0000' },
+        ],
+      }),
+    )
+
+    const media = await fetchOwnMedia('token-1', 24)
+    expect(media.map((item) => [item.id, item.thumbnailUrl])).toEqual([
+      ['111', 'https://cdn/a.jpg'],
+      ['222', 'https://cdn/b.jpg'],
+    ])
+    expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('limit')).toBe('24')
+  })
+})
+
 describe('fetchCustomerProfile', () => {
   it('reads username, name and picture, leaving missing ones null', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ username: 'budi', id: '9012' }))
@@ -279,14 +348,14 @@ describe('fetchCustomerProfile', () => {
 })
 
 describe('subscribeToWebhooks', () => {
-  it('subscribes the account to the messages and comments fields', async () => {
+  it('subscribes the account to messages, Auto DM button taps and comments', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ success: true }))
 
     await subscribeToWebhooks('token-1', INSTAGRAM_SCOPES)
     const [url, init] = fetchMock.mock.calls[0]
     expect(String(url)).toBe('https://graph.instagram.com/me/subscribed_apps')
     expect(Object.fromEntries(init?.body as URLSearchParams)).toEqual({
-      subscribed_fields: 'messages,comments',
+      subscribed_fields: 'messages,messaging_postbacks,comments',
       access_token: 'token-1',
     })
   })
@@ -296,7 +365,7 @@ describe('subscribeToWebhooks', () => {
 
     await subscribeToWebhooks('token-1', ['instagram_business_basic', 'instagram_business_manage_messages'])
     expect(Object.fromEntries(fetchMock.mock.calls[0][1]?.body as URLSearchParams)).toMatchObject({
-      subscribed_fields: 'messages',
+      subscribed_fields: 'messages,messaging_postbacks',
     })
   })
 

@@ -4,7 +4,7 @@ import { Notice } from '@/components/notice'
 import { REPLY_MAX_LENGTH } from '@/lib/dm-templates'
 import { draftDmReply, sendReply } from './actions'
 import { Composer, type TemplateOption } from './composer'
-import { openRules } from './rules-events'
+import { openTemplates } from './templates-events'
 
 /** The template whose keyword the customer's last message contains. */
 export interface Suggestion {
@@ -39,9 +39,9 @@ export function ReplyBox({ igsid, options, suggestion, windowOpen, brand }: Repl
       send={(text) => sendReply(igsid, text)}
       draft={(text) => draftDmReply(igsid, text)}
       templates={options}
-      onEditTemplates={() => openRules(false)}
+      onEditTemplates={openTemplates}
       suggestionNote={
-        suggestion && <>Diisi dari aturan kata kunci “{suggestion.keyword}”. Periksa dulu, lalu kirim.</>
+        suggestion && <>Diisi dari template kata kunci “{suggestion.keyword}”. Periksa dulu, lalu kirim.</>
       }
     />
   )

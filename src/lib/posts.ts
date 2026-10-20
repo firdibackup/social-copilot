@@ -7,7 +7,7 @@ import type { PostStatus } from './post-status'
 import { db, unwrap } from './supabase'
 
 const POST_FIELDS =
-  'id, title, caption, status, scheduled_at, published_at, attempt_count, next_attempt_at, last_error, ig_container_id, ig_permalink'
+  'id, title, caption, pillar_id, status, scheduled_at, published_at, attempt_count, next_attempt_at, last_error, ig_container_id, ig_permalink'
 const MEDIA_FIELDS = 'post_media(position, assets(id, storage_path, width, height))'
 const LIST_LIMIT = 200
 
@@ -27,6 +27,7 @@ export interface Post {
   /** Short name for lists; may be empty, see postLabel. */
   title: string
   caption: string
+  pillarId: string | null
   status: PostStatus
   scheduledAt: Date | null
   publishedAt: Date | null
@@ -70,6 +71,7 @@ interface PostRow {
   id: string
   title: string
   caption: string
+  pillar_id: string | null
   status: PostStatus
   scheduled_at: string | null
   published_at: string | null
@@ -101,6 +103,7 @@ async function toPosts(rows: PostRow[], coverOnly: boolean): Promise<Post[]> {
     id: row.id,
     title: row.title,
     caption: row.caption,
+    pillarId: row.pillar_id,
     status: row.status,
     scheduledAt: toDate(row.scheduled_at),
     publishedAt: toDate(row.published_at),
@@ -317,7 +320,7 @@ export interface SlideReference {
  */
 export async function createContentPost(
   userId: string,
-  request: ContentRequest,
+  request: Omit<ContentRequest, 'pillarId'> & Partial<Pick<ContentRequest, 'pillarId'>>,
   plan: ContentPlan,
   references: SlideReference[],
   attachmentPath: string | null = null,
@@ -342,6 +345,7 @@ export async function createContentPost(
       }
     }),
     p_idea_id: request.ideaId,
+    p_pillar_id: request.pillarId ?? null,
   })
   if (error?.message === 'invalid_reference') throw new ContentError('Referensi brand tidak ditemukan.')
   if (error?.message === 'invalid_product') throw new ContentError('Produk tidak ditemukan.')

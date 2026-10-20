@@ -1,7 +1,16 @@
 import 'server-only'
-import { addReference, getBrandFields, loadVisualReferences, setLogo, updateBrandKit, updateReference } from './brand'
-import { analyzeProfile, analyzeVisual } from './brand-ai'
-import { colorsFromPalettes, MAX_LOGO_BYTES, PROFILE_FIELDS, type BrandFields } from './brand-options'
+import {
+  addReference,
+  getAccountStrategy,
+  getBrandFields,
+  loadVisualReferences,
+  saveStrategy,
+  setLogo,
+  updateBrandKit,
+  updateReference,
+} from './brand'
+import { analyzeProfile, analyzeStrategy, analyzeVisual } from './brand-ai'
+import { colorsFromPalettes, MAX_LOGO_BYTES, PROFILE_FIELDS, type BrandFields, type ProfileText } from './brand-options'
 import { getValidAccessToken } from './connection'
 import { describeError } from './errors'
 import { imageType } from './image'
@@ -14,9 +23,9 @@ const POSTS_READ = 12
 const IMPORTED = 3
 
 /**
- * Fills a newly connected account's brand kit from Instagram: profile text, logo, up to 3 reference groups, brand
- * colours from their covers and the visual style. What the owner answered in the onboarding is already in the kit
- * and stays: only empty fields are filled. Free: the AI requests are logged at 0 credits. Each step that
+ * Fills a newly connected account's brand kit from Instagram: profile text, content strategy, logo, up to 3
+ * reference groups, brand colours from their covers and the visual style. What the owner answered in the onboarding
+ * is already in the kit and stays: only empty fields are filled. Free: the AI requests are logged at 0 credits. Each step that
  * fails is logged and the rest still run; the kit ends with sync_status null, or 'failed' when a step failed, so
  * Brand can say so. Never throws: it runs after the callback's redirect, where nobody would see an error.
  */
@@ -46,8 +55,8 @@ export async function syncNewAccount(userId: string, accountId: string): Promise
       return Array.isArray(value) ? value.length === 0 : !value
     }
 
-    await step('profil', async () => {
-      const captions = posts.map((post) => post.caption).filter(Boolean)
+    const captions = posts.map((post) => post.caption).filter(Boolean)
+    const profileText = await step('profil', async () => {
       // Named fields only: the sources are logged, and the picture URL is signed.
       const { username, name, biography } = profile
       const instagram = { username, name, biography, captions }
@@ -56,7 +65,17 @@ export async function syncNewAccount(userId: string, accountId: string): Promise
       if (fields.length > 0) {
         await updateBrandKit(userId, accountId, Object.fromEntries(fields.map((field) => [field, draft[field]])))
       }
+      // What the kit holds now: the owner's onboarding answers win over the draft.
+      return Object.fromEntries(PROFILE_FIELDS.map((field) => [field, kit?.[field] || draft[field]])) as ProfileText
     })
+
+    if (profileText) {
+      await step('strategi', async () => {
+        if (await getAccountStrategy(userId, accountId)) return
+        const strategy = await analyzeStrategy(userId, { brand: profileText, recent: captions }, { cost: 0 })
+        await saveStrategy(userId, accountId, strategy)
+      })
+    }
 
     if (profile.profilePictureUrl) {
       const url = profile.profilePictureUrl

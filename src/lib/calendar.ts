@@ -41,6 +41,13 @@ export function buildMonthGrid(month: string): string[][] {
   return weeks
 }
 
+/** Counts day keys in each week; repeated keys represent separate posts. */
+export function weekCounts(weeks: string[][], dayKeys: string[]): number[] {
+  const countByDay = new Map<string, number>()
+  for (const day of dayKeys) countByDay.set(day, (countByDay.get(day) ?? 0) + 1)
+  return weeks.map((week) => week.reduce((count, day) => count + (countByDay.get(day) ?? 0), 0))
+}
+
 const dayFormat = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
 
 /** e.g. "14 Oktober 2026" for a `YYYY-MM-DD` key. */

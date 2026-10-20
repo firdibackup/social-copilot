@@ -6,6 +6,7 @@ import { formatShortDate, formatTime } from '@/lib/format'
 import type { Idea } from '@/lib/ideas'
 import { STATUS_LABELS } from '@/lib/post-status'
 import type { ContentListItem } from '@/lib/posts'
+import { pillarOf, type ContentStrategy } from '@/lib/strategy-options'
 import { DeleteIdeaButton, FindIdeasButton } from './idea-buttons'
 
 /** Hover and focus reach past the text, which stays aligned with the section labels. */
@@ -18,6 +19,7 @@ interface ContentListProps {
   ideas: Idea[]
   selectedId: string | null
   selectedIdeaId: string | null
+  strategy: ContentStrategy | null
   /** e.g. "0,2%", what one round of ideas costs. */
   className: string
 }
@@ -32,7 +34,7 @@ function meta(post: ContentListItem): string {
 }
 
 /** Buat's left column: the posts still worth editing and the AI's ideas for new ones. */
-export function ContentList({ posts, ideas, selectedId, selectedIdeaId, className }: ContentListProps) {
+export function ContentList({ posts, ideas, selectedId, selectedIdeaId, strategy, className }: ContentListProps) {
   return (
     <aside aria-label="Daftar konten" className={`${className} min-h-0 w-full shrink-0 flex-col md:w-[320px] md:border-r md:border-hairline`}>
       <div className="px-4 pt-3 pb-2">
@@ -90,6 +92,11 @@ export function ContentList({ posts, ideas, selectedId, selectedIdeaId, classNam
                     </span>
                     <span className="min-w-0">
                       <span className="block text-[14px] leading-snug font-medium text-ink">{idea.title}</span>
+                      {pillarOf(strategy, idea.pillarId) && (
+                        <span className="mt-1 inline-flex max-w-full truncate rounded-md bg-zinc-100 px-1.5 py-0.5 text-[10px] text-ink-muted">
+                          {pillarOf(strategy, idea.pillarId)?.name}
+                        </span>
+                      )}
                       {idea.script && <span className="mt-0.5 block text-xs text-ink-muted">Skrip siap · {idea.script.length} slide</span>}
                     </span>
                   </Link>

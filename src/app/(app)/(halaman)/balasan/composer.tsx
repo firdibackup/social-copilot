@@ -34,7 +34,7 @@ interface ComposerProps {
   draft: (text: string) => Promise<DraftResult>
   /** Template chips above the box; clicking one fills the draft. */
   templates?: TemplateOption[]
-  /** ✎ next to the chips: opens Aturan Auto DM. */
+  /** ✎ next to the chips: opens Template balasan. */
   onEditTemplates?: () => void
   /** Under the box while the text is still the suggested template. */
   suggestionNote?: ReactNode

@@ -11,6 +11,7 @@ export { MAX_SLIDES }
 /** The composer's reference choice that lets the server pick from all of the account's references. */
 export const AUTO_REFERENCE = 'auto'
 export const AUTO_PRODUCT = 'auto'
+const PILLAR_ID = /^[a-z0-9-]{1,40}$/
 
 /** What the composer sends to make a new post. */
 export interface ContentRequest {
@@ -21,6 +22,8 @@ export interface ContentRequest {
   referenceId: string | null
   /** Product groups the planner may choose from: all active groups, one group, or none. */
   productGroupId: string | null
+  /** The content-strategy pillar this post follows, or null to let the planner choose automatically. */
+  pillarId: string | null
   includeLogo: boolean
   /** The idea the topic came from, used up when the post is made. */
   ideaId: string | null
@@ -56,6 +59,7 @@ export function parseContentRequest(value: unknown): { request: ContentRequest }
   const { slides, format } = value
   const referenceId = optionalId(value.referenceId)
   const productGroupId = optionalId(value.productGroupId)
+  const pillarId = optionalId(value.pillarId)
   const ideaId = optionalId(value.ideaId)
 
   if (!topic) return { error: 'Tulis topik atau ide konten dulu.' }
@@ -70,8 +74,12 @@ export function parseContentRequest(value: unknown): { request: ContentRequest }
   if (productGroupId !== null && productGroupId !== AUTO_PRODUCT && !isUuid(productGroupId)) {
     return { error: 'Produk tidak ditemukan.' }
   }
+  if (typeof pillarId !== 'string' && pillarId !== null) return { error: 'Pilar tidak dikenal.' }
+  if (pillarId !== null && !PILLAR_ID.test(pillarId)) return { error: 'Pilar tidak dikenal.' }
   if (ideaId !== null && !isUuid(ideaId)) return { error: 'Ide tidak ditemukan.' }
-  return { request: { topic, slides, format, referenceId, productGroupId, includeLogo: value.includeLogo === true, ideaId } }
+  return {
+    request: { topic, slides, format, referenceId, productGroupId, pillarId, includeLogo: value.includeLogo === true, ideaId },
+  }
 }
 
 /** An edit the owner typed into the composer. */

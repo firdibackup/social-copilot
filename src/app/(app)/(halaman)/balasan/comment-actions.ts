@@ -9,14 +9,12 @@ import {
   getComment,
   getCommentThread,
   listCommentPosts,
-  markDmSent,
   markPostCommentsSeen,
-  markReplies,
-  saveComments,
+  recordOwnReply,
   setCommentHiddenRow,
 } from '@/lib/comments'
 import { getPublishingAccount } from '@/lib/connection'
-import { nameConversation, recordMessage } from '@/lib/dm'
+import { recordPrivateReply } from '@/lib/dm'
 import { REPLY_MAX_LENGTH } from '@/lib/dm-templates'
 import { describeError } from '@/lib/errors'
 import { canPrivateReply, COMMENT_MAX_LENGTH } from '@/lib/inbox-rules'
@@ -80,38 +78,20 @@ export async function replyToCommentAction(commentId: unknown, reply: unknown): 
 
   let comment
   let replyId: string
-  let account
+  // Instagram nests one level: a reply to a reply goes under the top-level comment.
+  let parentId: string
   try {
     comment = id ? await getComment(userId, accountId, id) : null
     if (!comment) return NOT_FOUND
-    account = await getPublishingAccount(userId)
-    // Instagram nests one level: a reply to a reply goes under the top-level comment.
-    replyId = await replyToComment(account.accessToken, comment.parentId ?? comment.commentId, message)
+    parentId = comment.parentId ?? comment.commentId
+    replyId = await replyToComment((await getPublishingAccount(userId)).accessToken, parentId, message)
   } catch (error) {
     return instagramErrorMessage(userId, error, 'balasan komentar gagal dikirim')
   }
 
   // The reply is out. If storing it fails, the next pull or the webhook brings it in.
   try {
-    await saveComments(
-      userId,
-      accountId,
-      [
-        {
-          id: replyId,
-          mediaId: comment.mediaId,
-          parentId: comment.parentId ?? comment.commentId,
-          fromId: account.instagramUserId,
-          username: null,
-          text: message,
-          createdAt: new Date(),
-          isHidden: false,
-          isFromOwner: true,
-        },
-      ],
-      'insert',
-    )
-    await markReplies(userId, [comment.mediaId])
+    await recordOwnReply(userId, accountId, { id: replyId, mediaId: comment.mediaId, parentId, text: message })
   } catch (error) {
     console.error('[balasan] balasan komentar terkirim tapi gagal disimpan:', describeError(error))
   }
@@ -172,12 +152,7 @@ export async function privateReplyAction(commentId: unknown, reply: unknown): Pr
   }
 
   try {
-    await markDmSent(userId, comment.commentId)
-    if (sent.recipientId) {
-      const igsid = sent.recipientId
-      await recordMessage(userId, { mid: sent.messageId, igsid, fromCustomer: false, text: message, sentAt: new Date() })
-      if (comment.username) await nameConversation(userId, igsid, comment.username)
-    }
+    await recordPrivateReply(userId, comment, sent, message)
   } catch (error) {
     console.error('[balasan] DM ke komentar terkirim tapi gagal disimpan:', describeError(error))
   }

@@ -1,5 +1,8 @@
 import Link from 'next/link'
 import { ProfileAvatar } from '@/components/profile-avatar'
+import { listAutoDmConversationIds } from '@/lib/auto-dm'
+import { getBrandKit } from '@/lib/brand'
+import type { Connection } from '@/lib/connection'
 import {
   getConversation,
   getVariables,
@@ -11,6 +14,7 @@ import {
   type DmMessage,
 } from '@/lib/dm'
 import { fillTemplate, suggestTemplate } from '@/lib/dm-templates'
+import { describeError } from '@/lib/errors'
 import { formatListTime, formatShortDateTime } from '@/lib/format'
 import { conversationName, isConversationUnread } from '@/lib/inbox-rules'
 import { profilesToRead } from '@/lib/inbox-sync'
@@ -20,10 +24,21 @@ import { ReplyBox, type Suggestion } from './reply-box'
 import { ScrollToEnd } from './scroll-to-end'
 
 export type Filter = 'belum' | 'semua'
+/** The DM tab also filters on conversations Auto DM talked in. */
+export type DmFilter = Filter | 'otomatis'
 
 export interface Brand {
   name: string
   logoUrl: string | null
+}
+
+/** The brand name and logo replies go out under. A brand kit that fails to load falls back to the username. */
+export async function loadBrand(userId: string, accountId: string, instagram: Connection | null): Promise<Brand> {
+  const kit = await getBrandKit(userId, accountId).catch((error: unknown) => {
+    console.error('[balasan] brand gagal dimuat:', describeError(error))
+    return null
+  })
+  return { name: kit?.name || (instagram ? `@${instagram.username}` : 'Brand'), logoUrl: kit?.logoUrl ?? null }
 }
 
 interface Thread {
@@ -36,9 +51,9 @@ interface Thread {
 
 const LABEL_MAX_LENGTH = 24
 
-export function dmHref(filter: Filter, igsid?: string): string {
+export function dmHref(filter: DmFilter, igsid?: string): string {
   const params = new URLSearchParams()
-  if (filter === 'semua') params.set('filter', 'semua')
+  if (filter !== 'belum') params.set('filter', filter)
   if (igsid) params.set('c', igsid)
   const query = params.toString()
   return query ? `/balasan?${query}` : '/balasan'
@@ -81,19 +96,27 @@ interface InboxData {
 export async function loadInbox(
   userId: string,
   accountId: string,
-  filter: Filter,
+  filter: DmFilter,
   selectedId: string | undefined,
   now: Date,
 ): Promise<InboxData> {
   const [listed, loadedThread] = await Promise.all([
-    listConversations(userId, accountId, filter === 'belum'),
+    filter === 'otomatis'
+      ? listAutoDmConversationIds(userId, accountId).then((ids) => listConversations(userId, accountId, false, ids))
+      : listConversations(userId, accountId, filter === 'belum'),
     selectedId ? loadThread(userId, accountId, selectedId, now) : null,
   ])
   return { conversations: listed, thread: loadedThread }
 }
 
+const EMPTY_LIST: Record<DmFilter, { title?: string; text: string }> = {
+  belum: { text: 'Tidak ada DM yang menunggu balasan.' },
+  semua: { text: 'Belum ada DM masuk.' },
+  otomatis: { title: 'Belum ada DM', text: 'Nggak ada percakapan yang cocok sama filter ini.' },
+}
+
 interface InboxProps extends InboxData {
-  filter: Filter
+  filter: DmFilter
   selectedId: string | undefined
   brand: Brand
   now: Date
@@ -119,9 +142,10 @@ export function Inbox({ conversations, thread, filter, selectedId, brand, now }:
         </p>
       )}
       {list.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500">
-          {filter === 'belum' ? 'Tidak ada DM yang menunggu balasan.' : 'Belum ada DM masuk.'}
-        </p>
+        <div className="space-y-1 rounded-xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500">
+          {EMPTY_LIST[filter].title && <p className="font-medium text-zinc-900">{EMPTY_LIST[filter].title}</p>}
+          <p>{EMPTY_LIST[filter].text}</p>
+        </div>
       ) : (
         <ul className="divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 bg-white">
           {list.map((conversation) => {

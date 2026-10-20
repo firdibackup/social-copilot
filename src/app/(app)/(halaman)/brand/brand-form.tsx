@@ -56,6 +56,8 @@ const MAX_REFERENCE_SUGGESTIONS = 10
 function fieldsOf(kit: BrandKit): BrandFields {
   const fields: Partial<BrandKit> = { ...kit }
   delete fields.logoUrl
+  delete fields.syncStatus
+  delete fields.strategy
   return fields as BrandFields
 }
 interface BrandFormProps {

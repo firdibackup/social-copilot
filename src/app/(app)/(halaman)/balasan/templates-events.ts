@@ -1,17 +1,11 @@
-/** The + Auto DM button and the ✎ next to template chips sit apart from Aturan Auto DM; this event opens it. */
-const EVENT = 'balasan:aturan'
+/** The ✎ next to the template chips sits apart from Template balasan; this event opens it. */
+const EVENT = 'balasan:template'
 
-export interface OpenRulesDetail {
-  /** Also open the form for a new rule. */
-  newRule: boolean
+export function openTemplates(): void {
+  window.dispatchEvent(new Event(EVENT))
 }
 
-export function openRules(newRule: boolean): void {
-  window.dispatchEvent(new CustomEvent<OpenRulesDetail>(EVENT, { detail: { newRule } }))
-}
-
-export function onOpenRules(listener: (detail: OpenRulesDetail) => void): () => void {
-  const handle = (event: Event) => listener((event as CustomEvent<OpenRulesDetail>).detail)
-  window.addEventListener(EVENT, handle)
-  return () => window.removeEventListener(EVENT, handle)
+export function onOpenTemplates(listener: () => void): () => void {
+  window.addEventListener(EVENT, listener)
+  return () => window.removeEventListener(EVENT, listener)
 }

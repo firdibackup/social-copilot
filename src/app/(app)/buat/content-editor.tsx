@@ -22,6 +22,7 @@ import type { Idea } from '@/lib/ideas'
 import { IMAGE_FORMATS, isImageFormat, type ImageFormat } from '@/lib/image-options'
 import type { Post, PostMedia } from '@/lib/posts'
 import { scriptHeadline } from '@/lib/script-options'
+import type { ContentStrategy } from '@/lib/strategy-options'
 import { Composer } from './composer'
 import {
   createContentAction,
@@ -61,6 +62,7 @@ interface ContentEditorProps {
   /** The idea a new post starts from (`?ide=`). */
   idea: Idea | null
   account: EditorAccount
+  strategy: ContentStrategy | null
   products: ProductOption[]
   hasLogo: boolean
   /** Credits left in the period; null when they couldn't be read (the server still checks). */
@@ -93,6 +95,7 @@ export function ContentEditor({
   slides,
   idea,
   account,
+  strategy,
   products,
   hasLogo,
   credits,
@@ -125,6 +128,7 @@ export function ContentEditor({
   const [slideCount, setSlideCount] = useState(DEFAULT_SLIDES)
   const [format, setFormat] = useState<ImageFormat>('4:5')
   const [productGroupId, setProductGroupId] = useState(AUTO_PRODUCT)
+  const [pillarId, setPillarId] = useState(idea?.pillarId ?? '')
   const [includeLogo, setIncludeLogo] = useState(false)
   const pickerRef = useRef<HTMLDialogElement>(null)
   const short = (cost: number) => credits !== null && cost > credits
@@ -294,6 +298,7 @@ export function ContentEditor({
           format,
           referenceId: AUTO_REFERENCE,
           productGroupId: products.length > 0 ? productGroupId || null : null,
+          pillarId: pillarId || null,
           includeLogo,
           ideaId: idea?.id ?? null,
           script: script?.script ?? null,
@@ -410,6 +415,19 @@ export function ContentEditor({
             {products.map((product) => (
               <option key={product.id} value={product.id}>
                 {product.label} ({product.imageCount})
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {strategy && strategy.pillars.length > 0 && (
+        <label className={CHIP}>
+          Pilar:
+          <select value={pillarId} onChange={(event) => setPillarId(event.target.value)} className={`${CHIP_SELECT} max-w-40`}>
+            <option value="">Otomatis</option>
+            {strategy.pillars.map((pillar) => (
+              <option key={pillar.id} value={pillar.id}>
+                {pillar.name}
               </option>
             ))}
           </select>

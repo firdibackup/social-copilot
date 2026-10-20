@@ -4,8 +4,10 @@ import {
   analyzeProfile,
   analyzeVisual,
   buildProfileMessages,
+  buildStrategyMessages,
   buildVisualMessages,
   parseProfile,
+  parseStrategyAnswer,
   parseVisual,
   type ProfileSources,
 } from './brand-ai'
@@ -49,6 +51,17 @@ const REFERENCES = [
   { id: 'r1', note: 'ambil layout-nya saja', dataUrl: 'data:image/jpeg;base64,AAAA' },
   { id: 'r2', note: '', dataUrl: 'data:image/png;base64,BBBB' },
 ]
+
+const BRAND_PROFILE = {
+  name: 'Kopi Sinar',
+  category: '',
+  description: '',
+  audience: '',
+  voice: '',
+  wordsUse: '',
+  wordsAvoid: '',
+  facts: '',
+}
 
 describe('buildProfileMessages', () => {
   it('quotes the page text, bio and captions as sources', () => {
@@ -154,5 +167,43 @@ describe('logging', () => {
     await analyzeVisual('user-1', REFERENCES, { cost: 0 })
 
     expect(database.inserted).toEqual([expect.objectContaining({ credits: 0 }), expect.objectContaining({ credits: 0 })])
+  })
+})
+
+describe('parseStrategyAnswer', () => {
+  it('normalises the shares to 100 and gives every pillar an id', () => {
+    const strategy = parseStrategyAnswer(
+      JSON.stringify({
+        identity: 'The Engineer',
+        pillars: [
+          { name: 'Edukasi', detail: 'tips', share: 50 },
+          { name: 'Portofolio', detail: '', share: 30 },
+          { name: 'CTA', detail: '', share: 30 },
+        ],
+        tone: 'Rapi',
+        focus: 'trust',
+        postsPerWeek: 40,
+      }),
+    )
+    expect(strategy.pillars.reduce((sum, pillar) => sum + pillar.share, 0)).toBe(100)
+    expect(new Set(strategy.pillars.map((pillar) => pillar.id)).size).toBe(3)
+    expect(strategy.focus).toBe('trust')
+    expect(strategy.postsPerWeek).toBe(14)
+  })
+
+  it('falls back on an unknown focus and rejects too few pillars', () => {
+    const answer = { identity: 'X', pillars: [{ name: 'A', share: 1 }, { name: 'B', share: 1 }], focus: 'viral' }
+    expect(parseStrategyAnswer(JSON.stringify(answer)).focus).toBe('awareness')
+    expect(() => parseStrategyAnswer(JSON.stringify({ identity: 'X', pillars: [{ name: 'A' }] }))).toThrow(AiOutputError)
+  })
+})
+
+describe('buildStrategyMessages', () => {
+  it('sends the profile and the captions, but not the old strategy', () => {
+    const brand = { ...BRAND_PROFILE, strategy: { identity: 'Lama', pillars: [], tone: '', focus: 'sales' as const, postsPerWeek: 3 } }
+    const text = String(buildStrategyMessages({ brand, recent: ['Promo minggu ini'] })[1].content)
+    expect(text).toContain('Nama: Kopi Sinar')
+    expect(text).toContain('Promo minggu ini')
+    expect(text).not.toContain('Strategi konten brand')
   })
 })

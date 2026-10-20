@@ -1,6 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { addReference, getBrandFields, loadVisualReferences, setLogo, updateBrandKit, updateReference } from './brand'
-import { analyzeProfile, analyzeVisual } from './brand-ai'
+import {
+  addReference,
+  getAccountStrategy,
+  getBrandFields,
+  loadVisualReferences,
+  saveStrategy,
+  setLogo,
+  updateBrandKit,
+  updateReference,
+} from './brand'
+import { analyzeProfile, analyzeStrategy, analyzeVisual } from './brand-ai'
 import { EMPTY_BRAND } from './brand-options'
 import { syncNewAccount } from './brand-sync'
 import { getValidAccessToken } from './connection'
@@ -10,10 +19,12 @@ import { fetchImage } from './web-fetch'
 
 vi.mock('./connection', () => ({ getValidAccessToken: vi.fn() }))
 vi.mock('./instagram', () => ({ fetchOwnProfile: vi.fn(), fetchRecentMedia: vi.fn() }))
-vi.mock('./brand-ai', () => ({ analyzeProfile: vi.fn(), analyzeVisual: vi.fn() }))
+vi.mock('./brand-ai', () => ({ analyzeProfile: vi.fn(), analyzeStrategy: vi.fn(), analyzeVisual: vi.fn() }))
 vi.mock('./brand', () => ({
   addReference: vi.fn(),
+  getAccountStrategy: vi.fn(),
   getBrandFields: vi.fn(),
+  saveStrategy: vi.fn(),
   loadVisualReferences: vi.fn(),
   setLogo: vi.fn(),
   updateBrandKit: vi.fn(),
@@ -35,6 +46,17 @@ const post = (id: string, images = [`https://cdn/${id}.jpg`]): InstagramPost => 
 })
 const PROFILE_DRAFT = { name: 'Kopi', category: 'Kafe', description: 'Kopi enak', audience: '', voice: 'santai', wordsUse: '', wordsAvoid: '', facts: '' }
 
+const STRATEGY = {
+  identity: 'Sahabat Ngopi',
+  pillars: [
+    { id: 'p-a', name: 'Edukasi', detail: '', share: 60 },
+    { id: 'p-b', name: 'Promo', detail: '', share: 40 },
+  ],
+  tone: 'Santai',
+  focus: 'awareness' as const,
+  postsPerWeek: 3,
+}
+
 const lastKitUpdate = () => vi.mocked(updateBrandKit).mock.calls.at(-1)?.[2]
 
 beforeEach(() => {
@@ -55,6 +77,8 @@ beforeEach(() => {
   vi.mocked(updateReference).mockResolvedValue(true)
   vi.mocked(loadVisualReferences).mockResolvedValue({ references: [{ id: 'ref-x', note: '', dataUrl: 'data:' }], skipped: 0 })
   vi.mocked(analyzeVisual).mockResolvedValue({ visualStyle: 'Minimalis', descriptions: ['Cover gelap'] })
+  vi.mocked(getAccountStrategy).mockResolvedValue(null)
+  vi.mocked(analyzeStrategy).mockResolvedValue(STRATEGY)
 })
 
 describe('syncNewAccount', () => {
@@ -117,6 +141,29 @@ describe('syncNewAccount', () => {
     expect(patches.some((patch) => 'name' in patch || 'colors' in patch || 'visualStyle' in patch)).toBe(false)
     expect(addReference).toHaveBeenCalledTimes(3)
     expect(updateReference).toHaveBeenCalledWith(USER, 'ref-x', { description: 'Cover gelap' })
+  })
+
+  it('drafts the content strategy for free from the kit and the captions', async () => {
+    vi.mocked(getBrandFields).mockResolvedValue({ ...EMPTY_BRAND, name: 'Kopi Sinar' })
+
+    await syncNewAccount(USER, ACCOUNT)
+
+    expect(analyzeStrategy).toHaveBeenCalledWith(
+      USER,
+      { brand: expect.objectContaining({ name: 'Kopi Sinar', voice: 'santai' }), recent: expect.arrayContaining(['caption 1']) },
+      { cost: 0 },
+    )
+    expect(saveStrategy).toHaveBeenCalledWith(USER, ACCOUNT, STRATEGY)
+    expect(lastKitUpdate()).toEqual({ syncStatus: null })
+  })
+
+  it('keeps a strategy the account already has', async () => {
+    vi.mocked(getAccountStrategy).mockResolvedValue(STRATEGY)
+
+    await syncNewAccount(USER, ACCOUNT)
+
+    expect(analyzeStrategy).not.toHaveBeenCalled()
+    expect(saveStrategy).not.toHaveBeenCalled()
   })
 
   it('ends as failed without touching anything when Instagram can’t be read', async () => {

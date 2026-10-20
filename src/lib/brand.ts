@@ -10,6 +10,7 @@ import {
   PROFILE_FIELDS,
   type BrandColor,
   type BrandContext,
+  type ProfileText,
   type BrandFields,
   type BrandKit,
   type BrandReference,
@@ -19,6 +20,7 @@ import {
   type SyncStatus,
 } from './brand-options'
 import { getConnectedAccountId } from './connection'
+import { readStoredStrategy, type ContentStrategy } from './strategy-options'
 import { describeError } from './errors'
 import type { ImageType } from './image'
 import { toReferenceDataUrl } from './slide-image'
@@ -64,6 +66,7 @@ interface KitRow {
   design_style: string
   logo_path: string | null
   sync_status: SyncStatus
+  strategy: unknown
   updated_at: string
 }
 
@@ -86,7 +89,7 @@ interface ReferenceRow {
 }
 
 const KIT_COLUMNS =
-  'name, category, description, website_url, audience, voice, words_use, words_avoid, facts, colors, heading_font, body_font, visual_style, account_kind, design_style, logo_path, sync_status, updated_at'
+  'name, category, description, website_url, audience, voice, words_use, words_avoid, facts, colors, heading_font, body_font, visual_style, account_kind, design_style, logo_path, sync_status, strategy, updated_at'
 const REFERENCE_COLUMNS = 'id, source, source_label, permalink, palette, description, note'
 
 const bucket = () => db().storage.from(BUCKET)
@@ -142,9 +145,9 @@ async function loadConnectedKit(userId: string): Promise<KitRow | null> {
 
 export async function getBrandKit(userId: string, accountId: string): Promise<BrandKit> {
   const row = await loadKit(userId, accountId)
-  if (!row) return { ...EMPTY_BRAND, logoUrl: null, syncStatus: null }
+  if (!row) return { ...EMPTY_BRAND, logoUrl: null, syncStatus: null, strategy: null }
   const [logoUrl] = row.logo_path ? await signUrls([row.logo_path]) : [null]
-  return { ...toFields(row), logoUrl: logoUrl || null, syncStatus: syncStatusOf(row) }
+  return { ...toFields(row), logoUrl: logoUrl || null, syncStatus: syncStatusOf(row), strategy: readStoredStrategy(row.strategy) }
 }
 
 /** Each fill step bumps updated_at; one that stopped moving was cut off (a restart, a deploy) and won't finish. */
@@ -223,13 +226,39 @@ export async function updateBrandKit(
   )
 }
 
-/** The text the caption prompts use, or null when none of it is filled in. */
+/** The text the caption prompts use, with the strategy, or null when none of it is filled in. */
 export async function getBrandContext(userId: string): Promise<BrandContext | null> {
   const row = await loadConnectedKit(userId)
   if (!row) return null
   const fields = toFields(row)
-  const context = Object.fromEntries(PROFILE_FIELDS.map((field) => [field, fields[field]])) as BrandContext
-  return PROFILE_FIELDS.some((field) => context[field]) ? context : null
+  const context: BrandContext = Object.fromEntries(PROFILE_FIELDS.map((field) => [field, fields[field]])) as ProfileText
+  const strategy = readStoredStrategy(row.strategy)
+  if (strategy) context.strategy = strategy
+  return strategy || PROFILE_FIELDS.some((field) => context[field]) ? context : null
+}
+
+/** The connected account's strategy, for AI prompts; null without one. */
+export async function getStrategy(userId: string): Promise<ContentStrategy | null> {
+  const row = await loadConnectedKit(userId)
+  return row ? readStoredStrategy(row.strategy) : null
+}
+
+/** The account's strategy, or null; for the new-account fill, which knows the account. */
+export async function getAccountStrategy(userId: string, accountId: string): Promise<ContentStrategy | null> {
+  const row = await loadKit(userId, accountId)
+  return row ? readStoredStrategy(row.strategy) : null
+}
+
+/** Saves the strategy card on its own: the brand form's fields stay as they are. */
+export async function saveStrategy(userId: string, accountId: string, strategy: ContentStrategy): Promise<void> {
+  unwrap(
+    await db()
+      .from('brand_kit')
+      .upsert(
+        { user_id: userId, account_id: accountId, strategy, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id,account_id' },
+      ),
+  )
 }
 
 /** Upserts every field but the logo, which has its own actions. */
