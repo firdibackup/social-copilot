@@ -4,14 +4,16 @@ import { truncate, type BrandContext } from './brand-options'
 import { REPLY_MAX_LENGTH } from './dm-templates'
 import { COMMENT_MAX_LENGTH } from './inbox-rules'
 import { chatCompletion, type ChatMessage } from './nine-router'
+import { THREADS_TEXT_LIMIT } from './thread-items'
 
-/** A DM reply, a public reply under a comment, or a private reply (a DM) to a comment. */
-export type ReplyChannel = 'dm' | 'comment' | 'comment_dm'
+/** A DM reply, a public reply under a comment, a private reply (a DM) to a comment, or a reply on Threads. */
+export type ReplyChannel = 'dm' | 'comment' | 'comment_dm' | 'threads'
 
 export const REPLY_LIMITS: Record<ReplyChannel, number> = {
   dm: REPLY_MAX_LENGTH,
   comment: COMMENT_MAX_LENGTH,
   comment_dm: REPLY_MAX_LENGTH,
+  threads: THREADS_TEXT_LIMIT,
 }
 
 /** How many of the latest messages the AI reads. */
@@ -48,6 +50,8 @@ const CHANNEL_LINES: Record<ReplyChannel, string> = {
   comment:
     'Ini balasan publik di bawah komentar post Instagram: semua orang bisa membacanya, jadi jangan menulis data pribadi. Untuk pesanan atau hal pribadi, ajak lanjut lewat DM.',
   comment_dm: 'Ini DM pribadi ke orang yang berkomentar di post Instagram, menanggapi komentarnya.',
+  threads:
+    'Ini balasan publik di bawah balasan orang di post Threads: semua orang bisa membacanya, jadi jangan menulis data pribadi. Untuk pesanan atau hal pribadi, ajak lanjut lewat DM Instagram.',
 }
 
 const WRITE_TASK = 'Tugas: tulis draf balasan untuk pesan terakhir pelanggan di bawah.'

@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, type FormEvent } from 'react'
-import { disconnectFacebook, disconnectInstagram } from './actions'
+import { disconnectFacebook, disconnectInstagram, disconnectThreads } from './actions'
 
 const BUTTON = 'rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50'
 
@@ -37,7 +37,7 @@ export function InstagramDisconnectButton({ username, scheduledCount }: Instagra
           </h2>
           <div className="space-y-2 text-sm text-zinc-600">
             <p>Selama akun lain terhubung, ini akan disembunyikan: {HIDDEN}.</p>
-            <p>Token akses Instagram dihapus, begitu juga koneksi Facebook-nya kalau ada.</p>
+            <p>Token akses Instagram dihapus, begitu juga koneksi Facebook dan Threads-nya kalau ada.</p>
             {scheduledCount > 0 && (
               <p className="font-medium text-zinc-900">{scheduledCount} posting terjadwal akan kembali jadi draft.</p>
             )}
@@ -62,6 +62,21 @@ export function InstagramDisconnectButton({ username, scheduledCount }: Instagra
 }
 
 const FACEBOOK_CONFIRM = 'Putuskan Facebook? Referensi dari akun lain tidak bisa dicari sampai Facebook dihubungkan lagi.'
+
+export function ThreadsDisconnectButton({ username }: { username: string }) {
+  function confirmDisconnect(event: FormEvent<HTMLFormElement>) {
+    const message = `Putuskan @${username}? Post terjadwal yang ikut ke Threads akan gagal terbit di Threads sampai Threads dihubungkan lagi.`
+    if (!window.confirm(message)) event.preventDefault()
+  }
+
+  return (
+    <form action={disconnectThreads} onSubmit={confirmDisconnect}>
+      <button type="submit" className={BUTTON}>
+        Putuskan koneksi
+      </button>
+    </form>
+  )
+}
 
 export function FacebookDisconnectButton() {
   function confirmDisconnect(event: FormEvent<HTMLFormElement>) {

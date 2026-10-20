@@ -7,6 +7,7 @@ import type { ReactNode } from 'react'
 import { signOut } from '@/app/masuk/actions'
 import { InstagramIcon } from './instagram-icon'
 import { ADMIN_ITEM, isActive, NAV_ITEMS, type NavItem } from './nav-items'
+import { ThreadsIcon } from './threads-icon'
 
 const SECTION_LABEL = 'px-3 pb-1.5 text-[11px] font-medium tracking-wide text-ink-muted uppercase'
 const ITEM_CLASS =
@@ -18,6 +19,7 @@ interface SidebarProps {
   /** Brand logo and name. */
   workspace: ReactNode
   instagramStatus: ReactNode
+  threadsStatus: ReactNode
   /** How much of the period's AI credits is spent. */
   credits: ReactNode
   /** The signed-in user's email. */
@@ -27,7 +29,7 @@ interface SidebarProps {
 }
 
 /** Desktop only; phones get MobileNav at the bottom instead. */
-export function Sidebar({ workspace, instagramStatus, credits, account, admin }: SidebarProps) {
+export function Sidebar({ workspace, instagramStatus, threadsStatus, credits, account, admin }: SidebarProps) {
   const pathname = usePathname()
 
   return (
@@ -54,6 +56,13 @@ export function Sidebar({ workspace, instagramStatus, credits, account, admin }:
           <span className="min-w-0">
             <span className="block text-ink">Instagram</span>
             {instagramStatus}
+          </span>
+        </Link>
+        <Link href="/pengaturan#threads" className={`${ITEM_CLASS} h-auto items-start py-2 text-ink-muted hover:text-ink`}>
+          <ThreadsIcon className="mt-0.5 shrink-0" />
+          <span className="min-w-0">
+            <span className="block text-ink">Threads</span>
+            {threadsStatus}
           </span>
         </Link>
       </section>

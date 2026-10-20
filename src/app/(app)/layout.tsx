@@ -5,6 +5,7 @@ import { signOut } from '@/app/masuk/actions'
 import { AccountEmail } from '@/components/account-email'
 import { Breadcrumb } from '@/components/breadcrumb'
 import { InstagramStatus, StatusLine } from '@/components/instagram-status'
+import { ThreadsStatus } from '@/components/threads-status'
 import { MobileNav } from '@/components/mobile-nav'
 import { NotificationBell } from '@/components/notification-bell'
 import { AdminSection, Sidebar } from '@/components/sidebar'
@@ -35,6 +36,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
         instagramStatus={
           <Suspense fallback={<StatusLine tone="muted" label="Memeriksa…" />}>
             <InstagramStatus />
+          </Suspense>
+        }
+        threadsStatus={
+          <Suspense fallback={<StatusLine tone="muted" label="Memeriksa…" />}>
+            <ThreadsStatus />
           </Suspense>
         }
         credits={

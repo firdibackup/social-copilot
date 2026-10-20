@@ -1,5 +1,5 @@
 /** Design styles and fonts the owner picks from, shared by the onboarding, the /brand page and the image prompt. */
-import type { Picker, SlideRole } from './brand-options'
+import type { SlideRole } from './brand-options'
 
 /** Google Fonts the image model draws well. Each has normal proportions; condensed faces are left out on purpose. */
 export const FONT_CHOICES = [
@@ -38,15 +38,7 @@ export interface DesignStyle {
   look: string
   /** The layout of each role, in English. */
   layouts: Record<LayoutRole, string>
-  /**
-   * Example slides from the owner's design collection, as keys of assets/contoh-desain/<key>.jpg, in sets of one
-   * family; one set per post, used when the account has no design references of its own.
-   */
-  examples: readonly ExampleSet[]
 }
-
-/** One family of example slides: the cover, inner and CTA slide a post can copy the layout of. */
-export type ExampleSet = Partial<Record<SlideRole, string>>
 
 export const DESIGN_STYLES = {
   minimalis: {
@@ -65,10 +57,6 @@ export const DESIGN_STYLES = {
       single:
         'Layout: one clear focal point, the text left-aligned with generous margins, plenty of empty space.',
     },
-    examples: [
-      { cover: 'terang-laptop', isi: 'daftar-layanan' },
-      { cover: 'terang-astronot', isi: 'daftar-layanan' },
-    ],
   },
   bold: {
     label: 'Bold Kreatif',
@@ -85,10 +73,6 @@ export const DESIGN_STYLES = {
       cta: 'CTA layout: one punchy line, the action inside a large flat button shape in the accent colour, a small handle below.',
       single: 'Layout: a big headline over a solid colour block with flat geometric accents, high contrast.',
     },
-    examples: [
-      { cover: 'bento-produk', isi: 'langkah-bernomor', cta: 'gelap-cta' },
-      { cover: 'gelap-orang', isi: 'langkah-bernomor', cta: 'gelap-cta' },
-    ],
   },
   elegan: {
     label: 'Elegan Premium',
@@ -105,7 +89,6 @@ export const DESIGN_STYLES = {
       cta: 'CTA layout: centred serif line, the action in small spaced uppercase sans below a thin line, the brand name at the bottom.',
       single: 'Layout: a calm, softly lit composition with a refined serif headline and generous margins.',
     },
-    examples: [{ isi: 'foto-kartu-teks' }],
   },
   ceria: {
     label: 'Ceria & Playful',
@@ -122,7 +105,6 @@ export const DESIGN_STYLES = {
       cta: 'CTA layout: a cheerful short line, the action in a rounded pill button, a small illustration waving or pointing at it.',
       single: 'Layout: a bright pastel scene with rounded shapes, a friendly illustration and a rounded headline.',
     },
-    examples: [{ cover: 'tipografi-ilustrasi' }],
   },
   editorial: {
     label: 'Editorial Majalah',
@@ -139,10 +121,6 @@ export const DESIGN_STYLES = {
       cta: 'CTA layout: a paper background, a big serif line, the action as a small underlined caption, the handle like a byline.',
       single: 'Layout: a magazine-style photo with a display serif headline and small sans caption.',
     },
-    examples: [
-      { cover: 'foto-penuh-judul-bawah', isi: 'berita-foto-atas' },
-      { cover: 'foto-potret-kartu', isi: 'berita-foto-atas' },
-    ],
   },
   profesional: {
     label: 'Profesional Korporat',
@@ -159,10 +137,6 @@ export const DESIGN_STYLES = {
       cta: 'CTA layout: a clear one-line offer, the action in a solid navy button, contact handle beneath.',
       single: 'Layout: a clean grid with a clear headline, a professional photo or chart, and line icons.',
     },
-    examples: [
-      { cover: 'grafik-pertanyaan', isi: 'testimoni', cta: 'cta-avatar' },
-      { cover: 'lingkaran-pertanyaan', isi: 'tim-kartu', cta: 'cta-avatar' },
-    ],
   },
   natural: {
     label: 'Natural & Organik',
@@ -179,7 +153,6 @@ export const DESIGN_STYLES = {
       cta: 'CTA layout: centred serif line, the action in a soft rounded outline button, a small leaf accent.',
       single: 'Layout: an earthy textured scene with daylight, a soft serif headline and hand-drawn accents.',
     },
-    examples: [],
   },
   tech: {
     label: 'Tech Modern',
@@ -196,11 +169,6 @@ export const DESIGN_STYLES = {
       cta: 'CTA layout: one crisp line, the action in a neon-outlined button, the handle in small monospace-like type.',
       single: 'Layout: a dark, crisp composition with a neon accent, a faint grid and a geometric sans headline.',
     },
-    examples: [
-      { cover: 'gelap-objek-3d', isi: 'kartu-aplikasi', cta: 'gelap-cta' },
-      { cover: 'gelap-perangkat', isi: 'langkah-bernomor', cta: 'gelap-cta' },
-      { cover: 'gelap-megafon', isi: 'langkah-bernomor', cta: 'gelap-cta' },
-    ],
   },
 } as const satisfies Record<string, DesignStyle>
 
@@ -216,26 +184,18 @@ export const isDesignStyle = (value: unknown): value is DesignStyleId =>
 export const designStyleOf = (value: string | null | undefined): DesignStyle | null =>
   isDesignStyle(value) ? DESIGN_STYLES[value] : null
 
-/** The chosen style, or a clean default when the owner chose none and has no style of their own posts either. */
-export function styleForBrand(brand: { designStyle: string; visualStyle: string } | null): DesignStyle | null {
-  const chosen = designStyleOf(brand?.designStyle)
-  if (chosen) return chosen
-  return brand?.visualStyle ? null : DESIGN_STYLES.minimalis
+type BrandStyle = { designStyle: string; visualStyle: string } | null
+
+/** The chosen style's id, or a clean default when the owner chose none and has no style of their own posts either. */
+export function styleIdForBrand(brand: BrandStyle): DesignStyleId | null {
+  const chosen = brand?.designStyle
+  if (isDesignStyle(chosen)) return chosen
+  return brand?.visualStyle ? null : 'minimalis'
 }
 
-const STYLES: DesignStyle[] = Object.values(DESIGN_STYLES)
-const EXAMPLE_KEYS = new Set(STYLES.flatMap((style) => style.examples.flatMap((set) => Object.values(set))))
-
-/** A key of one of the styles' examples: the only names a stored slide may load from assets/contoh-desain. */
-export const isStyleExample = (value: unknown): value is string => typeof value === 'string' && EXAMPLE_KEYS.has(value)
-
-/**
- * Each slide's example when the account has no design references: one set per post, so its slides come from one
- * family. A one-image post takes the set's cover; a role the set has none for gets none.
- */
-export function planStyleExamples(style: DesignStyle | null, roles: (SlideRole | null)[], pick: Picker): (string | null)[] {
-  const set = style ? pick([...style.examples]) : undefined
-  return roles.map((role) => set?.[role ?? 'cover'] ?? null)
+export function styleForBrand(brand: BrandStyle): DesignStyle | null {
+  const id = styleIdForBrand(brand)
+  return id ? DESIGN_STYLES[id] : null
 }
 
 /** What kind of account the owner runs: it shapes the tone of the captions. */

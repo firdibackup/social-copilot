@@ -17,7 +17,7 @@ export interface SlideRecord {
   role: SlideRole | null
   /** The reference image it follows (see planReferenceImages). */
   referenceImageId: string | null
-  /** The style example it follows when the account had no references (see planStyleExamples). */
+  /** The design template it follows when the account had no references (see planTemplates; ImageInput.example). */
   example: string | null
   /** The product group the planner chose; retries and edits preserve it. */
   productGroupId: string | null

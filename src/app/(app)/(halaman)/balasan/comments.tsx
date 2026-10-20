@@ -18,15 +18,17 @@ import {
   threadComments,
   type PostCommentSummary,
 } from '@/lib/inbox-rules'
-import { CommentItem, type CommentView } from './comment-item'
+import { CommentItem, type CommentPlatform, type CommentTemplates, type CommentView } from './comment-item'
 import { MarkPostSeen } from './controls'
 import type { Brand, Filter } from './inbox'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const CARD = 'overflow-hidden rounded-xl border border-zinc-200 bg-white'
 
-export function commentsHref(filter: Filter, mediaId?: string): string {
+/** The Komentar tab: Instagram comments, or replies under the account's Threads posts (`platform=threads`). */
+export function commentsHref(filter: Filter, mediaId?: string, platform: CommentPlatform = 'instagram'): string {
   const params = new URLSearchParams({ tab: 'komentar' })
+  if (platform === 'threads') params.set('platform', 'threads')
   if (filter === 'semua') params.set('filter', 'semua')
   if (mediaId) params.set('post', mediaId)
   return `/balasan?${params.toString()}`
@@ -71,10 +73,12 @@ interface CommentsProps {
   filter: Filter
   brand: Brand
   now: Date
+  /** Quick replies above the reply box. */
+  templates?: CommentTemplates
 }
 
-export function Comments({ data, filter, brand, now }: CommentsProps) {
-  if (data.view === 'post') return <PostComments data={data} filter={filter} brand={brand} now={now} />
+export function Comments({ data, filter, brand, now, templates }: CommentsProps) {
+  if (data.view === 'post') return <PostComments data={data} filter={filter} brand={brand} now={now} templates={templates} />
   if (data.posts.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500">
@@ -118,7 +122,7 @@ export function Comments({ data, filter, brand, now }: CommentsProps) {
   )
 }
 
-function PostThumbnail({ post, size = 'size-12' }: { post: CommentPost | null; size?: string }) {
+export function PostThumbnail({ post, size = 'size-12' }: { post: CommentPost | null; size?: string }) {
   return (
     <span className={`${size} flex shrink-0 items-center justify-center overflow-hidden rounded-md bg-zinc-100 text-zinc-400`}>
       {post?.thumbnailUrl ? (
@@ -150,11 +154,13 @@ function PostComments({
   filter,
   brand,
   now,
+  templates,
 }: {
   data: Extract<CommentsData, { view: 'post' }>
   filter: Filter
   brand: Brand
   now: Date
+  templates?: CommentTemplates
 }) {
   const threads = threadComments(data.comments)
   return (
@@ -198,6 +204,7 @@ function PostComments({
               comment={toView(comment, now)}
               replies={replies.map((reply) => toView(reply, now))}
               brand={brand}
+              templates={templates}
             />
           ))}
         </ul>

@@ -46,7 +46,7 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
   vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
   vi.mocked(getConversation).mockResolvedValue(conversation(new Date('2026-10-16T01:00:00Z')))
-  vi.mocked(getPublishingAccount).mockResolvedValue({ accessToken: 'token', instagramUserId: '1784' })
+  vi.mocked(getPublishingAccount).mockResolvedValue({ accessToken: 'token', instagramUserId: '1784', username: 'toko' })
   vi.mocked(sendDirectMessage).mockResolvedValue('mid-out')
   vi.mocked(recordMessage).mockResolvedValue(true)
   vi.mocked(saveTemplate).mockResolvedValue(true)

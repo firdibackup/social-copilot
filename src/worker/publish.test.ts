@@ -64,7 +64,7 @@ describe('processPost', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.mocked(startAttempt).mockResolvedValue(7)
     vi.mocked(getCurrentPeriod).mockResolvedValue({ start: NOW, end: minutesFromNow(60), activeUntil: minutesFromNow(60) })
-    vi.mocked(getPublishingAccount).mockResolvedValue({ accessToken: 'token', instagramUserId: 'ig1' })
+    vi.mocked(getPublishingAccount).mockResolvedValue({ accessToken: 'token', instagramUserId: 'ig1', username: 'toko' })
     vi.mocked(getMediaPaths).mockResolvedValue(['a.jpg'])
     vi.mocked(signMediaUrls).mockResolvedValue(['https://media.test/a.jpg?token=x'])
     vi.mocked(createContainer).mockResolvedValue('c1')

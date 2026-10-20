@@ -12,11 +12,15 @@ import { formatVariables, type DmTemplate } from '@/lib/dm-templates'
 import { describeError, loadErrorMessage } from '@/lib/errors'
 import { COMMENTS_SCOPE } from '@/lib/instagram'
 import { firstValue, type SearchParams } from '@/lib/params'
+import { THREADS_REPLIES_SCOPE } from '@/lib/threads'
+import { getThreadsConnection, type ThreadsConnection } from '@/lib/threads-connection'
+import type { CommentPlatform, CommentTemplates } from './comment-item'
 import { Comments, commentsHref, loadComments, type CommentsData } from './comments'
 import { FilterSelect, RefreshButton, type Pull } from './controls'
 import { AutoDmRules, type RuleCard } from './auto-dm-rules'
 import { dmHref, Inbox, loadBrand, loadInbox, type Brand, type DmFilter, type Filter } from './inbox'
 import { TemplatesPanel } from './templates-panel'
+import { loadThreadsComments, ThreadsComments, type ThreadsCommentsData } from './threads-comments'
 
 export const metadata: Metadata = { title: 'Balasan' }
 
@@ -49,6 +53,7 @@ async function BalasanView({ searchParams }: { searchParams: Promise<SearchParam
   const filterParam = firstValue(params.filter)
   const filter: Filter = filterParam === 'semua' ? 'semua' : 'belum'
   const dmFilter: DmFilter = filterParam === 'otomatis' ? 'otomatis' : filter
+  const platform: CommentPlatform = tab === 'komentar' && firstValue(params.platform) === 'threads' ? 'threads' : 'instagram'
   const now = new Date()
 
   let instagram: Connection | null
@@ -58,9 +63,25 @@ async function BalasanView({ searchParams }: { searchParams: Promise<SearchParam
     console.error('[balasan] koneksi gagal dimuat:', describeError(error))
     return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
   }
+  // Threads only adds a view to Komentar: without it the page works as before.
+  const threads = await getThreadsConnection(userId, accountId).catch((error) => {
+    console.error('[balasan] koneksi Threads gagal dimuat:', describeError(error))
+    return null
+  })
   const brand = await loadBrand(userId, accountId, instagram)
+  const threadsPull = threads?.status === 'active' && threads.scopes.includes(THREADS_REPLIES_SCOPE)
   const pull: Pull =
-    instagram?.status !== 'active' ? null : tab === 'dm' ? 'dm' : instagram.scopes.includes(COMMENTS_SCOPE) ? 'komentar' : null
+    tab === 'komentar' && platform === 'threads'
+      ? threadsPull
+        ? 'threads'
+        : null
+      : instagram?.status !== 'active'
+        ? null
+        : tab === 'dm'
+          ? 'dm'
+          : instagram.scopes.includes(COMMENTS_SCOPE)
+            ? 'komentar'
+            : null
 
   return (
     <div className="space-y-5">
@@ -72,7 +93,7 @@ async function BalasanView({ searchParams }: { searchParams: Promise<SearchParam
             Aturan Auto DM yang aktif membalas komentar dan DM yang cocok secara otomatis.
           </p>
         </div>
-        <RefreshButton key={tab} pull={pull} />
+        <RefreshButton key={`${tab}-${platform}`} pull={pull} />
       </header>
 
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-zinc-200">
@@ -86,7 +107,7 @@ async function BalasanView({ searchParams }: { searchParams: Promise<SearchParam
             hrefs={
               tab === 'dm'
                 ? { belum: dmHref('belum'), semua: dmHref('semua'), otomatis: dmHref('otomatis') }
-                : { belum: commentsHref('belum'), semua: commentsHref('semua') }
+                : { belum: commentsHref('belum', undefined, platform), semua: commentsHref('semua', undefined, platform) }
             }
           />
           <Link
@@ -105,18 +126,67 @@ async function BalasanView({ searchParams }: { searchParams: Promise<SearchParam
           <RulesSection userId={userId} accountId={accountId} username={instagram?.username ?? 'akunmu'} />
         </div>
       ) : (
-        <CommentsTab
-          userId={userId}
-          accountId={accountId}
-          filter={filter}
-          params={params}
-          brand={brand}
-          now={now}
-          instagram={instagram}
-        />
+        <div className="space-y-4">
+          <nav aria-label="Platform komentar" className="flex flex-wrap gap-2">
+            <PlatformLink
+              href={commentsHref(filter)}
+              active={platform === 'instagram'}
+              label={instagram ? `Instagram @${instagram.username}` : 'Instagram'}
+            />
+            <PlatformLink
+              href={commentsHref(filter, undefined, 'threads')}
+              active={platform === 'threads'}
+              label={threads ? `Threads @${threads.username}` : 'Threads'}
+            />
+          </nav>
+          {platform === 'threads' ? (
+            <ThreadsCommentsTab
+              userId={userId}
+              accountId={accountId}
+              filter={filter}
+              params={params}
+              brand={brand}
+              now={now}
+              threads={threads}
+            />
+          ) : (
+            <CommentsTab
+              userId={userId}
+              accountId={accountId}
+              filter={filter}
+              params={params}
+              brand={brand}
+              now={now}
+              instagram={instagram}
+            />
+          )}
+        </div>
       )}
     </div>
   )
+}
+
+function PlatformLink({ href, active, label }: { href: string; active: boolean; label: string }) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? 'page' : undefined}
+      className={`rounded-full px-3 py-1 text-sm ${active ? 'bg-zinc-900 text-white' : 'border border-zinc-200 text-zinc-600 hover:bg-zinc-50'}`}
+    >
+      {label}
+    </Link>
+  )
+}
+
+/** The DM templates as quick replies under comments; without them the reply box works as before. */
+async function loadCommentTemplates(userId: string, accountId: string): Promise<CommentTemplates | undefined> {
+  try {
+    const [templates, variables] = await Promise.all([listTemplates(userId, accountId), getVariables(userId, accountId)])
+    return { templates, variables }
+  } catch (error) {
+    console.error('[balasan] template gagal dimuat untuk komentar:', describeError(error))
+    return undefined
+  }
 }
 
 function TabLink({ href, active, label }: { href: string; active: boolean; label: string }) {
@@ -179,12 +249,62 @@ async function CommentsTab({ instagram, ...props }: TabProps & { instagram: Conn
     console.error('[balasan] komentar gagal dimuat:', describeError(error))
     return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
   }
+  const templates = data.view === 'post' ? await loadCommentTemplates(userId, accountId) : undefined
   return (
     <div className="space-y-4">
       <CommentsNotice instagram={instagram} />
-      <Comments data={data} filter={filter} brand={brand} now={now} />
+      <Comments data={data} filter={filter} brand={brand} now={now} templates={templates} />
     </div>
   )
+}
+
+async function ThreadsCommentsTab({ threads, ...props }: TabProps & { threads: ThreadsConnection | null }) {
+  const { userId, accountId, filter, params, brand, now } = props
+  let data: ThreadsCommentsData
+  try {
+    data = await loadThreadsComments(userId, accountId, filter, firstValue(params.post), now)
+  } catch (error) {
+    console.error('[balasan] balasan Threads gagal dimuat:', describeError(error))
+    return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
+  }
+  const templates = data.view === 'post' ? await loadCommentTemplates(userId, accountId) : undefined
+  return (
+    <div className="space-y-4">
+      <ThreadsNotice threads={threads} />
+      <ThreadsComments data={data} filter={filter} brand={brand} now={now} templates={templates} />
+    </div>
+  )
+}
+
+function ThreadsNotice({ threads }: { threads: ThreadsConnection | null }) {
+  // A plain <a>: the route redirects off-site to Threads.
+  const reconnect = (
+    <a href="/api/auth/threads/start" className={RECONNECT_LINK}>
+      Hubungkan ulang Threads
+    </a>
+  )
+  if (!threads) {
+    return (
+      <Notice tone="warning">
+        Hubungkan Threads di{' '}
+        <Link href="/pengaturan#threads" className={RECONNECT_LINK}>
+          Pengaturan
+        </Link>{' '}
+        untuk melihat dan membalas balasan di post Threads.
+      </Notice>
+    )
+  }
+  if (threads.status === 'needs_reconnect') {
+    return (
+      <Notice tone="error">
+        Token Threads kedaluwarsa atau dicabut, jadi balasan tidak bisa ditarik. {reconnect} dengan @{threads.username}.
+      </Notice>
+    )
+  }
+  if (!threads.scopes.includes(THREADS_REPLIES_SCOPE)) {
+    return <Notice tone="warning">Komentar Threads butuh izin membaca balasan. {reconnect} sekali.</Notice>
+  }
+  return null
 }
 
 function CommentsNotice({ instagram }: { instagram: Connection | null }) {

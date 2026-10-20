@@ -3,7 +3,16 @@ import { AdminError, adjustCredits, deleteUser, grantDays, logAdminAction } from
 import { saveAppSettings } from '@/lib/app-settings'
 import { requireAdmin } from '@/lib/auth'
 import { chatCompletion, RouterApiError } from '@/lib/nine-router'
-import { saveSettingsAction, testModelAction, userAction } from './actions'
+import { analyzeTemplates } from '@/lib/template-ai'
+import { addTemplate, deleteTemplate, updateTemplate } from '@/lib/templates'
+import {
+  analyzeTemplatesAction,
+  saveSettingsAction,
+  templateAction,
+  testModelAction,
+  uploadTemplateAction,
+  userAction,
+} from './actions'
 
 vi.mock('next/cache', () => ({ refresh: vi.fn() }))
 vi.mock('next/navigation', () => ({
@@ -29,6 +38,17 @@ vi.mock('@/lib/nine-router', async (importOriginal) => ({
   chatCompletion: vi.fn(),
   generateImage: vi.fn(),
 }))
+
+vi.mock('@/lib/template-ai', () => ({ analyzeTemplates: vi.fn() }))
+vi.mock('@/lib/templates', async (importOriginal) => ({
+  TemplateError: (await importOriginal<typeof import('@/lib/templates')>()).TemplateError,
+  addTemplate: vi.fn(),
+  deleteTemplate: vi.fn(),
+  importLegacyTemplates: vi.fn(),
+  setTemplateActive: vi.fn(),
+  updateTemplate: vi.fn(),
+}))
+vi.mock('server-only', () => ({}))
 
 const ADMIN = { id: 'admin-1', email: 'owner@example.com' }
 const USER = '00000000-0000-4000-8000-000000000001'
@@ -128,5 +148,84 @@ describe('testModelAction', () => {
 
   it('asks for a model id first', async () => {
     await expect(testModelAction('image', '  ')).resolves.toMatchObject({ ok: false, message: 'Isi id model dulu.' })
+  })
+})
+
+describe('template actions', () => {
+  const TEMPLATE = '00000000-0000-4000-8000-0000000000aa'
+  const jpeg = () =>
+    new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], {
+      type: 'image/jpeg',
+    })
+
+  it('check the admin first', async () => {
+    vi.mocked(requireAdmin).mockRejectedValue(new Error('NOT_FOUND'))
+
+    await expect(uploadTemplateAction(new FormData())).rejects.toThrow('NOT_FOUND')
+    await expect(analyzeTemplatesAction(null)).rejects.toThrow('NOT_FOUND')
+    await expect(templateAction(INITIAL, form({ templateId: TEMPLATE, intent: 'delete' }))).rejects.toThrow('NOT_FOUND')
+    expect(addTemplate).not.toHaveBeenCalled()
+    expect(analyzeTemplates).not.toHaveBeenCalled()
+    expect(deleteTemplate).not.toHaveBeenCalled()
+  })
+
+  it('stores an uploaded JPEG and refuses anything else', async () => {
+    vi.mocked(addTemplate).mockResolvedValue(TEMPLATE)
+    const data = new FormData()
+    data.set('file', jpeg(), 'a.jpg')
+
+    expect(await uploadTemplateAction(data)).toBeNull()
+    expect(addTemplate).toHaveBeenCalledWith(ADMIN.id, expect.any(Uint8Array))
+    expect(logAdminAction).toHaveBeenCalledWith(ADMIN, 'upload_template', null, { templateId: TEMPLATE })
+
+    const png = new FormData()
+    png.set('file', new Blob([new Uint8Array([0x89, 0x50, 0x4e])]), 'a.png')
+    expect(await uploadTemplateAction(png)).toBe('File bukan JPEG.')
+    expect(await uploadTemplateAction(new FormData())).toBe('File tidak ditemukan.')
+  })
+
+  it('analyses the pending templates, or one again', async () => {
+    vi.mocked(analyzeTemplates).mockResolvedValue({ analyzed: 2, failed: 0 })
+
+    expect(await analyzeTemplatesAction(null)).toEqual({
+      error: null,
+      success: '2 template dianalisis.',
+    })
+    expect(analyzeTemplates).toHaveBeenCalledWith(ADMIN.id, null)
+
+    vi.mocked(analyzeTemplates).mockResolvedValue({ analyzed: 0, failed: 1 })
+    expect((await analyzeTemplatesAction(TEMPLATE)).error).toContain('0 dari 1')
+    expect(analyzeTemplates).toHaveBeenLastCalledWith(ADMIN.id, [TEMPLATE])
+
+    expect(await analyzeTemplatesAction('bukan-id')).toEqual({
+      error: 'Template tidak ditemukan.',
+      success: null,
+    })
+  })
+
+  it("saves the admin's styles and label, refusing an unknown one", async () => {
+    const data = form({ templateId: TEMPLATE, intent: 'update', label: 'cta' })
+    data.append('styles', 'tech')
+    data.append('styles', 'bold')
+
+    expect((await templateAction(INITIAL, data)).success).toBe('Template disimpan.')
+    expect(updateTemplate).toHaveBeenCalledWith(TEMPLATE, {
+      styles: ['bold', 'tech'],
+      label: 'cta',
+    })
+
+    const bad = form({ templateId: TEMPLATE, intent: 'update', label: 'cta' })
+    expect((await templateAction(INITIAL, bad)).error).toBe('Pilih minimal satu gaya.')
+    expect(updateTemplate).toHaveBeenCalledTimes(1)
+  })
+
+  it('deletes a template and refuses a bad id', async () => {
+    expect((await templateAction(INITIAL, form({ templateId: TEMPLATE, intent: 'delete' }))).success).toBe(
+      'Template dihapus.',
+    )
+    expect(deleteTemplate).toHaveBeenCalledWith(TEMPLATE)
+    expect((await templateAction(INITIAL, form({ templateId: 'x', intent: 'delete' }))).error).toBe(
+      'Template tidak ditemukan.',
+    )
   })
 })

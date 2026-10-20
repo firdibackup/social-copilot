@@ -16,6 +16,7 @@ import { deleteOtherFacebookConnections } from '@/lib/facebook-connection'
 import { ensureWebhookSubscription } from '@/lib/inbox-sync'
 import { exchangeCodeForToken, exchangeForLongLivedToken, fetchProfile } from '@/lib/instagram'
 import { getCompletedAnswers, kitColumnsOf } from '@/lib/onboarding'
+import { deleteOtherThreadsConnection } from '@/lib/threads-connection'
 
 type CallbackErrorCode =
   | 'ditolak'
@@ -79,13 +80,14 @@ async function completeLogin(userId: string, params: URLSearchParams): Promise<C
 
 /**
  * After a connection is saved: a different account than before (Hubungkan ulang with another login) takes the
- * place of Putuskan, so the old account's scheduled posts become drafts and its Facebook Page token goes; rows
- * without an account join this one; and an account without a brand kit yet starts from the onboarding answers and
- * is filled from Instagram once, after the redirect.
+ * place of Putuskan, so the old account's scheduled posts become drafts and its Facebook Page token and Threads
+ * connection go; rows without an account join this one; and an account without a brand kit yet starts from the
+ * onboarding answers and is filled from Instagram once, after the redirect.
  */
 async function switchToAccount(userId: string, previous: string | null, accountId: string): Promise<void> {
   if (previous && previous !== accountId) await draftScheduledPosts(userId, previous)
   await deleteOtherFacebookConnections(userId, accountId)
+  await deleteOtherThreadsConnection(userId, accountId)
   await claimOrphanRows(userId, accountId)
   if (await hasBrandKit(userId, accountId)) return
   const answers = await getCompletedAnswers(userId)

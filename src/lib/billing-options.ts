@@ -36,6 +36,8 @@ export const TASK_CREDITS: Record<LoggedTask, number> = {
   asset_tags: 1,
   /** The ✨ AI button of a DM or comment reply. */
   reply_draft: 1,
+  /** Admin › Template: the admin's own analysis, never charged (runLogged's `unmetered`). */
+  template_analysis: 0,
 }
 
 /** A new post with `slides` images: its caption and plan plus every image. */

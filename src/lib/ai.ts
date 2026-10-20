@@ -90,6 +90,7 @@ export type LoggedTask =
   | 'website_catalog'
   | 'asset_tags'
   | 'reply_draft'
+  | 'template_analysis'
 
 interface GenerationLog {
   user_id: string
@@ -136,6 +137,8 @@ interface LogOptions<T> {
   logOutput?: (result: T) => unknown
   /** Defaults to TASK_CREDITS[task]; a new post's cost depends on its slides (contentCost). */
   cost?: number
+  /** An admin's own request: no subscription or credits needed, and it costs nothing. */
+  unmetered?: boolean
 }
 
 /**
@@ -152,9 +155,11 @@ export async function runLogged<T>(
   options: LogOptions<T> = {},
 ): Promise<T> {
   const model = options.model ?? (await textModel())
-  const cost = options.cost ?? TASK_CREDITS[task]
-  const { remaining, period } = await remainingCredits(userId)
-  if (cost > remaining) throw new AiLimitError(quotaSpentMessage(period))
+  const cost = options.unmetered ? 0 : (options.cost ?? TASK_CREDITS[task])
+  if (!options.unmetered) {
+    const { remaining, period } = await remainingCredits(userId)
+    if (cost > remaining) throw new AiLimitError(quotaSpentMessage(period))
+  }
 
   const startedAt = Date.now()
   const log = (result: Pick<GenerationLog, 'output' | 'status' | 'error' | 'credits'>) =>

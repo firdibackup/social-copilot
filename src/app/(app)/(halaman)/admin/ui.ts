@@ -30,6 +30,7 @@ export const TASK_LABELS: Record<string, string> = {
   website_catalog: 'Katalog website',
   asset_tags: 'Tag foto',
   reply_draft: 'Draf balasan',
+  template_analysis: 'Analisis template',
 }
 
 export const ACTION_LABELS: Record<string, string> = {
@@ -42,4 +43,10 @@ export const ACTION_LABELS: Record<string, string> = {
   unban: 'Buka blokir',
   delete_user: 'Hapus pengguna',
   save_settings: 'Simpan pengaturan',
+  upload_template: 'Unggah template',
+  import_templates: 'Impor template',
+  analyze_templates: 'Analisis template',
+  update_template: 'Ubah template',
+  toggle_template: 'Aktif/nonaktifkan template',
+  delete_template: 'Hapus template',
 }

@@ -16,6 +16,7 @@ import {
 import { deleteOtherFacebookConnections } from '@/lib/facebook-connection'
 import { ensureWebhookSubscription } from '@/lib/inbox-sync'
 import { exchangeCodeForToken, exchangeForLongLivedToken, fetchProfile } from '@/lib/instagram'
+import { deleteOtherThreadsConnection } from '@/lib/threads-connection'
 import { GET } from './route'
 
 vi.mock('@/lib/auth', () => ({ currentPeriod: vi.fn(), currentUser: vi.fn() }))
@@ -29,6 +30,7 @@ vi.mock('@/lib/connection', async (importOriginal) => ({
 }))
 vi.mock('next/server', () => ({ after: vi.fn() }))
 vi.mock('@/lib/facebook-connection', () => ({ deleteOtherFacebookConnections: vi.fn() }))
+vi.mock('@/lib/threads-connection', () => ({ deleteOtherThreadsConnection: vi.fn() }))
 vi.mock('@/lib/brand', () => ({ hasBrandKit: vi.fn(), startBrandSync: vi.fn() }))
 vi.mock('@/lib/brand-sync', () => ({ syncNewAccount: vi.fn() }))
 vi.mock('@/lib/inbox-sync', () => ({ ensureWebhookSubscription: vi.fn() }))
@@ -153,6 +155,14 @@ describe('GET /api/auth/instagram/callback', () => {
       expect(deleteOtherFacebookConnections).toHaveBeenCalledWith(USER, PROFILE.userId)
     })
 
+    it('removes a Threads connection made for another account', async () => {
+      vi.mocked(getConnectedAccountId).mockResolvedValue('ig-old')
+
+      await connect()
+
+      expect(deleteOtherThreadsConnection).toHaveBeenCalledWith(USER, PROFILE.userId)
+    })
+
     it('keeps scheduled posts when the same account reconnects', async () => {
       vi.mocked(getConnectedAccountId).mockResolvedValue(PROFILE.userId)
 
@@ -179,6 +189,7 @@ describe('GET /api/auth/instagram/callback', () => {
       expect(draftScheduledPosts).not.toHaveBeenCalled()
       expect(claimOrphanRows).not.toHaveBeenCalled()
       expect(deleteOtherFacebookConnections).not.toHaveBeenCalled()
+      expect(deleteOtherThreadsConnection).not.toHaveBeenCalled()
     })
   })
 

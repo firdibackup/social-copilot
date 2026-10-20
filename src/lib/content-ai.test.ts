@@ -426,6 +426,12 @@ describe('buildIdeasMessages', () => {
     expect(user).toContain('Cerita Kedai (cerita): 3 ide')
     expect(user).toContain('Promo (promo): 1 ide')
     expect(user).toContain('{"ideas": [{"title": "…", "pillarId": "…"}]}')
+    expect(user).toContain('sesuai strategi konten di atas')
+    expect(user).not.toContain('cerita di balik layar, promosi')
+  })
+
+  it('falls back to a general mix without a strategy', () => {
+    expect(buildIdeasMessages(BRAND, [])[1].content).toContain('cerita di balik layar, promosi')
   })
 })
 

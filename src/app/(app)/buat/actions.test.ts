@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getPostTargets } from '@/lib/post-threads'
 import { PostLockedError, savePost } from '@/lib/posts'
+import { scheduleProblem } from '@/lib/publish-checks'
 import { hasSlidesInProgress } from '@/lib/slides'
 import { savePostAction } from './actions'
 
@@ -8,6 +10,11 @@ vi.mock('@/lib/posts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/posts')>()),
   savePost: vi.fn(),
 }))
+vi.mock('@/lib/post-threads', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/post-threads')>()),
+  getPostTargets: vi.fn(),
+}))
+vi.mock('@/lib/publish-checks', () => ({ scheduleProblem: vi.fn() }))
 vi.mock('@/lib/slides', () => ({ hasSlidesInProgress: vi.fn() }))
 vi.mock('next/navigation', () => ({
   redirect: vi.fn((url: string) => {
@@ -33,7 +40,41 @@ describe('savePostAction', () => {
   beforeEach(() => {
     vi.mocked(savePost).mockReset().mockResolvedValue(POST_ID)
     vi.mocked(hasSlidesInProgress).mockReset().mockResolvedValue(false)
+    vi.mocked(getPostTargets).mockReset().mockResolvedValue({ instagram: true, threads: false, story: false })
+    vi.mocked(scheduleProblem).mockReset().mockResolvedValue(null)
     vi.useFakeTimers({ now: new Date('2026-10-14T05:00:00Z'), toFake: ['Date'] })
+  })
+
+  it('schedules a post for Threads only without photos, after checking Threads', async () => {
+    vi.mocked(getPostTargets).mockResolvedValue({ instagram: false, threads: true, story: false })
+
+    await expect(submit({ intent: 'schedule', id: POST_ID, caption: '', scheduledAt: '2026-10-14T19:00' })).rejects.toThrow(
+      'REDIRECT',
+    )
+    expect(scheduleProblem).toHaveBeenCalledWith(USER, 'ig-1', {
+      postId: POST_ID,
+      instagram: false,
+      threads: true,
+      caption: '',
+      assetIds: [],
+    })
+    expect(savePost).toHaveBeenCalledWith(USER, expect.objectContaining({ status: 'scheduled', assetIds: [] }))
+  })
+
+  it('refuses to schedule what Threads would not take', async () => {
+    vi.mocked(getPostTargets).mockResolvedValue({ instagram: true, threads: true, story: false })
+    vi.mocked(scheduleProblem).mockResolvedValue('Hubungkan Threads dulu.')
+
+    const state = await submit({ intent: 'schedule', id: POST_ID, assetId: PHOTO, scheduledAt: '2026-10-14T19:00' })
+    expect(state.error).toBe('Hubungkan Threads dulu.')
+    expect(savePost).not.toHaveBeenCalled()
+  })
+
+  it('saves a draft without checking Threads', async () => {
+    vi.mocked(getPostTargets).mockResolvedValue({ instagram: true, threads: true, story: false })
+
+    await expect(submit({ intent: 'draft', id: POST_ID })).rejects.toThrow('REDIRECT')
+    expect(scheduleProblem).not.toHaveBeenCalled()
   })
 
   it('saves an empty draft', async () => {

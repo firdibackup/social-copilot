@@ -7,6 +7,7 @@ import { NOTIFICATIONS_CHANGED } from '@/components/notification-bell'
 import type { SyncState } from './action-utils'
 import { markConversationSeenAction, syncDmsAction, syncProfilesAction } from './actions'
 import { markPostSeenAction, syncCommentsAction } from './comment-actions'
+import { markThreadsPostSeenAction, syncThreadsRepliesAction } from './threads-actions'
 
 const BUTTON =
   'inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:opacity-50'
@@ -16,6 +17,7 @@ const UNREACHABLE: SyncState = { status: 'error', message: 'Gagal menghubungi se
 const PULLS = {
   dm: { run: syncDmsAction, pendingText: 'Menarik DM dari Instagram…' },
   komentar: { run: syncCommentsAction, pendingText: 'Menarik komentar dari Instagram…' },
+  threads: { run: syncThreadsRepliesAction, pendingText: 'Menarik balasan dari Threads…' },
 } as const
 
 /** What the tab pulls from Instagram; null when the connection can't. */
@@ -132,6 +134,14 @@ export function SyncProfiles({ igsids }: { igsids: string[] }) {
 export function MarkPostSeen({ mediaId }: { mediaId: string }) {
   useEffect(() => {
     void markPostSeenAction(mediaId).then(notifyBell, () => {})
+  }, [mediaId])
+  return null
+}
+
+/** The same for a Threads post's replies. */
+export function MarkThreadsPostSeen({ mediaId }: { mediaId: string }) {
+  useEffect(() => {
+    void markThreadsPostSeenAction(mediaId).catch(() => {})
   }, [mediaId])
   return null
 }

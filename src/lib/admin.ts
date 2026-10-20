@@ -284,6 +284,12 @@ export type AdminAction =
   | 'unban'
   | 'delete_user'
   | 'save_settings'
+  | 'upload_template'
+  | 'import_templates'
+  | 'analyze_templates'
+  | 'update_template'
+  | 'toggle_template'
+  | 'delete_template'
 
 /** Records what an admin did. A log that can't be written doesn't undo the action. */
 export async function logAdminAction(

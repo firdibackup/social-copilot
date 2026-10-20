@@ -1,16 +1,15 @@
 import 'server-only'
-import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import { aiErrorMessage, snippetOf } from './ai'
 import { loadProductImages } from './assets'
 import { loadAttachment } from './attachments'
 import { getBrandVisual, loadLogoImage, loadReferenceImage, VISUAL_BODY_BUDGET, type BrandVisual } from './brand'
 import type { ColorRole, ReferenceLabel, SlideRole } from './brand-options'
-import { DEFAULT_BODY_FONT, DEFAULT_HEADING_FONT, isStyleExample, styleForBrand, type LayoutRole } from './design-styles'
+import { DEFAULT_BODY_FONT, DEFAULT_HEADING_FONT, styleForBrand, type LayoutRole } from './design-styles'
 import { describeError } from './errors'
 import { IMAGE_FORMATS, type ImageInput } from './image-options'
 import { generateImage, RouterApiError } from './nine-router'
 import { SlideImageError } from './slide-image'
+import { loadTemplateImage } from './templates'
 
 export type InputImageKind = 'current' | 'attachment' | 'product' | 'reference' | 'example' | 'sibling' | 'logo'
 
@@ -159,14 +158,6 @@ const PLAIN_LAYOUTS: Record<LayoutRole, string> = {
   single: 'Layout: one clear focal point with the text in a calm area and generous margins.',
 }
 
-const EXAMPLES_DIR = join(process.cwd(), 'assets', 'contoh-desain')
-
-/** A design style's example slide as a data URL; null for a key no style lists (anymore). */
-async function loadStyleExample(key: string): Promise<string | null> {
-  if (!isStyleExample(key)) return null
-  return `data:image/jpeg;base64,${(await readFile(join(EXAMPLES_DIR, `${key}.jpg`))).toString('base64')}`
-}
-
 /**
  * The image prompt, in English because image models follow it best. The headline goes in quotes so the model writes
  * exactly that; without one the model is told to write nothing, since otherwise it adds words of its own.
@@ -238,7 +229,7 @@ const SKIPPED_LABELS: Record<InputImageKind, string> = {
   attachment: 'lampiran',
   product: 'gambar produk',
   reference: 'referensi',
-  example: 'contoh gaya',
+  example: 'template desain',
   sibling: 'slide isi lain',
   logo: 'logo',
 }
@@ -283,7 +274,7 @@ async function packImages(userId: string, input: ImageInput): Promise<PackedImag
     candidates.push({
       kind: 'example',
       load: async () => {
-        const dataUrl = await loadStyleExample(example)
+        const dataUrl = await loadTemplateImage(example)
         return dataUrl ? { dataUrl } : null
       },
     })

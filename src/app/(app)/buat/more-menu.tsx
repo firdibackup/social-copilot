@@ -3,7 +3,9 @@
 import { Ellipsis } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import type { Post } from '@/lib/posts'
-import { cancelPostAction, deletePostAction, duplicatePostAction, retryPostAction } from './actions'
+import { cancelPostAction, deletePostAction, duplicatePostAction, publishThreadsNowAction, retryPostAction } from './actions'
+
+const ITEM = 'block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors'
 
 interface MenuFormProps {
   action: (formData: FormData) => Promise<void>
@@ -24,7 +26,7 @@ function MenuForm({ action, id, label, confirmMessage, danger }: MenuFormProps) 
       <button
         type="submit"
         role="menuitem"
-        className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${danger ? 'text-red-600 hover:bg-red-50' : 'text-ink hover:bg-zinc-100'}`}
+        className={`${ITEM} ${danger ? 'text-red-600 hover:bg-red-50' : 'text-ink hover:bg-zinc-100'}`}
       >
         {label}
       </button>
@@ -32,10 +34,44 @@ function MenuForm({ action, id, label, confirmMessage, danger }: MenuFormProps) 
   )
 }
 
-/** The ⋯ button: the post's status changes, a copy, and deleting it. */
-export function MoreMenu({ post }: { post: Post }) {
+function MenuLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a href={href} target="_blank" rel="noreferrer" role="menuitem" className={`${ITEM} text-ink hover:bg-zinc-100`}>
+      {label}
+    </a>
+  )
+}
+
+/**
+ * Its Instagram schedule already ran (published or failed) while the Threads version failed, or was switched on
+ * afterwards: Terbitkan ke Threads sends it on its own.
+ */
+function canPublishThreads(post: Post): boolean {
+  const threads = post.threads
+  if (!post.instagramEnabled || !threads?.enabled) return false
+  if (post.status !== 'published' && post.status !== 'failed') return false
+  return threads.status === 'failed' || (threads.status === 'pending' && threads.dueAt === null)
+}
+
+/** Where a deleted post stays: the platforms it already went out on. */
+function publishedOn(post: Post): string | null {
+  const instagram = post.instagramEnabled && post.status === 'published'
+  const threads = post.threads?.status === 'published'
+  if (instagram && threads) return 'Instagram dan Threads'
+  return instagram ? 'Instagram' : threads ? 'Threads' : null
+}
+
+interface MoreMenuProps {
+  post: Post
+  /** Opens Pilih platform. */
+  onPlatforms?: () => void
+}
+
+/** The ⋯ button: where the post goes, its status changes, a copy, and deleting it. */
+export function MoreMenu({ post, onPlatforms }: MoreMenuProps) {
   const [open, setOpen] = useState(false)
   const canRetry = post.status === 'failed' || (post.status === 'cancelled' && post.isLocked)
+  const outOn = publishedOn(post)
 
   return (
     <div className="relative">
@@ -57,6 +93,19 @@ export function MoreMenu({ post }: { post: Post }) {
             role="menu"
             className="absolute top-12 left-0 z-40 w-60 animate-fade-in rounded-xl border border-hairline bg-white p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.25)]"
           >
+            {onPlatforms && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false)
+                  onPlatforms()
+                }}
+                className={`${ITEM} text-ink hover:bg-zinc-100`}
+              >
+                Pilih platform
+              </button>
+            )}
             {post.status === 'scheduled' && (
               <MenuForm action={cancelPostAction} id={post.id} label="Batalkan jadwal" confirmMessage="Batalkan jadwal post ini?" />
             )}
@@ -65,30 +114,27 @@ export function MoreMenu({ post }: { post: Post }) {
                 action={retryPostAction}
                 id={post.id}
                 label="Coba terbitkan lagi"
-                confirmMessage="Terbitkan post ini sekarang? Worker memeriksa Instagram dulu supaya tidak terbit dua kali."
+                confirmMessage={`Terbitkan post ini sekarang? Worker memeriksa ${post.instagramEnabled ? 'Instagram' : 'Threads'} dulu supaya tidak terbit dua kali.`}
+              />
+            )}
+            {canPublishThreads(post) && (
+              <MenuForm
+                action={publishThreadsNowAction}
+                id={post.id}
+                label={post.threads?.status === 'failed' ? 'Coba lagi di Threads' : 'Terbitkan ke Threads'}
+                confirmMessage="Terbitkan versi Threads post ini sekarang?"
               />
             )}
             <MenuForm action={duplicatePostAction} id={post.id} label="Duplikat sebagai draft" />
-            {post.permalink && (
-              <a
-                href={post.permalink}
-                target="_blank"
-                rel="noreferrer"
-                role="menuitem"
-                className="block rounded-lg px-3 py-2 text-sm text-ink transition-colors hover:bg-zinc-100"
-              >
-                Lihat di Instagram
-              </a>
-            )}
-            {post.status !== 'publishing' && (
+            {post.permalink && <MenuLink href={post.permalink} label="Lihat di Instagram" />}
+            {post.threads?.permalink && <MenuLink href={post.threads.permalink} label="Lihat di Threads" />}
+            {post.status !== 'publishing' && post.threads?.status !== 'publishing' && (
               <MenuForm
                 action={deletePostAction}
                 id={post.id}
                 label="Hapus post"
                 danger
-                confirmMessage={
-                  post.status === 'published' ? 'Hapus post dari aplikasi? Post di Instagram tidak ikut terhapus.' : 'Hapus post ini?'
-                }
+                confirmMessage={outOn ? `Hapus post dari aplikasi? Post di ${outOn} tidak ikut terhapus.` : 'Hapus post ini?'}
               />
             )}
           </div>

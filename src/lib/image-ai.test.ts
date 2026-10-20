@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AiLimitError } from './ai'
 import { loadProductImages } from './assets'
@@ -9,9 +7,11 @@ import { buildImagePrompt, drawImage, imageErrorMessage, imageLog } from './imag
 import type { ImageInput } from './image-options'
 import { generateImage, RouterApiError } from './nine-router'
 import { SlideImageError } from './slide-image'
+import { loadTemplateImage } from './templates'
 
 vi.mock('./assets', () => ({ loadProductImages: vi.fn() }))
 vi.mock('./attachments', () => ({ loadAttachment: vi.fn() }))
+vi.mock('./templates', () => ({ loadTemplateImage: vi.fn() }))
 
 vi.mock('./brand', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./brand')>()),
@@ -57,8 +57,7 @@ const INPUT: ImageInput = {
 }
 
 const dataUrl = (fill: string, length: number) => `data:image/jpeg;base64,${fill.repeat(length)}`
-const exampleFile = (key: string) =>
-  `data:image/jpeg;base64,${readFileSync(join(process.cwd(), 'assets', 'contoh-desain', `${key}.jpg`)).toString('base64')}`
+const exampleFile = (key: string) => dataUrl(`T${key}`, 10)
 const inner = { index: 2, count: 5, role: 'isi' as const }
 
 describe('buildImagePrompt', () => {
@@ -279,6 +278,9 @@ describe('drawImage', () => {
     vi.mocked(loadReferenceImage).mockReset().mockResolvedValue({ dataUrl: dataUrl('R', 400_000), note: 'layout', label: 'single' })
     vi.mocked(loadLogoImage).mockReset().mockResolvedValue(dataUrl('L', 600_000))
     vi.mocked(loadAttachment).mockReset()
+    vi.mocked(loadTemplateImage)
+      .mockReset()
+      .mockImplementation(async (key) => (key === 'hilang' ? null : exampleFile(key)))
     vi.mocked(generateImage).mockReset().mockResolvedValue(JPEG.toString('base64'))
   })
 
@@ -346,6 +348,7 @@ describe('drawImage', () => {
     const drawn = await drawImage(USER, { ...INPUT, siblingImage: dataUrl('S', 100), example: 'langkah-bernomor', slide: inner })
 
     expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([exampleFile('langkah-bernomor')])
+    expect(loadTemplateImage).toHaveBeenCalledWith('langkah-bernomor')
     expect(drawn.sent).toEqual(['example'])
   })
 
@@ -395,7 +398,7 @@ describe('drawImage', () => {
     const drawn = await drawImage(USER, { ...INPUT, attachment: { path: 'x', note: '' }, example: 'hilang' })
 
     expect(drawn.sent).toEqual([])
-    expect(drawn.skipped).toEqual(['lampiran (tidak ditemukan)', 'contoh gaya (tidak ditemukan)'])
+    expect(drawn.skipped).toEqual(['lampiran (tidak ditemukan)', 'template desain (tidak ditemukan)'])
   })
 
   it('fills the budget exactly, and numbers the next images from image1 after one too big to send', async () => {

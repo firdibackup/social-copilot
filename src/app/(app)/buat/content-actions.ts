@@ -7,11 +7,11 @@ import { listProductGroups, loadAssetBytes } from '@/lib/assets'
 import { readAttachment, removeAttachment, saveAttachment, type Attachment } from '@/lib/attachments'
 import { requireAccount } from '@/lib/auth'
 import { getBrandVisual, listReferencePool } from '@/lib/brand'
-import { lengthOf, pickFirst, pickRandom, planReferenceImages, slideRoles } from '@/lib/brand-options'
+import { lengthOf, pickFirst, pickRandom, planReferenceImages, slideRoles, type SlideRole } from '@/lib/brand-options'
 import { CAPTION_MAX_LENGTH } from '@/lib/caption'
 import { editCaption, planContent, reviseSlide, suggestIdeas, writeScript, type ContentPlan } from '@/lib/content-ai'
 import { AUTO_PRODUCT, AUTO_REFERENCE, parseContentRequest, parseInstruction, type ContentRequest } from '@/lib/content-options'
-import { planStyleExamples, styleForBrand } from '@/lib/design-styles'
+import { styleIdForBrand } from '@/lib/design-styles'
 import { describeError } from '@/lib/errors'
 import { addIdeas, deleteIdea, getIdea, recentTitles, saveIdeaScript } from '@/lib/ideas'
 import { drawImage, imageErrorMessage, imageLog } from '@/lib/image-ai'
@@ -37,6 +37,8 @@ import {
   retrySlide,
   SlideError,
 } from '@/lib/slides'
+import { planTemplates } from '@/lib/template-options'
+import { listTemplatePool } from '@/lib/templates'
 
 /** A message for the owner, or null when it worked. */
 type ActionError = string | null
@@ -134,7 +136,8 @@ async function saveContent(
 /**
  * Each planned slide's role and what it follows: a reference image (see planReferenceImages), picked at random from
  * all of the account's references on Otomatis, so posts vary, and the first of each label from a group the owner
- * picked. On Otomatis an account without references follows its design style's examples (see planStyleExamples).
+ * picked. On Otomatis an account without references follows the admin's templates of its design style (see
+ * planTemplates).
  */
 async function chooseSlideReferences(userId: string, accountId: string, request: ContentRequest): Promise<SlideReference[]> {
   const roles = slideRoles(request.slides)
@@ -143,11 +146,24 @@ async function chooseSlideReferences(userId: string, accountId: string, request:
   const pool = await listReferencePool(userId, accountId, auto ? null : request.referenceId)
   if (!auto && pool.length === 0) throw new ContentError('Referensi brand tidak ditemukan.')
   if (pool.length === 0) {
-    const examples = planStyleExamples(styleForBrand(await getBrandVisual(userId)), roles, pickRandom)
+    const examples = await planStyleTemplates(userId, roles)
     return roles.map((role, index) => ({ role, referenceImageId: null, example: examples[index] }))
   }
   const images = planReferenceImages(pool, roles, auto ? pickRandom : pickFirst)
   return roles.map((role, index) => ({ role, referenceImageId: images[index], example: null }))
+}
+
+/** Templates are a nicety: a post still gets made, from the style's recipe, when they can't be read. */
+async function planStyleTemplates(userId: string, roles: (SlideRole | null)[]): Promise<(string | null)[]> {
+  const none = roles.map(() => null)
+  const style = styleIdForBrand(await getBrandVisual(userId))
+  if (!style) return none
+  try {
+    return planTemplates(await listTemplatePool(style), roles, pickRandom)
+  } catch (error) {
+    console.error('[konten] template desain gagal dimuat, lanjut tanpa template:', describeError(error))
+    return none
+  }
 }
 
 /** The owner's Coba lagi: a failed slide goes back to the worker's queue. It was paid with the post. */

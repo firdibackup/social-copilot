@@ -47,6 +47,15 @@ describe('buildReplyMessages', () => {
     expect(text).toContain('Draf owner:\n"""\ndm aja kak\n"""')
   })
 
+  it('keeps a Threads reply public and within 500 characters', () => {
+    const text = userText(
+      buildReplyMessages({ channel: 'threads', lines: [{ fromCustomer: true, text: 'ready?' }], draft: '', caption: 'Stok baru' }, null),
+    )
+    expect(text).toContain('post Threads')
+    expect(text).toContain('maksimal 500 karakter')
+    expect(text).toContain('Caption post:\n"""\nStok baru\n"""')
+  })
+
   it('reads only the latest messages', () => {
     const lines = Array.from({ length: REPLY_CONTEXT_MESSAGES + 5 }, (_, index) => ({
       fromCustomer: true,

@@ -57,7 +57,7 @@ beforeEach(() => {
   vi.mocked(getConnection).mockResolvedValue(CONNECTION)
   vi.mocked(claimSync).mockResolvedValue(true)
   vi.mocked(releaseSync).mockResolvedValue()
-  vi.mocked(getPublishingAccount).mockResolvedValue({ accessToken: 'token', instagramUserId: ACCOUNT })
+  vi.mocked(getPublishingAccount).mockResolvedValue({ accessToken: 'token', instagramUserId: ACCOUNT, username: 'toko' })
   vi.mocked(listMediaSince).mockResolvedValue({ media: [media('1'), media('2'), media('3')], isComplete: true })
 })
 

@@ -1,5 +1,43 @@
 import { describe, expect, it } from 'vitest'
-import { parseWibInput, slotOn, suggestedSlot, toWibInput, wibDateKey } from './format'
+import {
+  calendarDays,
+  firstOpenDay,
+  formatLongDay,
+  formatMonth,
+  parseWibInput,
+  shiftDay,
+  shiftMonth,
+  slotLabel,
+  slotOn,
+  suggestedSlot,
+  timesOn,
+  toSlot,
+  toWibInput,
+  wibDateKey,
+} from './format'
+
+describe('slotLabel', () => {
+  const now = new Date('2026-10-20T13:59:00Z') // Tuesday 20.59 WIB
+
+  it('names today and tomorrow like the old suggestion', () => {
+    expect(slotLabel(new Date('2026-10-20T14:30:00Z'), now)).toBe('Hari ini 21.30')
+    expect(slotLabel(new Date('2026-10-21T12:00:00Z'), now)).toBe('Besok 19.00')
+  })
+
+  it('names later days by weekday and date', () => {
+    expect(slotLabel(new Date('2026-10-22T12:00:00Z'), now)).toBe('Kam, 22 Okt 19.00')
+  })
+
+  it('gives the editor the WIB input value with it', () => {
+    expect(toSlot(new Date('2026-10-22T12:00:00Z'), now)).toEqual({ value: '2026-10-22T19:00', label: 'Kam, 22 Okt 19.00' })
+  })
+})
+
+describe('formatLongDay', () => {
+  it('names a day key in full', () => {
+    expect(formatLongDay('2026-10-22')).toBe('Kamis, 22 Oktober')
+  })
+})
 
 describe('parseWibInput', () => {
   it('reads a datetime-local value as WIB', () => {
@@ -76,4 +114,64 @@ describe('slotOn', () => {
       expect(slotOn(day, now)).toBeNull()
     },
   )
+})
+
+describe('formatMonth and shiftMonth', () => {
+  it('names a month and steps across years', () => {
+    expect(formatMonth('2026-10')).toBe('Oktober 2026')
+    expect(shiftMonth('2026-12', 1)).toBe('2027-01')
+    expect(shiftMonth('2026-01', -1)).toBe('2025-12')
+  })
+
+  it('does not skip short months from the 31st', () => {
+    expect(shiftMonth('2026-01', 1)).toBe('2026-02')
+  })
+})
+
+describe('calendarDays', () => {
+  it('gives six Monday-first weeks padded with the adjacent months', () => {
+    const days = calendarDays('2026-10') // 1 Oktober 2026 is a Thursday
+    expect(days).toHaveLength(42)
+    expect(days[0]).toBe('2026-09-28')
+    expect(days[3]).toBe('2026-10-01')
+    expect(days[41]).toBe('2026-11-08')
+  })
+
+  it('starts on the 1st when the month begins on a Monday', () => {
+    expect(calendarDays('2026-06')[0]).toBe('2026-06-01')
+  })
+})
+
+describe('shiftDay', () => {
+  it('steps across months and years', () => {
+    expect(shiftDay('2026-10-31', 1)).toBe('2026-11-01')
+    expect(shiftDay('2027-01-03', -7)).toBe('2026-12-27')
+  })
+})
+
+describe('timesOn', () => {
+  const now = new Date('2026-10-20T11:10:00Z') // 18.10 WIB
+
+  it('lists every 15 minutes on a later day', () => {
+    const times = timesOn('2026-10-21', now)
+    expect(times).toHaveLength(96)
+    expect(times[0]).toBe('00:00')
+    expect(times.at(-1)).toBe('23:45')
+  })
+
+  it('keeps only times at least 30 minutes away today', () => {
+    expect(timesOn('2026-10-20', now)[0]).toBe('18:45')
+    expect(timesOn('2026-10-20', new Date('2026-10-20T11:15:00Z'))[0]).toBe('18:45')
+  })
+
+  it('offers nothing on a past day', () => {
+    expect(timesOn('2026-10-19', now)).toEqual([])
+  })
+})
+
+describe('firstOpenDay', () => {
+  it('is today while a time is left, tomorrow after 23.15 WIB', () => {
+    expect(firstOpenDay(new Date('2026-10-20T16:15:00Z'))).toBe('2026-10-20')
+    expect(firstOpenDay(new Date('2026-10-20T16:16:00Z'))).toBe('2026-10-21')
+  })
 })

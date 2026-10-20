@@ -36,7 +36,10 @@ export interface ImageInput extends Slide {
   format: ImageFormat
   /** The one brand reference image this slide follows, chosen for its role when the post was made. */
   referenceImageId: string | null
-  /** A design style's example slide (a key of assets/contoh-desain), for an account without references. */
+  /**
+   * The design template it follows when the account has no references: a design_templates id, or the source_key of
+   * a file imported from assets/contoh-desain for a slide planned before the import.
+   */
   example: string | null
   /** Product identity to preserve, separate from the design reference. */
   productGroupId: string | null

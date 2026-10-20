@@ -4,10 +4,21 @@ import { truncate, type SlideRole } from './brand-options'
 import type { ContentPlan } from './content-ai'
 import type { ContentRequest } from './content-options'
 import type { PostStatus } from './post-status'
+import { POST_STORY_FIELDS, toPostStory, type PostStory, type PostStoryRow } from './post-stories'
+import {
+  getPostTargets,
+  listThreadItems,
+  POST_THREADS_FIELDS,
+  saveThreadItems,
+  setPostPlatforms,
+  toPostThreads,
+  type PostThreads,
+  type PostThreadsRow,
+} from './post-threads'
 import { db, unwrap } from './supabase'
 
 const POST_FIELDS =
-  'id, title, caption, pillar_id, status, scheduled_at, published_at, attempt_count, next_attempt_at, last_error, ig_container_id, ig_permalink'
+  'id, title, caption, pillar_id, status, scheduled_at, published_at, attempt_count, next_attempt_at, last_error, ig_container_id, ig_permalink, instagram_enabled'
 const MEDIA_FIELDS = 'post_media(position, assets(id, storage_path, width, height))'
 const LIST_LIMIT = 200
 
@@ -40,6 +51,12 @@ export interface Post {
   /** Lists carry only the cover photo; `mediaCount` has the full count. */
   media: PostMedia[]
   mediaCount: number
+  /** Off for a post made for Threads only; the Instagram loop then skips it. */
+  instagramEnabled: boolean
+  /** The Threads version, or null when Threads was never switched on for the post. */
+  threads: PostThreads | null
+  /** The Story of the first slide, or null when it was never switched on for the post. */
+  story: PostStory | null
 }
 
 export interface PostInput {
@@ -80,6 +97,9 @@ interface PostRow {
   last_error: string | null
   ig_container_id: string | null
   ig_permalink: string | null
+  instagram_enabled: boolean
+  post_threads: PostThreadsRow | PostThreadsRow[] | null
+  post_stories: PostStoryRow | PostStoryRow[] | null
   post_media: MediaRow[]
 }
 
@@ -120,6 +140,9 @@ async function toPosts(rows: PostRow[], coverOnly: boolean): Promise<Post[]> {
       height: item.assets.height,
     })),
     mediaCount: row.post_media.length,
+    instagramEnabled: row.instagram_enabled,
+    threads: toPostThreads(row.post_threads),
+    story: toPostStory(row.post_stories),
   }))
 }
 
@@ -135,7 +158,7 @@ export interface PostFilter {
 export async function listPosts(userId: string, accountId: string, filter: PostFilter = {}): Promise<Post[]> {
   let query = db()
     .from('posts')
-    .select(`${POST_FIELDS}, ${MEDIA_FIELDS}`)
+    .select(`${POST_FIELDS}, ${POST_THREADS_FIELDS}, ${POST_STORY_FIELDS}, ${MEDIA_FIELDS}`)
     .eq('user_id', userId)
     .eq('account_id', accountId)
   if (filter.status) query = query.eq('status', filter.status)
@@ -154,7 +177,7 @@ export async function getPost(userId: string, id: string): Promise<Post | null> 
   const row = unwrap(
     await db()
       .from('posts')
-      .select(`${POST_FIELDS}, ${MEDIA_FIELDS}`)
+      .select(`${POST_FIELDS}, ${POST_THREADS_FIELDS}, ${POST_STORY_FIELDS}, ${MEDIA_FIELDS}`)
       .eq('id', id)
       .eq('user_id', userId)
       .maybeSingle()
@@ -179,6 +202,17 @@ export async function savePost(userId: string, input: PostInput): Promise<string
   if (error?.message === 'wrong_account') throw new PostLockedError('Post ini milik akun Instagram lain.')
   if (error) throw new Error(`Supabase: ${error.message}`)
   return data as string
+}
+
+/** Puts a finished post on the schedule without touching its content: Kalender's Pilih (see schedule_post). */
+export async function schedulePost(userId: string, id: string, at: Date): Promise<void> {
+  const { error } = await db().rpc('schedule_post', { p_user_id: userId, p_id: id, p_scheduled_at: at.toISOString() })
+  if (error?.message === 'post_locked') {
+    throw new PostLockedError('Post sedang atau mungkin sudah diterbitkan, jadi tidak bisa dijadwalkan di sini.')
+  }
+  if (error?.message === 'invalid_media') throw new PostLockedError('Post untuk Instagram butuh minimal 1 foto.')
+  if (error?.message === 'wrong_account') throw new PostLockedError('Post ini milik akun Instagram lain.')
+  if (error) throw new Error(`Supabase: ${error.message}`)
 }
 
 /** Updates the post only while it is in one of `statuses`. False means the worker got there first. */
@@ -249,6 +283,8 @@ export function postLabel(post: Pick<Post, 'title' | 'caption'>): string {
 export interface ContentListItem {
   id: string
   label: string
+  /** The caption's first line under a title, for cards that show both; empty when the label is the caption. */
+  subtitle: string
   status: PostStatus
   scheduledAt: Date | null
   coverUrl: string | null
@@ -256,6 +292,8 @@ export interface ContentListItem {
   slideCount: number
   /** Slides still waiting or being made. */
   inProgress: number
+  instagramEnabled: boolean
+  threadsEnabled: boolean
 }
 
 const WORK_STATUSES: PostStatus[] = ['draft', 'scheduled', 'failed', 'cancelled']
@@ -270,14 +308,21 @@ interface ContentListRow {
   scheduled_at: string | null
   post_media: { position: number; assets: { storage_path: string } }[]
   post_slides: { status: string }[]
+  instagram_enabled: boolean
+  post_threads: { enabled: boolean } | { enabled: boolean }[] | null
 }
+
+const threadsEnabledOf = (value: ContentListRow['post_threads']) =>
+  Boolean((Array.isArray(value) ? value[0] : value)?.enabled)
 
 /** The account's unpublished posts, most recently changed first. */
 export async function listContentPosts(userId: string, accountId: string): Promise<ContentListItem[]> {
   const rows = unwrap(
     await db()
       .from('posts')
-      .select('id, title, caption, status, scheduled_at, post_media(position, assets(storage_path)), post_slides(status)')
+      .select(
+        'id, title, caption, status, scheduled_at, instagram_enabled, post_media(position, assets(storage_path)), post_slides(status), post_threads(enabled)',
+      )
       .eq('user_id', userId)
       .eq('account_id', accountId)
       .in('status', WORK_STATUSES)
@@ -290,14 +335,18 @@ export async function listContentPosts(userId: string, accountId: string): Promi
   let urlIndex = 0
   return rows.map((row, index) => {
     const unfinished = row.post_slides.filter((slide) => slide.status !== 'ready')
+    const captionLine = row.caption.split('\n', 1)[0].trim()
     return {
       id: row.id,
       label: postLabel(row),
+      subtitle: row.title && captionLine !== row.title ? truncate(captionLine, LABEL_MAX_LENGTH) : '',
       status: row.status,
       scheduledAt: toDate(row.scheduled_at),
       coverUrl: covers[index] ? urls[urlIndex++] : null,
       slideCount: row.post_media.length + unfinished.length,
       inProgress: unfinished.filter((slide) => slide.status === 'pending' || slide.status === 'generating').length,
+      instagramEnabled: row.instagram_enabled,
+      threadsEnabled: threadsEnabledOf(row.post_threads),
     }
   })
 }
@@ -353,17 +402,39 @@ export async function createContentPost(
   return data as string
 }
 
-/** Copies caption and photos into a new draft. Returns the new id, or null when the post is gone. */
+/**
+ * Copies caption and photos into a new draft, and where it goes (Story included) with its Threads chain when the post
+ * has Threads.
+ * Returns the new id, or null when the post is gone.
+ */
 export async function duplicatePost(userId: string, id: string): Promise<string | null> {
   const post = await getPost(userId, id)
   if (!post) return null
-  return savePost(userId, {
+  const copyId = await savePost(userId, {
     id: null,
     caption: post.caption,
     status: 'draft',
     scheduledAt: null,
     assetIds: post.media.map((item) => item.assetId),
   })
+  const threads = post.threads?.enabled ?? false
+  const story = post.story?.enabled ?? false
+  // The copy took the account's Story default; it keeps the original's choice instead.
+  const copyStory = (await getPostTargets(userId, copyId))?.story ?? false
+  if (threads || !post.instagramEnabled || story !== copyStory) {
+    await setPostPlatforms(userId, copyId, post.instagramEnabled, threads, story)
+  }
+  if (threads || !post.instagramEnabled) {
+    const items = await listThreadItems(userId, id)
+    if (items.length > 0) {
+      await saveThreadItems(
+        userId,
+        copyId,
+        items.map((item) => ({ text: item.text, assetIds: item.media.map((media) => media.assetId) })),
+      )
+    }
+  }
+  return copyId
 }
 
 // Worker side

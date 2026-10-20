@@ -100,13 +100,16 @@ function toApiError(body: unknown, status: number): InstagramApiError {
   )
 }
 
-/** One Graph call. graph.facebook.com answers in the same shape, so `facebook.ts` uses it too. */
-export async function request(url: string | URL, init?: RequestInit): Promise<Json> {
+/**
+ * One Graph call. graph.facebook.com and graph.threads.com answer in the same shape, so `facebook.ts` and
+ * `threads.ts` use it too; `service` names the one that couldn't be reached.
+ */
+export async function request(url: string | URL, init?: RequestInit, service = 'Instagram'): Promise<Json> {
   const response = await fetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }).catch(
     (error: unknown) => {
       // Network errors can echo the URL, which carries the token; keep only the error type.
       const reason = error instanceof Error ? error.name : 'unknown'
-      throw new InstagramApiError(`Instagram tidak bisa dihubungi (${reason})`, null, 0)
+      throw new InstagramApiError(`${service} tidak bisa dihubungi (${reason})`, null, 0)
     },
   )
   const body: unknown = await response.json().catch(() => null)

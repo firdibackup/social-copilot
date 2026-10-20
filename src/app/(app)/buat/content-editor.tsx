@@ -1,12 +1,13 @@
 'use client'
 
-import { ArrowLeft, LoaderCircle, RefreshCw } from 'lucide-react'
+import { ArrowLeft, LoaderCircle, RefreshCw, SlidersHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
 import { InstagramIcon } from '@/components/instagram-icon'
 import { Notice, type NoticeTone } from '@/components/notice'
 import { PostStatusBadge } from '@/components/post-status-badge'
+import { ThreadsIcon } from '@/components/threads-icon'
 import type { Asset } from '@/lib/assets'
 import { contentCost, formatCreditShare, TASK_CREDITS } from '@/lib/billing-options'
 import { CAPTION_MAX_HASHTAGS, CAPTION_MAX_LENGTH, CAPTION_MAX_MENTIONS, inspectCaption } from '@/lib/caption'
@@ -34,9 +35,11 @@ import {
 } from './content-actions'
 import { MoreMenu } from './more-menu'
 import { PhotoPicker } from './photo-picker'
+import { PlatformDialog, type ThreadsLink } from './platform-dialog'
 import { PostMockup, type SlideItem, type SlideView } from './post-mockup'
 import { ScheduleButton } from './schedule-button'
 import { formatScript, useScriptText } from './script-text'
+import { ThreadsEditor, type StoredItem } from './threads-editor'
 
 const MAX_MEDIA = 10
 const AUTOSAVE_MS = 1000
@@ -55,6 +58,9 @@ export interface EditorAccount {
   avatarUrl: string | null
 }
 
+/** The tab the editor shows: the Instagram post or its Threads version (`?platform=threads`). */
+export type Platform = 'instagram' | 'threads'
+
 interface ContentEditorProps {
   post: Post | null
   /** The post's AI slides whose images aren't in it yet. */
@@ -70,11 +76,22 @@ interface ContentEditorProps {
   /** The plan's credits per period, which costs are shown as a share of. */
   planCredits: number
   slot: Slot
+  /** The next empty posting slots for the Jadwalkan dialog, earliest first. */
+  queue: Slot[]
   /** The day picked in Kalender (`?tanggal=`), kept in the URL while the new post is made. */
   day: string | null
+  /** The slot picked in Kalender (`?slot=`), kept the same way. */
+  slotParam: string | null
   library: Asset[]
   /** The page's messages about the post, above the toolbar. */
   notices: ReactNode
+  platform: Platform
+  /** The Threads account the post would go to. */
+  threadsAccount: { link: ThreadsLink; username: string | null }
+  /** The post's stored Threads chain; empty while it follows the caption. */
+  threadItems: StoredItem[]
+  /** The Threads chain can still change: the post is the owner's and nothing of it is on Threads yet. */
+  threadsEditable: boolean
 }
 
 const toMedia = (asset: Asset, position: number): PostMedia => ({
@@ -101,12 +118,32 @@ export function ContentEditor({
   credits,
   planCredits,
   slot,
+  queue,
   day,
+  slotParam,
   library: initialLibrary,
   notices,
+  platform,
+  threadsAccount,
+  threadItems,
+  threadsEditable,
 }: ContentEditorProps) {
   const router = useRouter()
-  const openPost = (id: string) => router.push(`/buat?id=${id}${day ? `&tanggal=${day}` : ''}`)
+  /** A post keeps the day, slot and tab it was opened with. */
+  const openPost = (id: string) => {
+    const params = new URLSearchParams({ id })
+    if (day) params.set('tanggal', day)
+    if (slotParam) params.set('slot', slotParam)
+    if (platform === 'threads') params.set('platform', 'threads')
+    router.push(`/buat?${params}`)
+  }
+  function showPlatform(next: Platform) {
+    const params = new URLSearchParams(window.location.search)
+    if (next === 'threads') params.set('platform', 'threads')
+    else params.delete('platform')
+    router.replace(`/buat?${params}`, { scroll: false })
+  }
+  const platformRef = useRef<HTMLDialogElement>(null)
   const editable = post === null || (EDITABLE_STATUSES.has(post.status) && !post.isLocked)
   const serverMedia = post?.media ?? []
 
@@ -531,11 +568,24 @@ export function ContentEditor({
           {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
 
           <div className="flex flex-wrap items-center gap-2">
-            {post && <MoreMenu post={post} />}
-            <span className={`inline-flex h-10 items-center gap-2 rounded-xl border border-hairline bg-white px-3 text-sm font-medium text-ink ${TOOL_SHADOW}`}>
-              <InstagramIcon className="text-ink" />
-              Instagram
-            </span>
+            {post && <MoreMenu post={post} onPlatforms={() => platformRef.current?.showModal()} />}
+            <PlatformTabs
+              platform={platform}
+              onSelect={showPlatform}
+              instagramOn={post ? post.instagramEnabled : null}
+              threadsOn={post ? Boolean(post.threads?.enabled) : null}
+            />
+            {post && (
+              <button
+                type="button"
+                onClick={() => platformRef.current?.showModal()}
+                aria-label="Pilih platform"
+                title="Pilih platform"
+                className={`flex size-10 items-center justify-center rounded-xl border border-hairline bg-white text-ink transition-transform hover:scale-105 ${TOOL_SHADOW}`}
+              >
+                <SlidersHorizontal size={17} aria-hidden="true" />
+              </button>
+            )}
             {post && <PostStatusBadge status={post.status} />}
             {post && editable && <SaveStatus saving={saving} unsaved={unsaved} error={saveError} />}
             {post && editable && (
@@ -544,11 +594,37 @@ export function ContentEditor({
                 caption={caption}
                 assetIds={media.map((item) => item.assetId)}
                 slot={slot}
-                disabled={inProgress || busy !== null || items.length === 0}
+                queue={queue}
+                disabled={inProgress || busy !== null || (post.instagramEnabled && items.length === 0)}
               />
             )}
           </div>
 
+          {platform === 'threads' ? (
+            <>
+              {post && !post.threads?.enabled && (
+                <Notice tone="warning">
+                  Threads belum aktif untuk post ini, jadi versi ini belum ikut terbit.{' '}
+                  <button type="button" onClick={() => platformRef.current?.showModal()} className="font-medium underline">
+                    Pilih platform
+                  </button>
+                </Notice>
+              )}
+              <ThreadsEditor
+                postId={post?.id ?? null}
+                storedItems={threadItems}
+                caption={caption}
+                media={media}
+                canFollowCaption={post !== null && post.instagramEnabled}
+                username={threadsAccount.username ?? username}
+                avatarUrl={account.avatarUrl}
+                library={library}
+                onUploaded={(assets) => setLibrary((current) => [...assets, ...current])}
+                editable={threadsEditable}
+                onCreated={openPost}
+              />
+            </>
+          ) : (
           <PostMockup
             username={username}
             avatarUrl={account.avatarUrl}
@@ -594,9 +670,12 @@ export function ContentEditor({
               )
             }
           />
+          )}
         </div>
       </div>
 
+      {/* The AI box edits the Instagram slides and caption; the Threads tab is edited in place. */}
+      {platform !== 'threads' && (
       <div className="shrink-0 px-4 pt-2 pb-3 md:px-8 md:pb-4">
         <div className="mx-auto max-w-[680px]">
           <Composer
@@ -615,6 +694,7 @@ export function ContentEditor({
           </Composer>
         </div>
       </div>
+      )}
 
       <PhotoPicker
         dialogRef={pickerRef}
@@ -625,6 +705,69 @@ export function ContentEditor({
         onUploaded={addUploaded}
         onDone={() => void pickerDone()}
       />
+
+      {post && (
+        <PlatformDialog
+          key={`${post.instagramEnabled}-${Boolean(post.threads?.enabled)}-${Boolean(post.story?.enabled)}`}
+          dialogRef={platformRef}
+          postId={post.id}
+          instagram={{
+            enabled: post.instagramEnabled,
+            username: account.username,
+            locked: post.isLocked || !EDITABLE_STATUSES.has(post.status),
+          }}
+          threads={{
+            enabled: Boolean(post.threads?.enabled),
+            username: threadsAccount.username,
+            link: threadsAccount.link,
+            locked: post.threads?.status === 'publishing' || post.threads?.status === 'published',
+          }}
+          story={{
+            enabled: Boolean(post.story?.enabled),
+            locked:
+              post.isLocked ||
+              post.status === 'publishing' ||
+              post.status === 'published' ||
+              post.story?.status === 'publishing' ||
+              post.story?.status === 'published',
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+interface PlatformTabsProps {
+  platform: Platform
+  onSelect: (platform: Platform) => void
+  /** Whether the post goes there; null for a new post. */
+  instagramOn: boolean | null
+  threadsOn: boolean | null
+}
+
+/** Which version the editor shows. A dot marks the platforms the post goes to. */
+function PlatformTabs({ platform, onSelect, instagramOn, threadsOn }: PlatformTabsProps) {
+  const tabs = [
+    { key: 'instagram' as const, label: 'Instagram', icon: <InstagramIcon width={18} height={18} />, on: instagramOn },
+    { key: 'threads' as const, label: 'Threads', icon: <ThreadsIcon size={18} />, on: threadsOn },
+  ]
+  return (
+    <div role="tablist" aria-label="Platform" className={`inline-flex h-10 items-center gap-0.5 rounded-xl border border-hairline bg-white p-1 ${TOOL_SHADOW}`}>
+      {tabs.map((tab) => (
+        <button
+          key={tab.key}
+          type="button"
+          role="tab"
+          aria-selected={platform === tab.key}
+          onClick={() => onSelect(tab.key)}
+          title={tab.on === false ? `${tab.label}: belum ikut diposting` : tab.label}
+          className={`relative inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium transition-colors ${platform === tab.key ? 'bg-zinc-100 text-ink' : 'text-ink-muted hover:text-ink'}`}
+        >
+          {tab.icon}
+          {tab.label}
+          {tab.on && <span aria-hidden="true" className="absolute bottom-0.5 left-1/2 size-1 -translate-x-1/2 rounded-full bg-accent" />}
+        </button>
+      ))}
     </div>
   )
 }

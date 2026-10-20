@@ -17,9 +17,13 @@ import { parseAdjustment, parseGrantDays, parsePassword, parseSettings } from '@
 import { saveAppSettings } from '@/lib/app-settings'
 import { requireAdmin } from '@/lib/auth'
 import { describeError } from '@/lib/errors'
+import { isJpeg, MAX_IMAGE_BYTES } from '@/lib/image'
 import { chatCompletion, generateImage, RouterApiError } from '@/lib/nine-router'
 import { isUuid } from '@/lib/params'
 import { toReferenceDataUrl } from '@/lib/slide-image'
+import { analyzeTemplates } from '@/lib/template-ai'
+import { parseTemplateEdit } from '@/lib/template-options'
+import { addTemplate, deleteTemplate, importLegacyTemplates, setTemplateActive, TemplateError, updateTemplate } from '@/lib/templates'
 
 export interface FormState {
   error: string | null
@@ -137,6 +141,115 @@ export async function userAction(_previous: FormState, formData: FormData): Prom
   }
   // Outside the try: redirect() throws.
   if (fields.intent === 'delete') redirect('/admin/pengguna?dihapus=1')
+  refresh()
+  return done(message)
+}
+
+const TEMPLATE_DATABASE = 'Periksa Supabase dan migrasi template desain.'
+
+/** One template image from the admin's browser, already a JPEG. Returns an error message, or null. */
+export async function uploadTemplateAction(formData: FormData): Promise<string | null> {
+  const admin = await requireAdmin()
+  const file = formData.get('file')
+  if (!(file instanceof Blob)) return 'File tidak ditemukan.'
+  if (file.size === 0 || file.size > MAX_IMAGE_BYTES) return 'Ukuran gambar harus di bawah 8 MB.'
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  if (!isJpeg(bytes)) return 'File bukan JPEG.'
+  try {
+    const id = await addTemplate(admin.id, bytes)
+    await logAdminAction(admin, 'upload_template', null, { templateId: id })
+  } catch (error) {
+    console.error('[admin] template gagal disimpan:', describeError(error))
+    return `Gambar gagal disimpan. ${TEMPLATE_DATABASE}`
+  }
+  refresh()
+  return null
+}
+
+export async function importTemplatesAction(): Promise<FormState> {
+  const admin = await requireAdmin()
+  let added: number
+  try {
+    added = await importLegacyTemplates(admin.id)
+  } catch (error) {
+    if (error instanceof TemplateError) return failed(error.message)
+    console.error('[admin] impor template gagal:', describeError(error))
+    return failed(`Impor gagal. ${TEMPLATE_DATABASE}`)
+  }
+  if (added === 0) return done('Semua contoh desain sudah diimpor.')
+  await logAdminAction(admin, 'import_templates', null, { added })
+  refresh()
+  return done(`${added} contoh desain diimpor. Klik Analisis dengan AI untuk mengelompokkannya.`)
+}
+
+/** Every pending template, or the one given (Analisis ulang). Not charged to anyone. */
+export async function analyzeTemplatesAction(templateId: string | null): Promise<FormState> {
+  const admin = await requireAdmin()
+  if (templateId !== null && !isUuid(templateId)) return failed('Template tidak ditemukan.')
+  let result: { analyzed: number; failed: number }
+  try {
+    result = await analyzeTemplates(admin.id, templateId ? [templateId] : null)
+  } catch (error) {
+    console.error('[admin] analisis template gagal:', describeError(error))
+    return failed(`Analisis gagal dijalankan. ${TEMPLATE_DATABASE}`)
+  }
+  const total = result.analyzed + result.failed
+  if (total === 0) return done('Tidak ada template yang menunggu analisis.')
+  await logAdminAction(admin, 'analyze_templates', null, {
+    ...result,
+    templateId,
+  })
+  refresh()
+  if (result.failed === 0) return done(`${result.analyzed} template dianalisis.`)
+  return failed(`${result.analyzed} dari ${total} template dianalisis; sisanya gagal. Atur manual atau analisis ulang.`)
+}
+
+export type TemplateIntent = 'update' | 'activate' | 'deactivate' | 'delete'
+
+/** Every change to one template, picked by the form's `intent`. */
+export async function templateAction(_previous: FormState, formData: FormData): Promise<FormState> {
+  const admin = await requireAdmin()
+  const fields = fieldsOf(formData)
+  const templateId = fields.templateId
+  if (!isUuid(templateId)) return failed('Template tidak ditemukan.')
+
+  let message: string
+  try {
+    switch (fields.intent as TemplateIntent) {
+      case 'update': {
+        const edit = parseTemplateEdit(fields, formData.getAll('styles'))
+        if ('error' in edit) return failed(edit.error)
+        await updateTemplate(templateId, edit)
+        await logAdminAction(admin, 'update_template', null, {
+          templateId,
+          ...edit,
+        })
+        message = 'Template disimpan.'
+        break
+      }
+      case 'activate':
+      case 'deactivate': {
+        const active = fields.intent === 'activate'
+        await setTemplateActive(templateId, active)
+        await logAdminAction(admin, 'toggle_template', null, {
+          templateId,
+          active,
+        })
+        message = active ? 'Template diaktifkan.' : 'Template dinonaktifkan.'
+        break
+      }
+      case 'delete':
+        await deleteTemplate(templateId)
+        await logAdminAction(admin, 'delete_template', null, { templateId })
+        message = 'Template dihapus.'
+        break
+      default:
+        return failed('Aksi tidak dikenal.')
+    }
+  } catch (error) {
+    console.error('[admin] aksi template gagal:', describeError(error))
+    return failed(`Aksi gagal. ${TEMPLATE_DATABASE}`)
+  }
   refresh()
   return done(message)
 }

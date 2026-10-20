@@ -20,12 +20,14 @@ interface ContentListProps {
   selectedId: string | null
   selectedIdeaId: string | null
   strategy: ContentStrategy | null
+  /** The editor's tab: the list shows the posts that go there. */
+  platform: 'instagram' | 'threads'
   /** e.g. "0,2%", what one round of ideas costs. */
   className: string
 }
 
 function meta(post: ContentListItem): string {
-  const parts = [`${post.slideCount} slide`]
+  const parts = [post.instagramEnabled ? `${post.slideCount} slide` : 'Threads']
   if (post.inProgress > 0) parts.push('sedang dibuat')
   else if (post.status === 'scheduled' && post.scheduledAt) {
     parts.push(`terbit ${formatShortDate(post.scheduledAt)} ${formatTime(post.scheduledAt)}`)
@@ -34,28 +36,35 @@ function meta(post: ContentListItem): string {
 }
 
 /** Buat's left column: the posts still worth editing and the AI's ideas for new ones. */
-export function ContentList({ posts, ideas, selectedId, selectedIdeaId, strategy, className }: ContentListProps) {
+export function ContentList({ posts, ideas, selectedId, selectedIdeaId, strategy, platform, className }: ContentListProps) {
+  const threads = platform === 'threads'
+  const tab = threads ? '&platform=threads' : ''
+  const shown = posts.filter((post) => (threads ? post.threadsEnabled : post.instagramEnabled))
   return (
     <aside aria-label="Daftar konten" className={`${className} min-h-0 w-full shrink-0 flex-col md:w-[320px] md:border-r md:border-hairline`}>
       <div className="px-4 pt-3 pb-2">
         <Link
-          href="/buat?baru=1"
+          href={`/buat?baru=1${tab}`}
           className="flex h-10 items-center justify-center gap-2 rounded-xl bg-accent text-sm font-semibold text-white transition-colors hover:bg-accent-deep"
         >
           <Plus size={16} aria-hidden="true" />
-          Konten baru
+          {threads ? 'Post Threads baru' : 'Konten baru'}
         </Link>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-1 pb-5">
-        <ListSection title="Post jadi" count={posts.length}>
-          {posts.length === 0 ? (
-            <p className="py-2 text-sm text-ink-muted">Belum ada post. Mulai dari ide di bawah, atau tulis topik sendiri.</p>
+        <ListSection title="Post jadi" count={shown.length}>
+          {shown.length === 0 ? (
+            <p className="py-2 text-sm text-ink-muted">
+              {threads
+                ? 'Belum ada post Threads. Tulis yang pertama di kanan, atau nyalakan Threads di post Instagram lewat Pilih platform.'
+                : 'Belum ada post. Mulai dari ide di bawah, atau tulis topik sendiri.'}
+            </p>
           ) : (
             <ul>
-              {posts.map((post) => (
+              {shown.map((post) => (
                 <li key={post.id}>
                   <Link
-                    href={`/buat?id=${post.id}`}
+                    href={`/buat?id=${post.id}${tab}`}
                     aria-current={post.id === selectedId ? 'page' : undefined}
                     className={`${ITEM} ${post.id === selectedId ? ACTIVE : ''}`}
                   >

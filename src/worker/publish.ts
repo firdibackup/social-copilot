@@ -16,9 +16,10 @@ import {
   type ClaimedPost,
 } from '@/lib/posts'
 
-const MAX_ATTEMPTS = 5
-const RETRY_DELAYS_MINUTES = [1, 5, 15, 30]
-const LATE_LIMIT_MS = 60 * 60 * 1000
+// The Threads loop (threads-publish.ts) retries on the same schedule.
+export const MAX_ATTEMPTS = 5
+export const RETRY_DELAYS_MINUTES = [1, 5, 15, 30]
+export const LATE_LIMIT_MS = 60 * 60 * 1000
 
 const RECONNECT_MESSAGE = 'Sambungkan ulang Instagram di Pengaturan, lalu pilih Coba lagi.'
 const LATE_MESSAGE = 'Terlewat lebih dari 60 menit dari jadwal. Pilih Coba lagi untuk menerbitkan sekarang.'

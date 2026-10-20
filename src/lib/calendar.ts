@@ -48,6 +48,18 @@ export function weekCounts(weeks: string[][], dayKeys: string[]): number[] {
   return weeks.map((week) => week.reduce((count, day) => count + (countByDay.get(day) ?? 0), 0))
 }
 
+/** The day `count` days after a `YYYY-MM-DD` key, or before it when negative. */
+export function addDays(day: string, count: number): string {
+  return toKey(new Date(new Date(`${day}T00:00:00Z`).getTime() + count * DAY_MS))
+}
+
+const shortDayFormat = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+
+/** e.g. "22 Okt" for a `YYYY-MM-DD` key. */
+export function formatShortDay(day: string): string {
+  return shortDayFormat.format(new Date(`${day}T00:00:00Z`))
+}
+
 const dayFormat = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
 
 /** e.g. "14 Oktober 2026" for a `YYYY-MM-DD` key. */

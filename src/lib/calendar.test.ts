@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { buildMonthGrid, parseMonth, shiftMonth, weekCounts } from './calendar'
+import { addDays, buildMonthGrid, formatShortDay, parseMonth, shiftMonth, weekCounts } from './calendar'
+
+describe('addDays', () => {
+  it('moves a week across a month and a year', () => {
+    expect(addDays('2026-10-28', 7)).toBe('2026-11-04')
+    expect(addDays('2027-01-03', -7)).toBe('2026-12-27')
+  })
+})
+
+describe('formatShortDay', () => {
+  it('names a day key briefly', () => {
+    expect(formatShortDay('2026-10-22')).toBe('22 Okt')
+  })
+})
 
 describe('buildMonthGrid', () => {
   it('starts on Monday and pads with the neighbouring months', () => {

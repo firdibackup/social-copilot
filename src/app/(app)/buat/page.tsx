@@ -10,11 +10,15 @@ import { requireAccount } from '@/lib/auth'
 import { getBrandKit, getStrategy } from '@/lib/brand'
 import { getConnection } from '@/lib/connection'
 import { describeError, loadErrorMessage } from '@/lib/errors'
-import { slotOn, suggestedSlot } from '@/lib/format'
+import { parseWibInput, slotOn, suggestedSlot, toSlot } from '@/lib/format'
 import { getIdea, listIdeas } from '@/lib/ideas'
 import { firstValue, isUuid, type SearchParams } from '@/lib/params'
+import { listThreadItems } from '@/lib/post-threads'
 import { getPost, listContentPosts } from '@/lib/posts'
+import { getScheduleSettings, listTakenTimes } from '@/lib/schedule'
+import { MIN_SLOT_LEAD_MS, nextEmptySlots, SLOT_LOOKAHEAD_DAYS } from '@/lib/schedule-slots'
 import { listUnfinishedSlides, type SlideRecord } from '@/lib/slides'
+import { getThreadsConnection } from '@/lib/threads-connection'
 import { ContentEditor } from './content-editor'
 import { ContentList } from './content-list'
 import type { SlideView } from './post-mockup'
@@ -29,6 +33,8 @@ const OK_MESSAGES: Record<string, string> = {
   cancel: 'Jadwal dibatalkan.',
   retry: 'Post dijadwalkan ulang untuk terbit sekarang.',
   duplicate: 'Salinan dibuat sebagai draft.',
+  threads: 'Versi Threads masuk antrean dan akan diterbitkan worker dalam 30 detik.',
+  story: 'Story masuk antrean dan akan dibagikan worker dalam 30 detik.',
 }
 
 const FAILED_MESSAGES: Record<string, string> = {
@@ -36,7 +42,14 @@ const FAILED_MESSAGES: Record<string, string> = {
   retry: 'Post ini tidak bisa dicoba lagi pada statusnya sekarang.',
   duplicate: 'Post gagal diduplikat. Coba lagi.',
   hapus: 'Post tidak bisa dihapus saat sedang diterbitkan.',
+  threads:
+    'Versi Threads belum bisa diterbitkan. Pastikan Threads terhubung di Pengaturan dan isi post Threads-nya tidak kosong atau terlalu panjang.',
+  story: 'Story ini tidak bisa dicoba lagi pada statusnya sekarang.',
 }
+
+/** The Jadwalkan dialog's next empty slot plus the queue under it. */
+const QUEUE_SIZE = 5
+const DAY_MS = 24 * 60 * 60 * 1000
 
 interface BuatPageProps {
   searchParams: Promise<SearchParams>
@@ -58,9 +71,16 @@ const toView = (slide: SlideRecord): SlideView => ({
   error: slide.error,
 })
 
+/** A slot picked in Kalender (`?slot=`), while it is still ahead. */
+function pickedSlot(value: string | undefined, now: Date) {
+  const at = value ? parseWibInput(value) : null
+  return at && at.getTime() - now.getTime() >= MIN_SLOT_LEAD_MS ? toSlot(at, now) : null
+}
+
 /**
  * Two columns: the post list and ideas, and the editor. `?id=` opens a post, `?ide=` starts a new one from an idea,
- * `?baru=1` starts an empty one, and `?tanggal=` (a day picked in Kalender) starts one suggested for that day. On a
+ * `?baru=1` starts an empty one, `?tanggal=` (a day picked in Kalender) starts one suggested for that day, and
+ * `?slot=` (an empty slot picked in Kalender) one for that slot. `?platform=threads` shows the Threads version. On a
  * phone only one column shows at a time.
  */
 async function Workspace({ searchParams }: BuatPageProps) {
@@ -70,6 +90,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
   const id = firstValue(params.id)
   const ideaParam = firstValue(params.ide)
   const postId = isUuid(id) ? id : null
+  const now = new Date()
 
   let data
   try {
@@ -91,7 +112,30 @@ async function Workspace({ searchParams }: BuatPageProps) {
       ),
       getPlan(),
     ])
-    data = { posts, ideas, post, slides, idea, instagram, kit, strategy, products, library, credits, plan }
+    // Slots and Threads only add to the editor: without them it works as before.
+    const [schedule, taken, threads, threadItems] = await Promise.all([
+      getScheduleSettings(userId, accountId).catch(logAndNull),
+      listTakenTimes(userId, accountId, now, new Date(now.getTime() + SLOT_LOOKAHEAD_DAYS * DAY_MS)).catch(() => []),
+      getThreadsConnection(userId, accountId).catch(logAndNull),
+      postId ? listThreadItems(userId, postId) : [],
+    ])
+    data = {
+      posts,
+      ideas,
+      post,
+      slides,
+      idea,
+      instagram,
+      kit,
+      strategy,
+      products,
+      library,
+      credits,
+      plan,
+      queue: schedule ? nextEmptySlots(schedule.slots, taken, now, QUEUE_SIZE).map((at) => toSlot(at, now)) : [],
+      threads,
+      threadItems,
+    }
   } catch (error) {
     console.error('[buat] gagal memuat:', describeError(error))
     return (
@@ -102,13 +146,19 @@ async function Workspace({ searchParams }: BuatPageProps) {
   }
 
   const { posts, ideas, post, slides, idea, instagram, kit, strategy, products, library, credits, plan } = data
-  const now = new Date()
+  const { queue, threads, threadItems } = data
+  const platform = firstValue(params.platform) === 'threads' ? 'threads' : 'instagram'
   const day = firstValue(params.tanggal) ?? ''
   const daySlot = day ? slotOn(day, now) : null
-  const editing = Boolean(postId || idea || daySlot || firstValue(params.baru))
+  const slotParam = firstValue(params.slot)
+  const kalenderSlot = pickedSlot(slotParam, now)
+  const editing = Boolean(postId || idea || daySlot || kalenderSlot || firstValue(params.baru))
   const ok = OK_MESSAGES[firstValue(params.ok) ?? '']
   const failed = FAILED_MESSAGES[firstValue(params.gagal) ?? '']
   const instagramReady = instagram?.status === 'active'
+  const threadsLink = !threads ? 'none' : threads.status === 'active' ? 'active' : 'needs_reconnect'
+  const threadsLocked =
+    post?.threads?.status === 'publishing' || post?.threads?.status === 'published' || threadItems.some((item) => item.isSent)
 
   const notices = (
     <>
@@ -123,11 +173,21 @@ async function Workspace({ searchParams }: BuatPageProps) {
         </Notice>
       )}
       {post && <StatusNote post={post} />}
-      {post && !instagramReady && post.status !== 'published' && (
+      {post?.instagramEnabled && !instagramReady && post.status !== 'published' && (
         <Notice tone="warning">
           Instagram belum tersambung atau perlu disambungkan ulang. Post tetap bisa dijadwalkan, tetapi akan gagal terbit
           sampai akun disambungkan di{' '}
           <Link href="/pengaturan" className="underline">
+            Pengaturan
+          </Link>
+          .
+        </Notice>
+      )}
+      {post?.threads?.enabled && threadsLink !== 'active' && post.threads.status !== 'published' && (
+        <Notice tone="warning">
+          Threads belum terhubung atau perlu disambungkan ulang, jadi versi Threads akan gagal terbit sampai Threads
+          dihubungkan di{' '}
+          <Link href="/pengaturan#threads" className="underline">
             Pengaturan
           </Link>
           .
@@ -144,11 +204,12 @@ async function Workspace({ searchParams }: BuatPageProps) {
         selectedId={post?.id ?? null}
         selectedIdeaId={idea?.id ?? null}
         strategy={strategy}
+        platform={platform}
         className={editing ? 'hidden md:flex' : 'flex'}
       />
       <section aria-label="Editor" className={`min-h-0 min-w-0 flex-1 flex-col ${editing ? 'flex' : 'hidden md:flex'}`}>
         <ContentEditor
-          key={post?.id ?? `baru-${idea?.id ?? ''}`}
+          key={post?.id ?? `baru-${idea?.id ?? ''}-${platform}`}
           post={post}
           slides={slides.map(toView)}
           idea={idea}
@@ -163,12 +224,23 @@ async function Workspace({ searchParams }: BuatPageProps) {
           hasLogo={kit.logoUrl !== null}
           credits={credits}
           planCredits={plan.credits}
-          slot={daySlot ?? suggestedSlot(now)}
+          slot={kalenderSlot ?? daySlot ?? queue[0] ?? suggestedSlot(now)}
+          queue={queue}
           day={daySlot ? day : null}
+          slotParam={kalenderSlot ? (slotParam ?? null) : null}
           library={library}
           notices={notices}
+          platform={platform}
+          threadsAccount={{ link: threadsLink, username: threads?.username ?? null }}
+          threadItems={threadItems.map((item) => ({ text: item.text, media: item.media }))}
+          threadsEditable={!threadsLocked && (post === null || ['draft', 'scheduled', 'failed', 'cancelled'].includes(post.status))}
         />
       </section>
     </div>
   )
+}
+
+function logAndNull(error: unknown): null {
+  console.error('[buat] jadwal atau Threads gagal dimuat:', describeError(error))
+  return null
 }

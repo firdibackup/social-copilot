@@ -75,7 +75,7 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
   vi.mocked(listRules).mockResolvedValue([rule()])
   vi.mocked(claimRun).mockResolvedValue('run-1')
-  vi.mocked(getPublishingAccount).mockResolvedValue({ accessToken: 'token', instagramUserId: ACCOUNT })
+  vi.mocked(getPublishingAccount).mockResolvedValue({ accessToken: 'token', instagramUserId: ACCOUNT, username: 'toko' })
   vi.mocked(sendAutoDm).mockResolvedValue({ messageId: 'mid-out', recipientId: CUSTOMER })
   vi.mocked(replyToComment).mockResolvedValue('reply-1')
   vi.mocked(getConversation).mockResolvedValue(null)

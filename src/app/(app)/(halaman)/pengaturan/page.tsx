@@ -3,6 +3,9 @@ import { Suspense } from 'react'
 import type { SearchParams } from '@/lib/params'
 import { FacebookSettings } from './facebook-settings'
 import { InstagramSettings } from './instagram-settings'
+import { ScheduleSettings } from './schedule-settings'
+import { StorySettings } from './story-settings'
+import { ThreadsSettings } from './threads-settings'
 
 export const metadata: Metadata = { title: 'Pengaturan' }
 
@@ -22,10 +25,21 @@ export default function PengaturanPage({ searchParams }: PengaturanPageProps) {
       >
         <InstagramSettings searchParams={searchParams} />
       </Suspense>
+      <Suspense fallback={<p className="rounded-xl border border-zinc-200 p-6 text-sm text-zinc-500">Memuat Story…</p>}>
+        <StorySettings />
+      </Suspense>
+      <Suspense
+        fallback={<p className="rounded-xl border border-zinc-200 p-6 text-sm text-zinc-500">Memuat koneksi Threads…</p>}
+      >
+        <ThreadsSettings searchParams={searchParams} />
+      </Suspense>
       <Suspense
         fallback={<p className="rounded-xl border border-zinc-200 p-6 text-sm text-zinc-500">Memuat koneksi Facebook…</p>}
       >
         <FacebookSettings searchParams={searchParams} />
+      </Suspense>
+      <Suspense fallback={<p className="rounded-xl border border-zinc-200 p-6 text-sm text-zinc-500">Memuat jadwal…</p>}>
+        <ScheduleSettings />
       </Suspense>
     </div>
   )

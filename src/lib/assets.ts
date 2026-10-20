@@ -471,6 +471,24 @@ export async function loadAssetBytes(userId: string, assetId: string): Promise<U
   return new Uint8Array(await data.arrayBuffer())
 }
 
+/** A file in the media bucket by its path, for the worker. */
+export async function downloadMedia(path: string): Promise<Uint8Array> {
+  const { data, error } = await bucket().download(path)
+  if (error) throw new Error(`Supabase Storage: ${error.message}`)
+  return new Uint8Array(await data.arrayBuffer())
+}
+
+/** Writes a worker-made JPEG that isn't a library photo (no assets row), replacing one already there. */
+export async function uploadMediaFile(path: string, bytes: Uint8Array): Promise<void> {
+  const { error } = await bucket().upload(path, bytes, { contentType: 'image/jpeg', upsert: true })
+  if (error) throw new Error(`Supabase Storage: ${error.message}`)
+}
+
+export async function removeMediaFile(path: string): Promise<void> {
+  const { error } = await bucket().remove([path])
+  if (error) throw new Error(`Supabase Storage: ${error.message}`)
+}
+
 /** Deletes the row first: if a post still uses the photo, the foreign key stops it before the file is gone. */
 export async function deleteAsset(userId: string, id: string): Promise<void> {
   const result = await db().from('assets').delete().eq('id', id).eq('user_id', userId).select('storage_path')

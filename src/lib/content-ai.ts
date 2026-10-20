@@ -335,12 +335,16 @@ export function buildIdeasMessages(brand: BrandContext, recent: string[]): ChatM
           ...pillars.map((pillar, index) => `- ${pillar.name} (${pillar.id}): ${quota[index]} ide`),
         ]
       : []
+  const mix =
+    pillars.length > 0
+      ? 'sesuai strategi konten di atas, mengikuti pilar dan fokusnya'
+      : 'campuran edukasi atau tips, cerita di balik layar, promosi, dan interaksi dengan pengikut'
   return [
     { role: 'system', content: IDEAS_SYSTEM },
     {
       role: 'user',
       content: [
-        `${describeBrand(brand)}Tugas: beri ${IDEAS_COUNT} ide post Instagram yang berbeda-beda untuk brand ini: campuran edukasi atau tips, cerita di balik layar, promosi, dan interaksi dengan pengikut. Setiap ide berupa satu kalimat pendek, maksimal 12 kata, yang cukup jelas untuk dijadikan topik post.`,
+        `${describeBrand(brand)}Tugas: beri ${IDEAS_COUNT} ide post Instagram yang berbeda-beda untuk brand ini: ${mix}. Setiap ide berupa satu kalimat pendek, maksimal 12 kata, yang cukup jelas untuk dijadikan topik post.`,
         ...strategyGuide,
         pillars.length > 0 ? 'Format JSON: {"ideas": [{"title": "…", "pillarId": "…"}]}' : 'Format JSON: {"ideas": ["…"]}',
         ...avoid,

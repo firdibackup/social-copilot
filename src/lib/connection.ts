@@ -257,6 +257,7 @@ async function refreshStoredToken(userId: string, currentToken: string): Promise
 export interface PublishingAccount {
   accessToken: string
   instagramUserId: string
+  username: string
 }
 
 /** A usable access token and its account id, refreshing the token first when it is close to expiry. */
@@ -275,7 +276,7 @@ export async function getPublishingAccount(userId: string): Promise<PublishingAc
   const accessToken = shouldRefreshToken(new Date(row.token_refreshed_at), expiresAt, now)
     ? await refreshStoredToken(userId, token)
     : token
-  return { accessToken, instagramUserId: row.instagram_user_id }
+  return { accessToken, instagramUserId: row.instagram_user_id, username: row.username }
 }
 
 /** Returns a usable access token, refreshing it first when it is close to expiry. */
