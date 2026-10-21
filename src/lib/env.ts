@@ -2,6 +2,7 @@ import 'server-only'
 import { ConfigError } from './errors'
 
 type ServerEnvKey =
+  | 'APIFY_TOKEN'
   | 'FACEBOOK_APP_ID'
   | 'FACEBOOK_APP_SECRET'
   | 'FACEBOOK_REDIRECT_URI'

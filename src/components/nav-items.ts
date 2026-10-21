@@ -6,6 +6,7 @@ import {
   Palette,
   Settings,
   ShieldCheck,
+  Sparkles,
   WandSparkles,
   type LucideIcon,
 } from 'lucide-react'
@@ -21,10 +22,11 @@ export interface NavItem {
 /** The app's pages, for the sidebar, the phone's bottom bar and the breadcrumb. */
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: '/kalender', label: 'Kalender', icon: CalendarDays },
+  { href: '/sigap', label: 'Sigap', icon: Sparkles },
   { href: '/buat', label: 'Buat', icon: WandSparkles },
   { href: '/balasan', label: 'Balasan', icon: MessageCircle },
   { href: '/analitik', label: 'Analitik', icon: ChartNoAxesColumn, desktopOnly: true },
-  { href: '/aset', label: 'Aset', icon: ImageIcon },
+  { href: '/aset', label: 'Aset', icon: ImageIcon, desktopOnly: true },
   { href: '/brand', label: 'Brand', icon: Palette },
   { href: '/pengaturan', label: 'Pengaturan', icon: Settings },
 ]

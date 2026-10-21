@@ -31,6 +31,9 @@ export const TASK_LABELS: Record<string, string> = {
   asset_tags: 'Tag foto',
   reply_draft: 'Draf balasan',
   template_analysis: 'Analisis template',
+  chat: 'Chat Sigap',
+  deep_search: 'Intel Kompetitor',
+  chat_summary: 'Ringkasan chat Sigap',
 }
 
 export const ACTION_LABELS: Record<string, string> = {

@@ -50,14 +50,16 @@ function readContent(body: unknown): string {
 }
 
 /** The key travels only in the header; errors never carry the URL or headers. */
-async function post(path: string, body: unknown, timeoutMs: number, accept?: string): Promise<Response> {
+async function post(path: string, body: unknown, timeoutMs: number, accept?: string, outerSignal?: AbortSignal): Promise<Response> {
   const url = `${env('ROUTER_API_BASE_URL').replace(/\/+$/, '')}${path}`
   const headers: Record<string, string> = {
     authorization: `Bearer ${env('ROUTER_API_KEY')}`,
     'content-type': 'application/json',
     ...(accept ? { accept } : {}),
   }
-  return fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) }).catch(
+  const timeout = AbortSignal.timeout(timeoutMs)
+  const signal = outerSignal ? AbortSignal.any([timeout, outerSignal]) : timeout
+  return fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal }).catch(
     (error: unknown) => {
       const reason = isObject(error) && typeof error.name === 'string' ? error.name : 'unknown'
       throw new RouterApiError(`9Router tidak bisa dihubungi (${reason})`, 0)
@@ -69,11 +71,13 @@ async function post(path: string, body: unknown, timeoutMs: number, accept?: str
  * One chat completion, returning the answer's text. `stream: false` must be explicit: without it 9Router answers with
  * SSE. `model` defaults to the admin's text model (textModel()).
  */
-export async function chatCompletion(messages: ChatMessage[], model?: string): Promise<string> {
+export async function chatCompletion(messages: ChatMessage[], model?: string, signal?: AbortSignal): Promise<string> {
   const response = await post(
     '/chat/completions',
     { model: model ?? (await textModel()), messages, stream: false, max_tokens: MAX_TOKENS },
     REQUEST_TIMEOUT_MS,
+    undefined,
+    signal,
   )
   const body: unknown = await response.json().catch(() => null)
   if (!response.ok) throw new RouterApiError(errorMessage(body, response.status), response.status)
@@ -168,6 +172,137 @@ export async function generateImage({ prompt, size, images }: ImageRequest, mode
     throw new RouterApiError('Stream gambar dari 9Router terputus', 0)
   })
   return readImageStream(text)
+}
+
+/** A function the model may call, OpenAI-style. `parameters` is a JSON Schema object. */
+export interface ToolSchema {
+  type: 'function'
+  function: { name: string; description: string; parameters: Json }
+}
+
+/** A call the model asked for. `arguments` is a JSON string, as 9Router passes it on (verified 2026-10-21). */
+export interface ToolCall {
+  id: string
+  type: 'function'
+  function: { name: string; arguments: string }
+}
+
+export interface AssistantMessage {
+  role: 'assistant'
+  content: string | null
+  tool_calls?: ToolCall[]
+}
+
+export interface ToolResultMessage {
+  role: 'tool'
+  tool_call_id: string
+  content: string
+}
+
+/** A turn of a conversation with tools: ChatMessage plus the model's turns and the tools' answers. */
+export type ConversationMessage = ChatMessage | AssistantMessage | ToolResultMessage
+
+/** The model's turn: its text, and the calls it wants run before it answers (none once it is done). */
+export interface ChatAnswer {
+  content: string
+  toolCalls: ToolCall[]
+}
+
+function readToolCalls(value: unknown): ToolCall[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((call): ToolCall[] => {
+    if (!isObject(call) || typeof call.id !== 'string' || !isObject(call.function)) return []
+    const { name, arguments: args } = call.function
+    if (typeof name !== 'string' || name === '') return []
+    return [{ id: call.id, type: 'function', function: { name, arguments: typeof args === 'string' ? args : '{}' } }]
+  })
+}
+
+/** Reads a completion that may hold tool calls. Pure, for tests. */
+export function readChatAnswer(body: unknown): ChatAnswer {
+  const choice = isObject(body) && Array.isArray(body.choices) ? body.choices[0] : undefined
+  const message = isObject(choice) && isObject(choice.message) ? choice.message : undefined
+  const content = typeof message?.content === 'string' ? message.content : ''
+  const toolCalls = readToolCalls(message?.tool_calls)
+  if (content.trim() === '' && toolCalls.length === 0) throw new RouterApiError('Respons 9Router tanpa isi', 200)
+  return { content, toolCalls }
+}
+
+/**
+ * One turn of a conversation the model may answer with tool calls (OpenAI `tools`; verified through 9Router with
+ * Claude Haiku 4.5 on 2026-10-21: `finish_reason: tool_calls`, then a `role: tool` message gets the final text).
+ */
+export async function chatWithTools(
+  messages: ConversationMessage[],
+  tools: ToolSchema[],
+  model?: string,
+  signal?: AbortSignal,
+): Promise<ChatAnswer> {
+  const response = await post(
+    '/chat/completions',
+    {
+      model: model ?? (await textModel()),
+      messages,
+      ...(tools.length > 0 ? { tools } : {}),
+      stream: false,
+      max_tokens: MAX_TOKENS,
+    },
+    REQUEST_TIMEOUT_MS,
+    undefined,
+    signal,
+  )
+  const body: unknown = await response.json().catch(() => null)
+  if (!response.ok) throw new RouterApiError(errorMessage(body, response.status), response.status)
+  return readChatAnswer(body)
+}
+
+/** Grounded search took about 7 s for three results. */
+const SEARCH_TIMEOUT_MS = 45_000
+/** Each result's text is cut here, so a few results stay well under nginx's 1 MB once sent back to the model. */
+const SEARCH_CONTENT_LENGTH = 1_500
+
+export interface SearchResult {
+  title: string
+  url: string
+  snippet: string
+  publishedAt: string | null
+}
+
+/** Reads `{ results: [{ title, url, snippet, content, published_at }] }`. Pure, for tests. */
+export function readSearchResults(body: unknown, max: number): SearchResult[] {
+  const results = isObject(body) && Array.isArray(body.results) ? body.results : []
+  return results
+    .flatMap((item): SearchResult[] => {
+      if (!isObject(item)) return []
+      const title = typeof item.title === 'string' ? item.title.trim() : ''
+      const givenUrl = typeof item.url === 'string' ? item.url : ''
+      let url = ''
+      try {
+        const parsed = new URL(givenUrl)
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') url = givenUrl
+      } catch {
+        // Search results are untrusted; malformed and non-web links never become clickable cards.
+      }
+      const text = typeof item.content === 'string' && item.content.trim() ? item.content : item.snippet
+      const snippet = typeof text === 'string' ? text.replace(/\s+/g, ' ').trim().slice(0, SEARCH_CONTENT_LENGTH) : ''
+      if ((!title && !snippet) || !url) return []
+      return [{ title, url, snippet, publishedAt: typeof item.published_at === 'string' ? item.published_at : null }]
+    })
+    .slice(0, max)
+}
+
+/** A web search through 9Router (`POST /search`, the `ag` provider; verified 2026-10-21). */
+export async function webSearch(query: string, maxResults: number, signal?: AbortSignal): Promise<SearchResult[]> {
+  const response = await post(
+    '/search',
+    { model: 'ag', query, search_type: 'web', max_results: maxResults },
+    SEARCH_TIMEOUT_MS,
+    undefined,
+    signal,
+  )
+  const body: unknown = await response.json().catch(() => null)
+  if (!response.ok) throw new RouterApiError(errorMessage(body, response.status), response.status)
+  return readSearchResults(body, maxResults)
 }
 
 const LIST_TIMEOUT_MS = 15_000

@@ -38,6 +38,13 @@ export const TASK_CREDITS: Record<LoggedTask, number> = {
   reply_draft: 1,
   /** Admin › Template: the admin's own analysis, never charged (runLogged's `unmetered`). */
   template_analysis: 0,
+  /**
+   * Sigap costs no credits: chat and Intel Kompetitor are capped per day instead (DAILY_LIMITS in chat-options.ts),
+   * with atomic counters; these rows remain the audit log. A script it writes is still `content_script`.
+   */
+  chat: 0,
+  deep_search: 0,
+  chat_summary: 0,
 }
 
 /** A new post with `slides` images: its caption and plan plus every image. */

@@ -226,15 +226,23 @@ export async function updateBrandKit(
   )
 }
 
-/** The text the caption prompts use, with the strategy, or null when none of it is filled in. */
-export async function getBrandContext(userId: string): Promise<BrandContext | null> {
-  const row = await loadConnectedKit(userId)
+function contextFromKit(row: KitRow | null): BrandContext | null {
   if (!row) return null
   const fields = toFields(row)
   const context: BrandContext = Object.fromEntries(PROFILE_FIELDS.map((field) => [field, fields[field]])) as ProfileText
   const strategy = readStoredStrategy(row.strategy)
   if (strategy) context.strategy = strategy
   return strategy || PROFILE_FIELDS.some((field) => context[field]) ? context : null
+}
+
+/** The text the caption prompts use, with the strategy, or null when none of it is filled in. */
+export async function getBrandContext(userId: string): Promise<BrandContext | null> {
+  return contextFromKit(await loadConnectedKit(userId))
+}
+
+/** Brand context for an account already captured by a long-running request. */
+export async function getAccountBrandContext(userId: string, accountId: string): Promise<BrandContext | null> {
+  return contextFromKit(await loadKit(userId, accountId))
 }
 
 /** The connected account's strategy, for AI prompts; null without one. */

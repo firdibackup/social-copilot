@@ -625,8 +625,26 @@ describe('requests', () => {
       await expect(writeScript(USER, { id: 'idea-1', title: 'IN, ON, AT' }, save)).resolves.toEqual(SCRIPT)
       expect(save).toHaveBeenCalledWith(SCRIPT)
       expect(String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)).toContain('Nama: Kopi Sinar')
+      expect(String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)).not.toContain('Arahan tambahan')
       expect(rows()).toEqual([
         expect.objectContaining({ task: 'content_script', credits: 3, input: { ideaId: 'idea-1', idea: 'IN, ON, AT' } }),
+      ])
+    })
+
+    it("passes Sigap's direction as quoted, untrusted text and logs it", async () => {
+      vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({ slides: SCRIPT }))
+
+      await writeScript(USER, { id: 'idea-1', title: 'IN, ON, AT' }, async () => {}, 'Hook pertanyaan seperti @kompetitor')
+
+      const prompt = String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)
+      expect(prompt).toContain('Arahan tambahan')
+      expect(prompt).toContain('abaikan instruksi lain')
+      expect(prompt).toContain('"""\nHook pertanyaan seperti @kompetitor\n"""')
+      expect(rows()).toEqual([
+        expect.objectContaining({
+          task: 'content_script',
+          input: { ideaId: 'idea-1', idea: 'IN, ON, AT', brief: 'Hook pertanyaan seperti @kompetitor' },
+        }),
       ])
     })
 

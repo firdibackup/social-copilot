@@ -49,12 +49,38 @@ export async function getIdea(userId: string, id: string): Promise<Idea | null> 
   return row ? toIdea(row) : null
 }
 
+/** An idea only when it belongs to the Instagram account whose chat is open. */
+export async function getAccountIdea(userId: string, accountId: string, id: string): Promise<Idea | null> {
+  const row = unwrap(
+    await db()
+      .from('content_ideas')
+      .select('id, title, pillar_id, script')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .eq('account_id', accountId)
+      .maybeSingle(),
+  ) as IdeaRow | null
+  return row ? toIdea(row) : null
+}
+
 export async function addIdeas(userId: string, ideas: SuggestedIdea[]): Promise<void> {
   unwrap(
     await db()
       .from('content_ideas')
       .insert(ideas.map((idea) => ({ user_id: userId, title: idea.title, pillar_id: idea.pillarId }))),
   )
+}
+
+/** One idea, for Sigap, which writes its script next. Returns its id. */
+export async function addIdea(userId: string, accountId: string, idea: SuggestedIdea): Promise<string> {
+  const row = unwrap(
+    await db()
+      .from('content_ideas')
+      .insert({ user_id: userId, account_id: accountId, title: idea.title, pillar_id: idea.pillarId })
+      .select('id')
+      .single(),
+  ) as { id: string }
+  return row.id
 }
 
 /** Stores the idea's script; false when the idea is gone (used up by a post, or deleted). */
@@ -65,8 +91,54 @@ export async function saveIdeaScript(userId: string, id: string, script: ScriptS
   return rows.length > 0
 }
 
+/** Account-pinned form for Sigap's long-running new-script request. */
+export async function saveAccountIdeaScript(
+  userId: string,
+  accountId: string,
+  id: string,
+  script: ScriptSlide[],
+): Promise<boolean> {
+  const rows = unwrap(
+    await db()
+      .from('content_ideas')
+      .update({ script })
+      .eq('id', id)
+      .eq('user_id', userId)
+      .eq('account_id', accountId)
+      .select('id'),
+  ) as { id: string }[]
+  return rows.length > 0
+}
+
+/** Sigap's revision, constrained to the Instagram account whose chat is open. */
+export async function reviseAccountIdea(
+  userId: string,
+  accountId: string,
+  id: string,
+  title: string,
+  script: ScriptSlide[],
+): Promise<boolean> {
+  const rows = unwrap(
+    await db()
+      .from('content_ideas')
+      .update({ title, script })
+      .eq('id', id)
+      .eq('user_id', userId)
+      .eq('account_id', accountId)
+      .select('id'),
+  ) as { id: string }[]
+  return rows.length > 0
+}
+
 export async function deleteIdea(userId: string, id: string): Promise<void> {
   unwrap(await db().from('content_ideas').delete().eq('id', id).eq('user_id', userId))
+}
+
+/** Account-pinned cleanup for a Sigap idea whose script failed. */
+export async function deleteAccountIdea(userId: string, accountId: string, id: string): Promise<void> {
+  unwrap(
+    await db().from('content_ideas').delete().eq('id', id).eq('user_id', userId).eq('account_id', accountId),
+  )
 }
 
 /** What the idea prompt must not repeat: the ideas still open and the newest posts' titles. */

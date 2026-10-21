@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { contentCost, formatCreditShare, formatRupiah, usedPercent } from './billing-options'
+import { contentCost, formatCreditShare, formatRupiah, TASK_CREDITS, usedPercent } from './billing-options'
+
+describe('TASK_CREDITS', () => {
+  it('makes Sigap free: its chat, research and summary rows only count toward the daily limits', () => {
+    expect(TASK_CREDITS.chat).toBe(0)
+    expect(TASK_CREDITS.deep_search).toBe(0)
+    expect(TASK_CREDITS.chat_summary).toBe(0)
+    expect(TASK_CREDITS.content_script).toBe(3)
+  })
+})
 
 describe('contentCost', () => {
   it('charges the caption and plan once plus 20 credits for every slide image', () => {

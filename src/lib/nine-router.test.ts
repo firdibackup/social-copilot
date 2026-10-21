@@ -1,6 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ConfigError } from './errors'
-import { chatCompletion, generateImage, readImageStream, RouterApiError, type ChatMessage } from './nine-router'
+import {
+  chatCompletion,
+  chatWithTools,
+  generateImage,
+  readChatAnswer,
+  readImageStream,
+  readSearchResults,
+  RouterApiError,
+  webSearch,
+  type ChatMessage,
+  type ToolSchema,
+} from './nine-router'
 
 const MESSAGES: ChatMessage[] = [{ role: 'user', content: 'Halo' }]
 const fetchMock = vi.fn<typeof fetch>()
@@ -170,5 +181,90 @@ describe('generateImage', () => {
 
     expect(error).toBeInstanceOf(RouterApiError)
     expect(error).toMatchObject({ status: 400, message: expect.stringContaining('not supported') })
+  })
+})
+
+describe('readChatAnswer', () => {
+  it('reads the text and the tool calls, dropping malformed calls', () => {
+    const answer = readChatAnswer({
+      choices: [
+        {
+          message: {
+            content: null,
+            tool_calls: [
+              { id: 'call-1', type: 'function', function: { name: 'web_search', arguments: '{"query":"kopi"}' } },
+              { id: 'call-2', type: 'function', function: { name: 'check_content_status' } },
+              { id: 'call-3', type: 'function', function: { name: '' } },
+              { type: 'function', function: { name: 'no_id' } },
+            ],
+          },
+        },
+      ],
+    })
+
+    expect(answer).toEqual({
+      content: '',
+      toolCalls: [
+        { id: 'call-1', type: 'function', function: { name: 'web_search', arguments: '{"query":"kopi"}' } },
+        { id: 'call-2', type: 'function', function: { name: 'check_content_status', arguments: '{}' } },
+      ],
+    })
+  })
+
+  it('throws when there is neither text nor a call', () => {
+    expect(() => readChatAnswer({ choices: [{ message: { content: ' ' } }] })).toThrow(RouterApiError)
+    expect(() => readChatAnswer(null)).toThrow(RouterApiError)
+  })
+})
+
+describe('chatWithTools', () => {
+  const TOOL: ToolSchema = { type: 'function', function: { name: 'web_search', description: 'Cari', parameters: { type: 'object' } } }
+
+  it('sends the tools with the conversation and reads the answer', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ choices: [{ message: { content: 'Halo juga' } }] }))
+
+    await expect(chatWithTools(MESSAGES, [TOOL])).resolves.toEqual({ content: 'Halo juga', toolCalls: [] })
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({ messages: MESSAGES, tools: [TOOL], stream: false })
+  })
+
+  it('leaves tools out when there are none, and carries an error status', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: { message: 'bad' } }, 400))
+
+    await expect(failure(chatWithTools(MESSAGES, []))).resolves.toMatchObject({ status: 400, message: 'bad' })
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).not.toHaveProperty('tools')
+  })
+})
+
+describe('readSearchResults', () => {
+  it('prefers the page content over the snippet, flattened and cut, and stops at max', () => {
+    const results = readSearchResults(
+      {
+        results: [
+          { title: ' Tren kopi ', url: 'https://a.test', snippet: 'pendek', content: 'isi\n\npanjang', published_at: '2026-10-01' },
+          { title: 'B', url: 'https://b.test', snippet: 'x'.repeat(2_000) },
+          { url: 'https://kosong.test' },
+          { title: 'Bahaya', url: 'javascript:alert(1)', snippet: 'jangan ditampilkan' },
+          { title: 'C', url: 'https://c.test', snippet: 'c' },
+        ],
+      },
+      2,
+    )
+
+    expect(results).toEqual([
+      { title: 'Tren kopi', url: 'https://a.test', snippet: 'isi panjang', publishedAt: '2026-10-01' },
+      { title: 'B', url: 'https://b.test', snippet: 'x'.repeat(1_500), publishedAt: null },
+    ])
+    expect(readSearchResults({}, 5)).toEqual([])
+  })
+})
+
+describe('webSearch', () => {
+  it('posts the query to /search', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ results: [{ title: 'A', url: 'https://a.test', snippet: 'a' }] }))
+
+    await expect(webSearch('tren kopi', 3)).resolves.toHaveLength(1)
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://router.example/v1/search')
+    expect(JSON.parse(String(init?.body))).toEqual({ model: 'ag', query: 'tren kopi', search_type: 'web', max_results: 3 })
   })
 })

@@ -2,7 +2,7 @@ import 'server-only'
 import { getPlan, textModel } from './app-settings'
 import { creditsUsed, getCurrentPeriod, type Period } from './billing'
 import { TASK_CREDITS } from './billing-options'
-import { getBrandContext } from './brand'
+import { getAccountBrandContext, getBrandContext } from './brand'
 import { lengthOf, truncate, type BrandContext } from './brand-options'
 import { ConfigError, describeError } from './errors'
 import { formatShortDate } from './format'
@@ -91,6 +91,12 @@ export type LoggedTask =
   | 'asset_tags'
   | 'reply_draft'
   | 'template_analysis'
+  /** One message to Sigap, the chat, however many tools it ran. */
+  | 'chat'
+  /** One Intel Kompetitor run (Apify) inside a Sigap message. */
+  | 'deep_search'
+  /** The rolling summary of a Sigap conversation, written after the answer. */
+  | 'chat_summary'
 
 interface GenerationLog {
   user_id: string
@@ -182,6 +188,16 @@ export async function loadBrandContext(userId: string): Promise<BrandContext | n
     return await getBrandContext(userId)
   } catch (error) {
     console.error('[ai] brand kit gagal dimuat, lanjut tanpa brand:', describeError(error))
+    return null
+  }
+}
+
+/** Account-pinned form for requests that may outlive a connection switch. */
+export async function loadAccountBrandContext(userId: string, accountId: string): Promise<BrandContext | null> {
+  try {
+    return await getAccountBrandContext(userId, accountId)
+  } catch (error) {
+    console.error('[ai] brand kit akun gagal dimuat, lanjut tanpa brand:', describeError(error))
     return null
   }
 }

@@ -2,6 +2,9 @@
 import { lengthOf, truncate } from './brand-options'
 import { HEADLINE_MAX_LENGTH, MAX_SLIDES } from './image-options'
 
+/** A body line that is a point: its "- " or "• " marker, then its text. */
+export const BULLET = /^(\s*[-•]\s)(.*)$/
+
 export const SCRIPT_LABEL_MAX_LENGTH = 40
 export const SCRIPT_TITLE_MAX_LENGTH = 120
 

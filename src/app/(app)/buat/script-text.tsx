@@ -3,14 +3,13 @@
 import { useRouter } from 'next/navigation'
 import { Fragment, useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
 import type { Idea } from '@/lib/ideas'
-import { readScriptText, scriptLines, scriptToText, slideProblem, splitScriptText } from '@/lib/script-options'
+import { BULLET, readScriptText, scriptLines, scriptToText, slideProblem, splitScriptText } from '@/lib/script-options'
 import { generateScriptAction, saveScriptAction } from './content-actions'
 
 const AUTOSAVE_MS = 1000
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
 // Stroked rather than a heavier weight: the formatted copy lies under the textarea and must wrap exactly like it.
 const BOLD = '[-webkit-text-stroke:0.45px_currentColor]'
-const BULLET = /^(\s*[-•]\s)(.*)$/
 
 export interface ScriptText {
   text: string
