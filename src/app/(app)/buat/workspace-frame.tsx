@@ -21,7 +21,10 @@ export function WorkspaceFrame({ list, children }: { list: ReactNode; children: 
       if (navigating) return
       navigating = true
       void saveBeforeNavigation().then((saved) => {
-        if (saved) router.push(`${url.pathname}${url.search}${url.hash}`)
+        if (!saved) return
+        // Same-workspace selections only change the browser query; cached data renders synchronously.
+        if (url.pathname === '/buat') window.history.pushState(null, '', `${url.pathname}${url.search}${url.hash}`)
+        else router.push(`${url.pathname}${url.search}${url.hash}`)
       }).finally(() => { navigating = false })
     }
     document.addEventListener('click', onClick, true)

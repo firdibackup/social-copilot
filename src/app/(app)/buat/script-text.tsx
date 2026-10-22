@@ -8,6 +8,10 @@ import type { ContentJob } from '@/lib/content-jobs'
 import { BULLET, readScriptText, scriptLines, scriptToText, slideProblem, splitScriptText } from '@/lib/script-options'
 import { generateScriptAction, saveScriptAction } from './content-actions'
 import { useSaveBeforeNavigation } from './use-save-before-navigation'
+import { useQueryClient } from '@tanstack/react-query'
+import { editorKeys, type EditorDetail } from './editor-query'
+import { useEditorScope } from './editor-provider'
+import { createSaveQueue } from './save-queue'
 
 const AUTOSAVE_MS = 1000
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
@@ -41,6 +45,8 @@ export function useScriptText(
   job: ContentJob | null = null,
 ): ScriptText {
   const router = useRouter()
+  const client = useQueryClient()
+  const scope = useEditorScope()
   const [text, setText] = useState(() => (idea?.script ? scriptToText(idea.script) : (idea?.title ?? '')))
   const [version, setVersion] = useState(0)
   const [savedVersion, setSavedVersion] = useState(0)
@@ -60,13 +66,20 @@ export function useScriptText(
   const script = read && 'script' in read ? read.script : null
   const unsaved = idea !== null && read !== null && version !== savedVersion
 
-  async function persist(upTo: number) {
+  const [enqueueSave] = useState(createSaveQueue)
+  const persist = (upTo: number) => enqueueSave(upTo, () => saveSnapshot(upTo))
+  async function saveSnapshot(upTo: number) {
     if (!idea || !script) return false
     setSaving(true)
     const failure = await saveScriptAction({ ideaId: idea.id, script }).catch(() => FAILED)
     setSaving(false)
     setSaveError(failure)
     if (!failure) setSavedVersion((saved) => Math.max(saved, upTo))
+    if (!failure) {
+      await client.cancelQueries({ queryKey: [...editorKeys.all(scope), 'detail'] })
+      client.setQueriesData<EditorDetail>({ queryKey: [...editorKeys.all(scope), 'detail'] }, (current) =>
+        current?.idea?.id === idea.id ? { ...current, idea: { ...current.idea, script } } : current)
+    }
     return !failure
   }
 

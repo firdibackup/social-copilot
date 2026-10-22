@@ -2,7 +2,7 @@
 
 import { Check } from 'lucide-react'
 import type { RefObject } from 'react'
-import { MediaImage } from '@/components/media-image'
+import { Thumbnail } from './thumbnail'
 import { UploadButton } from '@/components/upload-button'
 import type { Asset } from '@/lib/assets'
 
@@ -56,7 +56,7 @@ export function PhotoPicker({ dialogRef, library, loading, error, onRetry, selec
                     onClick={() => onToggle(asset)}
                     className={`relative block w-full overflow-hidden rounded-lg border-2 ${position >= 0 ? 'border-accent' : 'border-transparent'}`}
                   >
-                    <MediaImage src={asset.url} className="aspect-square w-full object-cover" />
+                    <Thumbnail id={asset.id} src={asset.url} size={256} className="aspect-square w-full object-cover" />
                     {position >= 0 && (
                       <span className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-full bg-accent text-xs text-white">
                         {position + 1}

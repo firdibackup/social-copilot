@@ -174,13 +174,13 @@ export async function listPosts(userId: string, accountId: string, filter: PostF
   return toPosts(rows, true)
 }
 
-export async function getPost(userId: string, id: string): Promise<Post | null> {
+export async function getPost(userId: string, id: string, accountId?: string): Promise<Post | null> {
+  let query = db().from('posts')
+    .select(`${POST_FIELDS}, ${POST_THREADS_FIELDS}, ${POST_STORY_FIELDS}, ${MEDIA_FIELDS}`)
+    .eq('id', id).eq('user_id', userId)
+  if (accountId) query = query.eq('account_id', accountId)
   const row = unwrap(
-    await db()
-      .from('posts')
-      .select(`${POST_FIELDS}, ${POST_THREADS_FIELDS}, ${POST_STORY_FIELDS}, ${MEDIA_FIELDS}`)
-      .eq('id', id)
-      .eq('user_id', userId)
+    await query
       .maybeSingle()
       .overrideTypes<PostRow | null, { merge: false }>(),
   )
@@ -282,6 +282,7 @@ export function postLabel(post: Pick<Post, 'title' | 'caption'>): string {
 
 /** A post in Buat's list: not published yet, so still worth opening in the editor. */
 export interface ContentListItem {
+  coverAssetId?: string | null
   revision: string
   generation?: string | null
   id: string
@@ -311,7 +312,7 @@ interface ContentListRow {
   caption: string
   status: PostStatus
   scheduled_at: string | null
-  post_media: { position: number; assets: { storage_path: string } }[]
+  post_media: { position: number; assets: { id: string; storage_path: string } }[]
   post_slides: { id: string; status: string; updated_at: string }[]
   instagram_enabled: boolean
   post_threads: { enabled: boolean } | { enabled: boolean }[] | null
@@ -326,7 +327,7 @@ export async function listContentPosts(userId: string, accountId: string): Promi
     await db()
       .from('posts')
       .select(
-        'id, updated_at, title, caption, status, scheduled_at, instagram_enabled, post_media(position, assets(storage_path)), post_slides(id, status, updated_at), post_threads(enabled), content_jobs(kind, status)',
+        'id, updated_at, title, caption, status, scheduled_at, instagram_enabled, post_media(position, assets(id, storage_path)), post_slides(id, status, updated_at), post_threads(enabled), content_jobs(kind, status)',
       )
       .eq('user_id', userId)
       .eq('account_id', accountId)
@@ -356,6 +357,7 @@ export async function listContentPosts(userId: string, accountId: string): Promi
       status: row.status,
       scheduledAt: toDate(row.scheduled_at),
       coverUrl: covers[index] ? urls[urlIndex++] : null,
+      coverAssetId: [...row.post_media].sort((a, b) => a.position - b.position)[0]?.assets.id ?? null,
       slideCount: row.post_media.length + unfinished.length,
       inProgress: (pending ? 1 : 0) + unfinished.filter((slide) => slide.status === 'pending' || slide.status === 'generating').length,
       instagramEnabled: row.instagram_enabled,

@@ -22,6 +22,7 @@ import { isUuid } from '@/lib/params'
 import { parseScript } from '@/lib/script-options'
 import {
   ContentError,
+  deletePost,
   getPost,
   PostLockedError,
   savePost,
@@ -277,6 +278,33 @@ export async function generateScriptAction(ideaId: unknown, density: unknown = n
     console.error('[buat] skrip gagal dibuat:', describeError(error))
     return { error: aiErrorMessage(error) }
   }
+}
+
+/** Delete an abandoned draft and its queued work; generated assets stay in the library. */
+export async function deleteDraftAction(postId: unknown): Promise<ActionError> {
+  const { userId, accountId } = await requireAccount()
+  if (!isUuid(postId)) return 'Draft tidak ditemukan.'
+  try {
+    const post = await getPost(userId, postId, accountId)
+    if (!post) return 'Draft tidak ditemukan.'
+    if (post.status === 'publishing' || post.threads?.status === 'publishing') {
+      return 'Konten sedang diterbitkan, jadi belum bisa dihapus.'
+    }
+    const job = await getContentJob(userId, postId)
+    if (job?.status === 'pending' || job?.status === 'running') {
+      return 'Batalkan pembuatan konten dulu sebelum menghapus draft.'
+    }
+    if (!(await deletePost(userId, postId))) return 'Draft belum bisa dihapus. Muat ulang halaman.'
+    if (job?.payload.attachmentPath) {
+      try { await removeAttachment(job.payload.attachmentPath) }
+      catch (error) { console.error('[buat] lampiran draft gagal dibersihkan:', describeError(error)) }
+    }
+  } catch (error) {
+    console.error('[buat] draft gagal dihapus:', describeError(error))
+    return 'Konten gagal dihapus. Coba lagi.'
+  }
+  refresh()
+  return null
 }
 
 export async function retryContentJobAction(postId: string): Promise<ActionError> {

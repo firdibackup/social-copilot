@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { filtered, queryMock } from '@/test/query-mock'
-import { countScheduledPosts, getContentRevisions, listContentPosts, listPosts, PostLockedError, retryPost, savePost } from './posts'
+import { countScheduledPosts, getContentRevisions, getPost, listContentPosts, listPosts, PostLockedError, retryPost, savePost } from './posts'
 import { signMediaUrls } from './assets'
 import { db } from './supabase'
 
@@ -15,6 +15,15 @@ beforeEach(() => {
 })
 
 describe('account filters', () => {
+  it('does not sign media for a draft outside the connected account', async () => {
+    const { query, calls } = queryMock({ data: null, error: null })
+    vi.mocked(db).mockReturnValue(query as never)
+    vi.mocked(signMediaUrls).mockClear()
+    expect(await getPost('user-1', 'post-1', 'ig-1')).toBeNull()
+    expect(filtered(calls, 'user_id', 'user-1')).toBe(true)
+    expect(filtered(calls, 'account_id', 'ig-1')).toBe(true)
+    expect(signMediaUrls).not.toHaveBeenCalled()
+  })
   it('polls only the user and account without signing storage URLs', async () => {
     const { query, calls } = queryMock()
     vi.mocked(db).mockReturnValue(query as never)

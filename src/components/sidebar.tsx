@@ -102,6 +102,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   return (
     <Link
       href={item.href}
+      prefetch={true}
       aria-current={active ? 'page' : undefined}
       className={`${ITEM_CLASS} ${active ? 'font-semibold text-ink' : 'text-ink-muted hover:text-ink'}`}
     >

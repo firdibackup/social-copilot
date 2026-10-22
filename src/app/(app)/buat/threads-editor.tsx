@@ -18,6 +18,10 @@ import {
 import { PhotoPicker } from './photo-picker'
 import { saveThreadItemsAction } from './threads-actions'
 import { useSaveBeforeNavigation } from './use-save-before-navigation'
+import { useQueryClient } from '@tanstack/react-query'
+import { editorKeys, type EditorDetail } from './editor-query'
+import { useEditorScope } from './editor-provider'
+import { createSaveQueue } from './save-queue'
 
 const AUTOSAVE_MS = 1000
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
@@ -85,6 +89,8 @@ function followCaption(caption: string, media: ItemMedia[]): EditorItem[] {
  * follows the Instagram caption until the owner types here; from then on it is saved apart, a second after typing.
  */
 export function ThreadsEditor(props: ThreadsEditorProps) {
+  const client = useQueryClient()
+  const scope = useEditorScope()
   const { postId, storedItems, caption, media, canFollowCaption, username, avatarUrl, library, onUploaded, editable, onCreated } =
     props
   const [own, setOwn] = useState<EditorItem[] | null>(() =>
@@ -103,6 +109,14 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
   const following = own === null
   const unsaved = version !== savedVersion
   const hasContent = items.some((item) => item.text.trim() !== '' || item.media.length > 0)
+  const storedKey = JSON.stringify(storedItems)
+  const [seenStored, setSeenStored] = useState(storedKey)
+  if (storedKey !== seenStored) {
+    setSeenStored(storedKey)
+    if (!unsaved) setOwn(storedItems.length ? storedItems.map(toEditorItem) : null)
+  }
+  const createdId = useRef<string | null>(null)
+  const [enqueueSave] = useState(createSaveQueue)
 
   // A new item gets the cursor once it is on the page.
   useEffect(() => {
@@ -118,10 +132,11 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
     setError(null)
   }
 
-  async function persist(upTo: number, next: EditorItem[] | null) {
+  const persist = (upTo: number, next: EditorItem[] | null) => enqueueSave(upTo, () => saveSnapshot(upTo, next))
+  async function saveSnapshot(upTo: number, next: EditorItem[] | null) {
     setSaving(true)
     const result = await saveThreadItemsAction({
-      postId,
+      postId: postId ?? createdId.current,
       items: (next ?? []).map((item) => ({ text: item.text, assetIds: item.media.map((photo) => photo.assetId) })),
     }).catch(() => ({ error: FAILED }))
     setSaving(false)
@@ -130,6 +145,11 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
       return false
     }
     setSavedVersion((saved) => Math.max(saved, upTo))
+    createdId.current = result.postId
+    await client.cancelQueries({ queryKey: editorKeys.detail(scope, result.postId) })
+    client.setQueryData<EditorDetail>(editorKeys.detail(scope, result.postId), (current) => current ? {
+      ...current, threadItems: (next ?? []).map((item) => ({ text: item.text, media: item.media, isSent: false })),
+    } : current)
     if (postId === null) onCreated(result.postId)
     return true
   }
@@ -189,7 +209,10 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
 
   async function followAgain() {
     if (!window.confirm('Ikuti caption Instagram lagi? Perubahan di versi Threads akan hilang.')) return
-    if (await persist(version, null)) setOwn(null)
+    const nextVersion = version + 1
+    setVersion(nextVersion)
+    setOwn(null)
+    await persist(nextVersion, null)
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>, index: number) {

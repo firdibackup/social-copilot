@@ -4,6 +4,7 @@ import { PostLockedError, savePost } from '@/lib/posts'
 import { scheduleProblem } from '@/lib/publish-checks'
 import { hasSlidesInProgress } from '@/lib/slides'
 import { savePostAction } from './actions'
+import { revalidatePath } from 'next/cache'
 
 vi.mock('@/lib/auth', () => ({ requireAccount: vi.fn(async () => ({ userId: USER, accountId: 'ig-1' })) }))
 vi.mock('@/lib/posts', async (importOriginal) => ({
@@ -16,6 +17,7 @@ vi.mock('@/lib/post-threads', async (importOriginal) => ({
 }))
 vi.mock('@/lib/publish-checks', () => ({ scheduleProblem: vi.fn() }))
 vi.mock('@/lib/slides', () => ({ hasSlidesInProgress: vi.fn() }))
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('next/navigation', () => ({
   redirect: vi.fn((url: string) => {
     throw new Error(`REDIRECT ${url}`)
@@ -80,6 +82,7 @@ describe('savePostAction', () => {
   it('saves an empty draft', async () => {
     await expect(submit({ intent: 'draft', caption: '' })).rejects.toThrow(`REDIRECT /buat?id=${POST_ID}&ok=draft`)
     expect(savePost).toHaveBeenCalledWith(USER, { id: null, caption: '', status: 'draft', scheduledAt: null, assetIds: [] })
+    expect(revalidatePath).toHaveBeenCalledWith('/buat', 'layout')
   })
 
   it('schedules in WIB', async () => {

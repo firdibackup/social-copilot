@@ -22,6 +22,7 @@ export function MobileNav() {
             <li key={item.href} className="flex-1">
               <Link
                 href={item.href}
+                prefetch={true}
                 aria-current={active ? 'page' : undefined}
                 className={`flex h-full flex-col items-center justify-center gap-0.5 text-[10px] font-medium ${active ? 'text-accent' : 'text-ink-muted'}`}
               >

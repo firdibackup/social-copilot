@@ -27,6 +27,7 @@ import { IMAGE_FORMATS, isImageFormat, type ImageFormat } from '@/lib/image-opti
 import type { Post, PostMedia } from '@/lib/posts'
 import { scriptHeadline } from '@/lib/script-options'
 import { Composer } from './composer'
+import { DeleteDraftButton } from './delete-draft-button'
 import { cancelGeneration, type CancelTarget } from './cancel-generation'
 import {
   createContentAction,
@@ -45,6 +46,10 @@ import { ScheduleButton } from './schedule-button'
 import { formatScript, useScriptText } from './script-text'
 import { ThreadsEditor, type StoredItem } from './threads-editor'
 import { saveBeforeNavigation, useSaveBeforeNavigation } from './use-save-before-navigation'
+import { useQueryClient } from '@tanstack/react-query'
+import { editorKeys, type EditorDetail } from './editor-query'
+import { useEditorScope } from './editor-provider'
+import { createSaveQueue } from './save-queue'
 
 const MAX_MEDIA = 10
 const AUTOSAVE_MS = 1000
@@ -134,6 +139,8 @@ export function ContentEditor({
   threadsEditable,
 }: ContentEditorProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
+  const scope = useEditorScope()
   const [requestKey, setRequestKey] = useState('')
   /** A post keeps the day, slot and tab it was opened with. */
   const openPost = (id: string) => {
@@ -141,14 +148,15 @@ export function ContentEditor({
     if (day) params.set('tanggal', day)
     if (slotParam) params.set('slot', slotParam)
     if (platform === 'threads') params.set('platform', 'threads')
-    router.push(`/buat?${params}`)
+    window.history.pushState(null, '', `/buat?${params}`)
+    router.refresh()
   }
   async function showPlatform(next: Platform) {
     if (!(await saveBeforeNavigation())) return
     const params = new URLSearchParams(window.location.search)
     if (next === 'threads') params.set('platform', 'threads')
     else params.delete('platform')
-    router.replace(`/buat?${params}`, { scroll: false })
+    window.history.replaceState(null, '', `/buat?${params}`)
   }
   const platformRef = useRef<HTMLDialogElement>(null)
   const editable = post === null || (EDITABLE_STATUSES.has(post.status) && !post.isLocked)
@@ -197,7 +205,7 @@ export function ContentEditor({
   const unsaved = version !== savedVersion
 
   // A refresh brings what the server has now (a finished slide, an edited one). Typing not saved yet wins.
-  const serverKey = `${serverMedia.map((item) => item.assetId).join(',')}|${post?.caption ?? ''}`
+  const serverKey = `${serverMedia.map((item) => `${item.assetId}:${item.url}`).join(',')}|${post?.caption ?? ''}`
   const [seenKey, setSeenKey] = useState(serverKey)
   if (serverKey !== seenKey) {
     setSeenKey(serverKey)
@@ -279,7 +287,9 @@ export function ContentEditor({
     if (error) setNotice({ tone: 'error', text: error })
   }
 
-  async function persist(upTo: number): Promise<boolean> {
+  const [enqueueSave] = useState(createSaveQueue)
+  const persist = (upTo: number) => enqueueSave(upTo, () => saveSnapshot(upTo))
+  async function saveSnapshot(upTo: number): Promise<boolean> {
     if (!post) return true
     setSaving(true)
     const result = await saveContentAction({
@@ -294,6 +304,11 @@ export function ContentEditor({
     }
     setSaveError(null)
     setSavedVersion((saved) => Math.max(saved, upTo))
+    // Cancel old reads before publishing the saved value, so an in-flight response cannot undo it.
+    await queryClient.cancelQueries({ queryKey: editorKeys.detail(scope, post.id) })
+    queryClient.setQueryData<EditorDetail>(editorKeys.detail(scope, post.id), (current) => current?.post ? {
+      ...current, post: { ...current.post, caption, media, mediaCount: media.length },
+    } : current)
     return true
   }
 
@@ -428,7 +443,6 @@ export function ContentEditor({
           }
         }
         openPost(result.postId)
-        router.refresh()
         return true
       },
     }
@@ -758,10 +772,13 @@ export function ContentEditor({
                   {job.status === 'cancelled' ? 'Pembuatan konten dibatalkan. Draft tetap tersimpan.' : job.status === 'failed' ? job.error : 'Draft tersimpan. Caption dan rencana slide sedang disusun oleh worker.'}
                   {jobPending && <span className="text-sm">Boleh tutup halaman atau buat konten lain. Proses tetap berjalan.</span>}
                   {(job.status === 'failed' || job.status === 'cancelled') && (
+                    <span className="flex flex-wrap items-center justify-center gap-3">
                     <button type="button" className="underline" onClick={async () => {
                       const error = await retryContentJobAction(job.post_id)
                       if (error) setNotice({ tone: 'error', text: error })
                     }}>{job.status === 'cancelled' ? 'Buat lagi' : 'Coba lagi'}</button>
+                    {job.status === 'cancelled' && <DeleteDraftButton id={job.post_id} onError={(text) => setNotice({ tone: 'error', text })} />}
+                    </span>
                   )}
                 </span>
               ) : post ? (
@@ -777,6 +794,7 @@ export function ContentEditor({
                     : script
                       ? `Ubah skrip di kotak bawah bila perlu, lalu kirim: AI membuat caption dan ${script.script.length} slide persis dari teksnya.`
                       : `Tulis topik di bawah: AI menyusun caption dan ${slideCount} slide sekaligus.`}
+                  {job?.status === 'cancelled' && <DeleteDraftButton id={job.post_id} onError={(text) => setNotice({ tone: 'error', text })} />}
                   {busy === null && (
                     <button
                       type="button"

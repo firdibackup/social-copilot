@@ -3,7 +3,10 @@
 import { Lightbulb, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { detailQuery } from './editor-query'
+import { useEditorScope } from './editor-provider'
 import { MediaImage } from '@/components/media-image'
 import { formatShortDate, formatTime } from '@/lib/format'
 import type { Idea } from '@/lib/ideas'
@@ -12,6 +15,7 @@ import type { ContentListItem } from '@/lib/posts'
 import { pillarOf, type ContentStrategy } from '@/lib/strategy-options'
 import { DeleteIdeaButton, FindIdeasButton, OpenIdeaButton } from './idea-buttons'
 import { ContentQueuePoll } from './content-queue-poll'
+import { Thumbnail } from './thumbnail'
 
 /** Hover and focus reach past the text, which stays aligned with the section labels. */
 const ITEM =
@@ -36,6 +40,16 @@ function meta(post: ContentListItem): string {
 
 /** Buat's left column: the posts still worth editing and the AI's ideas for new ones. */
 export function ContentList({ posts, ideas, strategy }: ContentListProps) {
+  const client = useQueryClient()
+  const scope = useEditorScope()
+  const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (prefetchTimer.current) clearTimeout(prefetchTimer.current) }, [])
+  const prefetch = (id: string) => {
+    if (prefetchTimer.current) clearTimeout(prefetchTimer.current)
+    prefetchTimer.current = setTimeout(() => {
+      if (client.isFetching({ queryKey: ['editor', scope, 'detail'] }) < 2) void client.prefetchQuery(detailQuery(scope, id))
+    }, 120)
+  }
   const params = useSearchParams()
   const selectedId = params.get('id')
   const selectedIdeaId = params.get('ide')
@@ -69,11 +83,15 @@ export function ContentList({ posts, ideas, strategy }: ContentListProps) {
                 <li key={post.id}>
                   <Link
                     href={`/buat?id=${post.id}${tab}`}
+                    onMouseEnter={() => prefetch(post.id)}
+                    onFocus={() => prefetch(post.id)}
+                    onMouseLeave={() => { if (prefetchTimer.current) clearTimeout(prefetchTimer.current) }}
                     aria-current={post.id === selectedId ? 'page' : undefined}
                     className={`${ITEM} ${post.id === selectedId ? ACTIVE : ''}`}
                   >
                     {post.coverUrl ? (
-                      <MediaImage src={post.coverUrl} className="size-12 shrink-0 rounded-lg bg-zinc-100 object-cover" />
+                      post.coverAssetId ? <Thumbnail id={post.coverAssetId} src={post.coverUrl} size={96} className="size-12 shrink-0 rounded-lg bg-zinc-100 object-cover" />
+                        : <MediaImage src={post.coverUrl} className="size-12 shrink-0 rounded-lg bg-zinc-100 object-cover" />
                     ) : (
                       <span className={`size-12 shrink-0 rounded-lg ${post.inProgress > 0 ? 'shimmer' : 'bg-zinc-100'}`} />
                     )}

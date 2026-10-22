@@ -8,17 +8,28 @@ import { listIdeas } from '@/lib/ideas'
 import { listContentPosts } from '@/lib/posts'
 import { ContentList } from './content-list'
 import { WorkspaceFrame } from './workspace-frame'
+import { EditorProvider } from './editor-provider'
 
 /** Keep the list mounted when only the selected draft's query string changes. */
 export default function BuatLayout({ children }: { children: ReactNode }) {
   return (
     <Suspense fallback={<LoadingState variant="editor" className="h-full" label="Memuat konten…" />}>
+      <AuthenticatedWorkspace>{children}</AuthenticatedWorkspace>
+    </Suspense>
+  )
+}
+
+async function AuthenticatedWorkspace({ children }: { children: ReactNode }) {
+  const { userId, accountId } = await requireAccount()
+  const scope = `${userId}:${accountId}`
+  return (
+    <EditorProvider key={scope} scope={scope} revision={new Date().getTime()}>
       <WorkspaceFrame list={
         <Suspense fallback={<div className="w-full shrink-0 md:w-[320px]"><LoadingState variant="line" label="Memuat daftar konten…" /></div>}>
           <DraftList />
         </Suspense>
       }>{children}</WorkspaceFrame>
-    </Suspense>
+    </EditorProvider>
   )
 }
 
