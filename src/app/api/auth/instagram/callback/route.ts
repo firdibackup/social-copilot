@@ -11,10 +11,10 @@ import {
   saveConnection,
 } from '@/lib/connection'
 import { appUrl, settingsUrl } from '@/lib/env'
-import { describeError } from '@/lib/errors'
+import { ConfigError, describeError } from '@/lib/errors'
 import { deleteOtherFacebookConnections } from '@/lib/facebook-connection'
 import { ensureWebhookSubscription } from '@/lib/inbox-sync'
-import { exchangeCodeForToken, exchangeForLongLivedToken, fetchProfile } from '@/lib/instagram'
+import { exchangeCodeForToken, exchangeForLongLivedToken, fetchProfile, InstagramApiError } from '@/lib/instagram'
 import { getCompletedAnswers, kitColumnsOf } from '@/lib/onboarding'
 import { deleteOtherThreadsConnection } from '@/lib/threads-connection'
 
@@ -23,24 +23,44 @@ type CallbackErrorCode =
   | 'state_tidak_valid'
   | 'sesi_lain'
   | 'gagal_token'
+  | 'gagal_token_panjang'
   | 'gagal_profil'
   | 'gagal_database'
   | 'akun_dipakai'
-type CallbackResult = { ig: 'connected' } | { ig_error: CallbackErrorCode }
+type CallbackResult = { ig: 'connected' } | { ig_error: CallbackErrorCode; ig_error_detail?: string }
 
 class CallbackFailure extends Error {
-  constructor(readonly code: CallbackErrorCode) {
+  constructor(readonly code: CallbackErrorCode, readonly detail?: string) {
     super(code)
   }
 }
 
-/** Runs one step of the login; the real cause is logged here and only `code` reaches the browser. */
-async function step<T>(code: CallbackErrorCode, run: () => Promise<T>): Promise<T> {
+/** Only provider/configuration errors reach the browser; never expose database or unexpected errors. */
+function publicErrorDetail(error: unknown, secrets: string[]): string | undefined {
+  if (!(error instanceof InstagramApiError) && !(error instanceof ConfigError)) return undefined
+  let message = error.message
+  for (const secret of [...secrets, process.env.INSTAGRAM_APP_SECRET?.trim() ?? ''].filter(Boolean)) {
+    message = message.replaceAll(secret, '[disembunyikan]').replaceAll(encodeURIComponent(secret), '[disembunyikan]')
+  }
+  // Provider messages can echo request parameters, including credentials in a URL.
+  message = message.replace(/\b(access_token|client_secret|code|state)=([^\s&#]*)/gi, '$1=[disembunyikan]')
+  const metadata = error instanceof InstagramApiError
+    ? [error.status ? `HTTP ${error.status}` : 'koneksi gagal', error.code !== null ? `kode ${error.code}` : null]
+        .filter(Boolean).join(', ')
+    : 'konfigurasi'
+  return `${message.replace(/\s+/g, ' ').trim().slice(0, 600)} (${metadata})`
+}
+
+/** Runs one login step and preserves safe diagnostics for Instagram API failures. */
+async function step<T>(code: CallbackErrorCode, run: () => Promise<T>, secrets: string[] = []): Promise<T> {
   try {
     return await run()
   } catch (error) {
-    console.error(`[instagram] callback ${code}:`, describeError(error))
-    throw new CallbackFailure(code)
+    const detail = code === 'gagal_token' || code === 'gagal_token_panjang' || code === 'gagal_profil'
+      ? publicErrorDetail(error, secrets)
+      : undefined
+    console.error(`[instagram] callback ${code}:`, detail ?? describeError(error))
+    throw new CallbackFailure(code, detail)
   }
 }
 
@@ -58,9 +78,12 @@ async function completeLogin(userId: string, params: URLSearchParams): Promise<C
   }
   if (stateResult !== 'ok') return { ig_error: 'state_tidak_valid' }
 
-  const shortLived = await step('gagal_token', () => exchangeCodeForToken(code))
-  const longLived = await step('gagal_token', () => exchangeForLongLivedToken(shortLived.accessToken))
-  const profile = await step('gagal_profil', () => fetchProfile(longLived.accessToken))
+  const secrets = [code, state]
+  const shortLived = await step('gagal_token', () => exchangeCodeForToken(code), secrets)
+  secrets.push(shortLived.accessToken)
+  const longLived = await step('gagal_token_panjang', () => exchangeForLongLivedToken(shortLived.accessToken), secrets)
+  secrets.push(longLived.accessToken)
+  const profile = await step('gagal_profil', () => fetchProfile(longLived.accessToken), secrets)
   // Read before saving: the save replaces the user's one connection row.
   const previous = await step('gagal_database', () => getConnectedAccountId(userId))
   const saved = await step('gagal_database', () =>
@@ -102,7 +125,9 @@ export async function GET(request: Request): Promise<Response> {
   if (!user) return Response.redirect(appUrl('/masuk'), 303)
   if (!(await currentPeriod(user.id))) return Response.redirect(appUrl('/langganan'), 303)
   const result = await completeLogin(user.id, new URL(request.url).searchParams).catch((error: unknown) => {
-    if (error instanceof CallbackFailure) return { ig_error: error.code }
+    if (error instanceof CallbackFailure) {
+      return { ig_error: error.code, ...(error.detail ? { ig_error_detail: error.detail } : {}) }
+    }
     throw error
   })
   return Response.redirect(settingsUrl(result), 303)

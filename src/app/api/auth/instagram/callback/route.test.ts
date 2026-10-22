@@ -15,7 +15,7 @@ import {
 } from '@/lib/connection'
 import { deleteOtherFacebookConnections } from '@/lib/facebook-connection'
 import { ensureWebhookSubscription } from '@/lib/inbox-sync'
-import { exchangeCodeForToken, exchangeForLongLivedToken, fetchProfile } from '@/lib/instagram'
+import { exchangeCodeForToken, exchangeForLongLivedToken, fetchProfile, InstagramApiError } from '@/lib/instagram'
 import { deleteOtherThreadsConnection } from '@/lib/threads-connection'
 import { GET } from './route'
 
@@ -38,7 +38,8 @@ vi.mock('@/lib/onboarding', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/onboarding')>()),
   getCompletedAnswers: vi.fn(),
 }))
-vi.mock('@/lib/instagram', () => ({
+vi.mock('@/lib/instagram', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/instagram')>()),
   exchangeCodeForToken: vi.fn(),
   exchangeForLongLivedToken: vi.fn(),
   fetchProfile: vi.fn(),
@@ -276,6 +277,37 @@ describe('GET /api/auth/instagram/callback', () => {
 
     expect(redirectTarget(response).params).toEqual({ ig_error: 'gagal_profil' })
     expect(saveConnection).not.toHaveBeenCalled()
+  })
+
+  it('shows the provider reason, HTTP status and error code for a rejected login code', async () => {
+    vi.mocked(exchangeCodeForToken).mockRejectedValue(new InstagramApiError('Invalid authorization code', 400, 400))
+
+    expect(redirectTarget(await callback('code=abc&state=s1')).params).toEqual({
+      ig_error: 'gagal_token',
+      ig_error_detail: 'Invalid authorization code (HTTP 400, kode 400)',
+    })
+    expect(saveConnection).not.toHaveBeenCalled()
+  })
+
+  it('distinguishes long-lived token failures and removes echoed credentials from diagnostics', async () => {
+    vi.stubEnv('INSTAGRAM_APP_SECRET', 'secret/value')
+    try {
+      vi.mocked(exchangeForLongLivedToken).mockRejectedValue(new InstagramApiError(
+        'Rejected short-token secret%2Fvalue code=abc state=s1 access_token=other-token', 190, 400,
+      ))
+
+      const params = redirectTarget(await callback('code=abc&state=s1')).params
+
+      expect(params.ig_error).toBe('gagal_token_panjang')
+      expect(params.ig_error_detail).toContain('HTTP 400, kode 190')
+      for (const secret of ['short-token', 'secret%2Fvalue', 'abc', 's1', 'other-token']) {
+        expect(params.ig_error_detail).not.toContain(secret)
+        expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain(secret)
+      }
+      expect(fetchProfile).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('reports database failures', async () => {

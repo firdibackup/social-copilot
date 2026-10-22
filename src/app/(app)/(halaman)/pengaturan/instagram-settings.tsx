@@ -29,7 +29,10 @@ const ERROR_MESSAGES: Record<string, string> = {
   sesi_lain:
     'Login Instagram selesai di sesi akun Carousely yang berbeda dari akun yang memulainya. Biasanya karena aplikasi dibuka di alamat lain (misalnya localhost) dari alamat tujuan Instagram, atau di sana masih masuk dengan akun lain. Buka aplikasi di alamat yang sama, masuk dengan akun ini, lalu hubungkan lagi.',
   gagal_mulai: 'Login Instagram gagal dimulai. Periksa konfigurasi Instagram dan Supabase di .env.local.',
-  gagal_token: 'Kode login gagal ditukar menjadi token. Periksa INSTAGRAM_APP_SECRET dan INSTAGRAM_REDIRECT_URI.',
+  gagal_token:
+    'Kode login gagal ditukar menjadi token. Coba hubungkan lagi untuk mendapat kode baru. Jika tetap gagal, periksa pasangan Instagram App ID/Secret dan pastikan INSTAGRAM_REDIRECT_URI sama persis dengan redirect URI di Meta.',
+  gagal_token_panjang:
+    'Token awal didapat, tapi gagal ditukar menjadi token jangka panjang. Periksa detail error di bawah dan Instagram App Secret, lalu coba hubungkan lagi.',
   gagal_profil: 'Token didapat, tapi profil Instagram gagal diambil. Coba hubungkan lagi.',
   gagal_database: 'Database tidak bisa diakses. Periksa konfigurasi Supabase di .env.local.',
   gagal_putus: 'Koneksi gagal diputus. Coba lagi.',
@@ -72,6 +75,9 @@ export async function InstagramSettings({ searchParams }: InstagramSettingsProps
   const success = SUCCESS_MESSAGES[firstValue(params.ig) ?? '']
   const errorCode = firstValue(params.ig_error)
   const error = errorCode ? (ERROR_MESSAGES[errorCode] ?? UNKNOWN_ERROR) : undefined
+  const errorDetail = ['gagal_token', 'gagal_token_panjang', 'gagal_profil'].includes(errorCode ?? '')
+    ? firstValue(params.ig_error_detail)?.slice(0, 700)
+    : undefined
   // requireAccount() sends pages that show one account's data here while nothing is connected.
   const needsAccount = firstValue(params.perlu) === 'instagram' && result.kind === 'ok' && !result.connection
   // Straight from the onboarding wizard: the last step.
@@ -91,7 +97,12 @@ export async function InstagramSettings({ searchParams }: InstagramSettingsProps
         </Notice>
       )}
       {success && <Notice tone="success">{success}</Notice>}
-      {error && <Notice tone="error">{error}</Notice>}
+      {error && (
+        <Notice tone="error">
+          {error}
+          {errorDetail && <span className="mt-2 block break-words text-xs">Detail: {errorDetail}</span>}
+        </Notice>
+      )}
 
       <div className="rounded-xl border border-zinc-200 bg-white p-6">
         <div className="flex items-start gap-4">
