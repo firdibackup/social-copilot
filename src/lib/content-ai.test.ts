@@ -72,6 +72,7 @@ const REQUEST: ContentRequest = {
   referenceId: null,
   productGroupId: null,
   pillarId: null,
+  density: 'lengkap',
   includeLogo: false,
   ideaId: null,
 }
@@ -340,7 +341,44 @@ describe('parseIdeas', () => {
   })
 })
 
+describe('buildContentMessages text density', () => {
+  it('writes balanced slides by default, between ringkas and lengkap', () => {
+    const user = String(buildContentMessages('Tips seduh', 3, null)[1].content)
+
+    expect(user).toContain('Kepadatan teks: seimbang')
+    expect(user).toContain('1–2 kalimat penjelasan, lalu 2–4 poin')
+    expect(user).not.toContain('2–3 kalimat lengkap')
+  })
+
+  it('keeps full explanations when lengkap', () => {
+    const user = String(buildContentMessages('Tips seduh', 3, null, 'story', [], null, null, null, 'lengkap')[1].content)
+
+    expect(user).toContain('Kepadatan teks: lengkap')
+    expect(user).toContain('2–3 kalimat lengkap atau 3–5 poin')
+  })
+
+  it('asks for key points only when dense, also on a single image', () => {
+    const carousel = String(buildContentMessages('Tips seduh', 3, null, 'story', [], null, null, null, 'padat')[1].content)
+    const single = String(buildContentMessages('Tips seduh', 1, null, 'story', [], null, null, null, 'padat')[1].content)
+
+    expect(carousel).toContain('Kepadatan teks: padat')
+    expect(carousel).toContain('tanpa kalimat penjelasan')
+    expect(carousel).not.toContain('2–3 kalimat lengkap')
+    expect(single).toContain('Kepadatan teks: padat')
+  })
+})
+
 describe('buildScriptMessages', () => {
+  it('follows the text density in each slide body', () => {
+    const dense = String(buildScriptMessages('Bedanya IN, ON, AT', null, 'curiosity', '', 'padat')[1].content)
+    const brief = String(buildScriptMessages('Bedanya IN, ON, AT', null, 'curiosity', '', 'ringkas')[1].content)
+
+    expect(dense).toContain('Kepadatan teks: padat')
+    expect(dense).toContain('tanpa baris Tips')
+    expect(brief).toContain('Kepadatan teks: ringkas')
+    expect(brief).not.toContain('Tips: …')
+  })
+
   it('lets the AI pick 2–10 slides as Hook, points and CTA, and quotes the idea', () => {
     const user = String(buildScriptMessages('Bedanya IN, ON, AT', BRAND, 'curiosity')[1].content)
 
@@ -555,6 +593,7 @@ describe('requests', () => {
               productIds: [],
               attachment: false,
               scripted: false,
+              density: 'lengkap',
             },
             output: plan,
             status: 'ok',
@@ -627,7 +666,7 @@ describe('requests', () => {
       expect(String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)).toContain('Nama: Kopi Sinar')
       expect(String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)).not.toContain('Arahan tambahan')
       expect(rows()).toEqual([
-        expect.objectContaining({ task: 'content_script', credits: 3, input: { ideaId: 'idea-1', idea: 'IN, ON, AT' } }),
+        expect.objectContaining({ task: 'content_script', credits: 3, input: { ideaId: 'idea-1', idea: 'IN, ON, AT', density: 'seimbang' } }),
       ])
     })
 
@@ -643,7 +682,7 @@ describe('requests', () => {
       expect(rows()).toEqual([
         expect.objectContaining({
           task: 'content_script',
-          input: { ideaId: 'idea-1', idea: 'IN, ON, AT', brief: 'Hook pertanyaan seperti @kompetitor' },
+          input: { ideaId: 'idea-1', idea: 'IN, ON, AT', density: 'seimbang', brief: 'Hook pertanyaan seperti @kompetitor' },
         }),
       ])
     })

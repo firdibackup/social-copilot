@@ -22,10 +22,18 @@ describe('carouselGuide', () => {
 
 describe('carouselGuide on inner slides', () => {
   it('asks for complete sentences until the reader understands, without abbreviations', () => {
-    const guide = carouselGuide('story')
+    const guide = carouselGuide('story', 'lengkap')
 
     expect(guide).toContain('2–3 kalimat lengkap atau 3–5 poin')
     expect(guide).toContain('tanpa singkatan')
     expect(guide).not.toContain('1–3 kalimat pendek')
+  })
+
+  it('sits between ringkas and lengkap by default', () => {
+    const guide = carouselGuide('story')
+
+    expect(guide).toContain('Tulis seimbang')
+    expect(guide).toContain('1–2 kalimat penjelasan, lalu 2–4 poin')
+    expect(guide).toContain('tanpa singkatan')
   })
 })

@@ -236,7 +236,7 @@ function EmptyState() {
       </span>
       <h1 className="mt-4 text-xl font-semibold tracking-tight text-ink">Halo, saya Sigap</h1>
       <p className="mt-1 max-w-md text-sm text-ink-muted">
-        Tanya soal tren, cek konten yang sudah ada, riset akun kompetitor dengan Deep Search, tulis skrip carousel,
+        Tanya soal tren, cek konten yang sudah ada, riset akun kompetitor dengan Intel Kompetitor, tulis skrip carousel,
         atau rapikan strategi dan Auto DM. Skrip langsung tersimpan sebagai ide di Buat.
       </p>
     </div>

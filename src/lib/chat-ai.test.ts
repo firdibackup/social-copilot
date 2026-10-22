@@ -126,7 +126,7 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('Nama: Kopi Sinar')
     expect(prompt).toContain('Edukasi kopi')
     expect(prompt).toContain('Hari ini: Rabu, 21 Oktober 2026.')
-    expect(prompt).toContain('Deep Search')
+    expect(prompt).toContain('menyalakan tombol Intel Kompetitor')
     expect(prompt).not.toContain('Ringkasan percakapan sebelumnya')
   })
 
@@ -439,13 +439,13 @@ describe('answerChat', () => {
   it('refuses Intel Kompetitor while Deep Search is off, without running Apify', async () => {
     vi.mocked(chatWithTools)
       .mockResolvedValueOnce(call('intel_kompetitor', { usernames: ['kopikenangan'] }))
-      .mockResolvedValueOnce({ content: 'Nyalakan Deep Search dulu.', toolCalls: [] })
+      .mockResolvedValueOnce({ content: 'Nyalakan Intel Kompetitor dulu.', toolCalls: [] })
 
     const reply = await answerChat(request())
 
     expect(findCompetitors).not.toHaveBeenCalled()
     expect(reply.parts).toEqual([
-      { type: 'tool_error', tool: 'intel_kompetitor', message: 'Nyalakan Deep Search dulu untuk memakai Intel Kompetitor.' },
+      { type: 'tool_error', tool: 'intel_kompetitor', message: 'Nyalakan tombol Intel Kompetitor di kotak pesan dulu.' },
     ])
   })
 

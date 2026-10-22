@@ -1,5 +1,6 @@
 /** Choices and limits of Buat Konten, shared by the editor and the server. */
 import { lengthOf } from './brand-options'
+import { isTextDensity, type TextDensity } from './density-options'
 import { isImageFormat, MAX_SLIDES, type ImageFormat } from './image-options'
 import { isUuid } from './params'
 
@@ -25,6 +26,8 @@ export interface ContentRequest {
   /** The content-strategy pillar this post follows, or null to let the planner choose automatically. */
   pillarId: string | null
   includeLogo: boolean
+  /** How much text goes on each slide; a script keeps its own text. */
+  density: TextDensity
   /** The idea the topic came from, used up when the post is made. */
   ideaId: string | null
 }
@@ -77,8 +80,19 @@ export function parseContentRequest(value: unknown): { request: ContentRequest }
   if (typeof pillarId !== 'string' && pillarId !== null) return { error: 'Pilar tidak dikenal.' }
   if (pillarId !== null && !PILLAR_ID.test(pillarId)) return { error: 'Pilar tidak dikenal.' }
   if (ideaId !== null && !isUuid(ideaId)) return { error: 'Ide tidak ditemukan.' }
+  if (!isTextDensity(value.density)) return { error: 'Kepadatan teks tidak dikenal.' }
   return {
-    request: { topic, slides, format, referenceId, productGroupId, pillarId, includeLogo: value.includeLogo === true, ideaId },
+    request: {
+      topic,
+      slides,
+      format,
+      referenceId,
+      productGroupId,
+      pillarId,
+      includeLogo: value.includeLogo === true,
+      density: value.density,
+      ideaId,
+    },
   }
 }
 

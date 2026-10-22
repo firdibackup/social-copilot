@@ -55,7 +55,7 @@ Limit Sigap terpisah dari kredit dan hanya tersedia ketika pengguna memiliki lan
 | Pemakaian | Limit per hari |
 |---|---:|
 | Pesan chat Sigap | 100 |
-| Intel Kompetitor / Deep Search | 10 |
+| Intel Kompetitor (`deep_search`) | 10 |
 
 Hari berganti pada pukul 00.00 WIB. Slot dipreservasi secara atomik lewat `reserve_sigap_daily_usage` dan tabel `sigap_daily_usage`: tugas `chat` untuk pesan dan `deep_search` untuk Intel Kompetitor. Baris `ai_generations` tetap menjadi audit log, tetapi bukan sumber kebenaran limit agar kegagalan logging tidak membuat limit terbuka. Reservasi chat dilakukan setelah validasi form dasar dan sebelum pemrosesan lampiran, pembuatan sesi, atau penyimpanan pesan. Reservasi Intel Kompetitor dilakukan tepat sebelum Apify dijalankan. Nilai dan pesan limit berada di `src/lib/chat-options.ts`.
 

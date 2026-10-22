@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import type { SearchParams } from '@/lib/params'
+import { DensitySettings } from './density-settings'
 import { FacebookSettings } from './facebook-settings'
 import { InstagramSettings } from './instagram-settings'
 import { ScheduleSettings } from './schedule-settings'
@@ -40,6 +41,9 @@ export default function PengaturanPage({ searchParams }: PengaturanPageProps) {
       </Suspense>
       <Suspense fallback={<p className="rounded-xl border border-zinc-200 p-6 text-sm text-zinc-500">Memuat jadwal…</p>}>
         <ScheduleSettings />
+      </Suspense>
+      <Suspense fallback={<p className="rounded-xl border border-zinc-200 p-6 text-sm text-zinc-500">Memuat kepadatan teks…</p>}>
+        <DensitySettings />
       </Suspense>
     </div>
   )

@@ -9,6 +9,8 @@ import { listAssets, listProductGroups } from '@/lib/assets'
 import { requireAccount } from '@/lib/auth'
 import { getBrandKit, getStrategy } from '@/lib/brand'
 import { getConnection } from '@/lib/connection'
+import { getDensityDefault } from '@/lib/density'
+import { DEFAULT_DENSITY } from '@/lib/density-options'
 import { describeError, loadErrorMessage } from '@/lib/errors'
 import { parseWibInput, slotOn, suggestedSlot, toSlot } from '@/lib/format'
 import { getIdea, listIdeas } from '@/lib/ideas'
@@ -113,11 +115,12 @@ async function Workspace({ searchParams }: BuatPageProps) {
       getPlan(),
     ])
     // Slots and Threads only add to the editor: without them it works as before.
-    const [schedule, taken, threads, threadItems] = await Promise.all([
+    const [schedule, taken, threads, threadItems, density] = await Promise.all([
       getScheduleSettings(userId, accountId).catch(logAndNull),
       listTakenTimes(userId, accountId, now, new Date(now.getTime() + SLOT_LOOKAHEAD_DAYS * DAY_MS)).catch(() => []),
       getThreadsConnection(userId, accountId).catch(logAndNull),
       postId ? listThreadItems(userId, postId) : [],
+      postId ? DEFAULT_DENSITY : getDensityDefault(userId, accountId).catch(() => DEFAULT_DENSITY),
     ])
     data = {
       posts,
@@ -135,6 +138,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
       queue: schedule ? nextEmptySlots(schedule.slots, taken, now, QUEUE_SIZE).map((at) => toSlot(at, now)) : [],
       threads,
       threadItems,
+      density,
     }
   } catch (error) {
     console.error('[buat] gagal memuat:', describeError(error))
@@ -146,7 +150,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
   }
 
   const { posts, ideas, post, slides, idea, instagram, kit, strategy, products, library, credits, plan } = data
-  const { queue, threads, threadItems } = data
+  const { queue, threads, threadItems, density } = data
   const platform = firstValue(params.platform) === 'threads' ? 'threads' : 'instagram'
   const day = firstValue(params.tanggal) ?? ''
   const daySlot = day ? slotOn(day, now) : null
@@ -214,7 +218,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
           slides={slides.map(toView)}
           idea={idea}
           account={{ username: instagram?.username ?? null, avatarUrl: kit.logoUrl }}
-          strategy={strategy}
+          defaultDensity={density}
           products={products.map((product) => ({
             id: product.id,
             label: product.title,

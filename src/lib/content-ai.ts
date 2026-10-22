@@ -3,8 +3,9 @@ import { AiOutputError, describeBrand, loadBrandContext, quote, readJson, runLog
 import { contentCost } from './billing-options'
 import { truncate, type BrandContext } from './brand-options'
 import { CAPTION_MAX_LENGTH } from './caption'
-import { carouselGuide, pickHook, type HookArchetype } from './carousel-guide'
+import { carouselGuide, densityRule, pickHook, type HookArchetype } from './carousel-guide'
 import type { ContentRequest } from './content-options'
+import { DEFAULT_DENSITY, type TextDensity } from './density-options'
 import { isUuid } from './params'
 import { HEADLINE_MAX_LENGTH, MAX_SLIDES, SCENE_MAX_LENGTH, type Slide } from './image-options'
 import { chatCompletion, type ChatMessage } from './nine-router'
@@ -154,6 +155,7 @@ export function buildContentMessages(
   attachment: string | null = null,
   script: ScriptSlide[] | null = null,
   pillarId: string | null = null,
+  density: TextDensity = DEFAULT_DENSITY,
 ): ChatMessage[] {
   if (script) return buildScriptedContentMessages(topic, script, brand, products, attachment, pillarId)
   const carousel = slides > 1
@@ -169,7 +171,8 @@ export function buildContentMessages(
           '- title: judul singkat post untuk daftar konten, maksimal 8 kata.',
           `- caption: 2–4 paragraf pendek, sekitar 300–700 karakter sebelum hashtag: kalimat pembuka yang menarik, isi, lalu ajakan bertindak (CTA). Tutup dengan 3–8 hashtag relevan di baris terakhir.${carousel ? ' Ajak pembaca menggeser carousel kalau sesuai.' : ''}`,
           `- slides: tepat ${slides} slide, berurutan.${carousel ? ` Susunannya: ${slideStructure(slides)}.` : ''}`,
-          ...(carousel ? ['', carouselGuide(hook), ''] : []),
+          `- ${densityRule(density)}`,
+          ...(carousel ? ['', carouselGuide(hook, density), ''] : []),
           `Format JSON: {"title": "…", "caption": "…", "slides": [{"headline": "…", "scene": "…", "productGroupId": ${products.length > 0 ? '"uuid atau null"' : 'null'}${attached}}]}`,
           ...(products.length > 0 ? ['', describeProducts(products)] : []),
           ...(attachment ? ['', ATTACHMENT_GUIDE] : []),
@@ -302,6 +305,7 @@ export function planContent<T>(
     productIds: products.map((product) => product.id),
     attachment: attachment !== null,
     scripted: script !== null,
+    density: request.density,
   }
   return runLogged(
     userId,
@@ -311,7 +315,17 @@ export function planContent<T>(
       const brand = await loadBrandContext(userId)
       const plan = parseContentPlan(
         await chatCompletion(
-          buildContentMessages(request.topic, request.slides, brand, pickHook(), products, attachment, script, request.pillarId),
+          buildContentMessages(
+            request.topic,
+            request.slides,
+            brand,
+            pickHook(),
+            products,
+            attachment,
+            script,
+            request.pillarId,
+            request.density,
+          ),
         ),
         request.slides,
         products,
@@ -396,12 +410,23 @@ export function suggestIdeas(
 
 const MIN_SCRIPT_SLIDES = 2
 
+/** What a script slide's body holds at each density. */
+const SCRIPT_BODY: Record<TextDensity, string> = {
+  padat: '2–3 poin sangat singkat dengan awalan "- " (misalnya "- In the room"), tanpa kalimat penjelasan dan tanpa baris Tips.',
+  ringkas: 'satu kalimat penjelasan singkat, lalu 2–3 poin pendek dengan awalan "- " (misalnya "- In the room — Di dalam ruangan").',
+  seimbang:
+    '1–2 kalimat penjelasan, lalu 2–4 contoh atau poin konkret dengan awalan "- " (misalnya "- In the room — Di dalam ruangan"), tanpa baris Tips.',
+  lengkap:
+    '1–2 kalimat penjelasan, lalu contoh atau poin konkret dengan awalan "- " (misalnya "- In the room — Di dalam ruangan"), lalu satu baris "Tips: …" kalau membantu.',
+}
+
 export function buildScriptMessages(
   idea: string,
   brand: BrandContext | null,
   hook: HookArchetype = pickHook(),
   /** Sigap's direction: what the owner asked to change, or what the competitors it studied do. */
   brief = '',
+  density: TextDensity = DEFAULT_DENSITY,
 ): ChatMessage[] {
   return [
     { role: 'system', content: SCRIPT_SYSTEM },
@@ -413,9 +438,10 @@ export function buildScriptMessages(
         '- Susunan: slide 1 = Hook; slide tengah = isi; slide terakhir = CTA. Slide terakhir boleh memuat poin isi terakhir sebelum ajakannya, misalnya ringkasan "cara mudah mengingat" lalu satu pertanyaan atau kuis singkat untuk dijawab di komentar.',
         '- label: nama singkat peran atau isi slide untuk owner, 1–3 kata, misalnya "Hook", nama poinnya, atau "CTA" (boleh digabung seperti "AT + CTA").',
         '- title: judul slide yang tertulis besar di gambar, maksimal 12 kata. Slide isi: poin utamanya, misalnya "IN = Di dalam atau periode waktu yang luas".',
-        `- body: sisa teks yang tertulis di gambar, baris dipisah \\n: 1–2 kalimat penjelasan, lalu contoh atau poin konkret dengan awalan "- " (misalnya "- In the room — Di dalam ruangan"), lalu satu baris "Tips: …" kalau membantu. title dan body bersama maksimal ${HEADLINE_MAX_LENGTH} karakter, jadi pilih contoh yang paling jelas.`,
+        `- body: sisa teks yang tertulis di gambar, baris dipisah \\n: ${SCRIPT_BODY[density]} title dan body bersama maksimal ${HEADLINE_MAX_LENGTH} karakter, jadi pilih contoh yang paling jelas.`,
+        `- ${densityRule(density)}`,
         '',
-        carouselGuide(hook),
+        carouselGuide(hook, density),
         '',
         'Format JSON: {"slides": [{"label": "…", "title": "…", "body": "…"}]}',
         '',
@@ -454,11 +480,14 @@ export function writeScript(
   /** A long-running caller such as Sigap can pin the account's brand instead of resolving it again. */
   brandContext?: BrandContext | null,
   signal?: AbortSignal,
+  density: TextDensity = DEFAULT_DENSITY,
 ): Promise<ScriptSlide[]> {
-  const input = { ideaId: idea.id, idea: idea.title, ...(brief ? { brief } : {}) }
+  const input = { ideaId: idea.id, idea: idea.title, density, ...(brief ? { brief } : {}) }
   return runLogged(userId, 'content_script', input, async () => {
     const brand = brandContext === undefined ? await loadBrandContext(userId) : brandContext
-    const script = parseScriptAnswer(await chatCompletion(buildScriptMessages(idea.title, brand, pickHook(), brief), undefined, signal))
+    const script = parseScriptAnswer(
+      await chatCompletion(buildScriptMessages(idea.title, brand, pickHook(), brief, density), undefined, signal),
+    )
     await save(script)
     return script
   })

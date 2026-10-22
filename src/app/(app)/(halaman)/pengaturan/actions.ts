@@ -4,6 +4,8 @@ import { refresh } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { currentPeriod, requireAccount, requireUser } from '@/lib/auth'
 import { disconnectInstagram as disconnectAccount } from '@/lib/connection'
+import { setDensityDefault } from '@/lib/density'
+import { isTextDensity } from '@/lib/density-options'
 import { describeError } from '@/lib/errors'
 import { deleteFacebookConnection } from '@/lib/facebook-connection'
 import { applyStoryToScheduled, countStoryCandidates, setStoryDefault } from '@/lib/post-stories'
@@ -58,6 +60,9 @@ export async function disconnectThreads(): Promise<void> {
   await reportTo(userId, outcome, '#threads')
 }
 
+/** A message for the owner, or null when it worked. */
+type ActionError = string | null
+
 export type StoryDefaultResult = { error: string } | { scheduled: number }
 
 /**
@@ -89,5 +94,18 @@ export async function applyStoryToScheduledAction(): Promise<ApplyStoryResult> {
   } catch (error) {
     console.error('[pengaturan] Story gagal diterapkan ke post terjadwal:', describeError(error))
     return { error: 'Gagal menerapkan ke post terjadwal. Coba lagi.' }
+  }
+}
+
+/** Kepadatan teks: the density a new post in Buat starts with, saved as soon as it is picked. */
+export async function setDensityDefaultAction(density: unknown): Promise<ActionError> {
+  if (!isTextDensity(density)) return 'Pilihan tidak dikenal.'
+  const { userId, accountId } = await requireAccount()
+  try {
+    await setDensityDefault(userId, accountId, density)
+    return null
+  } catch (error) {
+    console.error('[pengaturan] kepadatan teks gagal disimpan:', describeError(error))
+    return 'Kepadatan teks gagal disimpan. Coba lagi.'
   }
 }

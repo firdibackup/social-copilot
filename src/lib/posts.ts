@@ -369,7 +369,7 @@ export interface SlideReference {
  */
 export async function createContentPost(
   userId: string,
-  request: Omit<ContentRequest, 'pillarId'> & Partial<Pick<ContentRequest, 'pillarId'>>,
+  request: Omit<ContentRequest, 'pillarId' | 'density'> & Partial<Pick<ContentRequest, 'pillarId'>>,
   plan: ContentPlan,
   references: SlideReference[],
   attachmentPath: string | null = null,

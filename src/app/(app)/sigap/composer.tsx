@@ -6,6 +6,7 @@ import {
   ATTACHMENT_ACCEPT,
   attachmentsProblem,
   checkAttachment,
+  DAILY_LIMITS,
   MESSAGE_MAX_LENGTH,
   type AttachmentKind,
 } from '@/lib/chat-options'
@@ -153,13 +154,13 @@ export function ChatComposer({ busy, deepSearch, onToggleDeepSearch, onSend, dra
           <label className="inline-flex cursor-pointer items-center gap-2 rounded-full px-2 py-1 text-xs font-medium text-ink-muted select-none hover:bg-zinc-100">
             <span className="relative inline-flex h-4 w-7 shrink-0">
               <input type="checkbox" role="switch" checked={deepSearch} onChange={onToggleDeepSearch} className="peer sr-only" />
-              <span className="absolute inset-0 rounded-full bg-zinc-300 transition-colors peer-checked:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-ink/20" />
-              <span className="absolute top-0.5 left-0.5 size-3 rounded-full bg-white transition-transform peer-checked:translate-x-3" />
+              <span className="absolute inset-0 rounded-full bg-zinc-300 transition-colors peer-checked:ai-gradient peer-focus-visible:ring-2 peer-focus-visible:ring-ink/20" />
+              <span className="absolute top-0.5 left-0.5 size-3 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-3" />
             </span>
-            <span className={deepSearch ? 'text-accent' : undefined}>Deep Search</span>
+            <span className={deepSearch ? 'ai-gradient-text font-semibold' : undefined}>Intel Kompetitor</span>
           </label>
           <span className="hidden text-[11px] text-ink-soft sm:inline">
-            {deepSearch ? 'Intel Kompetitor aktif (10 riset/hari)' : 'Nyalakan untuk riset akun kompetitor'}
+            {deepSearch ? `Aktif · ${DAILY_LIMITS.deep_search} riset/hari` : 'Riset akun IG kompetitor'}
           </span>
           <button
             type="button"

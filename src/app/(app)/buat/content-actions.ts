@@ -11,6 +11,7 @@ import { lengthOf, pickFirst, pickRandom, planReferenceImages, slideRoles, type 
 import { CAPTION_MAX_LENGTH } from '@/lib/caption'
 import { editCaption, planContent, reviseSlide, suggestIdeas, writeScript, type ContentPlan } from '@/lib/content-ai'
 import { AUTO_PRODUCT, AUTO_REFERENCE, parseContentRequest, parseInstruction, type ContentRequest } from '@/lib/content-options'
+import { isTextDensity } from '@/lib/density-options'
 import { styleIdForBrand } from '@/lib/design-styles'
 import { describeError } from '@/lib/errors'
 import { addIdeas, deleteIdea, getIdea, recentTitles, saveIdeaScript } from '@/lib/ideas'
@@ -303,15 +304,17 @@ export async function generateIdeasAction(): Promise<ActionError> {
 }
 
 /** A new slide-by-slide script for the idea, stored on it, replacing the one it had. */
-export async function generateScriptAction(ideaId: unknown): Promise<ScriptResult> {
+export async function generateScriptAction(ideaId: unknown, density: unknown): Promise<ScriptResult> {
   const { userId } = await requireAccount()
   if (!isUuid(ideaId)) return { error: 'Ide tidak ditemukan.' }
+  if (!isTextDensity(density)) return { error: 'Kepadatan teks tidak dikenal.' }
   try {
     const idea = await getIdea(userId, ideaId)
     if (!idea) return { error: IDEA_GONE }
-    const script = await writeScript(userId, idea, async (written) => {
+    const save = async (written: ScriptSlide[]) => {
       if (!(await saveIdeaScript(userId, idea.id, written))) throw new ContentError(IDEA_GONE)
-    })
+    }
+    const script = await writeScript(userId, idea, save, '', undefined, undefined, density)
     return { script }
   } catch (error) {
     if (error instanceof ContentError) return { error: error.message }

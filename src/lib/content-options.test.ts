@@ -12,10 +12,19 @@ const INPUT = {
   productGroupId: null,
   pillarId: null,
   includeLogo: false,
+  density: 'lengkap',
   ideaId: null,
 }
 
 describe('parseContentRequest', () => {
+  it.each(['padat', 'ringkas', 'seimbang', 'lengkap'])('accepts the text density %s', (density) => {
+    expect(parseContentRequest({ ...INPUT, density })).toEqual({ request: { ...INPUT, density } })
+  })
+
+  it.each([undefined, 'sedang', 3])('refuses an unknown text density %s', (density) => {
+    expect(parseContentRequest({ ...INPUT, density })).toEqual({ error: 'Kepadatan teks tidak dikenal.' })
+  })
+
   it('accepts a valid request', () => {
     expect(parseContentRequest(INPUT)).toEqual({ request: INPUT })
   })

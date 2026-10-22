@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { Fragment, useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
+import type { TextDensity } from '@/lib/density-options'
 import type { Idea } from '@/lib/ideas'
 import { BULLET, readScriptText, scriptLines, scriptToText, slideProblem, splitScriptText } from '@/lib/script-options'
 import { generateScriptAction, saveScriptAction } from './content-actions'
@@ -29,7 +30,13 @@ export interface ScriptText {
  * A new post's composer text. An idea opened without a script gets one written into it at once; the owner edits it
  * as text, and while it reads as a valid script it is saved on the idea by itself.
  */
-export function useScriptText(idea: Idea | null, canWrite: boolean, onError: (message: string) => void): ScriptText {
+export function useScriptText(
+  idea: Idea | null,
+  canWrite: boolean,
+  /** How much text the AI puts on each slide when it writes the script. */
+  density: TextDensity,
+  onError: (message: string) => void,
+): ScriptText {
   const router = useRouter()
   const [text, setText] = useState(() => (idea?.script ? scriptToText(idea.script) : (idea?.title ?? '')))
   const [version, setVersion] = useState(0)
@@ -70,7 +77,7 @@ export function useScriptText(idea: Idea | null, canWrite: boolean, onError: (me
   async function write() {
     if (!idea) return
     setWriting(true)
-    const result = await generateScriptAction(idea.id).catch(() => ({ error: FAILED }))
+    const result = await generateScriptAction(idea.id, density).catch(() => ({ error: FAILED }))
     setWriting(false)
     if ('error' in result) {
       onError(result.error)

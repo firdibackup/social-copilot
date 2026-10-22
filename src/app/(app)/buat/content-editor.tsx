@@ -18,12 +18,12 @@ import {
   MAX_SLIDES,
   type ProductOption,
 } from '@/lib/content-options'
+import { DENSITY_ORDER, isTextDensity, TEXT_DENSITIES, type TextDensity } from '@/lib/density-options'
 import type { Slot } from '@/lib/format'
 import type { Idea } from '@/lib/ideas'
 import { IMAGE_FORMATS, isImageFormat, type ImageFormat } from '@/lib/image-options'
 import type { Post, PostMedia } from '@/lib/posts'
 import { scriptHeadline } from '@/lib/script-options'
-import type { ContentStrategy } from '@/lib/strategy-options'
 import { Composer } from './composer'
 import {
   createContentAction,
@@ -68,7 +68,8 @@ interface ContentEditorProps {
   /** The idea a new post starts from (`?ide=`). */
   idea: Idea | null
   account: EditorAccount
-  strategy: ContentStrategy | null
+  /** The account's text density from Pengaturan, which a new post starts with. */
+  defaultDensity: TextDensity
   products: ProductOption[]
   hasLogo: boolean
   /** Credits left in the period; null when they couldn't be read (the server still checks). */
@@ -112,7 +113,7 @@ export function ContentEditor({
   slides,
   idea,
   account,
-  strategy,
+  defaultDensity,
   products,
   hasLogo,
   credits,
@@ -165,11 +166,11 @@ export function ContentEditor({
   const [slideCount, setSlideCount] = useState(DEFAULT_SLIDES)
   const [format, setFormat] = useState<ImageFormat>('4:5')
   const [productGroupId, setProductGroupId] = useState(AUTO_PRODUCT)
-  const [pillarId, setPillarId] = useState(idea?.pillarId ?? '')
+  const [density, setDensity] = useState<TextDensity>(defaultDensity)
   const [includeLogo, setIncludeLogo] = useState(false)
   const pickerRef = useRef<HTMLDialogElement>(null)
   const short = (cost: number) => credits !== null && cost > credits
-  const draft = useScriptText(post ? null : idea, !short(TASK_CREDITS.content_script), (text) =>
+  const draft = useScriptText(post ? null : idea, !short(TASK_CREDITS.content_script), density, (text) =>
     setNotice({ tone: 'error', text: `Skrip gagal disusun: ${text} Anda tetap bisa kirim idenya sebagai topik.` }),
   )
   const read = post ? null : draft.read
@@ -335,8 +336,10 @@ export function ContentEditor({
           format,
           referenceId: AUTO_REFERENCE,
           productGroupId: products.length > 0 ? productGroupId || null : null,
-          pillarId: pillarId || null,
+          // The planner picks the pillar itself; a post from an idea keeps the idea's.
+          pillarId: idea?.pillarId ?? null,
           includeLogo,
+          density,
           ideaId: idea?.id ?? null,
           script: script?.script ?? null,
           attachment,
@@ -457,19 +460,27 @@ export function ContentEditor({
           </select>
         </label>
       )}
-      {strategy && strategy.pillars.length > 0 && (
-        <label className={CHIP}>
-          Pilar:
-          <select value={pillarId} onChange={(event) => setPillarId(event.target.value)} className={`${CHIP_SELECT} max-w-40`}>
-            <option value="">Otomatis</option>
-            {strategy.pillars.map((pillar) => (
-              <option key={pillar.id} value={pillar.id}>
-                {pillar.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      <label
+        className={CHIP}
+        title={
+          script
+            ? 'Teks slide mengikuti skrip. Kepadatan dipakai saat skrip disusun ulang.'
+            : 'Seberapa banyak teks di tiap slide. Default-nya diatur di Pengaturan.'
+        }
+      >
+        Teks
+        <select
+          value={density}
+          onChange={(event) => isTextDensity(event.target.value) && setDensity(event.target.value)}
+          className={CHIP_SELECT}
+        >
+          {DENSITY_ORDER.map((key) => (
+            <option key={key} value={key}>
+              {TEXT_DENSITIES[key].label}
+            </option>
+          ))}
+        </select>
+      </label>
       {hasLogo && (
         <label className={CHIP}>
           <input type="checkbox" checked={includeLogo} onChange={(event) => setIncludeLogo(event.target.checked)} className="accent-accent" />

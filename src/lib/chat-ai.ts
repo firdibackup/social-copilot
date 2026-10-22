@@ -6,6 +6,8 @@ import { isObject, lengthOf, truncate, type BrandContext } from './brand-options
 import { findContent, loadSummaryBatch, reserveDailyUsage, saveSummary, type ChatSession } from './chat'
 import { summaryBatch, type ChatMessageView, type ChatPart, type CompetitorView, type ScriptItem } from './chat-options'
 import { IDEA_MAX_LENGTH, writeScript } from './content-ai'
+import { getDensityDefault } from './density'
+import { DEFAULT_DENSITY, type TextDensity } from './density-options'
 import { ConfigError, describeError } from './errors'
 import { parseInstagramUsername } from './facebook'
 import { formatLongDay, wibDateKey } from './format'
@@ -229,7 +231,7 @@ const SYSTEM_RULES = [
 const DEEP_SEARCH_ON =
   '- Intel Kompetitor aktif: pakai intel_kompetitor untuk riset akun Instagram publik yang disebut owner atau dicari lewat kata kunci.'
 const DEEP_SEARCH_OFF =
-  '- Intel Kompetitor (riset akun Instagram lain) sedang mati. Kalau owner minta riset akun kompetitor, minta dia menyalakan Deep Search di kotak pesan.'
+  '- Intel Kompetitor (riset akun Instagram lain) sedang mati. Kalau owner minta riset akun kompetitor, minta dia menyalakan tombol Intel Kompetitor di kotak pesan.'
 
 /** Sigap's system prompt: the rules, the brand, today, and what came before the verbatim messages. */
 export function buildSystemPrompt(brand: BrandContext | null, deepSearch: boolean, summary: string, now: Date): string {
@@ -322,6 +324,8 @@ interface ToolContext {
   userId: string
   accountId: string
   brand: BrandContext | null
+  /** The account's text density, which the scripts Sigap writes follow. */
+  density: TextDensity
   deepSearch: boolean
   signal: AbortSignal
 }
@@ -402,7 +406,7 @@ export function competitorSearch(args: Json): CompetitorSearch | null {
 }
 
 async function runIntel(context: ToolContext, args: Json): Promise<ToolOutcome> {
-  if (!context.deepSearch) return failure('intel_kompetitor', 'Nyalakan Deep Search dulu untuk memakai Intel Kompetitor.')
+  if (!context.deepSearch) return failure('intel_kompetitor', 'Nyalakan tombol Intel Kompetitor di kotak pesan dulu.')
   const search = competitorSearch(args)
   if (!search) return { part: null, result: 'Gagal: isi usernames atau keyword.' }
   const max = typeof args.max === 'number' ? args.max : MAX_COMPETITORS
@@ -468,6 +472,7 @@ async function draftScript(context: ToolContext, request: ScriptRequest): Promis
       request.brief,
       context.brand,
       context.signal,
+      context.density,
     )
     return { ideaId: existing.id, title: request.title, script, state: 'saved' }
   }
@@ -484,6 +489,7 @@ async function draftScript(context: ToolContext, request: ScriptRequest): Promis
       request.brief,
       context.brand,
       context.signal,
+      context.density,
     )
     return { ideaId, title: request.title, script, state: 'saved' }
   } catch (error) {
@@ -691,8 +697,11 @@ export async function answerChat(request: ChatRequest): Promise<ChatReply> {
       input,
       async () => {
         const signal = AbortSignal.timeout(ANSWER_TIMEOUT_MS)
-        const brand = await loadAccountBrandContext(userId, accountId)
-        const context: ToolContext = { userId, accountId, brand, deepSearch, signal }
+        const [brand, density] = await Promise.all([
+          loadAccountBrandContext(userId, accountId),
+          getDensityDefault(userId, accountId).catch(() => DEFAULT_DENSITY),
+        ])
+        const context: ToolContext = { userId, accountId, brand, density, deepSearch, signal }
         const tools = chatTools(deepSearch)
         const messages: ConversationMessage[] = [
           { role: 'system', content: buildSystemPrompt(brand, deepSearch, session.summary, new Date()) },
