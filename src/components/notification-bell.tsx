@@ -14,6 +14,7 @@ import {
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { LoadingState } from '@/components/loading-state'
 import { formatListTime } from '@/lib/format'
 import type { Notification, NotificationFeed } from '@/lib/inbox-rules'
 import { markAllSeenAction, setNotificationReadAction } from './notification-actions'
@@ -225,7 +226,7 @@ export function NotificationBell() {
           )}
 
           {loading && !loaded ? (
-            <LoadingState />
+            <LoadingState label="Memuat notifikasi…" className="min-h-44 px-4" />
           ) : loadError && !loaded ? (
             <ErrorState retry={() => void load(true)} />
           ) : feed.status === 'instagram_required' ? (
@@ -337,15 +338,6 @@ function NotificationList({
         )
       })}
     </ul>
-  )
-}
-
-function LoadingState() {
-  return (
-    <div role="status" className="flex min-h-44 flex-col items-center justify-center gap-2 text-sm text-ink-muted">
-      <LoaderCircle size={20} className="animate-spin text-accent" aria-hidden="true" />
-      Memuat notifikasi…
-    </div>
   )
 }
 

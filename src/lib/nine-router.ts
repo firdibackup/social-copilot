@@ -61,6 +61,7 @@ async function post(path: string, body: unknown, timeoutMs: number, accept?: str
   const signal = outerSignal ? AbortSignal.any([timeout, outerSignal]) : timeout
   return fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal }).catch(
     (error: unknown) => {
+      outerSignal?.throwIfAborted()
       const reason = isObject(error) && typeof error.name === 'string' ? error.name : 'unknown'
       throw new RouterApiError(`9Router tidak bisa dihubungi (${reason})`, 0)
     },
@@ -80,6 +81,7 @@ export async function chatCompletion(messages: ChatMessage[], model?: string, si
     signal,
   )
   const body: unknown = await response.json().catch(() => null)
+  signal?.throwIfAborted()
   if (!response.ok) throw new RouterApiError(errorMessage(body, response.status), response.status)
   return readContent(body)
 }
@@ -147,7 +149,7 @@ export function readImageStream(text: string): string {
  * One image as base64 JPEG. SSE is asked for because its progress events keep the connection open through nginx while
  * the image renders. Request bodies above 1 MB get a 413 from that nginx, so input images must stay small.
  */
-export async function generateImage({ prompt, size, images }: ImageRequest, model?: string): Promise<string> {
+export async function generateImage({ prompt, size, images }: ImageRequest, model?: string, signal?: AbortSignal): Promise<string> {
   const response = await post(
     '/images/generations',
     {
@@ -163,14 +165,17 @@ export async function generateImage({ prompt, size, images }: ImageRequest, mode
     },
     IMAGE_TIMEOUT_MS,
     'text/event-stream',
+    signal,
   )
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null)
     throw new RouterApiError(errorMessage(body, response.status), response.status)
   }
   const text = await response.text().catch(() => {
+    signal?.throwIfAborted()
     throw new RouterApiError('Stream gambar dari 9Router terputus', 0)
   })
+  signal?.throwIfAborted()
   return readImageStream(text)
 }
 

@@ -1,4 +1,5 @@
 import 'server-only'
+import { contentRevision, type ContentRevisionRow } from './content-revision'
 import { signMediaUrls } from './assets'
 import { truncate, type SlideRole } from './brand-options'
 import type { ContentPlan } from './content-ai'
@@ -281,6 +282,8 @@ export function postLabel(post: Pick<Post, 'title' | 'caption'>): string {
 
 /** A post in Buat's list: not published yet, so still worth opening in the editor. */
 export interface ContentListItem {
+  revision: string
+  generation?: string | null
   id: string
   label: string
   /** The caption's first line under a title, for cards that show both; empty when the label is the caption. */
@@ -301,13 +304,15 @@ const WORK_STATUSES: PostStatus[] = ['draft', 'scheduled', 'failed', 'cancelled'
 const CONTENT_LIST_LIMIT = 50
 
 interface ContentListRow {
+  updated_at: string
+  content_jobs?: { kind: string; status: string } | { kind: string; status: string }[] | null
   id: string
   title: string
   caption: string
   status: PostStatus
   scheduled_at: string | null
   post_media: { position: number; assets: { storage_path: string } }[]
-  post_slides: { status: string }[]
+  post_slides: { id: string; status: string; updated_at: string }[]
   instagram_enabled: boolean
   post_threads: { enabled: boolean } | { enabled: boolean }[] | null
 }
@@ -321,7 +326,7 @@ export async function listContentPosts(userId: string, accountId: string): Promi
     await db()
       .from('posts')
       .select(
-        'id, title, caption, status, scheduled_at, instagram_enabled, post_media(position, assets(storage_path)), post_slides(status), post_threads(enabled)',
+        'id, updated_at, title, caption, status, scheduled_at, instagram_enabled, post_media(position, assets(storage_path)), post_slides(id, status, updated_at), post_threads(enabled), content_jobs(kind, status)',
       )
       .eq('user_id', userId)
       .eq('account_id', accountId)
@@ -336,7 +341,15 @@ export async function listContentPosts(userId: string, accountId: string): Promi
   return rows.map((row, index) => {
     const unfinished = row.post_slides.filter((slide) => slide.status !== 'ready')
     const captionLine = row.caption.split('\n', 1)[0].trim()
+    const job = Array.isArray(row.content_jobs) ? row.content_jobs[0] : row.content_jobs
+    const pending = job?.status === 'pending' || job?.status === 'running'
+    const generation = job?.status === 'cancelled' ? 'Pembuatan dibatalkan'
+      : job?.status === 'failed' ? 'Pembuatan gagal · coba lagi'
+      : pending ? (job.kind === 'script' ? 'Menyusun skrip…' : 'Menyusun caption dan slide…')
+        : job?.kind === 'script' ? 'Draft · skrip siap' : null
     return {
+      revision: contentRevision({ ...row, content_jobs: row.content_jobs ?? null }),
+      generation,
       id: row.id,
       label: postLabel(row),
       subtitle: row.title && captionLine !== row.title ? truncate(captionLine, LABEL_MAX_LENGTH) : '',
@@ -344,11 +357,21 @@ export async function listContentPosts(userId: string, accountId: string): Promi
       scheduledAt: toDate(row.scheduled_at),
       coverUrl: covers[index] ? urls[urlIndex++] : null,
       slideCount: row.post_media.length + unfinished.length,
-      inProgress: unfinished.filter((slide) => slide.status === 'pending' || slide.status === 'generating').length,
+      inProgress: (pending ? 1 : 0) + unfinished.filter((slide) => slide.status === 'pending' || slide.status === 'generating').length,
       instagramEnabled: row.instagram_enabled,
       threadsEnabled: threadsEnabledOf(row.post_threads),
     }
   })
+}
+
+/** Poll only watched drafts, with no storage signing or editor/workspace queries. */
+export async function getContentRevisions(userId: string, accountId: string, ids: string[]) {
+  if (ids.length === 0) return {}
+  const rows = unwrap(await db().from('posts')
+    .select('id, updated_at, post_slides(id, status, updated_at), content_jobs(kind, status)')
+    .eq('user_id', userId).eq('account_id', accountId).in('id', ids)
+    .overrideTypes<ContentRevisionRow[], { merge: false }>())
+  return Object.fromEntries(rows.map((row) => [row.id, contentRevision(row)]))
 }
 
 /** A reference the user doesn't have. The message is safe to show. */
@@ -373,9 +396,10 @@ export async function createContentPost(
   plan: ContentPlan,
   references: SlideReference[],
   attachmentPath: string | null = null,
+  job?: { postId: string; lease: string },
 ): Promise<string> {
-  const { data, error } = await db().rpc('create_content', {
-    p_user_id: userId,
+  const { data, error } = await db().rpc(job ? 'finish_content_job' : 'create_content', {
+    ...(job ? { p_post_id: job.postId, p_lease: job.lease } : { p_user_id: userId, p_idea_id: request.ideaId }),
     p_title: plan.title,
     p_caption: plan.caption,
     p_slides: plan.slides.map((slide, index) => {
@@ -393,7 +417,6 @@ export async function createContentPost(
         attachment_note: attached ? slide.attachment : '',
       }
     }),
-    p_idea_id: request.ideaId,
     p_pillar_id: request.pillarId ?? null,
   })
   if (error?.message === 'invalid_reference') throw new ContentError('Referensi brand tidak ditemukan.')

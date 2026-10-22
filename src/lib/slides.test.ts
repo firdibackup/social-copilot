@@ -21,12 +21,15 @@ describe('retrySlide', () => {
 })
 
 describe('requeueSlide', () => {
-  it('sends the delay as a Postgres interval', async () => {
+  it('requeues only the same active lease, so a cancelled attempt cannot revive', async () => {
     const { query, calls } = queryMock({ data: null, error: null })
     vi.mocked(db).mockReturnValue(query as never)
 
-    await requeueSlide('slide-1', 'Layanan sibuk', 30_000)
-    expect(calls).toContainEqual(['rpc', 'requeue_slide', { p_id: 'slide-1', p_error: 'Layanan sibuk', p_delay: '30 seconds' }])
+    await requeueSlide('slide-1', 'Layanan sibuk', 30_000, 'lease-1')
+    expect(calls).toContainEqual(['eq', 'id', 'slide-1'])
+    expect(calls).toContainEqual(['eq', 'lease', 'lease-1'])
+    expect(calls).toContainEqual(['eq', 'status', 'generating'])
+    expect(calls).toContainEqual(['update', expect.objectContaining({ status: 'pending', lease: null })])
   })
 })
 

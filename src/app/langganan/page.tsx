@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import { CarouselyLogo } from '@/components/brand-mark'
+import { LoadingState } from '@/components/loading-state'
 import { Notice } from '@/components/notice'
 import { getPlan } from '@/lib/app-settings'
 import { currentOnboarded, requireUser } from '@/lib/auth'
@@ -56,7 +57,7 @@ export default function LanggananPage({ searchParams }: LanggananPageProps) {
         </form>
       </header>
       <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Langganan</h1>
-      <Suspense fallback={<p className="text-sm text-zinc-500">Memuat langganan…</p>}>
+      <Suspense fallback={<LoadingState variant="form" label="Memuat langganan…" />}>
         <Subscription searchParams={searchParams} />
       </Suspense>
     </main>

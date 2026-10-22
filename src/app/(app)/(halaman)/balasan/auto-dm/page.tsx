@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
+import { LoadingState } from '@/components/loading-state'
 import { Notice } from '@/components/notice'
 import { requireAccount } from '@/lib/auth'
 import { getRule } from '@/lib/auto-dm'
@@ -21,7 +22,7 @@ interface AutoDmPageProps {
 /** Buat Auto DM, or Ubah with `?id=` (a query parameter rather than a [id] segment, as in Admin). */
 export default function AutoDmPage({ searchParams }: AutoDmPageProps) {
   return (
-    <Suspense fallback={<p className="text-sm text-zinc-500">Memuat Auto DM…</p>}>
+    <Suspense fallback={<LoadingState variant="form" label="Memuat Auto DM…" />}>
       <AutoDmEditor searchParams={searchParams} />
     </Suspense>
   )

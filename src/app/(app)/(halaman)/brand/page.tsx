@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
+import { LoadingState } from '@/components/loading-state'
 import { Notice } from '@/components/notice'
 import { requireAccount } from '@/lib/auth'
 import { getBrandKit, listReferences, VISUAL_REFERENCE_LIMIT } from '@/lib/brand'
@@ -24,7 +25,7 @@ export default function BrandPage() {
           referensi disiapkan untuk desain. Hasil analisis AI hanya mengisi form, jadi periksa dulu lalu tekan Simpan.
         </p>
       </header>
-      <Suspense fallback={<p className="text-sm text-zinc-500">Memuat brand kit…</p>}>
+      <Suspense fallback={<LoadingState variant="form" label="Memuat brand kit…" />}>
         <BrandStudio />
       </Suspense>
     </div>

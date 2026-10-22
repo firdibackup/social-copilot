@@ -35,6 +35,14 @@ afterEach(() => {
 })
 
 describe('chatCompletion', () => {
+  it('preserves explicit cancellation instead of turning it into a retryable provider error', async () => {
+    const controller = new AbortController()
+    const reason = new Error('cancelled by owner')
+    controller.abort(reason)
+    fetchMock.mockRejectedValue(reason)
+    await expect(chatCompletion(MESSAGES, 'model', controller.signal)).rejects.toBe(reason)
+  })
+
   it('posts a non-streaming request with the key in the header', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ choices: [{ message: { content: '{"ok":true}' } }] }))
 

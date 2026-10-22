@@ -9,6 +9,9 @@ import type { Asset } from '@/lib/assets'
 interface PhotoPickerProps {
   dialogRef: RefObject<HTMLDialogElement | null>
   library: Asset[]
+  loading: boolean
+  error: string | null
+  onRetry: () => void
   /** Asset ids in the post, in order. */
   selected: string[]
   max: number
@@ -19,7 +22,7 @@ interface PhotoPickerProps {
 }
 
 /** The owner's own photos from Aset, or new uploads, as slides. */
-export function PhotoPicker({ dialogRef, library, selected, max, onToggle, onUploaded, onDone }: PhotoPickerProps) {
+export function PhotoPicker({ dialogRef, library, loading, error, onRetry, selected, max, onToggle, onUploaded, onDone }: PhotoPickerProps) {
   return (
     <dialog
       ref={dialogRef}
@@ -36,7 +39,9 @@ export function PhotoPicker({ dialogRef, library, selected, max, onToggle, onUpl
           </h2>
           <UploadButton onUploaded={onUploaded} />
         </div>
-        {library.length === 0 ? (
+        {loading && <p role="status" className="text-sm text-ink-muted">Memuat foto…</p>}
+        {error && <p role="alert" className="text-sm text-red-700">{error} <button type="button" onClick={onRetry} className="underline">Coba lagi</button></p>}
+        {library.length === 0 && !loading && !error ? (
           <p className="text-sm text-ink-muted">Belum ada foto di Aset. Unggah dari sini.</p>
         ) : (
           <ul className="grid max-h-[60vh] grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-5">

@@ -3,6 +3,7 @@
 import { ArrowUp, ImagePlus, LoaderCircle, X } from 'lucide-react'
 import { useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { MediaImage } from '@/components/media-image'
+import { CancelGenerationButton } from '@/components/cancel-generation-button'
 import { toReferenceJpeg } from '@/lib/image'
 
 interface ComposerProps {
@@ -13,6 +14,8 @@ interface ComposerProps {
   blocked: string | null
   /** Set while a request of the editor runs, e.g. "Membuat ulang slide 2…". */
   busyLabel: string | null
+  onCancel?: () => void
+  cancelling?: boolean
   /** The text, when the editor holds it, e.g. an idea's script the AI writes into it; the box then never clears it. */
   text?: string
   onTextChange?: (text: string) => void
@@ -54,6 +57,8 @@ export function Composer({
   cost,
   blocked,
   busyLabel,
+  onCancel,
+  cancelling = false,
   text: heldText,
   onTextChange,
   readOnly = false,
@@ -68,6 +73,7 @@ export function Composer({
   const [reading, setReading] = useState(false)
   const [attachError, setAttachError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
+  const sendLock = useRef(false)
   const picker = useRef<HTMLInputElement>(null)
   const attachment = canAttach ? staged : null
   const busy = sending || busyLabel !== null
@@ -80,7 +86,8 @@ export function Composer({
   }
 
   async function send() {
-    if (!canSend) return
+    if (!canSend || sendLock.current) return
+    sendLock.current = true
     const sent = text.trim()
     const sentAttachment = attachment
     setSending(true)
@@ -91,6 +98,7 @@ export function Composer({
         if (sentAttachment) setStaged((current) => (current === sentAttachment ? null : current))
       }
     } finally {
+      sendLock.current = false
       setSending(false)
     }
   }
@@ -211,7 +219,7 @@ export function Composer({
         >
           {busy ? (busyLabel ?? 'Memproses…') : idle}
         </span>
-        <button
+        {busy && onCancel ? <CancelGenerationButton onClick={onCancel} pending={cancelling} /> : <button
           type="button"
           onClick={() => void send()}
           disabled={!canSend}
@@ -220,7 +228,7 @@ export function Composer({
           className={`flex size-9 shrink-0 items-center justify-center rounded-full text-white transition-colors ${canSend ? 'bg-accent hover:bg-accent-deep' : 'bg-zinc-300'}`}
         >
           {busy ? <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> : <ArrowUp size={18} aria-hidden="true" />}
-        </button>
+        </button>}
       </div>
     </div>
   )

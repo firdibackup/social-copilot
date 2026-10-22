@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { connection } from 'next/server'
 import { Suspense, type ReactNode } from 'react'
+import { LoadingState } from '@/components/loading-state'
 import { ExternalImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
 import { getSyncState, listAnalyticsPosts, listAppMediaIds, type AnalyticsPost, type SyncState } from '@/lib/analytics'
@@ -38,7 +39,7 @@ interface AnalitikPageProps {
 export default function AnalitikPage({ searchParams }: AnalitikPageProps) {
   return (
     <div className="space-y-6">
-      <Suspense fallback={<p className="text-sm text-zinc-500">Memuat analitik…</p>}>
+      <Suspense fallback={<LoadingState variant="analytics" label="Memuat analitik…" />}>
         <AnalyticsView searchParams={searchParams} />
       </Suspense>
     </div>

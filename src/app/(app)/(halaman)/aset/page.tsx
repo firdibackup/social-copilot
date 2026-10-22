@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
+import { LoadingState } from '@/components/loading-state'
 import { Notice } from '@/components/notice'
 import { listAssetLibrary, type AssetLibrary } from '@/lib/assets'
 import { requireAccount } from '@/lib/auth'
@@ -20,7 +21,7 @@ export default function AsetPage() {
           membuat konten.
         </p>
       </header>
-      <Suspense fallback={<p className="text-sm text-zinc-500">Memuat foto…</p>}>
+      <Suspense fallback={<LoadingState variant="gallery" label="Memuat foto…" />}>
         <AssetGrid />
       </Suspense>
     </div>

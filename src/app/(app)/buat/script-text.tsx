@@ -4,8 +4,10 @@ import { useRouter } from 'next/navigation'
 import { Fragment, useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
 import type { TextDensity } from '@/lib/density-options'
 import type { Idea } from '@/lib/ideas'
+import type { ContentJob } from '@/lib/content-jobs'
 import { BULLET, readScriptText, scriptLines, scriptToText, slideProblem, splitScriptText } from '@/lib/script-options'
 import { generateScriptAction, saveScriptAction } from './content-actions'
+import { useSaveBeforeNavigation } from './use-save-before-navigation'
 
 const AUTOSAVE_MS = 1000
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
@@ -36,6 +38,7 @@ export function useScriptText(
   /** How much text the AI puts on each slide when it writes the script. */
   density: TextDensity,
   onError: (message: string) => void,
+  job: ContentJob | null = null,
 ): ScriptText {
   const router = useRouter()
   const [text, setText] = useState(() => (idea?.script ? scriptToText(idea.script) : (idea?.title ?? '')))
@@ -44,22 +47,39 @@ export function useScriptText(
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [writing, setWriting] = useState(false)
+  const writeLock = useRef(false)
+  const queued = job?.status === 'pending' || job?.status === 'running'
+  const scriptKey = JSON.stringify(idea?.script ?? null)
+  const [seenScript, setSeenScript] = useState(scriptKey)
+  if (seenScript !== scriptKey) {
+    setSeenScript(scriptKey)
+    if (idea?.script && version === savedVersion) setText(scriptToText(idea.script))
+  }
   const started = useRef(false)
   const read = readScriptText(text)
   const script = read && 'script' in read ? read.script : null
   const unsaved = idea !== null && read !== null && version !== savedVersion
 
   async function persist(upTo: number) {
-    if (!idea || !script) return
+    if (!idea || !script) return false
     setSaving(true)
     const failure = await saveScriptAction({ ideaId: idea.id, script }).catch(() => FAILED)
     setSaving(false)
     setSaveError(failure)
     if (!failure) setSavedVersion((saved) => Math.max(saved, upTo))
+    return !failure
   }
 
   const autosave = useEffectEvent((upTo: number) => {
     if (upTo > savedVersion) void persist(upTo)
+  })
+  useSaveBeforeNavigation(async () => {
+    if (!unsaved) return true
+    if (!script) {
+      setSaveError('Skrip belum valid. Perbaiki sebelum membuka konten lain.')
+      return false
+    }
+    return persist(version)
   })
   useEffect(() => {
     if (version === 0) return
@@ -74,24 +94,26 @@ export function useScriptText(
     return () => window.removeEventListener('beforeunload', warn)
   }, [unsaved])
 
-  async function write() {
-    if (!idea) return
+  async function write(rewrite = true) {
+    if (!idea || writeLock.current || queued) return
+    writeLock.current = true
     setWriting(true)
-    const result = await generateScriptAction(idea.id, density).catch(() => ({ error: FAILED }))
+    const result = await generateScriptAction(idea.id, density, rewrite).catch(() => ({ error: FAILED }))
+    writeLock.current = false
     setWriting(false)
     if ('error' in result) {
       onError(result.error)
       return
     }
-    // The new script is stored already; edits still waiting are replaced by it.
-    setText(scriptToText(result.script))
+    // The worker will write the script. Accept its next result over the previous local text.
     setSavedVersion(version)
     setSaveError(null)
+    router.replace(`/buat?id=${result.postId}`)
     router.refresh()
   }
 
   const writeFirst = useEffectEvent(() => {
-    if (idea && !idea.script && canWrite) void write()
+    if (idea && !job && canWrite) void write(false)
   })
   useEffect(() => {
     if (started.current) return
@@ -106,7 +128,7 @@ export function useScriptText(
       setVersion((value) => value + 1)
     },
     read,
-    writing,
+    writing: writing || queued,
     saveState:
       !idea || !read ? null : saving ? 'Menyimpan…' : saveError ? null : unsaved ? 'Belum tersimpan' : 'Tersimpan',
     saveError: idea && read ? saveError : null,

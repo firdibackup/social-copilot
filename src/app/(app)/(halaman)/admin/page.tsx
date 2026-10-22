@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
+import { LoadingState } from '@/components/loading-state'
 import { Notice } from '@/components/notice'
 import { getAdminOverview, type AdminOverview } from '@/lib/admin'
 import { formatCredits } from '@/lib/admin-options'
@@ -16,7 +17,7 @@ export const metadata: Metadata = { title: 'Admin' }
 
 export default function AdminPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-zinc-500">Memuat ringkasan…</p>}>
+    <Suspense fallback={<LoadingState variant="analytics" label="Memuat ringkasan…" />}>
       <Overview />
     </Suspense>
   )

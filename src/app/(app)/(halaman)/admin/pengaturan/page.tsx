@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
+import { LoadingState } from '@/components/loading-state'
 import { Notice } from '@/components/notice'
 import { DEFAULT_IMAGE_MODEL, defaultImageModel, getAppSettings } from '@/lib/app-settings'
 import { requireAdmin } from '@/lib/auth'
@@ -16,7 +17,7 @@ const MAX_PRESETS = 4
 
 export default function AdminPengaturanPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-zinc-500">Memuat pengaturan…</p>}>
+    <Suspense fallback={<LoadingState variant="form" className="max-w-3xl" label="Memuat pengaturan…" />}>
       <Settings />
     </Suspense>
   )

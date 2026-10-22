@@ -1,9 +1,10 @@
 import 'server-only'
 import { runLogged } from './ai'
 import { imageModel } from './app-settings'
-import { createAsset, loadAssetBytes } from './assets'
+import { createAsset, deleteAsset, loadAssetBytes } from './assets'
 import type { SlideRole } from './brand-options'
 import { describeError } from './errors'
+import { GenerationCancelled, slideAttemptActive, watchGeneration } from './generation-cancellation'
 import { drawImage, imageErrorMessage, imageLog, type DrawnImage } from './image-ai'
 import type { ImageFormat } from './image-options'
 import { RouterApiError } from './nine-router'
@@ -66,8 +67,11 @@ export function isTransientSlideError(error: unknown): boolean {
  * A passing failure puts the slide back in the queue until MAX_SLIDE_ATTEMPTS; any other failure fails it with a
  * message for the owner.
  */
-export async function processSlide({ userId, accountId, attemptCount, slide }: ClaimedSlide): Promise<void> {
+export async function processSlide({ userId, accountId, attemptCount, slide, lease }: ClaimedSlide): Promise<void> {
+  let watch: Awaited<ReturnType<typeof watchGeneration>> | undefined
+  let assetId: string | null = null
   try {
+    watch = await watchGeneration(() => slideAttemptActive(slide.id, lease))
     await runLogged(
       userId,
       'content_slide',
@@ -75,6 +79,7 @@ export async function processSlide({ userId, accountId, attemptCount, slide }: C
       async () => {
         const [post, unfinished] = await Promise.all([getPost(userId, slide.postId), listUnfinishedSlides(userId, slide.postId)])
         if (!post) throw new SlideError('Post tidak ditemukan.')
+        await watch!.check()
         const count = post.media.length + unfinished.length
         const drawn = await drawImage(userId, {
           headline: slide.headline,
@@ -89,24 +94,31 @@ export async function processSlide({ userId, accountId, attemptCount, slide }: C
           currentImage: null,
           attachment: slide.attachmentPath ? { path: slide.attachmentPath, note: slide.attachmentNote } : null,
           slide: count > 1 ? { index: Math.min(slide.position + 1, count), count, role: slide.role } : null,
-        })
-        await attachSlide(slide.id, await storeSlideImage(userId, accountId, drawn, slide.format))
+        }, watch!.signal)
+        await watch!.check()
+        assetId = await storeSlideImage(userId, accountId, drawn, slide.format)
+        await attachSlide(slide.id, assetId, lease)
+        assetId = null
         return drawn
       },
       { model: await imageModel(), logOutput: imageLog },
     )
   } catch (error) {
+    if (assetId) await deleteAsset(userId, assetId).catch((failure) => console.error('[slide] gambar sementara gagal dibersihkan:', describeError(failure)))
+    if (error instanceof GenerationCancelled) return
     const message = error instanceof SlideError ? error.message : imageErrorMessage(error)
     if (!(error instanceof SlideError)) console.error('[slide] gagal dibuat:', describeError(error))
     try {
       if (isTransientSlideError(error) && attemptCount < MAX_SLIDE_ATTEMPTS) {
-        await requeueSlide(slide.id, message, RETRY_DELAYS_MS[Math.min(attemptCount, RETRY_DELAYS_MS.length) - 1])
+        await requeueSlide(slide.id, message, RETRY_DELAYS_MS[Math.min(attemptCount, RETRY_DELAYS_MS.length) - 1], lease)
       } else {
-        await failSlide(slide.id, message)
+        await failSlide(slide.id, message, lease)
       }
     } catch (failure) {
       // The slide stays generating and is taken again after 5 minutes.
       console.error('[slide] status gagal disimpan:', describeError(failure))
     }
+  } finally {
+    watch?.stop()
   }
 }

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Avatar } from '@/components/avatar'
+import { CancelGenerationButton } from '@/components/cancel-generation-button'
 import { MediaImage } from '@/components/media-image'
 import type { ImageFormat } from '@/lib/image-options'
 import type { PostMedia } from '@/lib/posts'
@@ -25,7 +26,7 @@ export interface SlideView {
   id: string
   position: number
   format: ImageFormat
-  status: 'pending' | 'generating' | 'failed'
+  status: 'pending' | 'generating' | 'failed' | 'cancelled'
   /** Why it failed; on a waiting slide, why the worker is trying it again. */
   error: string | null
 }
@@ -50,6 +51,8 @@ interface PostMockupProps {
   onMove: (index: number, offset: -1 | 1) => void
   onRetry: (slideId: string) => void
   onDropSlide: (slideId: string) => void
+  onCancelSlide: (slideId: string) => void
+  cancelling: boolean
   /** Under the image, as in the feed. */
   caption: ReactNode
   /** Shown in place of the image when the post has none yet and none can be added here. */
@@ -122,7 +125,7 @@ export function PostMockup(props: PostMockupProps) {
   )
 }
 
-function Stage({ item, remaking, running, editable, onRemove, onRetry, onDropSlide }: PostMockupProps & { item: SlideItem }) {
+function Stage({ item, remaking, running, editable, onRemove, onRetry, onDropSlide, onCancelSlide, cancelling }: PostMockupProps & { item: SlideItem }) {
   if (item.kind === 'image') {
     return (
       <>
@@ -147,6 +150,17 @@ function Stage({ item, remaking, running, editable, onRemove, onRetry, onDropSli
   }
 
   const { slide } = item
+  if (slide.status === 'cancelled' && slide.id !== running) {
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-50 p-6 text-center">
+        <p role="status" className="text-sm text-ink-muted">Pembuatan gambar dibatalkan.</p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <button type="button" onClick={() => onRetry(slide.id)} className="min-h-9 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-white hover:bg-accent-deep">Buat lagi (gratis)</button>
+          <button type="button" onClick={() => onDropSlide(slide.id)} className="min-h-9 rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-ink hover:bg-zinc-100">Hapus slide</button>
+        </div>
+      </div>
+    )
+  }
   if (slide.status === 'failed' && slide.id !== running) {
     return (
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-red-50 p-6 text-center">
@@ -165,11 +179,12 @@ function Stage({ item, remaking, running, editable, onRemove, onRetry, onDropSli
   }
   const making = slide.id === running || slide.status === 'generating'
   return (
-    <div className="shimmer absolute inset-0 flex items-center justify-center">
+    <div className="shimmer absolute inset-0 flex flex-col items-center justify-center gap-3">
       <Working
         label={making ? `Membuat slide ${slide.position + 1}…` : slide.error ? 'Gagal sebentar, dicoba lagi otomatis…' : 'Menunggu giliran…'}
         spinning={making}
       />
+      <CancelGenerationButton label="Batal gambar ini" onClick={() => onCancelSlide(slide.id)} pending={cancelling} />
     </div>
   )
 }
@@ -218,6 +233,8 @@ function SlideStrip({ items, active, onSelect, running, editable, onMove, onAdd,
             >
               {item.kind === 'image' ? (
                 <MediaImage src={item.media.url} className="size-full object-cover" />
+              ) : item.slide.status === 'cancelled' && item.slide.id !== running ? (
+                <span className="flex size-full items-center justify-center bg-zinc-100 text-xs text-ink-muted">Batal</span>
               ) : item.slide.status === 'failed' && item.slide.id !== running ? (
                 <span className="flex size-full items-center justify-center bg-red-50 text-red-600">
                   <AlertTriangle size={16} aria-hidden="true" />

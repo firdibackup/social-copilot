@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import { randomUUID } from 'node:crypto'
 import {
   coverOf,
@@ -128,11 +129,11 @@ function toFields(row: KitRow): BrandFields {
 }
 
 /** One brand kit per user and Instagram account. */
-async function loadKit(userId: string, accountId: string): Promise<KitRow | null> {
+const loadKit = cache(async (userId: string, accountId: string): Promise<KitRow | null> => {
   return unwrap(
     await db().from('brand_kit').select(KIT_COLUMNS).eq('user_id', userId).eq('account_id', accountId).maybeSingle(),
   ) as KitRow | null
-}
+})
 
 /**
  * The connected account's kit, for AI prompts, which take only the user: one more query, against requests that

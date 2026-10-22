@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
+import { LoadingState } from '@/components/loading-state'
 import { Notice } from '@/components/notice'
 import { requireAdmin } from '@/lib/auth'
 import { describeError } from '@/lib/errors'
@@ -12,7 +13,7 @@ export const metadata: Metadata = { title: 'Template · Admin' }
 
 export default function AdminTemplatePage() {
   return (
-    <Suspense fallback={<p className="text-sm text-zinc-500">Memuat template…</p>}>
+    <Suspense fallback={<LoadingState variant="gallery" label="Memuat template…" />}>
       <Templates />
     </Suspense>
   )

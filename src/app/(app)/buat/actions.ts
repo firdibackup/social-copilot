@@ -1,6 +1,6 @@
 'use server'
 
-import { refresh } from 'next/cache'
+import { refresh, revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireAccount, type AccountScope } from '@/lib/auth'
 import { inspectCaption } from '@/lib/caption'
@@ -79,6 +79,7 @@ export async function savePostAction(_previous: SaveState, formData: FormData): 
     console.error('[buat] simpan gagal:', describeError(error))
     return { error: 'Post gagal disimpan. Coba lagi.' }
   }
+  revalidatePath('/buat', 'layout')
   redirect(`/buat?id=${savedId}&ok=${intent}`)
 }
 
@@ -96,6 +97,7 @@ async function runPostAction(
     console.error(`[buat] aksi ${code} gagal:`, describeError(error))
     return false
   })
+  if (done) revalidatePath('/buat', 'layout')
   redirect(`/buat?id=${id}&${done ? 'ok' : 'gagal'}=${code}`)
 }
 
@@ -166,6 +168,7 @@ export async function duplicatePostAction(formData: FormData): Promise<void> {
     console.error('[buat] duplikat gagal:', describeError(error))
     return null
   })
+  if (copyId) revalidatePath('/buat', 'layout')
   redirect(copyId ? `/buat?id=${copyId}&ok=duplicate` : `/buat?id=${id}&gagal=duplicate`)
 }
 
@@ -181,5 +184,6 @@ export async function deletePostAction(formData: FormData): Promise<void> {
       console.error('[buat] hapus gagal:', describeError(error))
       return false
     })
+  if (deleted) revalidatePath('/buat', 'layout')
   redirect(deleted ? '/kalender?tampilan=daftar&ok=hapus' : `/buat?id=${id}&gagal=hapus`)
 }

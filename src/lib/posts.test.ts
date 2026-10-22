@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { filtered, queryMock } from '@/test/query-mock'
-import { countScheduledPosts, listContentPosts, listPosts, PostLockedError, retryPost, savePost } from './posts'
+import { countScheduledPosts, getContentRevisions, listContentPosts, listPosts, PostLockedError, retryPost, savePost } from './posts'
+import { signMediaUrls } from './assets'
 import { db } from './supabase'
 
 vi.mock('./supabase', async (importOriginal) => ({
@@ -14,6 +15,15 @@ beforeEach(() => {
 })
 
 describe('account filters', () => {
+  it('polls only the user and account without signing storage URLs', async () => {
+    const { query, calls } = queryMock()
+    vi.mocked(db).mockReturnValue(query as never)
+    vi.mocked(signMediaUrls).mockClear()
+    await expect(getContentRevisions('user-1', 'ig-1', ['post-1'])).resolves.toEqual({})
+    expect(filtered(calls, 'user_id', 'user-1')).toBe(true)
+    expect(filtered(calls, 'account_id', 'ig-1')).toBe(true)
+    expect(signMediaUrls).not.toHaveBeenCalled()
+  })
   it('lists only the connected account’s posts', async () => {
     const { query, calls } = queryMock()
     vi.mocked(db).mockReturnValue(query as never)

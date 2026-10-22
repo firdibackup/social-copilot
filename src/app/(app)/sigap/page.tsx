@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
+import { LoadingState } from '@/components/loading-state'
 import { Notice } from '@/components/notice'
 import { requireAccount } from '@/lib/auth'
 import { getSession, listMessages, listSessions } from '@/lib/chat'
@@ -18,7 +19,7 @@ interface SigapPageProps {
 
 export default function SigapPage({ searchParams }: SigapPageProps) {
   return (
-    <Suspense fallback={<p className="p-6 text-sm text-ink-muted">Memuat…</p>}>
+    <Suspense fallback={<LoadingState variant="chat" className="h-full" label="Memuat Sigap…" />}>
       <Workspace searchParams={searchParams} />
     </Suspense>
   )

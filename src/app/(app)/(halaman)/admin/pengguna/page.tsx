@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
+import { LoadingState } from '@/components/loading-state'
 import { Notice } from '@/components/notice'
 import { listAdminUsers, type AdminUser } from '@/lib/admin'
 import { formatCredits } from '@/lib/admin-options'
@@ -22,7 +23,7 @@ interface PenggunaPageProps {
 
 export default function PenggunaPage({ searchParams }: PenggunaPageProps) {
   return (
-    <Suspense fallback={<p className="text-sm text-zinc-500">Memuat pengguna…</p>}>
+    <Suspense fallback={<LoadingState variant="table" label="Memuat pengguna…" />}>
       <Users searchParams={searchParams} />
     </Suspense>
   )

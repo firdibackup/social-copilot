@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
 import { InstagramIcon } from '@/components/instagram-icon'
+import { CancelGenerationButton } from '@/components/cancel-generation-button'
 import { Notice, type NoticeTone } from '@/components/notice'
 import { PostStatusBadge } from '@/components/post-status-badge'
 import { ThreadsIcon } from '@/components/threads-icon'
@@ -21,16 +22,19 @@ import {
 import { DENSITY_ORDER, isTextDensity, TEXT_DENSITIES, type TextDensity } from '@/lib/density-options'
 import type { Slot } from '@/lib/format'
 import type { Idea } from '@/lib/ideas'
+import type { ContentJob } from '@/lib/content-jobs'
 import { IMAGE_FORMATS, isImageFormat, type ImageFormat } from '@/lib/image-options'
 import type { Post, PostMedia } from '@/lib/posts'
 import { scriptHeadline } from '@/lib/script-options'
 import { Composer } from './composer'
+import { cancelGeneration, type CancelTarget } from './cancel-generation'
 import {
   createContentAction,
   deleteSlideAction,
   editCaptionAction,
   editSlideAction,
   retrySlideAction,
+  retryContentJobAction,
   saveContentAction,
 } from './content-actions'
 import { MoreMenu } from './more-menu'
@@ -40,10 +44,10 @@ import { PostMockup, type SlideItem, type SlideView } from './post-mockup'
 import { ScheduleButton } from './schedule-button'
 import { formatScript, useScriptText } from './script-text'
 import { ThreadsEditor, type StoredItem } from './threads-editor'
+import { saveBeforeNavigation, useSaveBeforeNavigation } from './use-save-before-navigation'
 
 const MAX_MEDIA = 10
 const AUTOSAVE_MS = 1000
-const POLL_MS = 4000
 const EDITABLE_STATUSES = new Set(['draft', 'scheduled', 'failed', 'cancelled'])
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
 const LOCKED = 'Post ini tidak bisa diubah lagi.'
@@ -67,6 +71,7 @@ interface ContentEditorProps {
   slides: SlideView[]
   /** The idea a new post starts from (`?ide=`). */
   idea: Idea | null
+  job: ContentJob | null
   account: EditorAccount
   /** The account's text density from Pengaturan, which a new post starts with. */
   defaultDensity: TextDensity
@@ -83,7 +88,6 @@ interface ContentEditorProps {
   day: string | null
   /** The slot picked in Kalender (`?slot=`), kept the same way. */
   slotParam: string | null
-  library: Asset[]
   /** The page's messages about the post, above the toolbar. */
   notices: ReactNode
   platform: Platform
@@ -112,6 +116,7 @@ export function ContentEditor({
   post,
   slides,
   idea,
+  job,
   account,
   defaultDensity,
   products,
@@ -122,7 +127,6 @@ export function ContentEditor({
   queue,
   day,
   slotParam,
-  library: initialLibrary,
   notices,
   platform,
   threadsAccount,
@@ -130,6 +134,7 @@ export function ContentEditor({
   threadsEditable,
 }: ContentEditorProps) {
   const router = useRouter()
+  const [requestKey, setRequestKey] = useState('')
   /** A post keeps the day, slot and tab it was opened with. */
   const openPost = (id: string) => {
     const params = new URLSearchParams({ id })
@@ -138,7 +143,8 @@ export function ContentEditor({
     if (platform === 'threads') params.set('platform', 'threads')
     router.push(`/buat?${params}`)
   }
-  function showPlatform(next: Platform) {
+  async function showPlatform(next: Platform) {
+    if (!(await saveBeforeNavigation())) return
     const params = new URLSearchParams(window.location.search)
     if (next === 'threads') params.set('platform', 'threads')
     else params.delete('platform')
@@ -150,12 +156,21 @@ export function ContentEditor({
 
   const [caption, setCaption] = useState(post?.caption ?? '')
   const [media, setMedia] = useState<PostMedia[]>(serverMedia)
-  const [library, setLibrary] = useState(initialLibrary)
+  const [library, setLibrary] = useState<Asset[]>([])
+  const [libraryLoading, setLibraryLoading] = useState(false)
+  const [libraryError, setLibraryError] = useState<string | null>(null)
+  const libraryRequest = useRef<Promise<void> | null>(null)
+  const libraryLoadedAt = useRef(0)
   const [active, setActive] = useState(0)
   const [target, setTarget] = useState<'slide' | 'caption'>('slide')
   const [notice, setNotice] = useState<{ tone: NoticeTone; text: string } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [remaking, setRemaking] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [editOperation, setEditOperation] = useState<string | null>(null)
+  const cancelledEdit = useRef<string | null>(null)
+  const cancelSubmission = useRef(false)
+  const [submitting, setSubmitting] = useState(false)
   const [retrying, setRetrying] = useState<string | null>(null)
   const [version, setVersion] = useState(0)
   const [savedVersion, setSavedVersion] = useState(0)
@@ -172,6 +187,7 @@ export function ContentEditor({
   const short = (cost: number) => credits !== null && cost > credits
   const draft = useScriptText(post ? null : idea, !short(TASK_CREDITS.content_script), density, (text) =>
     setNotice({ tone: 'error', text: `Skrip gagal disusun: ${text} Anda tetap bisa kirim idenya sebagai topik.` }),
+    job,
   )
   const read = post ? null : draft.read
   const script = read && 'script' in read ? read : null
@@ -195,8 +211,9 @@ export function ContentEditor({
     ...media.map((item): SlideItem => ({ kind: 'image', key: item.assetId, media: item })),
     ...slides.map((slide): SlideItem => ({ kind: 'slide', key: slide.id, slide })),
   ]
-  const inProgress = slides.some((slide) => slide.status === 'pending' || slide.status === 'generating')
-  const locked = !editable || inProgress
+  const jobPending = job?.status === 'pending' || job?.status === 'running'
+  const inProgress = jobPending || slides.some((slide) => slide.status === 'pending' || slide.status === 'generating')
+  const locked = !editable || inProgress || (job?.kind === 'content' && job.status !== 'ready')
   // While photos can be added, the add card follows the last slide. A new post gets it once it has photos, so a
   // picker closed without Selesai can be opened again.
   const canAdd = (post !== null || media.length > 0) && !locked && busy === null && items.length < MAX_MEDIA
@@ -204,14 +221,56 @@ export function ContentEditor({
   const current = items[activeIndex]
   const first = media[0]
   const ratio = first ? `${first.width} / ${first.height}` : slides[0]?.format === '1:1' ? '1 / 1' : '4 / 5'
-  const openPicker = () => pickerRef.current?.showModal()
+  function loadLibrary(): Promise<void> {
+    if (libraryRequest.current) return libraryRequest.current
+    if (Date.now() - libraryLoadedAt.current < 60_000) return Promise.resolve()
+    setLibraryLoading(true)
+    setLibraryError(null)
+    const request = (async () => {
+      try {
+        const response = await fetch('/api/content/assets', { cache: 'no-store' })
+        if (!response.ok || response.redirected) throw new Error('library_unavailable')
+        const assets: Asset[] = await response.json()
+        setLibrary((current) => [...new Map([...current, ...assets].map((asset) => [asset.id, asset])).values()])
+        libraryLoadedAt.current = Date.now()
+      } catch {
+        setLibraryError('Foto belum bisa dimuat. Coba lagi.')
+      } finally {
+        setLibraryLoading(false)
+        libraryRequest.current = null
+      }
+    })()
+    libraryRequest.current = request
+    return request
+  }
+  const openPicker = () => {
+    pickerRef.current?.showModal()
+    void loadLibrary()
+  }
 
-  // The worker makes the slides, one at a time per post in carousel order: look again until they land.
-  useEffect(() => {
-    if (!inProgress) return
-    const timer = setInterval(() => router.refresh(), POLL_MS)
-    return () => clearInterval(timer)
-  }, [inProgress, router])
+  async function cancel(target: CancelTarget, id?: string) {
+    const postId = job?.post_id ?? post?.id
+    if (!postId || cancelling) return
+    setCancelling(true)
+    const result = await cancelGeneration(postId, target, id)
+    setCancelling(false)
+    if (result.error) setNotice({ tone: 'error', text: result.error })
+    else {
+      if (target === 'edit' && result.cancelled) cancelledEdit.current = id ?? null
+      setNotice({ tone: 'success', text: result.cancelled
+        ? 'Pembuatan dibatalkan. Hasil yang sudah selesai tetap tersimpan.'
+        : 'Proses sudah selesai. Hasil terbaru ditampilkan.' })
+      router.refresh()
+    }
+  }
+
+  function cancelCurrent() {
+    if (submitting) {
+      cancelSubmission.current = true
+      setCancelling(true)
+    } else if (editOperation) void cancel('edit', editOperation)
+    else if (jobPending) void cancel('content')
+  }
 
   async function retry(slideId: string) {
     setRetrying(slideId)
@@ -256,6 +315,7 @@ export function ContentEditor({
 
   /** Saves now what is still waiting for the autosave, before a request that reads the post. */
   const flush = () => (unsaved ? persist(version) : Promise.resolve(true))
+  useSaveBeforeNavigation(flush)
 
   function change(next: { caption?: string; media?: PostMedia[] }) {
     if (next.caption !== undefined) setCaption(next.caption)
@@ -321,9 +381,14 @@ export function ContentEditor({
     composer = {
       placeholder: 'Tulis topik atau ide konten…',
       cost,
-      blocked: scriptError ?? (short(cost) ? SHORT : null),
+      blocked: job?.status === 'failed' || job?.status === 'cancelled' ? 'Klik Susun skrip untuk melanjutkan.' : scriptError ?? (short(cost) ? SHORT : null),
       send: async (text, attachment) => {
+        if (jobPending) return false
+        const submissionKey = requestKey || crypto.randomUUID()
+        setRequestKey(submissionKey)
         setNotice(null)
+        cancelSubmission.current = false
+        setSubmitting(true)
         setBusy(script ? 'Menyusun caption dan visual dari skrip…' : 'Menyusun caption dan rencana slide…')
         // The slides follow the account's references, or the design style's examples when it has none; a specific
         // design or footage comes as an attached image. A script keeps each slide's text as written.
@@ -331,6 +396,7 @@ export function ContentEditor({
           ? [idea?.title, script.intro].filter(Boolean).join('\n\n') || scriptHeadline(script.script[0])
           : text
         const result = await createContentAction({
+          requestKey: submissionKey,
           topic,
           slides: newSlides,
           format,
@@ -344,12 +410,25 @@ export function ContentEditor({
           script: script?.script ?? null,
           attachment,
         }).catch(() => ({ error: FAILED }))
+        setSubmitting(false)
         if ('error' in result) {
+          setCancelling(false)
           setBusy(null)
           setNotice({ tone: 'error', text: result.error })
           return false
         }
+        if (cancelSubmission.current) {
+          const cancelled = await cancelGeneration(result.postId, 'content')
+          setCancelling(false)
+          setBusy(null)
+          if (cancelled.error) {
+            setNotice({ tone: 'error', text: cancelled.error })
+            openPost(result.postId)
+            return false
+          }
+        }
         openPost(result.postId)
+        router.refresh()
         return true
       },
     }
@@ -399,11 +478,15 @@ export function ContentEditor({
         if (!(await flush())) return false
         setBusy(`Membuat ulang slide ${number}…`)
         setRemaking(true)
-        const error = await editSlideAction({ postId: post.id, assetId: image.assetId, instruction, attachment }).catch(
+        const operationId = crypto.randomUUID()
+        setEditOperation(operationId)
+        const error = await editSlideAction({ postId: post.id, assetId: image.assetId, instruction, attachment, operationId }).catch(
           () => FAILED,
         )
         setBusy(null)
         setRemaking(false)
+        setEditOperation(null)
+        if (cancelledEdit.current === operationId) { router.refresh(); return false }
         if (error) {
           setNotice({ tone: 'error', text: error })
           return false
@@ -508,7 +591,7 @@ export function ContentEditor({
             className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent-soft disabled:text-ink-soft disabled:hover:bg-transparent"
           >
             {draft.writing ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> : <RefreshCw size={14} aria-hidden="true" />}
-            {read ? 'Susun ulang' : 'Susun skrip'}
+              {job?.status === 'failed' || job?.status === 'cancelled' ? 'Susun skrip' : read ? 'Susun ulang' : 'Susun skrip'}
           </button>
         </span>
       )}
@@ -526,6 +609,7 @@ export function ContentEditor({
   ) : null
 
   const counts = inspectCaption(caption)
+  const composerCost = post ? (target === 'caption' ? TASK_CREDITS.caption_edit : TASK_CREDITS.slide_edit) : contentCost(newSlides)
   const username = account.username ?? 'akun_anda'
   // Not while an AI request runs: actions run one at a time, so an autosave typed during a slide edit would run
   // after it with the old photo list and drop the new image.
@@ -598,6 +682,10 @@ export function ContentEditor({
               </button>
             )}
             {post && <PostStatusBadge status={post.status} />}
+            {(inProgress || remaking) && (
+              <CancelGenerationButton pending={cancelling} label={remaking ? 'Batal gambar' : jobPending ? 'Batal pembuatan' : 'Batal semua gambar'}
+                onClick={() => editOperation ? void cancel('edit', editOperation) : void cancel(jobPending ? 'content' : 'images')} />
+            )}
             {post && editable && <SaveStatus saving={saving} unsaved={unsaved} error={saveError} />}
             {post && editable && (
               <ScheduleButton
@@ -606,7 +694,7 @@ export function ContentEditor({
                 assetIds={media.map((item) => item.assetId)}
                 slot={slot}
                 queue={queue}
-                disabled={inProgress || busy !== null || (post.instagramEnabled && items.length === 0)}
+                disabled={locked || busy !== null || (post.instagramEnabled && items.length === 0)}
               />
             )}
           </div>
@@ -630,6 +718,9 @@ export function ContentEditor({
                 username={threadsAccount.username ?? username}
                 avatarUrl={account.avatarUrl}
                 library={library}
+                libraryLoading={libraryLoading}
+                libraryError={libraryError}
+                onLoadLibrary={() => void loadLibrary()}
                 onUploaded={(assets) => setLibrary((current) => [...assets, ...current])}
                 editable={threadsEditable}
                 onCreated={openPost}
@@ -655,16 +746,34 @@ export function ContentEditor({
             onMove={movePhoto}
             onRetry={(slideId) => retrying === null && void retry(slideId)}
             onDropSlide={(slideId) => void dropSlide(slideId)}
+            onCancelSlide={(slideId) => void cancel('slide', slideId)}
+            cancelling={cancelling}
             caption={captionArea}
             onAdd={canAdd ? openPicker : undefined}
             maxSlides={MAX_MEDIA}
             empty={
-              post ? (
+              job?.kind === 'content' && job.status !== 'ready' ? (
+                <span role="status" className="flex flex-col items-center gap-3">
+                  {jobPending && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+                  {job.status === 'cancelled' ? 'Pembuatan konten dibatalkan. Draft tetap tersimpan.' : job.status === 'failed' ? job.error : 'Draft tersimpan. Caption dan rencana slide sedang disusun oleh worker.'}
+                  {jobPending && <span className="text-sm">Boleh tutup halaman atau buat konten lain. Proses tetap berjalan.</span>}
+                  {(job.status === 'failed' || job.status === 'cancelled') && (
+                    <button type="button" className="underline" onClick={async () => {
+                      const error = await retryContentJobAction(job.post_id)
+                      if (error) setNotice({ tone: 'error', text: error })
+                    }}>{job.status === 'cancelled' ? 'Buat lagi' : 'Coba lagi'}</button>
+                  )}
+                </span>
+              ) : post ? (
                 'Post ini belum punya foto.'
               ) : (
                 <span className="flex flex-col items-center gap-3">
                   {draft.writing
-                    ? 'AI sedang menyusun skrip dari ide ini di kotak bawah…'
+                    ? 'Draft tersimpan. Worker sedang menyusun skrip. Boleh pindah halaman atau buat konten lain.'
+                    : job?.status === 'cancelled'
+                      ? 'Penyusunan skrip dibatalkan. Klik Susun skrip untuk melanjutkan.'
+                    : job?.status === 'failed'
+                      ? job.error
                     : script
                       ? `Ubah skrip di kotak bawah bila perlu, lalu kirim: AI membuat caption dan ${script.script.length} slide persis dari teksnya.`
                       : `Tulis topik di bawah: AI menyusun caption dan ${slideCount} slide sekaligus.`}
@@ -686,14 +795,16 @@ export function ContentEditor({
       </div>
 
       {/* The AI box edits the Instagram slides and caption; the Threads tab is edited in place. */}
-      {platform !== 'threads' && (
+      {platform !== 'threads' && !(job?.kind === 'content' && job.status !== 'ready') && (
       <div className="shrink-0 px-4 pt-2 pb-3 md:px-8 md:pb-4">
         <div className="mx-auto max-w-[680px]">
           <Composer
             placeholder={composer.placeholder}
-            cost={`${post ? '' : '≈ '}${formatCreditShare(composer.cost, planCredits)} kuota`}
+            cost={`${post ? '' : '≈ '}${formatCreditShare(composerCost, planCredits)} kuota`}
             blocked={composer.blocked}
             busyLabel={busy ?? (draft.writing ? 'Menyusun skrip dari ide…' : null)}
+            onCancel={submitting || editOperation || jobPending ? cancelCurrent : undefined}
+            cancelling={cancelling}
             text={post ? undefined : draft.text}
             onTextChange={post ? undefined : draft.setText}
             readOnly={draft.writing}
@@ -710,6 +821,9 @@ export function ContentEditor({
       <PhotoPicker
         dialogRef={pickerRef}
         library={library}
+        loading={libraryLoading}
+        error={libraryError}
+        onRetry={() => void loadLibrary()}
         selected={media.map((item) => item.assetId)}
         max={MAX_MEDIA - slides.length}
         onToggle={togglePhoto}

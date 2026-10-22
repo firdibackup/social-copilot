@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
+import { LoadingState } from '@/components/loading-state'
 import { Plus } from 'lucide-react'
 import { Notice } from '@/components/notice'
 import { requireAccount } from '@/lib/auth'
@@ -33,10 +34,10 @@ interface BalasanPageProps {
 export default function BalasanPage({ searchParams }: BalasanPageProps) {
   return (
     <div className="space-y-8">
-      <Suspense fallback={<p className="text-sm text-zinc-500">Memuat balasan…</p>}>
+      <Suspense fallback={<LoadingState variant="page" label="Memuat balasan…" />}>
         <BalasanView searchParams={searchParams} />
       </Suspense>
-      <Suspense fallback={<p className="text-sm text-zinc-500">Memuat template…</p>}>
+      <Suspense fallback={<LoadingState label="Memuat template…" />}>
         <Templates />
       </Suspense>
     </div>

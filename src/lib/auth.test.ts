@@ -64,7 +64,7 @@ describe('requireActiveUser', () => {
     await expect(requireActiveUser()).rejects.toThrow('REDIRECT /mulai')
   })
 
-  it('asks about the onboarding only after the payment', async () => {
+  it('prioritizes the payment redirect when both checks fail', async () => {
     session.userId = 'user-5'
     vi.mocked(getCurrentPeriod).mockResolvedValue(null)
     vi.mocked(isOnboarded).mockResolvedValue(false)

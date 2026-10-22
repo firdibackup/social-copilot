@@ -3,30 +3,29 @@
 import { refresh } from 'next/cache'
 import { aiErrorMessage, loadBrandContext, runLogged } from '@/lib/ai'
 import { imageModel } from '@/lib/app-settings'
-import { listProductGroups, loadAssetBytes } from '@/lib/assets'
-import { readAttachment, removeAttachment, saveAttachment, type Attachment } from '@/lib/attachments'
+import { deleteAsset, loadAssetBytes } from '@/lib/assets'
+import { readAttachment, removeAttachment, saveAttachment } from '@/lib/attachments'
 import { requireAccount } from '@/lib/auth'
-import { getBrandVisual, listReferencePool } from '@/lib/brand'
-import { lengthOf, pickFirst, pickRandom, planReferenceImages, slideRoles, type SlideRole } from '@/lib/brand-options'
+import { lengthOf } from '@/lib/brand-options'
 import { CAPTION_MAX_LENGTH } from '@/lib/caption'
-import { editCaption, planContent, reviseSlide, suggestIdeas, writeScript, type ContentPlan } from '@/lib/content-ai'
-import { AUTO_PRODUCT, AUTO_REFERENCE, parseContentRequest, parseInstruction, type ContentRequest } from '@/lib/content-options'
+import { editCaption, reviseSlide, suggestIdeas } from '@/lib/content-ai'
+import { enqueueContentJob, getContentJob } from '@/lib/content-jobs'
+import { parseContentRequest, parseInstruction } from '@/lib/content-options'
 import { isTextDensity } from '@/lib/density-options'
-import { styleIdForBrand } from '@/lib/design-styles'
+import { getDensityDefault } from '@/lib/density'
 import { describeError } from '@/lib/errors'
-import { addIdeas, deleteIdea, getIdea, recentTitles, saveIdeaScript } from '@/lib/ideas'
+import { editAttemptActive, GenerationCancelled, watchGeneration } from '@/lib/generation-cancellation'
+import { addIdeas, deleteIdea, recentTitles, saveIdeaScript } from '@/lib/ideas'
 import { drawImage, imageErrorMessage, imageLog } from '@/lib/image-ai'
 import type { ImageFormat } from '@/lib/image-options'
 import { isUuid } from '@/lib/params'
-import { parseScript, type ScriptSlide } from '@/lib/script-options'
+import { parseScript } from '@/lib/script-options'
 import {
   ContentError,
-  createContentPost,
   getPost,
   PostLockedError,
   savePost,
   type Post,
-  type SlideReference,
 } from '@/lib/posts'
 import { storeSlideImage } from '@/lib/slide-generation'
 import { toReferenceDataUrl } from '@/lib/slide-image'
@@ -34,12 +33,10 @@ import {
   deleteUnfinishedSlide,
   findSlideByAsset,
   hasSlidesInProgress,
-  replaceSlide,
   retrySlide,
   SlideError,
 } from '@/lib/slides'
-import { planTemplates } from '@/lib/template-options'
-import { listTemplatePool } from '@/lib/templates'
+import { db, unwrap } from '@/lib/supabase'
 
 /** A message for the owner, or null when it worked. */
 type ActionError = string | null
@@ -47,7 +44,7 @@ type ActionError = string | null
 export type CreateResult = { postId: string } | { error: string }
 export type CaptionResult = { caption: string } | { error: string }
 export type SaveResult = { postId: string } | { error: string }
-export type ScriptResult = { script: ScriptSlide[] } | { error: string }
+export type ScriptResult = { postId: string } | { error: string }
 
 const IDEA_GONE = 'Ide ini sudah tidak ada. Mungkin sudah dipakai atau dihapus.'
 
@@ -63,14 +60,15 @@ const isEditable = (post: Post) => EDITABLE_STATUSES.has(post.status) && !post.i
 const captionOf = (value: unknown) => (typeof value === 'string' ? value.replace(/\r\n/g, '\n') : '')
 
 /**
- * A new post from a topic, and the image the owner attached to it: one charge for the caption, the plan and every
- * slide's image (contentCost). The draft and its waiting slides are stored inside that charged request, so a
- * failure on either side costs nothing.
+ * Persist a draft and its job before returning; AI and billing run in the worker.
+ * The request key and source idea are deduplicated atomically in the database.
  */
 export async function createContentAction(input: unknown): Promise<CreateResult> {
   const { userId, accountId } = await requireAccount()
   const parsed = parseContentRequest(input)
   if ('error' in parsed) return parsed
+  const requestKey = isObject(input) ? input.requestKey : null
+  if (!isUuid(requestKey)) return { error: 'Permintaan tidak valid. Muat ulang editor.' }
 
   try {
     // The script is the composer's text: it sets the slides' text and how many are paid for.
@@ -82,88 +80,28 @@ export async function createContentAction(input: unknown): Promise<CreateResult>
       ? parsed.request.pillarId
       : null
     const request = { ...parsed.request, ...(script ? { slides: script.length } : {}), pillarId }
+    const existing = unwrap(await db().from('content_jobs').select('post_id, kind').eq('user_id', userId)
+      .eq('account_id', accountId).eq(request.ideaId ? 'idea_id' : 'request_key', request.ideaId ?? requestKey).maybeSingle()) as
+      { post_id: string; kind: string } | null
+    if (existing?.kind === 'content') return { postId: existing.post_id }
     const attachment = await readAttachment(isObject(input) ? input.attachment : null)
     if (attachment && 'error' in attachment) return attachment
-    const [references, listedProducts] = await Promise.all([
-      chooseSlideReferences(userId, accountId, request),
-      request.productGroupId ? listProductGroups(userId, accountId) : [],
-    ])
-    const products = listedProducts
-      .filter((product) => request.productGroupId === AUTO_PRODUCT || product.id === request.productGroupId)
-      .map(({ id, title, description }) => ({ id, title, description }))
-    if (request.productGroupId && request.productGroupId !== AUTO_PRODUCT && products.length === 0) {
-      throw new ContentError('Produk tidak ditemukan.')
+    const attachmentPath = attachment ? await saveAttachment(userId, attachment) : null
+    const postId = await enqueueContentJob(userId, accountId, requestKey, request.ideaId, 'content', {
+      request, script, attachmentPath,
+    })
+    // A concurrent request may have won with a different attachment; remove only this unused upload.
+    if (attachmentPath) {
+      try {
+        const job = await getContentJob(userId, postId)
+        if (job && job.payload.attachmentPath !== attachmentPath) await removeAttachment(attachmentPath)
+      } catch (error) { console.error('[buat] lampiran antrean gagal dibersihkan:', describeError(error)) }
     }
-    const { saved } = await planContent(
-      userId,
-      request,
-      (plan) => saveContent(userId, request, plan, references, attachment),
-      products,
-      attachment?.dataUrl ?? null,
-      script,
-    )
-    return { postId: saved }
+    return { postId }
   } catch (error) {
     if (error instanceof ContentError) return { error: error.message }
     console.error('[buat] konten gagal dibuat:', describeError(error))
     return { error: aiErrorMessage(error) }
-  }
-}
-
-/**
- * The draft, with the owner's image stored first when a slide of the plan uses it, for the slides that are made
- * later; the image is removed again when the draft can't be stored.
- */
-async function saveContent(
-  userId: string,
-  request: ContentRequest,
-  plan: ContentPlan,
-  references: SlideReference[],
-  attachment: Attachment | null,
-): Promise<string> {
-  const path = attachment && plan.slides.some((slide) => slide.attachment) ? await saveAttachment(userId, attachment) : null
-  try {
-    return await createContentPost(userId, request, plan, references, path)
-  } catch (error) {
-    if (path) {
-      await removeAttachment(path).catch((failure: unknown) =>
-        console.error('[buat] lampiran gagal dihapus:', describeError(failure)),
-      )
-    }
-    throw error
-  }
-}
-
-/**
- * Each planned slide's role and what it follows: a reference image (see planReferenceImages), picked at random from
- * all of the account's references on Otomatis, so posts vary, and the first of each label from a group the owner
- * picked. On Otomatis an account without references follows the admin's templates of its design style (see
- * planTemplates).
- */
-async function chooseSlideReferences(userId: string, accountId: string, request: ContentRequest): Promise<SlideReference[]> {
-  const roles = slideRoles(request.slides)
-  if (!request.referenceId) return roles.map((role) => ({ role, referenceImageId: null, example: null }))
-  const auto = request.referenceId === AUTO_REFERENCE
-  const pool = await listReferencePool(userId, accountId, auto ? null : request.referenceId)
-  if (!auto && pool.length === 0) throw new ContentError('Referensi brand tidak ditemukan.')
-  if (pool.length === 0) {
-    const examples = await planStyleTemplates(userId, roles)
-    return roles.map((role, index) => ({ role, referenceImageId: null, example: examples[index] }))
-  }
-  const images = planReferenceImages(pool, roles, auto ? pickRandom : pickFirst)
-  return roles.map((role, index) => ({ role, referenceImageId: images[index], example: null }))
-}
-
-/** Templates are a nicety: a post still gets made, from the style's recipe, when they can't be read. */
-async function planStyleTemplates(userId: string, roles: (SlideRole | null)[]): Promise<(string | null)[]> {
-  const none = roles.map(() => null)
-  const style = styleIdForBrand(await getBrandVisual(userId))
-  if (!style) return none
-  try {
-    return planTemplates(await listTemplatePool(style), roles, pickRandom)
-  } catch (error) {
-    console.error('[konten] template desain gagal dimuat, lanjut tanpa template:', describeError(error))
-    return none
   }
 }
 
@@ -204,11 +142,20 @@ export async function editSlideAction(input: unknown): Promise<ActionError> {
   const { userId, accountId } = await requireAccount()
   const postId = isObject(input) ? input.postId : null
   const assetId = isObject(input) ? input.assetId : null
-  if (!isUuid(postId) || !isUuid(assetId)) return 'Slide tidak ditemukan.'
+  const operationId = isObject(input) ? input.operationId : null
+  if (!isUuid(postId) || !isUuid(assetId) || !isUuid(operationId)) return 'Slide tidak ditemukan.'
   const instruction = parseInstruction(isObject(input) ? input.instruction : null)
   if (typeof instruction !== 'string') return instruction.error
 
+  let watch: Awaited<ReturnType<typeof watchGeneration>> | undefined
+  let newAssetId: string | null = null
+  let started = false
   try {
+    started = unwrap(await db().rpc('begin_slide_edit', {
+      p_user_id: userId, p_account_id: accountId, p_post_id: postId, p_id: operationId,
+    }))
+    if (!started) return 'Pembuatan dibatalkan atau permintaan sudah diproses.'
+    watch = await watchGeneration(() => editAttemptActive(userId, operationId))
     const attachment = await readAttachment(isObject(input) ? input.attachment : null)
     if (attachment && 'error' in attachment) return attachment.error
     const post = await getPost(userId, postId)
@@ -231,10 +178,11 @@ export async function editSlideAction(input: unknown): Promise<ActionError> {
       { postId, assetId, instruction, attachment: attachment !== null },
       async () => {
         const [revised, bytes] = await Promise.all([
-          reviseSlide({ headline: source?.headline ?? '', scene: source?.scene ?? '' }, instruction, attachment?.dataUrl ?? null),
+          reviseSlide({ headline: source?.headline ?? '', scene: source?.scene ?? '' }, instruction, attachment?.dataUrl ?? null, watch!.signal),
           loadAssetBytes(userId, assetId),
         ])
         if (!bytes) throw new SlideError('Foto slide ini tidak ditemukan.')
+        await watch!.check()
         const drawn = await drawImage(userId, {
           ...revised,
           format,
@@ -246,9 +194,10 @@ export async function editSlideAction(input: unknown): Promise<ActionError> {
           currentImage: await toReferenceDataUrl(bytes),
           attachment: attachment ? { dataUrl: attachment.dataUrl, note: instruction } : null,
           slide: post.media.length > 1 ? { index: index + 1, count: post.media.length, role } : null,
-        })
-        const newAssetId = await storeSlideImage(userId, accountId, drawn, format)
-        await replaceSlide(userId, {
+        }, watch!.signal)
+        await watch!.check()
+        newAssetId = await storeSlideImage(userId, accountId, drawn, format)
+        unwrap(await db().rpc('finish_slide_edit', { p_user_id: userId, p_id: operationId, p_replacement: {
           postId,
           oldAssetId: assetId,
           newAssetId,
@@ -259,15 +208,22 @@ export async function editSlideAction(input: unknown): Promise<ActionError> {
           productGroupId,
           includeLogo,
           example,
-        })
+        } }))
+        newAssetId = null
         return drawn
       },
       { model: await imageModel(), logOutput: imageLog },
     )
   } catch (error) {
+    if (newAssetId) await deleteAsset(userId, newAssetId).catch((failure) => console.error('[buat] gambar sementara gagal dibersihkan:', describeError(failure)))
+    if (error instanceof GenerationCancelled) return 'Pembuatan dibatalkan.'
     if (error instanceof SlideError) return error.message
     console.error('[buat] edit slide gagal:', describeError(error))
     return imageErrorMessage(error)
+  } finally {
+    watch?.stop()
+    if (started) await db().from('slide_edit_jobs').update({ status: 'failed' }).eq('id', operationId)
+      .eq('user_id', userId).eq('status', 'running')
   }
   return null
 }
@@ -303,24 +259,35 @@ export async function generateIdeasAction(): Promise<ActionError> {
   return null
 }
 
-/** A new slide-by-slide script for the idea, stored on it, replacing the one it had. */
-export async function generateScriptAction(ideaId: unknown, density: unknown): Promise<ScriptResult> {
-  const { userId } = await requireAccount()
+/** Open an idea's durable draft; explicit rewrites requeue only a finished/failed script job. */
+export async function generateScriptAction(ideaId: unknown, density: unknown = null, rewrite = false): Promise<ScriptResult> {
+  const { userId, accountId } = await requireAccount()
   if (!isUuid(ideaId)) return { error: 'Ide tidak ditemukan.' }
-  if (!isTextDensity(density)) return { error: 'Kepadatan teks tidak dikenal.' }
   try {
-    const idea = await getIdea(userId, ideaId)
-    if (!idea) return { error: IDEA_GONE }
-    const save = async (written: ScriptSlide[]) => {
-      if (!(await saveIdeaScript(userId, idea.id, written))) throw new ContentError(IDEA_GONE)
+    density ??= await getDensityDefault(userId, accountId)
+    if (!isTextDensity(density)) return { error: 'Kepadatan teks tidak dikenal.' }
+    const postId = await enqueueContentJob(userId, accountId, ideaId, ideaId, 'script', { density })
+    if (rewrite) {
+      unwrap(await db().from('content_jobs').update({ status: 'pending', payload: { density }, attempts: 0, error: null })
+        .eq('post_id', postId).eq('user_id', userId).eq('account_id', accountId).eq('kind', 'script').in('status', ['ready', 'failed', 'cancelled']))
     }
-    const script = await writeScript(userId, idea, save, '', undefined, undefined, density)
-    return { script }
+    return { postId }
   } catch (error) {
     if (error instanceof ContentError) return { error: error.message }
     console.error('[buat] skrip gagal dibuat:', describeError(error))
     return { error: aiErrorMessage(error) }
   }
+}
+
+export async function retryContentJobAction(postId: string): Promise<ActionError> {
+  const { userId, accountId } = await requireAccount()
+  if (!isUuid(postId)) return 'Draft tidak ditemukan.'
+  try {
+    unwrap(await db().from('content_jobs').update({ status: 'pending', error: null, attempts: 0 })
+      .eq('post_id', postId).eq('user_id', userId).eq('account_id', accountId).in('status', ['failed', 'cancelled']))
+    refresh()
+    return null
+  } catch { return 'Draft gagal diantrekan. Coba lagi.' }
 }
 
 /** The owner's edits to an idea's script, saved as they type. */
@@ -372,6 +339,8 @@ export async function saveContentAction(input: unknown): Promise<SaveResult> {
     }
     const post = await getPost(userId, postId)
     if (!post) return { error: 'Post tidak ditemukan.' }
+    const job = await getContentJob(userId, postId)
+    if (job && (job.kind === 'script' || job.status !== 'ready')) return { error: 'Tunggu draft selesai dibuat.' }
     if (!isEditable(post)) return { error: LOCKED }
     if (await hasSlidesInProgress(userId, postId)) return { error: 'Tunggu semua slide selesai dibuat.' }
     const scheduled = post.status === 'scheduled'

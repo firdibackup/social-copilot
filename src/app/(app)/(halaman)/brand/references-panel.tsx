@@ -4,6 +4,7 @@ import { Check, ChevronLeft, ChevronRight, ExternalLink, ImagePlus, Search, Tras
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { LoadingState } from '@/components/loading-state'
 import { ExternalImage, MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
 import {
@@ -241,7 +242,7 @@ function OwnPosts({ room, imported, onDone }: PickerProps) {
     }
   }, [])
 
-  if (!result) return <p className="text-sm text-zinc-500">Memuat post terbaru…</p>
+  if (!result) return <LoadingState variant="gallery" label="Memuat post terbaru…" />
   if ('error' in result) return <Notice tone="error">{result.error}</Notice>
   return <PostPicker result={result} source="instagram" room={room} imported={imported} onDone={onDone} />
 }

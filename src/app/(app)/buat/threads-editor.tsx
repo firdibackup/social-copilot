@@ -17,6 +17,7 @@ import {
 } from '@/lib/thread-items'
 import { PhotoPicker } from './photo-picker'
 import { saveThreadItemsAction } from './threads-actions'
+import { useSaveBeforeNavigation } from './use-save-before-navigation'
 
 const AUTOSAVE_MS = 1000
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
@@ -53,6 +54,9 @@ interface ThreadsEditorProps {
   username: string
   avatarUrl: string | null
   library: Asset[]
+  libraryLoading: boolean
+  libraryError: string | null
+  onLoadLibrary: () => void
   onUploaded: (assets: Asset[]) => void
   editable: boolean
   onCreated: (postId: string) => void
@@ -134,6 +138,7 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
     // A new post is created only once it has something in it.
     if (upTo > savedVersion && (postId !== null || hasContent)) void persist(upTo, own)
   })
+  useSaveBeforeNavigation(() => unsaved && (postId !== null || hasContent) ? persist(version, own) : Promise.resolve(true))
   useEffect(() => {
     if (version === 0) return
     const timer = setTimeout(() => autosave(version), AUTOSAVE_MS)
@@ -290,6 +295,7 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
                         onClick={() => {
                           setPickerIndex(index)
                           pickerRef.current?.showModal()
+                          props.onLoadLibrary()
                         }}
                         aria-label="Tambah gambar"
                         title="Tambah gambar"
@@ -331,6 +337,9 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
       <PhotoPicker
         dialogRef={pickerRef}
         library={library}
+        loading={props.libraryLoading}
+        error={props.libraryError}
+        onRetry={props.onLoadLibrary}
         selected={items[pickerIndex]?.media.map((photo) => photo.assetId) ?? []}
         max={MAX_THREAD_MEDIA}
         onToggle={togglePhoto}

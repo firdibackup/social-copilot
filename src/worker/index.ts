@@ -2,6 +2,8 @@
 // publishing scheduled posts to Instagram (and their Stories) and to Threads, making AI slides so they don't depend on the owner's
 // browser tab, and refreshing Threads tokens once a day.
 import { describeError } from '@/lib/errors'
+import { claimContentJob } from '@/lib/content-jobs'
+import { processContentJob } from '@/lib/content-generation'
 import { claimDueStory } from '@/lib/post-stories'
 import { claimDueThreads } from '@/lib/post-threads'
 import { claimDuePost } from '@/lib/posts'
@@ -117,9 +119,24 @@ async function slideLoop(): Promise<void> {
   }
 }
 
+async function contentLoop(): Promise<void> {
+  while (!stopping) {
+    try {
+      const job = await claimContentJob()
+      if (job) {
+        await processContentJob(job)
+        continue
+      }
+    } catch (error) {
+      console.error('[worker] siklus draft gagal:', describeError(error))
+    }
+    await sleep(SLIDE_IDLE_MS)
+  }
+}
+
 async function main(): Promise<void> {
-  console.log(`[worker] berjalan: publish Instagram, Story, dan Threads dicek setiap 30 detik, slide AI ${SLIDE_SLOTS} sekaligus`)
-  await Promise.all([publishLoop(), storyLoop(), threadsLoop(), tokenLoop(), ...Array.from({ length: SLIDE_SLOTS }, slideLoop)])
+  console.log(`[worker] berjalan: draft/skrip dicek setiap 3 detik, publish Instagram, Story, dan Threads setiap 30 detik, slide AI ${SLIDE_SLOTS} sekaligus`)
+  await Promise.all([contentLoop(), publishLoop(), storyLoop(), threadsLoop(), tokenLoop(), ...Array.from({ length: SLIDE_SLOTS }, slideLoop)])
   console.log('[worker] berhenti')
 }
 

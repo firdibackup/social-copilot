@@ -3,7 +3,7 @@ import type { SlideRole } from './brand-options'
 import { isImageFormat, type ImageFormat } from './image-options'
 import { db, unwrap } from './supabase'
 
-export type SlideStatus = 'pending' | 'generating' | 'ready' | 'failed'
+export type SlideStatus = 'pending' | 'generating' | 'ready' | 'failed' | 'cancelled'
 
 /** An AI slide: the prompt of its image and, until that image exists, its place in the generation queue. */
 export interface SlideRecord {
@@ -30,6 +30,7 @@ export interface SlideRecord {
 }
 
 interface SlideRow {
+  lease?: string | null
   id: string
   post_id: string
   position: number
@@ -160,6 +161,7 @@ export async function findInnerSlideAsset(
 
 /** A slide the worker took: whose it is, its post's Instagram account, and how many times the worker has taken it. */
 export interface ClaimedSlide {
+  lease: string
   userId: string
   /** The account the post belongs to, so the image lands in that account's Aset; null for an old post without one. */
   accountId: string | null
@@ -173,10 +175,12 @@ export async function claimNextSlide(): Promise<ClaimedSlide | null> {
   check(error)
   const row = ((data ?? []) as (SlideRow & { user_id: string; attempt_count: number })[])[0]
   if (!row) return null
+  if (!row.lease) throw new Error('Slide lease missing. Apply the cancellation migration and restart the worker.')
   const post: { account_id: string | null } | null = unwrap(
     await db().from('posts').select('account_id').eq('id', row.post_id).maybeSingle(),
   )
   return {
+    lease: row.lease,
     userId: row.user_id,
     accountId: post?.account_id ?? null,
     attemptCount: row.attempt_count,
@@ -185,13 +189,10 @@ export async function claimNextSlide(): Promise<ClaimedSlide | null> {
 }
 
 /** Back in the queue after `delayMs`, for a failure that may pass. Only a slide still being made. */
-export async function requeueSlide(slideId: string, message: string, delayMs: number): Promise<void> {
-  const { error } = await db().rpc('requeue_slide', {
-    p_id: slideId,
-    p_error: message,
-    p_delay: `${Math.round(delayMs / 1000)} seconds`,
-  })
-  check(error)
+export async function requeueSlide(slideId: string, message: string, delayMs: number, lease: string): Promise<void> {
+  unwrap(await db().from('post_slides').update({ status: 'pending', lease: null, error: message,
+    next_attempt_at: new Date(Date.now() + delayMs).toISOString(), updated_at: new Date().toISOString() })
+    .eq('id', slideId).eq('lease', lease).eq('status', 'generating'))
 }
 
 /** The owner's Coba lagi: a failed slide waits for the worker again. False when it isn't failed (anymore). */
@@ -202,18 +203,19 @@ export async function retrySlide(userId: string, slideId: string): Promise<boole
 }
 
 /** The image is in the post. */
-export async function attachSlide(slideId: string, assetId: string): Promise<void> {
-  const { error } = await db().rpc('attach_slide', { p_slide_id: slideId, p_asset_id: assetId })
+export async function attachSlide(slideId: string, assetId: string, lease: string): Promise<void> {
+  const { error } = await db().rpc('attach_claimed_slide', { p_slide_id: slideId, p_asset_id: assetId, p_lease: lease })
   check(error)
 }
 
 /** Failed with the reason, for the owner to try again. Only a slide still being made. */
-export async function failSlide(slideId: string, message: string): Promise<void> {
+export async function failSlide(slideId: string, message: string, lease: string): Promise<void> {
   unwrap(
     await db()
       .from('post_slides')
-      .update({ status: 'failed', error: message, updated_at: new Date().toISOString() })
+      .update({ status: 'failed', lease: null, error: message, updated_at: new Date().toISOString() })
       .eq('id', slideId)
+      .eq('lease', lease)
       .eq('status', 'generating'),
   )
 }
@@ -226,7 +228,7 @@ export async function deleteUnfinishedSlide(userId: string, slideId: string): Pr
       .delete()
       .eq('id', slideId)
       .eq('user_id', userId)
-      .in('status', ['pending', 'failed'])
+      .in('status', ['pending', 'failed', 'cancelled'])
       .select('id'),
   )
   return rows.length === 1

@@ -2,6 +2,7 @@
 
 import { Check, Plus, X } from 'lucide-react'
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
+import { LoadingState } from '@/components/loading-state'
 import { ExternalImage } from '@/components/media-image'
 import type { RulePost } from '../auto-dm-actions'
 
@@ -311,7 +312,7 @@ interface PostPickerProps {
 /** The account's newest posts, three a row; one can be chosen. */
 export function PostPicker({ posts, error, selectedId, onSelect }: PostPickerProps) {
   if (error) return <p className="text-sm text-red-700">{error}</p>
-  if (!posts) return <p className="text-sm text-zinc-500">Memuat post…</p>
+  if (!posts) return <LoadingState variant="gallery" label="Memuat post…" />
   if (posts.length === 0) return <p className="text-sm text-zinc-500">Belum ada post di akun ini.</p>
   const isListed = selectedId === null || posts.some((post) => post.id === selectedId)
   return (

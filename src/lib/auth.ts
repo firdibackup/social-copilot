@@ -89,8 +89,9 @@ export const currentOnboarded = cache(async (userId: string): Promise<boolean> =
  */
 export async function requireActiveUser(): Promise<string> {
   const userId = await requireUser()
-  if (!(await currentPeriod(userId))) redirect('/langganan')
-  if (!(await currentOnboarded(userId))) redirect('/mulai')
+  const [period, onboarded] = await Promise.all([currentPeriod(userId), currentOnboarded(userId)])
+  if (!period) redirect('/langganan')
+  if (!onboarded) redirect('/mulai')
   return userId
 }
 

@@ -333,10 +333,12 @@ export interface DrawnImage {
  * One image from 9Router. Not logged or charged here: callers wrap it in runLogged with their own task and cost,
  * and log the prompt and byte count, never image data.
  */
-export async function drawImage(userId: string, input: ImageInput): Promise<DrawnImage> {
+export async function drawImage(userId: string, input: ImageInput, signal?: AbortSignal): Promise<DrawnImage> {
+  signal?.throwIfAborted()
   const [brand, packed] = await Promise.all([orNull(() => getBrandVisual(userId), 'brand kit'), packImages(userId, input)])
   const prompt = buildImagePrompt(input, brand, packed.described)
-  const b64 = await generateImage({ prompt, size: IMAGE_FORMATS[input.format].size, images: packed.images })
+  signal?.throwIfAborted()
+  const b64 = await generateImage({ prompt, size: IMAGE_FORMATS[input.format].size, images: packed.images }, undefined, signal)
   return {
     bytes: new Uint8Array(Buffer.from(b64, 'base64')),
     prompt,

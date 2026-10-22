@@ -1,5 +1,8 @@
+'use client'
+
 import { Lightbulb, Plus } from 'lucide-react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { MediaImage } from '@/components/media-image'
 import { formatShortDate, formatTime } from '@/lib/format'
@@ -7,7 +10,8 @@ import type { Idea } from '@/lib/ideas'
 import { STATUS_LABELS } from '@/lib/post-status'
 import type { ContentListItem } from '@/lib/posts'
 import { pillarOf, type ContentStrategy } from '@/lib/strategy-options'
-import { DeleteIdeaButton, FindIdeasButton } from './idea-buttons'
+import { DeleteIdeaButton, FindIdeasButton, OpenIdeaButton } from './idea-buttons'
+import { ContentQueuePoll } from './content-queue-poll'
 
 /** Hover and focus reach past the text, which stays aligned with the section labels. */
 const ITEM =
@@ -17,17 +21,12 @@ const ACTIVE = 'bg-[#f4f4f5] hover:bg-[#f4f4f5]'
 interface ContentListProps {
   posts: ContentListItem[]
   ideas: Idea[]
-  selectedId: string | null
-  selectedIdeaId: string | null
   strategy: ContentStrategy | null
-  /** The editor's tab: the list shows the posts that go there. */
-  platform: 'instagram' | 'threads'
-  /** e.g. "0,2%", what one round of ideas costs. */
-  className: string
 }
 
 function meta(post: ContentListItem): string {
   const parts = [post.instagramEnabled ? `${post.slideCount} slide` : 'Threads']
+  if (post.generation) return post.generation
   if (post.inProgress > 0) parts.push('sedang dibuat')
   else if (post.status === 'scheduled' && post.scheduledAt) {
     parts.push(`terbit ${formatShortDate(post.scheduledAt)} ${formatTime(post.scheduledAt)}`)
@@ -36,12 +35,17 @@ function meta(post: ContentListItem): string {
 }
 
 /** Buat's left column: the posts still worth editing and the AI's ideas for new ones. */
-export function ContentList({ posts, ideas, selectedId, selectedIdeaId, strategy, platform, className }: ContentListProps) {
-  const threads = platform === 'threads'
+export function ContentList({ posts, ideas, strategy }: ContentListProps) {
+  const params = useSearchParams()
+  const selectedId = params.get('id')
+  const selectedIdeaId = params.get('ide')
+  const editing = Boolean(selectedId || selectedIdeaId || params.get('baru') || params.get('tanggal') || params.get('slot'))
+  const threads = params.get('platform') === 'threads'
   const tab = threads ? '&platform=threads' : ''
   const shown = posts.filter((post) => (threads ? post.threadsEnabled : post.instagramEnabled))
   return (
-    <aside aria-label="Daftar konten" className={`${className} min-h-0 w-full shrink-0 flex-col md:w-[320px] md:border-r md:border-hairline`}>
+    <aside aria-label="Daftar konten" className={`${editing ? 'hidden md:flex' : 'flex'} min-h-0 w-full shrink-0 flex-col md:w-[320px] md:border-r md:border-hairline`}>
+      <ContentQueuePoll posts={posts} />
       <div className="px-4 pt-3 pb-2">
         <Link
           href={`/buat?baru=1${tab}`}
@@ -51,8 +55,8 @@ export function ContentList({ posts, ideas, selectedId, selectedIdeaId, strategy
           {threads ? 'Post Threads baru' : 'Konten baru'}
         </Link>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-1 pb-5">
-        <ListSection title="Post jadi" count={shown.length}>
+      <div data-content-list-scroll className="min-h-0 flex-1 overflow-y-auto px-4 pt-1 pb-5">
+        <ListSection title="Draft & konten" count={shown.length}>
           {shown.length === 0 ? (
             <p className="py-2 text-sm text-ink-muted">
               {threads
@@ -91,9 +95,8 @@ export function ContentList({ posts, ideas, selectedId, selectedIdeaId, strategy
             <ul>
               {ideas.map((idea) => (
                 <li key={idea.id} className="group relative">
-                  <Link
-                    href={`/buat?ide=${idea.id}`}
-                    aria-current={idea.id === selectedIdeaId ? 'page' : undefined}
+                  <OpenIdeaButton
+                    id={idea.id}
                     className={`${ITEM} pr-9 ${idea.id === selectedIdeaId ? ACTIVE : ''}`}
                   >
                     <span className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-hairline bg-white text-ink-muted">
@@ -108,7 +111,7 @@ export function ContentList({ posts, ideas, selectedId, selectedIdeaId, strategy
                       )}
                       {idea.script && <span className="mt-0.5 block text-xs text-ink-muted">Skrip siap · {idea.script.length} slide</span>}
                     </span>
-                  </Link>
+                  </OpenIdeaButton>
                   <DeleteIdeaButton id={idea.id} />
                 </li>
               ))}

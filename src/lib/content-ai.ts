@@ -295,6 +295,8 @@ export function planContent<T>(
   products: ProductCandidate[] = [],
   attachment: string | null = null,
   script: ScriptSlide[] | null = null,
+  brandContext?: BrandContext | null,
+  signal?: AbortSignal,
 ): Promise<{ plan: ContentPlan; saved: T }> {
   if (script && script.length !== request.slides) return Promise.reject(new Error('Jumlah slide tidak sama dengan skrip'))
   const input = {
@@ -312,7 +314,7 @@ export function planContent<T>(
     'content',
     input,
     async () => {
-      const brand = await loadBrandContext(userId)
+      const brand = brandContext === undefined ? await loadBrandContext(userId) : brandContext
       const plan = parseContentPlan(
         await chatCompletion(
           buildContentMessages(
@@ -326,6 +328,8 @@ export function planContent<T>(
             request.pillarId,
             request.density,
           ),
+          undefined,
+          signal,
         ),
         request.slides,
         products,
@@ -564,6 +568,6 @@ export function parseSlide(content: string): Slide {
  * The slide's headline and scene with the owner's change, seeing the image they attached to it, if any. Runs inside
  * the slide_edit request that pays for it.
  */
-export async function reviseSlide(slide: Slide, instruction: string, attachment: string | null = null): Promise<Slide> {
-  return parseSlide(await chatCompletion(buildSlideRevisionMessages(slide, instruction, attachment)))
+export async function reviseSlide(slide: Slide, instruction: string, attachment: string | null = null, signal?: AbortSignal): Promise<Slide> {
+  return parseSlide(await chatCompletion(buildSlideRevisionMessages(slide, instruction, attachment), undefined, signal))
 }

@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import { randomBytes } from 'node:crypto'
 import { decryptToken, encryptToken } from './crypto'
 import { describeError } from './errors'
@@ -82,7 +83,7 @@ export async function consumeOAuthState(state: string, userId: string): Promise<
   return Array.isArray(other) && other.length === 1 ? 'other_user' : 'invalid'
 }
 
-async function loadRow(userId: string): Promise<ConnectionRow | null> {
+const loadRow = cache(async (userId: string): Promise<ConnectionRow | null> => {
   const result = await db()
     .from('instagram_connections')
     .select(
@@ -91,7 +92,7 @@ async function loadRow(userId: string): Promise<ConnectionRow | null> {
     .eq('user_id', userId)
     .maybeSingle()
   return unwrap(result) as ConnectionRow | null
-}
+})
 
 export async function getConnection(userId: string): Promise<Connection | null> {
   const row = await loadRow(userId)

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
+import { CarouselyLoader } from '@/components/brand-mark'
+import { LoadingState } from '@/components/loading-state'
 import { Notice } from '@/components/notice'
 import { currentPeriod, requireUser } from '@/lib/auth'
 import { describeError, loadErrorMessage } from '@/lib/errors'
@@ -16,9 +18,20 @@ export const metadata: Metadata = { title: 'Kenalan dulu' }
  */
 export default function MulaiPage() {
   return (
-    <Suspense fallback={<div className="fixed inset-0 bg-bg" />}>
+    <Suspense fallback={<OnboardingLoading />}>
       <WizardLoader />
     </Suspense>
+  )
+}
+
+function OnboardingLoading() {
+  return (
+    <div className="fixed inset-0 overflow-y-auto bg-bg px-5 py-10 sm:py-16">
+      <div className="mx-auto max-w-lg space-y-10">
+        <CarouselyLoader label="Menyiapkan ruang brand-mu…" />
+        <LoadingState variant="form" label="Memuat pengaturan awal…" />
+      </div>
+    </div>
   )
 }
 

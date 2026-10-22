@@ -4,13 +4,14 @@ import { Suspense, type ReactNode } from 'react'
 import { signOut } from '@/app/masuk/actions'
 import { AccountEmail } from '@/components/account-email'
 import { Breadcrumb } from '@/components/breadcrumb'
-import { InstagramStatus, StatusLine } from '@/components/instagram-status'
+import { LoadingState } from '@/components/loading-state'
+import { InstagramStatus } from '@/components/instagram-status'
 import { ThreadsStatus } from '@/components/threads-status'
 import { MobileNav } from '@/components/mobile-nav'
 import { NotificationBell } from '@/components/notification-bell'
 import { AdminSection, Sidebar } from '@/components/sidebar'
-import { CreditBar, CreditMeter, RenewalBanner } from '@/components/subscription-status'
-import { WorkspaceBadge, WorkspaceLine } from '@/components/workspace-badge'
+import { CreditMeter, RenewalBanner } from '@/components/subscription-status'
+import { WorkspaceBadge } from '@/components/workspace-badge'
 import { currentUser, isAdmin } from '@/lib/auth'
 
 interface AppLayoutProps {
@@ -29,27 +30,27 @@ export default function AppLayout({ children }: AppLayoutProps) {
     <div className="fixed inset-0 flex bg-bg">
       <Sidebar
         workspace={
-          <Suspense fallback={<WorkspaceLine name="Memuat…" logoUrl={null} />}>
+          <Suspense fallback={<LoadingState variant="workspace" label="Memuat workspace…" />}>
             <WorkspaceBadge />
           </Suspense>
         }
         instagramStatus={
-          <Suspense fallback={<StatusLine tone="muted" label="Memeriksa…" />}>
+          <Suspense fallback={<LoadingState variant="line" label="Memuat status Instagram…" className="px-3 py-2" />}>
             <InstagramStatus />
           </Suspense>
         }
         threadsStatus={
-          <Suspense fallback={<StatusLine tone="muted" label="Memeriksa…" />}>
+          <Suspense fallback={<LoadingState variant="line" label="Memuat status Threads…" className="px-3 py-2" />}>
             <ThreadsStatus />
           </Suspense>
         }
         credits={
-          <Suspense fallback={<CreditBar percent={null} />}>
+          <Suspense fallback={<LoadingState variant="credits" label="Memuat kuota AI…" />}>
             <CreditMeter />
           </Suspense>
         }
         account={
-          <Suspense fallback={null}>
+          <Suspense fallback={<LoadingState variant="line" label="Memuat akun…" className="px-3 py-2" />}>
             <AccountEmail />
           </Suspense>
         }

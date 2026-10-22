@@ -2,27 +2,28 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
+import { LoadingState } from '@/components/loading-state'
 import { Notice } from '@/components/notice'
 import { getPlan } from '@/lib/app-settings'
 import { remainingCredits } from '@/lib/ai'
-import { listAssets, listProductGroups } from '@/lib/assets'
+import { listProductGroups } from '@/lib/assets'
 import { requireAccount } from '@/lib/auth'
-import { getBrandKit, getStrategy } from '@/lib/brand'
+import { getBrandKit } from '@/lib/brand'
 import { getConnection } from '@/lib/connection'
+import { getContentJob } from '@/lib/content-jobs'
 import { getDensityDefault } from '@/lib/density'
 import { DEFAULT_DENSITY } from '@/lib/density-options'
 import { describeError, loadErrorMessage } from '@/lib/errors'
 import { parseWibInput, slotOn, suggestedSlot, toSlot } from '@/lib/format'
-import { getIdea, listIdeas } from '@/lib/ideas'
+import { getIdea } from '@/lib/ideas'
 import { firstValue, isUuid, type SearchParams } from '@/lib/params'
 import { listThreadItems } from '@/lib/post-threads'
-import { getPost, listContentPosts } from '@/lib/posts'
+import { getPost } from '@/lib/posts'
 import { getScheduleSettings, listTakenTimes } from '@/lib/schedule'
 import { MIN_SLOT_LEAD_MS, nextEmptySlots, SLOT_LOOKAHEAD_DAYS } from '@/lib/schedule-slots'
 import { listUnfinishedSlides, type SlideRecord } from '@/lib/slides'
 import { getThreadsConnection } from '@/lib/threads-connection'
 import { ContentEditor } from './content-editor'
-import { ContentList } from './content-list'
 import type { SlideView } from './post-mockup'
 import { StatusNote } from './status-note'
 
@@ -59,7 +60,7 @@ interface BuatPageProps {
 
 export default function BuatPage({ searchParams }: BuatPageProps) {
   return (
-    <Suspense fallback={<p className="p-6 text-sm text-ink-muted">Memuat…</p>}>
+    <Suspense fallback={<LoadingState variant="editor" className="h-full" label="Memuat konten…" />}>
       <Workspace searchParams={searchParams} />
     </Suspense>
   )
@@ -96,26 +97,21 @@ async function Workspace({ searchParams }: BuatPageProps) {
 
   let data
   try {
-    const [posts, ideas, post, slides, idea, instagram, kit, strategy, products, library, credits, plan] = await Promise.all([
-      listContentPosts(userId, accountId),
-      listIdeas(userId, accountId),
+    const jobPromise = postId ? getContentJob(userId, postId) : Promise.resolve(null)
+    const [job, post, slides, idea, instagram, kit, products, credits, plan, schedule, taken, threads, threadItems, defaultDensity] = await Promise.all([
+      jobPromise,
       postId ? getPost(userId, postId) : null,
       postId ? listUnfinishedSlides(userId, postId) : [],
-      !postId && isUuid(ideaParam) ? getIdea(userId, ideaParam) : null,
+      jobPromise.then((job) => job?.kind === 'script' && job.idea_id ? getIdea(userId, job.idea_id) : !postId && isUuid(ideaParam) ? getIdea(userId, ideaParam) : null),
       getConnection(userId),
       getBrandKit(userId, accountId),
-      getStrategy(userId).catch(() => null),
       listProductGroups(userId, accountId),
-      listAssets(userId, accountId),
       // Shown as a hint only; every request checks the credits again.
       remainingCredits(userId).then(
         (left) => left.remaining,
         () => null,
       ),
       getPlan(),
-    ])
-    // Slots and Threads only add to the editor: without them it works as before.
-    const [schedule, taken, threads, threadItems, density] = await Promise.all([
       getScheduleSettings(userId, accountId).catch(logAndNull),
       listTakenTimes(userId, accountId, now, new Date(now.getTime() + SLOT_LOOKAHEAD_DAYS * DAY_MS)).catch(() => []),
       getThreadsConnection(userId, accountId).catch(logAndNull),
@@ -123,22 +119,19 @@ async function Workspace({ searchParams }: BuatPageProps) {
       postId ? DEFAULT_DENSITY : getDensityDefault(userId, accountId).catch(() => DEFAULT_DENSITY),
     ])
     data = {
-      posts,
-      ideas,
+      job,
       post,
       slides,
       idea,
       instagram,
       kit,
-      strategy,
       products,
-      library,
       credits,
       plan,
       queue: schedule ? nextEmptySlots(schedule.slots, taken, now, QUEUE_SIZE).map((at) => toSlot(at, now)) : [],
       threads,
       threadItems,
-      density,
+      density: job?.kind === 'script' ? job.payload.density ?? DEFAULT_DENSITY : defaultDensity,
     }
   } catch (error) {
     console.error('[buat] gagal memuat:', describeError(error))
@@ -149,7 +142,7 @@ async function Workspace({ searchParams }: BuatPageProps) {
     )
   }
 
-  const { posts, ideas, post, slides, idea, instagram, kit, strategy, products, library, credits, plan } = data
+  const { post, slides, idea, instagram, kit, products, credits, plan } = data
   const { queue, threads, threadItems, density } = data
   const platform = firstValue(params.platform) === 'threads' ? 'threads' : 'instagram'
   const day = firstValue(params.tanggal) ?? ''
@@ -201,20 +194,11 @@ async function Workspace({ searchParams }: BuatPageProps) {
   )
 
   return (
-    <div className="flex h-full min-h-0">
-      <ContentList
-        posts={posts}
-        ideas={ideas}
-        selectedId={post?.id ?? null}
-        selectedIdeaId={idea?.id ?? null}
-        strategy={strategy}
-        platform={platform}
-        className={editing ? 'hidden md:flex' : 'flex'}
-      />
       <section aria-label="Editor" className={`min-h-0 min-w-0 flex-1 flex-col ${editing ? 'flex' : 'hidden md:flex'}`}>
         <ContentEditor
-          key={post?.id ?? `baru-${idea?.id ?? ''}-${platform}`}
-          post={post}
+          key={`${post?.id ?? `baru-${idea?.id ?? ''}-${platform}`}-${data.job?.kind ?? ''}-${data.job?.kind === 'content' && data.job.status === 'ready' ? 'ready' : ''}`}
+          post={data.job?.kind === 'script' ? null : post}
+          job={data.job}
           slides={slides.map(toView)}
           idea={idea}
           account={{ username: instagram?.username ?? null, avatarUrl: kit.logoUrl }}
@@ -232,15 +216,13 @@ async function Workspace({ searchParams }: BuatPageProps) {
           queue={queue}
           day={daySlot ? day : null}
           slotParam={kalenderSlot ? (slotParam ?? null) : null}
-          library={library}
           notices={notices}
           platform={platform}
           threadsAccount={{ link: threadsLink, username: threads?.username ?? null }}
           threadItems={threadItems.map((item) => ({ text: item.text, media: item.media }))}
-          threadsEditable={!threadsLocked && (post === null || ['draft', 'scheduled', 'failed', 'cancelled'].includes(post.status))}
+          threadsEditable={(!data.job || (data.job.kind === 'content' && data.job.status === 'ready')) && !threadsLocked && (post === null || ['draft', 'scheduled', 'failed', 'cancelled'].includes(post.status))}
         />
       </section>
-    </div>
   )
 }
 
