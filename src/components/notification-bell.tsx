@@ -242,7 +242,7 @@ export function NotificationBell() {
               icon={<CreditCard size={20} aria-hidden="true" />}
               title="Aktifkan langganan"
               body="Notifikasi tersedia selama langganan aktif."
-              href="/langganan"
+              href="/pengaturan?billing=pilih"
               action="Lihat Langganan"
             />
           ) : visibleItems.length === 0 ? (

@@ -1,6 +1,5 @@
 import 'server-only'
 import { AiOutputError, describeBrand, loadBrandContext, quote, readJson, runLogged, snippetOf } from './ai'
-import { contentCost } from './billing-options'
 import { truncate, type BrandContext } from './brand-options'
 import { CAPTION_MAX_LENGTH } from './caption'
 import { carouselGuide, densityRule, pickHook, type HookArchetype } from './carousel-guide'
@@ -338,7 +337,7 @@ export function planContent<T>(
       )
       return { plan, saved: await save(plan) }
     },
-    { cost: contentCost(request.slides), logOutput: ({ plan }) => plan },
+    { units: request.slides, logOutput: ({ plan }) => plan },
   )
 }
 

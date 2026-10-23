@@ -30,7 +30,7 @@ describe('createPaymentRequest', () => {
 
     const created = await createPaymentRequest(REQUEST)
 
-    expect(created).toEqual({ id: 'pr-1', link: 'https://pay.test/pl/x' })
+    expect(created).toEqual({ id: 'pr-1', transactionId: 't-1', link: 'https://pay.test/pl/x' })
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('https://api.mayar.test/hl/v2/payments/create')
     expect(init?.method).toBe('POST')

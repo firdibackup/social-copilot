@@ -30,6 +30,7 @@ const database = vi.hoisted(() => ({ inserted: [] as { table: string; row: unkno
 vi.mock('./supabase', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./supabase')>()),
   db: () => ({
+    rpc: vi.fn(async () => ({ data: 'reservation-1', error: null })),
     from: (table: string) => ({
       insert: async (row: unknown) => {
         database.inserted.push({ table, row })
@@ -750,3 +751,5 @@ describe('requests', () => {
     })
   })
 })
+import { DEFAULT_CATALOG } from './billing-catalog-options'
+vi.mock('./billing-catalog', () => ({ getBillingCatalog: vi.fn(async () => ({ version: 1, catalog: DEFAULT_CATALOG })) }))

@@ -2,6 +2,7 @@
 
 import { refresh } from 'next/cache'
 import { remainingCredits, aiErrorMessage } from '@/lib/ai'
+import { getBillingCatalog } from '@/lib/billing-catalog'
 import { requireAccount } from '@/lib/auth'
 import { bulkContentRequest } from '@/lib/bulk-content'
 import { getMessage, getSession } from '@/lib/chat'
@@ -96,7 +97,8 @@ export async function makeScheduleImagesAction(sessionId: string, messageId: str
     const refs = await scheduleCardRefs(sessionId, messageId, cardId)
     const ref = refs?.find((ref) => ref.id === refId)
     if (!ref) return 'Konten tidak ditemukan di kartu ini.'
-    const current = await readScheduleItem(userId, accountId, ref)
+    const { catalog } = await getBillingCatalog()
+    const current = await readScheduleItem(userId, accountId, ref, catalog.rates)
     if (current.stage !== 'script') return current.reason
     const job = current.postId ? await getContentJob(userId, current.postId) : null
     const ideaId = ref.kind === 'idea' ? ref.id : job?.idea_id

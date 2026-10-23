@@ -48,7 +48,7 @@ export const TASK_CREDITS: Record<LoggedTask, number> = {
 }
 
 /** A new post with `slides` images: its caption and plan plus every image. */
-export const contentCost = (slides: number) => TASK_CREDITS.content + slides * IMAGE_CREDITS
+export const contentCost = (slides: number, rates = { ...TASK_CREDITS, image: IMAGE_CREDITS }) => rates.content + slides * rates.image
 
 /** Tagging `photos` photos with AI. */
 export const tagCost = (photos: number) => photos * TASK_CREDITS.asset_tags

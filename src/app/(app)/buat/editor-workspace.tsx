@@ -134,6 +134,7 @@ export function EditorWorkspace() {
           hasLogo={kit.logoUrl !== null}
           credits={credits}
           planCredits={plan.credits}
+          rates={support.data!.rates}
           slot={kalenderSlot ?? daySlot ?? queue[0] ?? suggestedSlot(now)}
           queue={queue}
           day={daySlot ? day : null}

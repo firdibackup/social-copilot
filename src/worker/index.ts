@@ -2,6 +2,7 @@
 // publishing scheduled posts to Instagram (and their Stories) and to Threads, making AI slides so they don't depend on the owner's
 // browser tab, and refreshing Threads tokens once a day.
 import { describeError } from '@/lib/errors'
+import { reconcilePayments } from '@/lib/billing'
 import { claimContentJob } from '@/lib/content-jobs'
 import { processContentJob } from '@/lib/content-generation'
 import { claimDueStory } from '@/lib/post-stories'
@@ -136,8 +137,16 @@ async function contentLoop(): Promise<void> {
 
 async function main(): Promise<void> {
   console.log(`[worker] berjalan: draft/skrip dicek setiap 3 detik, publish Instagram, Story, dan Threads setiap 30 detik, slide AI ${SLIDE_SLOTS} sekaligus`)
-  await Promise.all([contentLoop(), publishLoop(), storyLoop(), threadsLoop(), tokenLoop(), ...Array.from({ length: SLIDE_SLOTS }, slideLoop)])
+  await Promise.all([billingLoop(), contentLoop(), publishLoop(), storyLoop(), threadsLoop(), tokenLoop(), ...Array.from({ length: SLIDE_SLOTS }, slideLoop)])
   console.log('[worker] berhenti')
 }
 
 void main()
+
+async function billingLoop(): Promise<void> {
+  while (!stopping) {
+    try { await reconcilePayments() }
+    catch (error) { console.error('[worker] pemeriksaan pembayaran gagal:', describeError(error)) }
+    await sleep(60_000)
+  }
+}

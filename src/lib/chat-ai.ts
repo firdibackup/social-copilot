@@ -3,7 +3,7 @@ import { aiErrorMessage, cleanList, describeBrand, loadAccountBrandContext, quot
 import { ApifyError, findCompetitors, MAX_COMPETITORS, type Competitor, type CompetitorSearch } from './apify'
 import { EMPTY_RULE, parseRuleInput, type AutoDmRuleInput } from './auto-dm-rules'
 import { isObject, lengthOf, truncate, type BrandContext } from './brand-options'
-import { findContent, loadSummaryBatch, reserveDailyUsage, saveSummary, type ChatSession } from './chat'
+import { findContent, loadSummaryBatch, reserveDailyUsage, releaseDailyUsage, saveSummary, type ChatSession } from './chat'
 import {
   BULK_ANGLE_MAX_LENGTH,
   BULK_POINT_MAX_LENGTH,
@@ -528,12 +528,17 @@ async function runIntel(context: ToolContext, args: Json): Promise<ToolOutcome> 
   const search = competitorSearch(args)
   if (!search) return { part: null, result: 'Gagal: isi usernames atau keyword.' }
   const max = typeof args.max === 'number' ? args.max : MAX_COMPETITORS
-  await reserveDailyUsage(context.userId, 'deep_search')
-  const accounts = await runLogged(context.userId, 'deep_search', { search, max }, () => findCompetitors(search, max, context.signal), {
-    model: APIFY_MODEL,
-    // Never the profile pictures: they are signed links.
-    logOutput: (found) => ({ usernames: found.map((account) => account.username) }),
-  })
+  const day = await reserveDailyUsage(context.userId, 'deep_search')
+  let accounts: Competitor[]
+  try {
+    accounts = await runLogged(context.userId, 'deep_search', { search, max }, () => findCompetitors(search, max, context.signal), {
+      model: APIFY_MODEL,
+      logOutput: (found) => ({ usernames: found.map((account) => account.username) }),
+    })
+  } catch (error) {
+    await releaseDailyUsage(context.userId, 'deep_search', day)
+    throw error
+  }
   const query = search.kind === 'username' ? search.usernames.map((name) => `@${name}`).join(', ') : search.keyword
   return {
     part: { type: 'competitors', query, competitors: accounts.map(toView) },

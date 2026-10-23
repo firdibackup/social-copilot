@@ -8,6 +8,8 @@ import { requireAdmin } from '@/lib/auth'
 import { describeError } from '@/lib/errors'
 import { listModels } from '@/lib/nine-router'
 import { SettingsForm } from './settings-form'
+import { BillingForm } from './billing-form'
+import { getBillingCatalog } from '@/lib/billing-catalog'
 
 export const metadata: Metadata = { title: 'Pengaturan · Admin' }
 
@@ -27,6 +29,7 @@ async function Settings() {
   await connection()
   await requireAdmin()
   const settings = await getAppSettings()
+  const billing = await getBillingCatalog().catch(() => null)
   const envTextModel = process.env.ROUTER_MODEL?.trim() || null
   let models: string[] = []
   let modelsError: string | null = null
@@ -43,6 +46,7 @@ async function Settings() {
 
   return (
     <div className="max-w-3xl space-y-4">
+      {billing ? <BillingForm key={billing.version} {...billing} /> : <Notice tone="warning">Jalankan migrasi billing_catalog untuk mengatur paket Pro/Max.</Notice>}
       {modelsError && <Notice tone="warning">{modelsError}</Notice>}
       <SettingsForm
         values={{

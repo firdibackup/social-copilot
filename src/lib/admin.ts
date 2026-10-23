@@ -34,6 +34,8 @@ export interface AdminUser {
   period: { start: Date; end: Date } | null
   /** Credits spent in that period, adjustments included. */
   creditsUsed: number | null
+  creditsTotal?: number | null
+  planName?: string | null
 }
 
 export interface Generation {
@@ -93,6 +95,8 @@ export interface AdminOverview {
 }
 
 interface OverviewRow {
+  credits_total?: number | null
+  plan_name?: string | null
   user_id: string
   active_until: string
   period_start: string | null
@@ -136,7 +140,7 @@ async function authUser(userId: string): Promise<User> {
 }
 
 async function overviewRows(userId?: string): Promise<Map<string, OverviewRow>> {
-  const rows = unwrap(await db().rpc('admin_user_overview', userId ? { p_user_id: userId } : {})) as OverviewRow[]
+  const rows = unwrap(await db().rpc('billing_admin_overview', userId ? { p_user_id: userId } : {})) as OverviewRow[]
   return new Map(rows.map((row) => [row.user_id, row]))
 }
 
@@ -165,6 +169,8 @@ function toAdminUser(
     activeUntil: toDate(overview?.active_until),
     period: start && end ? { start, end } : null,
     creditsUsed: overview?.credits_used ?? null,
+    creditsTotal: overview?.credits_total ?? null,
+    planName: overview?.plan_name ?? null,
   }
 }
 

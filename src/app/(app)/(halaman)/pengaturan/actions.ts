@@ -2,7 +2,7 @@
 
 import { refresh } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { currentPeriod, requireAccount, requireUser } from '@/lib/auth'
+import { requireAccount, requireUser } from '@/lib/auth'
 import { disconnectInstagram as disconnectAccount } from '@/lib/connection'
 import { setDensityDefault } from '@/lib/density'
 import { isTextDensity } from '@/lib/density-options'
@@ -12,12 +12,10 @@ import { applyStoryToScheduled, countStoryCandidates, setStoryDefault } from '@/
 import { deleteThreadsConnection } from '@/lib/threads-connection'
 
 /**
- * Putuskan needs no subscription: a user whose period ended can still take their tokens out. Without a period
- * Pengaturan would send them on to Langganan, so the result is reported there.
+ * Putuskan needs no subscription: Pengaturan remains reachable when access ends.
  */
-async function reportTo(userId: string, settingsQuery: string, hash: string): Promise<never> {
-  if (await currentPeriod(userId)) redirect(`/pengaturan?${settingsQuery}${hash}`)
-  redirect(`/langganan?${settingsQuery}`)
+async function reportTo(settingsQuery: string, hash: string): Promise<never> {
+  redirect(`/pengaturan?${settingsQuery}${hash}`)
 }
 
 export async function disconnectInstagram(): Promise<void> {
@@ -30,7 +28,7 @@ export async function disconnectInstagram(): Promise<void> {
       return 'ig_error=gagal_putus'
     },
   )
-  await reportTo(userId, outcome, '')
+  await reportTo(outcome, '')
 }
 
 export async function disconnectFacebook(): Promise<void> {
@@ -43,7 +41,7 @@ export async function disconnectFacebook(): Promise<void> {
       return 'fb_error=gagal_putus'
     },
   )
-  await reportTo(userId, outcome, '#facebook')
+  await reportTo(outcome, '#facebook')
 }
 
 /** Scheduled Threads versions then fail with a reconnect message until Threads is connected again. */
@@ -57,7 +55,7 @@ export async function disconnectThreads(): Promise<void> {
       return 'th_error=gagal_putus'
     },
   )
-  await reportTo(userId, outcome, '#threads')
+  await reportTo(outcome, '#threads')
 }
 
 /** A message for the owner, or null when it worked. */

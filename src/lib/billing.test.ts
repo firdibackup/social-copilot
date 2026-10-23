@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getPlan } from './app-settings'
-import { confirmPayment, grantFreePeriod, startCheckout } from './billing'
+import { confirmPayment, getCurrentPeriod, getUpgradeQuote, grantFreePeriod, startCheckout, startUpgradeCheckout } from './billing'
 import { DEFAULT_PLAN } from './billing-options'
+import { DEFAULT_CATALOG } from './billing-catalog-options'
+vi.mock('./billing-catalog', () => ({ getBillingCatalog: vi.fn(async () => ({ version: 1, catalog: DEFAULT_CATALOG })) }))
 import { createPaymentRequest, getPaymentRequest, MayarApiError } from './mayar'
 
 /** A query builder that records each call and resolves to the next queued result for any table. */
@@ -62,41 +64,94 @@ beforeEach(() => {
 })
 
 describe('startCheckout', () => {
+  it('gives migrated legacy Pro access monthly credits while retaining its original access end', async () => {
+    fake.results.push(ok([{
+      period_start: '2026-01-31T10:00:00Z', period_end: '2099-12-31T00:00:00Z',
+      snapshot: { legacy: true, monthly: true, plan: DEFAULT_CATALOG.plans[0] },
+    }]))
+    await expect(getCurrentPeriod(USER, new Date('2026-03-30T12:00:00Z'))).resolves.toEqual({
+      start: new Date('2026-02-28T10:00:00Z'), end: new Date('2026-03-31T10:00:00Z'),
+      activeUntil: new Date('2099-12-31T00:00:00Z'), plan: DEFAULT_CATALOG.plans[0],
+    })
+  })
   it('hands out a pending link that is still payable instead of making another', async () => {
-    fake.results.push(ok([{ link: 'https://pay.test/pl/old' }]))
+    fake.rpc.mockResolvedValue(ok({ id: 'pay-1', link: 'https://pay.test/pl/old' }))
 
     await expect(startCheckout(USER, 'budi@example.com', NOW)).resolves.toBe('https://pay.test/pl/old')
     expect(createPaymentRequest).not.toHaveBeenCalled()
-    expect(step('payments', 'eq')).toEqual(expect.arrayContaining([['user_id', USER], ['status', 'pending']]))
+    expect(fake.rpc).toHaveBeenCalledWith('prepare_billing_checkout', expect.objectContaining({ p_user: USER }))
   })
 
   it('writes the payment row before asking Mayar, then stores the link', async () => {
-    fake.results.push(ok([]), ok({ id: 'pay-2' }), ok(null))
+    fake.rpc.mockResolvedValue(ok({ id: 'pay-2', link: null }))
+    fake.results.push(ok([{ id: 'pay-2' }]), ok(null))
     vi.mocked(createPaymentRequest).mockResolvedValue({ id: 'pr-2', link: 'https://pay.test/pl/new' })
 
     await expect(startCheckout(USER, 'budi@example.com', NOW)).resolves.toBe('https://pay.test/pl/new')
-    expect(step('payments', 'insert')[0][0]).toMatchObject({ user_id: USER, amount: 99_000, status: 'pending' })
+    expect(fake.rpc).toHaveBeenCalledWith('prepare_billing_checkout', expect.objectContaining({ p_user: USER, p_snapshot: expect.objectContaining({ total: 139_000, months: 1, plan: expect.objectContaining({ id: 'pro', credits: 2500 }) }) }))
     expect(createPaymentRequest).toHaveBeenCalledWith(
       expect.objectContaining({
-        amount: 99_000,
+        amount: 139_000,
         email: 'budi@example.com',
-        redirectUrl: 'http://localhost:3000/langganan?bayar=selesai',
+        redirectUrl: 'http://localhost:3000/pengaturan?bayar=selesai&pesanan=pay-2',
         expiredAt: new Date('2026-10-17T10:00:00Z'),
       }),
     )
-    expect(step('payments', 'update')[0][0]).toEqual({ mayar_id: 'pr-2', link: 'https://pay.test/pl/new' })
+    expect(step('payments', 'update').at(-1)?.[0]).toEqual({ mayar_id: 'pr-2', link: 'https://pay.test/pl/new' })
   })
 
   it('closes the row when Mayar refuses, so nothing can be paid against it', async () => {
-    fake.results.push(ok([]), ok({ id: 'pay-3' }), ok(null))
+    fake.rpc.mockResolvedValue(ok({ id: 'pay-3', link: null }))
+    fake.results.push(ok([{ id: 'pay-3' }]), ok(null))
     vi.mocked(createPaymentRequest).mockRejectedValue(new MayarApiError('down', 503))
 
     await expect(startCheckout(USER, 'budi@example.com', NOW)).rejects.toThrow('down')
-    expect(step('payments', 'update')[0][0]).toEqual({ status: 'expired' })
+    expect(step('payments', 'update').at(-1)?.[0]).toEqual({ status: 'expired', checkout_key: null })
+  })
+
+  it('only the caller that claims a checkout may create its Mayar link', async () => {
+    fake.rpc.mockResolvedValue(ok({ id: 'pay-2', link: null }))
+    fake.results.push(ok([]))
+    await expect(startCheckout(USER, 'budi@example.com', NOW)).rejects.toThrow('sedang disiapkan')
+    expect(createPaymentRequest).not.toHaveBeenCalled()
+  })
+
+  it('reads upgraded entitlements without moving the original usage cycle', async () => {
+    fake.results.push(ok([{ period_start: '2026-10-01T00:00:00Z', period_end: '2027-01-01T00:00:00Z',
+      snapshot: { months: 3, plan: DEFAULT_CATALOG.plans[0] }, entitlement_plan: DEFAULT_CATALOG.plans[1] }]))
+    await expect(getCurrentPeriod(USER, NOW)).resolves.toMatchObject({
+      plan: DEFAULT_CATALOG.plans[1], start: new Date('2026-10-01T00:00:00Z'), end: new Date('2026-11-01T00:00:00Z'),
+      activeUntil: new Date('2027-01-01T00:00:00Z'),
+    })
+  })
+
+  it('binds an upgrade quote to its owner, contents and expiry before checkout', async () => {
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-only-signing-secret')
+    fake.results.push(ok([{ id: 'term-1', period_start: '2026-10-01T00:00:00Z', period_end: '2026-11-01T00:00:00Z',
+      snapshot: { months: 1, plan: DEFAULT_CATALOG.plans[0] }, entitlement_plan: null }]))
+    const signed = await getUpgradeQuote(USER, 'max', NOW)
+    await expect(startUpgradeCheckout('other-user', 'other@example.com', signed.token, NOW)).rejects.toThrow('kedaluwarsa')
+    await expect(startUpgradeCheckout(USER, 'budi@example.com', `${signed.token}tampered`, NOW)).rejects.toThrow('tidak valid')
+    await expect(startUpgradeCheckout(USER, 'budi@example.com', signed.token, new Date(NOW.getTime() + 11 * 60000))).rejects.toThrow('kedaluwarsa')
+    expect(fake.rpc).not.toHaveBeenCalled()
+    fake.rpc.mockResolvedValue(ok({ id: 'upgrade-1', link: null }))
+    fake.results.push(ok([{ id: 'upgrade-1' }]), ok(null))
+    vi.mocked(createPaymentRequest).mockResolvedValue({ id: 'mayar-upgrade', link: 'https://pay.test/upgrade' })
+    await expect(startUpgradeCheckout(USER, 'budi@example.com', signed.token, NOW)).resolves.toBe('https://pay.test/upgrade')
+    expect(fake.rpc).toHaveBeenCalledWith('prepare_billing_checkout', expect.objectContaining({ p_snapshot: signed.quote }))
+    vi.unstubAllEnvs()
   })
 })
 
 describe('confirmPayment', () => {
+  it('recovers a paid expired link using its purchased duration, not today’s settings', async () => {
+    vi.mocked(getPaymentRequest).mockResolvedValue({ status: 'paid', amount: 99_000 })
+    fake.rpc.mockResolvedValue({ data: true, error: null })
+    await expect(confirmPayment({ ...PENDING, status: 'expired', snapshot: {
+      version: 1, months: 12, discount: 17, total: 99000, plan: { ...DEFAULT_CATALOG.plans[0], days: 30 },
+    } }, NOW)).resolves.toBe(true)
+    expect(fake.rpc).toHaveBeenCalledWith('activate_payment', { p_id: 'pay-1', p_days: 30 })
+  })
   it('starts the period when Mayar says the full amount was paid', async () => {
     vi.mocked(getPaymentRequest).mockResolvedValue({ status: 'paid', amount: 99_000 })
     fake.rpc.mockResolvedValue({ data: true, error: null })
@@ -143,7 +198,7 @@ describe('grantFreePeriod', () => {
 
     await grantFreePeriod(USER)
 
-    expect(step('payments', 'insert')[0][0]).toEqual({ user_id: USER, amount: 0, status: 'pending' })
+    expect(step('payments', 'insert')[0][0]).toMatchObject({ user_id: USER, amount: 0, status: 'pending', snapshot: { plan: { credits: 10000, days: 30 } } })
     expect(fake.rpc).toHaveBeenCalledWith('activate_payment', { p_id: 'pay-free', p_days: 30 })
     expect(createPaymentRequest).not.toHaveBeenCalled()
   })

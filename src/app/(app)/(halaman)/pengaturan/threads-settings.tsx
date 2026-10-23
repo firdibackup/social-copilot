@@ -1,6 +1,6 @@
 import { Notice } from '@/components/notice'
 import { ThreadsIcon } from '@/components/threads-icon'
-import { requireActiveUser } from '@/lib/auth'
+import { requireUser } from '@/lib/auth'
 import { formatDay } from '@/lib/calendar'
 import { getConnectedAccountId } from '@/lib/connection'
 import { ConfigError, describeError } from '@/lib/errors'
@@ -56,7 +56,7 @@ async function loadThreads(userId: string): Promise<LoadResult> {
 /** Publishing to Threads and answering replies under the account's Threads posts in Balasan. */
 export async function ThreadsSettings({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
-  const result = await loadThreads(await requireActiveUser())
+  const result = await loadThreads(await requireUser())
   const success = SUCCESS_MESSAGES[firstValue(params.th) ?? '']
   const errorCode = firstValue(params.th_error)
   const error = errorCode ? (ERROR_MESSAGES[errorCode] ?? UNKNOWN_ERROR) : undefined

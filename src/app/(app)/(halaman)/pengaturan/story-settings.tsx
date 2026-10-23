@@ -1,5 +1,5 @@
 import { Notice } from '@/components/notice'
-import { requireActiveUser } from '@/lib/auth'
+import { requireUser } from '@/lib/auth'
 import { getConnectedAccountId } from '@/lib/connection'
 import { describeError, loadErrorMessage } from '@/lib/errors'
 import { getStoryDefault } from '@/lib/post-stories'
@@ -7,7 +7,7 @@ import { StoryToggle } from './story-toggle'
 
 /** Selalu bagikan ke Story: the account's default for new Instagram posts; every post can still switch it. */
 export async function StorySettings() {
-  const userId = await requireActiveUser()
+  const userId = await requireUser()
   let state: { accountId: string | null; enabled: boolean }
   try {
     const accountId = await getConnectedAccountId(userId)

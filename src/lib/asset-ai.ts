@@ -2,7 +2,6 @@ import 'server-only'
 import { AiOutputError, quote, readJson, runLogged, snippetOf } from './ai'
 import { cleanTags } from './asset-options'
 import { loadOwnPhotos, setAssetTags } from './assets'
-import { tagCost } from './billing-options'
 import { VISUAL_BODY_BUDGET } from './brand'
 import { chatCompletion, type ChatMessage, type ContentPart } from './nine-router'
 import { toReferenceDataUrl } from './slide-image'
@@ -104,7 +103,7 @@ export async function tagAssets(userId: string, accountId: string, assetIds: str
         await saveTags(userId, tags)
         return Object.fromEntries(tags)
       },
-      { cost: tagCost(ids.length) },
+      { units: ids.length },
     )
     tagged += ids.length
   }

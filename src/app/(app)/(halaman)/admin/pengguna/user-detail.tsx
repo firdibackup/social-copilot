@@ -57,7 +57,7 @@ export async function UserDetail({ id }: { id: string }) {
           <Fact label="Kredit periode ini">
             {user.creditsUsed === null
               ? '–'
-              : `${formatCredits(user.creditsUsed)} / ${formatCredits(plan.credits)} (${usedPercent(user.creditsUsed, plan.credits)}%)`}
+              : `${formatCredits(user.creditsUsed)} / ${formatCredits(user.creditsTotal ?? plan.credits)} (${usedPercent(user.creditsUsed, user.creditsTotal ?? plan.credits)}%) · ${user.planName ?? ''}`}
           </Fact>
           <Fact label="Post">{formatCredits(user.posts)}</Fact>
         </dl>

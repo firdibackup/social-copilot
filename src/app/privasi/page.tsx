@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
 import { connection } from 'next/server'
 import { Suspense, type ReactNode } from 'react'
-import { getPlan } from '@/lib/app-settings'
-import { DEFAULT_PLAN, formatRupiah, type Plan } from '@/lib/billing-options'
+import { getBillingCatalog } from '@/lib/billing-catalog'
+import { DEFAULT_CATALOG } from '@/lib/billing-catalog-options'
+import { formatRupiah, type Plan } from '@/lib/billing-options'
 
 export const metadata: Metadata = { title: 'Kebijakan Privasi' }
 
@@ -142,7 +143,7 @@ export default function PrivasiPage() {
         <h3 className="font-semibold text-zinc-900">Berapa lama data disimpan</h3>
         <p>
           Token akses dihapus saat pengguna memutus koneksi. Memutus Instagram juga menghapus koneksi Facebook-nya.
-          Koneksi tetap bisa diputus saat langganan tidak aktif, dari halaman Langganan. Data lain disimpan selama akun
+            Koneksi tetap bisa diputus saat langganan tidak aktif, dari halaman Pengaturan. Data lain disimpan selama akun
           pengguna ada, atau sampai dihapus atas permintaan (lihat{' '}
           <a href="#hapus-data" className="underline">Penghapusan Data</a>). Catatan tindakan admin, termasuk email
           akun yang terkena tindakan itu, tetap disimpan setelah akun dihapus sebagai jejak audit.
@@ -159,7 +160,7 @@ export default function PrivasiPage() {
             Pemakaian mengikuti Ketentuan Platform Meta, Ketentuan Penggunaan Instagram, dan Pedoman Komunitas
             Instagram. Spam, pesan massal, dan pesan yang tidak diminta dilarang.
           </li>
-          <Suspense fallback={<PlanTermsText plan={DEFAULT_PLAN} />}>
+          <Suspense fallback={<li>Harga, masa aktif, dan kuota mengikuti paket yang dipilih pada ringkasan pembayaran.</li>}>
             <PlanTerms />
           </Suspense>
           <li>
@@ -213,20 +214,20 @@ function Section({ id, title, children }: { id: string; title: string; children:
 /** The plan as the admin set it (/admin/pengaturan). */
 async function PlanTerms() {
   await connection()
-  return <PlanTermsText plan={await getPlan()} />
+  const billing = await getBillingCatalog().catch(() => ({ catalog: DEFAULT_CATALOG }))
+  return <>{billing.catalog.plans.filter((plan) => plan.active).map((plan) => <PlanTermsText key={plan.id} plan={plan} />)}</>
 }
 
 function PlanTermsText({ plan }: { plan: Plan }) {
   return (
     <>
       <li>
-        Langganan {formatRupiah(plan.priceIdr)} per {plan.days} hari, dibayar di muka melalui Mayar. Tidak ada
+        Paket {plan.name}: {formatRupiah(plan.priceIdr)} per bulan sebelum diskon durasi, dibayar di muka melalui Mayar. Tidak ada
         perpanjangan otomatis: akses berhenti di akhir periode sampai diperpanjang, dan post terjadwal tidak diterbitkan
         selama langganan tidak aktif.
       </li>
       <li>
-        Setiap periode memberi kuota AI {plan.credits.toLocaleString('id-ID')} kredit. Sisa kuota tidak terbawa ke
-        periode berikutnya.
+        Paket {plan.name} memberi kuota AI {plan.credits.toLocaleString('id-ID')} kredit per bulan, termasuk untuk pembelian beberapa bulan. Sisa kuota tidak terbawa ke bulan berikutnya. Ketentuan pembelian disimpan saat checkout.
       </li>
     </>
   )

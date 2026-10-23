@@ -4,6 +4,7 @@ import type { ScheduleRef } from './chat-schedule-options'
 import type { AutoDmRuleInput } from './auto-dm-rules'
 import type { ScriptSlide } from './script-options'
 import { contentCost, TASK_CREDITS } from './billing-options'
+import type { BillingCatalog } from './billing-catalog-options'
 import { truncate } from './brand-options'
 import { wibDateKey } from './format'
 import { AUTO_PRODUCT } from './content-options'
@@ -186,8 +187,8 @@ export function parseBulkSettings(value: unknown): { settings: BulkSettings } | 
 }
 
 /** What one planned post costs at most: its script (unless it has one) and its images. Pure. */
-export const bulkItemCost = (item: Pick<BulkPlanItem, 'scripted' | 'slides'>) =>
-  (item.scripted ? 0 : TASK_CREDITS.content_script) + contentCost(item.slides)
+export const bulkItemCost = (item: Pick<BulkPlanItem, 'scripted' | 'slides'>, rates?: BillingCatalog['rates']) =>
+  (item.scripted ? 0 : (rates ?? TASK_CREDITS).content_script) + contentCost(item.slides, rates)
 
 /** The owner's changes on the plan card: which posts stay, in order, with their title and angle. */
 export interface BulkEdit {
@@ -259,6 +260,7 @@ export interface BulkStatus {
 }
 
 export interface BulkStatusResponse {
+  rates?: BillingCatalog['rates']
   items: BulkStatus[]
   /** The plan's credits per period, to show a cost as a share of it. */
   planCredits: number

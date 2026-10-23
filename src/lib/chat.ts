@@ -1,9 +1,9 @@
 import 'server-only'
 import { AiLimitError } from './ai'
+import { getCurrentPeriod } from './billing'
 import {
   DAILY_LIMITS,
   historyRange,
-  LIMIT_MESSAGES,
   searchPattern,
   type BulkState,
   type ChatMessageView,
@@ -47,15 +47,24 @@ const toMessage = (row: MessageRow): ChatMessageView => ({
 })
 
 /** Atomically reserves one daily slot. The counter, unlike the audit log, must never fail open. */
-export async function reserveDailyUsage(userId: string, task: LimitedTask): Promise<void> {
+export async function reserveDailyUsage(userId: string, task: LimitedTask): Promise<string> {
+  const period = await getCurrentPeriod(userId)
+  if (!period) throw new AiLimitError('Langganan tidak aktif. Buka halaman Langganan.')
+  const limit = period.plan ? (task === 'chat' ? period.plan.chatDaily : period.plan.researchDaily) : DAILY_LIMITS[task]
+  if (limit < 1) throw new AiLimitError(`Fitur ${task === 'chat' ? 'chat' : 'riset'} tidak tersedia pada paket ini.`)
   const reserved = unwrap(
-    await db().rpc('reserve_sigap_daily_usage', {
+    await db().rpc('reserve_billing_daily_usage', {
       p_user_id: userId,
       p_task: task,
-      p_limit: DAILY_LIMITS[task],
+      p_limit: limit,
     }),
   )
-  if (reserved !== true) throw new AiLimitError(LIMIT_MESSAGES[task])
+  if (typeof reserved !== 'string') throw new AiLimitError(`Batas ${task === 'chat' ? 'chat' : 'riset'} tercapai (${limit}/hari). Reset pukul 00.00 WIB.`)
+  return reserved
+}
+
+export async function releaseDailyUsage(userId: string, task: LimitedTask, day: string): Promise<void> {
+  unwrap(await db().rpc('release_sigap_daily_usage', { p_user_id: userId, p_task: task, p_day: day }))
 }
 
 /** The account's conversations, most recently used first. */

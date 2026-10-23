@@ -116,8 +116,8 @@ async function Users({ searchParams }: PenggunaPageProps) {
                       <span className="text-zinc-400">–</span>
                     ) : (
                       <span className="text-zinc-700">
-                        {formatCredits(user.creditsUsed)} / {formatCredits(plan.credits)}{' '}
-                        <span className="text-zinc-500">({usedPercent(user.creditsUsed, plan.credits)}%)</span>
+                        {formatCredits(user.creditsUsed)} / {formatCredits(user.creditsTotal ?? plan.credits)}{' '}
+                        <span className="text-zinc-500">({usedPercent(user.creditsUsed, user.creditsTotal ?? plan.credits)}%) · {user.planName}</span>
                       </span>
                     )}
                   </td>

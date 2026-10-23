@@ -17,8 +17,11 @@ import { getBrandContext } from './brand'
 import type { BrandContext } from './brand-options'
 import { ConfigError } from './errors'
 import { RouterApiError } from './nine-router'
+import { DEFAULT_CATALOG } from './billing-catalog-options'
+vi.mock('./billing-catalog', () => ({ getBillingCatalog: vi.fn(async () => ({ version: 1, catalog: DEFAULT_CATALOG })) }))
 
 const database = vi.hoisted(() => ({
+  rpc: vi.fn(async () => ({ data: 'reservation-1', error: null })),
   insertError: null as { message: string } | null,
   inserted: [] as { table: string; row: unknown }[],
 }))
@@ -26,6 +29,7 @@ const database = vi.hoisted(() => ({
 vi.mock('./supabase', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./supabase')>()),
   db: () => ({
+    rpc: database.rpc,
     from: (table: string) => ({
       insert: async (row: unknown) => {
         database.inserted.push({ table, row })
@@ -168,6 +172,16 @@ describe('with a period', () => {
   })
 
   describe('runLogged', () => {
+    it('does not call the provider when another request reserved the last credits first', async () => {
+      database.rpc.mockResolvedValueOnce({ data: null as unknown as string, error: null })
+      const ask = vi.fn(async () => 'answer')
+      await expect(runLogged(USER, 'caption_edit', {}, ask)).rejects.toBeInstanceOf(AiLimitError)
+      expect(ask).not.toHaveBeenCalled()
+    })
+    it('releases the reservation if the provider fails', async () => {
+      await expect(runLogged(USER, 'caption_edit', {}, async () => { throw new Error('provider failed') })).rejects.toThrow('provider failed')
+      expect(database.rpc).toHaveBeenCalledWith('settle_ai_credits', { p_id: 'reservation-1', p_user: USER, p_success: false })
+    })
     it('returns the answer and logs it to ai_generations with the task price', async () => {
       const ask = vi.fn(async () => 'Halo')
 
@@ -177,6 +191,7 @@ describe('with a period', () => {
           table: 'ai_generations',
           row: {
             user_id: USER,
+            reservation_id: 'reservation-1',
             task: 'caption_edit',
             input: { instruction: 'santai' },
             model: 'test-model',

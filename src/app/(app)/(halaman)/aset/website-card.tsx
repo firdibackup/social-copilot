@@ -3,14 +3,13 @@
 import { Globe } from 'lucide-react'
 import Link from 'next/link'
 import { useActionState } from 'react'
-import { TASK_CREDITS } from '@/lib/billing-options'
 import { importWebsiteAction, type WebsiteImportState } from './actions'
 import { Feedback, INITIAL_STATE, PRIMARY_BUTTON } from './ui'
 
 const INITIAL_IMPORT: WebsiteImportState = { ...INITIAL_STATE, pages: 0, imported: 0, duplicates: 0, warnings: [] }
 
 /** Imports the photos of the website saved in Brand; the address itself is changed there. */
-export function WebsiteCard({ websiteUrl }: { websiteUrl: string }) {
+export function WebsiteCard({ websiteUrl, creditCost }: { websiteUrl: string; creditCost: number }) {
   const [state, action, pending] = useActionState(importWebsiteAction, INITIAL_IMPORT)
   const host = websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
 
@@ -28,7 +27,7 @@ export function WebsiteCard({ websiteUrl }: { websiteUrl: string }) {
           </p>
           <p className="text-xs text-ink-muted">
             Membaca hingga 11 halaman, menyimpan maksimal 40 gambar, lalu AI mengelompokkannya per produk dan memberi tag.{' '}
-            {TASK_CREDITS.website_catalog} kredit per batch, hingga 12 gambar.
+            {creditCost} kredit per batch, hingga 12 gambar.
           </p>
           <button type="submit" disabled={pending} className={`${PRIMARY_BUTTON} w-full`}>
             {pending ? 'Membaca website…' : 'Ambil gambar'}

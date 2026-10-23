@@ -9,6 +9,7 @@ const database = vi.hoisted(() => ({ inserted: [] as unknown[] }))
 vi.mock('./supabase', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./supabase')>()),
   db: () => ({
+    rpc: vi.fn(async () => ({ data: 'reservation-1', error: null })),
     from: () => ({
       insert: async (row: unknown) => {
         database.inserted.push(row)
@@ -114,3 +115,5 @@ describe('tagAssets', () => {
     expect(chatCompletion).not.toHaveBeenCalled()
   })
 })
+import { DEFAULT_CATALOG } from './billing-catalog-options'
+vi.mock('./billing-catalog', () => ({ getBillingCatalog: vi.fn(async () => ({ version: 1, catalog: DEFAULT_CATALOG })) }))

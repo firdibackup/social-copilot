@@ -21,7 +21,7 @@ async function loadUsage(): Promise<number | null> {
   }
 }
 
-/** The sidebar's KREDIT meter, linking to the subscription page. */
+/** The sidebar's KREDIT meter links to the billing section in settings. */
 export async function CreditMeter() {
   const percent = await loadUsage()
   return <CreditBar percent={percent} />
@@ -29,7 +29,7 @@ export async function CreditMeter() {
 
 export function CreditBar({ percent }: { percent: number | null }) {
   return (
-    <Link href="/langganan" className="block space-y-1.5 rounded-lg px-3 py-2 transition-colors hover:bg-white">
+    <Link href="/pengaturan#paket" className="block space-y-1.5 rounded-lg px-3 py-2 transition-colors hover:bg-white">
       <span className="flex justify-between text-xs">
         <span className="text-ink-muted">Kuota AI</span>
         <span className="font-medium text-ink">{percent === null ? '–' : `${percent}% terpakai`}</span>
@@ -62,7 +62,7 @@ export async function RenewalBanner() {
     <p role="status" className="border-b border-amber-200 bg-amber-50 px-5 py-2 text-sm text-amber-800">
       Langganan berakhir {renewal.daysLeft <= 1 ? 'dalam 1 hari' : `${renewal.daysLeft} hari lagi`} (
       {formatDateTime(renewal.activeUntil)}).{' '}
-      <Link href="/langganan" className="font-medium underline">
+      <Link href="/pengaturan?billing=perpanjang" className="font-medium underline">
         Perpanjang
       </Link>
     </p>

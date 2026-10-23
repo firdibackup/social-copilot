@@ -71,9 +71,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 <Suspense fallback={null}>
                   <AdminNav phone />
                 </Suspense>
-                <Link href="/langganan" className={PHONE_ACTION}>
+                <Link href="/pengaturan#paket" className={PHONE_ACTION}>
                   <CreditCard size={16} strokeWidth={1.75} aria-hidden="true" />
-                  Langganan
+                  Paket & Kredit
                 </Link>
                 <form action={signOut}>
                   <button type="submit" aria-label="Keluar" className={PHONE_ACTION}>

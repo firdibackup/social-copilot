@@ -32,6 +32,7 @@ const database = vi.hoisted(() => ({ inserted: [] as { table: string; row: unkno
 vi.mock('./supabase', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./supabase')>()),
   db: () => ({
+    rpc: vi.fn(async () => ({ data: 'reservation-1', error: null })),
     from: (table: string) => ({
       insert: async (row: unknown) => {
         database.inserted.push({ table, row })
@@ -55,6 +56,7 @@ vi.mock('./apify', async (importOriginal) => ({
 
 vi.mock('./chat', () => ({
   reserveDailyUsage: vi.fn(),
+  releaseDailyUsage: vi.fn(),
   findContent: vi.fn(),
   loadSummaryBatch: vi.fn(),
   saveSummary: vi.fn(),
@@ -390,7 +392,7 @@ describe('answerChat', () => {
     vi.mocked(webSearch).mockReset()
     vi.mocked(chatCompletion).mockReset()
     vi.mocked(findCompetitors).mockReset()
-    vi.mocked(reserveDailyUsage).mockReset().mockResolvedValue()
+    vi.mocked(reserveDailyUsage).mockReset().mockResolvedValue('2026-10-23')
     vi.mocked(addIdea).mockReset()
     vi.mocked(saveAccountIdeaScript).mockReset().mockResolvedValue(true)
     tools.mockReset()
@@ -679,3 +681,5 @@ describe('answerChat', () => {
     expect(rows()).toEqual([expect.objectContaining({ task: 'chat', status: 'failed' })])
   })
 })
+import { DEFAULT_CATALOG } from './billing-catalog-options'
+vi.mock('./billing-catalog', () => ({ getBillingCatalog: vi.fn(async () => ({ version: 1, catalog: DEFAULT_CATALOG })) }))

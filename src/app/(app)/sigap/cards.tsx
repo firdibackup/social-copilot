@@ -533,7 +533,7 @@ function BulkPlanCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk
   const editable = !starting && pending === null
 
   const totalShare = quotaShare(
-    plan.reduce((sum, item) => sum + bulkItemCost(item), 0),
+    plan.reduce((sum, item) => sum + bulkItemCost(item, data?.rates), 0),
     data?.planCredits,
   )
   const missingTitle = plan.some((item) => !item.ideaId && !item.title.trim())

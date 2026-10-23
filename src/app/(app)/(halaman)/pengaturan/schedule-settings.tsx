@@ -1,6 +1,6 @@
 import { Notice } from '@/components/notice'
 import { SlotEditor } from '@/components/slot-editor'
-import { requireActiveUser } from '@/lib/auth'
+import { requireUser } from '@/lib/auth'
 import { getConnectedAccountId } from '@/lib/connection'
 import { describeError, loadErrorMessage } from '@/lib/errors'
 import { getScheduleSettings, type ScheduleSettings as Settings } from '@/lib/schedule'
@@ -9,7 +9,7 @@ const CARD = 'space-y-3 rounded-xl border border-zinc-200 bg-white p-6'
 
 /** Jadwal: the time zone every schedule uses, and the account's posting slots with the posts-per-week preset. */
 export async function ScheduleSettings() {
-  const userId = await requireActiveUser()
+  const userId = await requireUser()
   let settings: Settings | null
   try {
     const accountId = await getConnectedAccountId(userId)

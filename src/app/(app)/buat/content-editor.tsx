@@ -10,7 +10,8 @@ import { Notice, type NoticeTone } from '@/components/notice'
 import { PostStatusBadge } from '@/components/post-status-badge'
 import { ThreadsIcon } from '@/components/threads-icon'
 import type { Asset } from '@/lib/assets'
-import { contentCost, formatCreditShare, TASK_CREDITS } from '@/lib/billing-options'
+import { formatCreditShare } from '@/lib/billing-options'
+import type { BillingCatalog } from '@/lib/billing-catalog-options'
 import { CAPTION_MAX_HASHTAGS, CAPTION_MAX_LENGTH, CAPTION_MAX_MENTIONS, inspectCaption } from '@/lib/caption'
 import {
   AUTO_PRODUCT,
@@ -86,6 +87,7 @@ interface ContentEditorProps {
   credits: number | null
   /** The plan's credits per period, which costs are shown as a share of. */
   planCredits: number
+  rates: BillingCatalog['rates']
   slot: Slot
   /** The next empty posting slots for the Jadwalkan dialog, earliest first. */
   queue: Slot[]
@@ -128,6 +130,7 @@ export function ContentEditor({
   hasLogo,
   credits,
   planCredits,
+  rates: TASK_CREDITS,
   slot,
   queue,
   day,
@@ -138,6 +141,7 @@ export function ContentEditor({
   threadItems,
   threadsEditable,
 }: ContentEditorProps) {
+  const contentCost = (slides: number) => TASK_CREDITS.content + slides * TASK_CREDITS.image
   const router = useRouter()
   const queryClient = useQueryClient()
   const scope = useEditorScope()

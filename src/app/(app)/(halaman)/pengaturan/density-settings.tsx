@@ -1,5 +1,5 @@
 import { Notice } from '@/components/notice'
-import { requireActiveUser } from '@/lib/auth'
+import { requireUser } from '@/lib/auth'
 import { getConnectedAccountId } from '@/lib/connection'
 import { getDensityDefault } from '@/lib/density'
 import { DEFAULT_DENSITY, type TextDensity } from '@/lib/density-options'
@@ -8,7 +8,7 @@ import { DensityPicker } from './density-picker'
 
 /** Kepadatan teks: the account's default for new posts in Buat; every post can still pick another. */
 export async function DensitySettings() {
-  const userId = await requireActiveUser()
+  const userId = await requireUser()
   let state: { accountId: string | null; density: TextDensity }
   try {
     const accountId = await getConnectedAccountId(userId)

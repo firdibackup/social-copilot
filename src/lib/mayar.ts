@@ -57,6 +57,7 @@ export interface NewPaymentRequest {
 
 export interface CreatedPaymentRequest {
   id: string
+  transactionId?: string
   /** The checkout page. */
   link: string
 }
@@ -67,7 +68,7 @@ export async function createPaymentRequest(input: NewPaymentRequest): Promise<Cr
     method: 'POST',
     body: JSON.stringify({ ...input, expiredAt: input.expiredAt.toISOString() }),
   })
-  return { id: text(data, 'id'), link: text(data, 'link') }
+  return { id: text(data, 'id'), link: text(data, 'link'), ...(typeof data.transactionId === 'string' ? { transactionId: data.transactionId } : {}) }
 }
 
 export interface PaymentRequestState {

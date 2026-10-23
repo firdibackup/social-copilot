@@ -21,12 +21,13 @@ const byPosition = (left: Asset, right: Asset) =>
   (left.groupPosition ?? Number.MAX_SAFE_INTEGER) - (right.groupPosition ?? Number.MAX_SAFE_INTEGER)
 
 interface AssetLibraryViewProps {
+  rates: { asset_tags: number; website_catalog: number }
   library: AssetLibrary
   /** The website saved in Brand, or ''. */
   websiteUrl: string
 }
 
-export function AssetLibraryView({ library, websiteUrl }: AssetLibraryViewProps) {
+export function AssetLibraryView({ library, websiteUrl, rates }: AssetLibraryViewProps) {
   const [tab, setTab] = useState<Tab>('mine')
   const [filter, setFilter] = useState<string | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
@@ -107,10 +108,10 @@ export function AssetLibraryView({ library, websiteUrl }: AssetLibraryViewProps)
                 setPicked(new Set())
               }}
             />
-            <WebsiteCard websiteUrl={websiteUrl} />
+            <WebsiteCard websiteUrl={websiteUrl} creditCost={rates.website_catalog} />
           </aside>
           <div className="min-w-0 space-y-4">
-            <UploadZone groups={library.groups} defaultGroupId={activeFilter} />
+            <UploadZone groups={library.groups} defaultGroupId={activeFilter} creditCost={rates.asset_tags} />
             {filterGroup && (
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="text-ink-muted">Produk:</span>

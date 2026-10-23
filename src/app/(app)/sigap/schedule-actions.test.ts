@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { remainingCredits } from '@/lib/ai'
+import { DEFAULT_CATALOG } from '@/lib/billing-catalog-options'
+vi.mock('@/lib/billing-catalog', () => ({ getBillingCatalog: vi.fn(async () => ({ version: 1, catalog: DEFAULT_CATALOG })) }))
 import { getMessage, getSession } from '@/lib/chat'
 import { commitSigapSchedule, readScheduleItem, scheduleIdeaJob } from '@/lib/chat-schedule'
 import { enqueueContentJob, getContentJob } from '@/lib/content-jobs'

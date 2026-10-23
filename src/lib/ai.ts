@@ -1,7 +1,7 @@
 import 'server-only'
 import { getPlan, textModel } from './app-settings'
 import { creditsUsed, getCurrentPeriod, type Period } from './billing'
-import { TASK_CREDITS } from './billing-options'
+import { getBillingCatalog } from './billing-catalog'
 import { getAccountBrandContext, getBrandContext } from './brand'
 import { lengthOf, truncate, type BrandContext } from './brand-options'
 import { ConfigError, describeError } from './errors'
@@ -99,6 +99,7 @@ export type LoggedTask =
   | 'chat_summary'
 
 interface GenerationLog {
+  reservation_id?: string | null
   user_id: string
   task: LoggedTask
   credits: number
@@ -120,7 +121,7 @@ export interface Credits {
 export async function remainingCredits(userId: string): Promise<Credits> {
   const period = await getCurrentPeriod(userId)
   if (!period) throw new AiLimitError('Langganan tidak aktif. Aktifkan di halaman Langganan untuk memakai AI.')
-  const [plan, used] = await Promise.all([getPlan(), creditsUsed(userId, period.start)])
+  const [plan, used] = await Promise.all([period.plan ?? getPlan(), creditsUsed(userId, period.start)])
   return { remaining: Math.max(0, plan.credits - used), period }
 }
 
@@ -143,15 +144,16 @@ interface LogOptions<T> {
   logOutput?: (result: T) => unknown
   /** Defaults to TASK_CREDITS[task]; a new post's cost depends on its slides (contentCost). */
   cost?: number
+  /** Image/photo count for a price calculated from the current tariff. */
+  units?: number
   /** An admin's own request: no subscription or credits needed, and it costs nothing. */
   unmetered?: boolean
 }
 
 /**
- * Checks the user's credits, runs `ask`, and logs the request with its result (the output) and its cost whatever
- * the outcome. A failed request costs nothing, so `ask` should include the writes that make the result usable:
- * when they fail, the user isn't charged.
- * ponytail: two requests at once can both pass the check and overspend by one request; lock per user if it matters.
+ * Locks the tariff at request start, reserves credits, and logs the result.
+ * `ask` includes the writes that make the result usable; failure releases its reservation.
+ * Reserve atomically before starting; the reservation is the authoritative charge even if audit logging fails.
  */
 export async function runLogged<T>(
   userId: string,
@@ -161,25 +163,40 @@ export async function runLogged<T>(
   options: LogOptions<T> = {},
 ): Promise<T> {
   const model = options.model ?? (await textModel())
-  const cost = options.unmetered ? 0 : (options.cost ?? TASK_CREDITS[task])
+  const rates = options.unmetered ? null : (await getBillingCatalog()).catalog.rates
+  const cost = options.unmetered ? 0 : (options.cost ?? (task === 'content' && options.units !== undefined
+    ? rates!.content + options.units * rates!.image
+    : rates![task] * (options.units ?? 1)))
+  if (!Number.isSafeInteger(cost) || cost < 0) throw new Error('Biaya kredit tidak valid.')
+  let reservation: string | null = null
   if (!options.unmetered) {
     const { remaining, period } = await remainingCredits(userId)
     if (cost > remaining) throw new AiLimitError(quotaSpentMessage(period))
+    if (cost > 0) {
+      const plan = period.plan ?? await getPlan()
+      reservation = unwrap(await db().rpc('reserve_ai_credits', {
+        p_user: userId, p_since: period.start.toISOString(), p_until: period.end.toISOString(), p_allowance: plan.credits, p_cost: cost,
+      })) as string | null
+      if (!reservation) throw new AiLimitError(quotaSpentMessage(period))
+    }
   }
 
   const startedAt = Date.now()
   const log = (result: Pick<GenerationLog, 'output' | 'status' | 'error' | 'credits'>) =>
-    logGeneration({ user_id: userId, task, input, model, duration_ms: Date.now() - startedAt, ...result })
+    logGeneration({ user_id: userId, reservation_id: reservation, task, input, model, duration_ms: Date.now() - startedAt, ...result })
 
+  let result: T
   try {
-    const result = await ask()
-    const output = options.logOutput ? options.logOutput(result) : result
-    await log({ output, status: 'ok', error: null, credits: cost })
-    return result
+    result = await ask()
   } catch (error) {
+    if (reservation) unwrap(await db().rpc('settle_ai_credits', { p_id: reservation, p_user: userId, p_success: false }))
     await log({ output: null, status: 'failed', error: describeError(error), credits: 0 })
     throw error
   }
+  if (reservation) unwrap(await db().rpc('settle_ai_credits', { p_id: reservation, p_user: userId, p_success: true }))
+  const output = options.logOutput ? options.logOutput(result) : result
+  await log({ output, status: 'ok', error: null, credits: cost })
+  return result
 }
 
 /** The brand kit's text for a prompt. One that fails to load leaves the content unbranded instead of failing it. */

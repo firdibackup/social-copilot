@@ -1,5 +1,8 @@
 import 'server-only'
 import { getPlan } from './app-settings'
+import { getCurrentPeriod } from './billing'
+import { getBillingCatalog } from './billing-catalog'
+import type { BillingCatalog } from './billing-catalog-options'
 import { contentCost } from './billing-options'
 import { inspectCaption } from './caption'
 import { MAX_SCHEDULE_ITEMS, type ScheduleData, type ScheduleItem, type ScheduleRef } from './chat-schedule-options'
@@ -36,7 +39,7 @@ export async function scheduleIdeaJob(userId: string, accountId: string, ideaId:
 }
 
 /** Re-read the same Buat sources for both the card and its mutations. Never trust a client readiness flag. */
-export async function readScheduleItem(userId: string, accountId: string, ref: ScheduleRef): Promise<ScheduleItem> {
+export async function readScheduleItem(userId: string, accountId: string, ref: ScheduleRef, rates?: BillingCatalog['rates']): Promise<ScheduleItem> {
   const item: ScheduleItem = { ...ref, postId: null, stage: 'gone', reason: 'Konten sudah dihapus atau tidak ada di akun ini.', scheduledAt: null, imageCost: null }
   const linked = ref.kind === 'idea' ? await scheduleIdeaJob(userId, accountId, ref.id) : null
   const postId = ref.kind === 'post' ? ref.id : linked?.post_id
@@ -45,7 +48,7 @@ export async function readScheduleItem(userId: string, accountId: string, ref: S
     if (!idea) return item
     return { ...item, title: idea.title, stage: idea.script ? 'script' : 'blocked',
       reason: idea.script ? 'Skrip siap. Buat gambar sebelum menjadwalkan.' : 'Tulis skrip dahulu di Buat.',
-      imageCost: idea.script ? contentCost(idea.script.length) : null }
+      imageCost: idea.script ? contentCost(idea.script.length, rates) : null }
   }
   const post = await getPost(userId, postId, accountId)
   if (!post) return item
@@ -61,7 +64,7 @@ export async function readScheduleItem(userId: string, accountId: string, ref: S
     const idea = job.idea_id ? await getAccountIdea(userId, accountId, job.idea_id) : null
     return { ...item, stage: idea?.script ? 'script' : 'blocked',
       reason: idea?.script ? 'Skrip siap. Buat gambar sebelum menjadwalkan.' : 'Skrip tidak ditemukan. Periksa di Buat.',
-      imageCost: idea?.script ? contentCost(idea.script.length) : null }
+      imageCost: idea?.script ? contentCost(idea.script.length, rates) : null }
   }
   if (slides.length > 0) return { ...item, stage: 'blocked', reason: 'Ada gambar gagal atau dibatalkan. Selesaikan atau hapus slide tersebut di Buat.' }
   const errors = post.instagramEnabled ? inspectCaption(post.caption).errors : []
@@ -90,9 +93,11 @@ export async function loadScheduleData(userId: string, accountId: string, refs: 
   const now = new Date()
   const start = from && from > now ? from : now
   const end = new Date(start.getTime() + SLOT_LOOKAHEAD_DAYS * 86400000)
-  const [items, settings, taken, plan] = await Promise.all([
-    Promise.all(refs.map((ref) => readScheduleItem(userId, accountId, ref))),
-    getScheduleSettings(userId, accountId), listTakenTimes(userId, accountId, start, end), getPlan(),
+  const billing = await getBillingCatalog()
+  const [items, settings, taken, period] = await Promise.all([
+    Promise.all(refs.map((ref) => readScheduleItem(userId, accountId, ref, billing.catalog.rates))),
+    getScheduleSettings(userId, accountId), listTakenTimes(userId, accountId, start, end), getCurrentPeriod(userId),
   ])
+  const plan = period?.plan ?? await getPlan()
   return { items, slots: nextEmptySlots(settings.slots, taken, start, MAX_SCHEDULE_ITEMS).map(toWibInput), planCredits: plan.credits }
 }

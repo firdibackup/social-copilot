@@ -1,5 +1,6 @@
 import 'server-only'
 import { getPlan } from './app-settings'
+import { getBillingCatalog } from './billing-catalog'
 import { remainingCredits } from './ai'
 import { listProductGroups } from './assets'
 import type { AccountScope } from './auth'
@@ -23,13 +24,15 @@ const DAY_MS = 86_400_000
 
 /** Independent of the selected draft. The browser reuses this for five minutes. */
 export async function loadEditorSupport({ userId, accountId }: AccountScope) {
-  const [instagram, kit, products, credits, plan, threads, defaultDensity] = await Promise.all([
+  const [instagram, kit, products, balance, legacyPlan, threads, defaultDensity, billing] = await Promise.all([
     getConnection(userId), getBrandKit(userId, accountId), listProductGroups(userId, accountId),
-    remainingCredits(userId).then((left) => left.remaining, () => null), getPlan(),
+    remainingCredits(userId).catch(() => null), getPlan(),
     getThreadsConnection(userId, accountId).catch(logAndNull),
     getDensityDefault(userId, accountId).catch(() => DEFAULT_DENSITY),
+    getBillingCatalog(),
   ])
-  return { instagram, kit: { logoUrl: kit.logoUrl }, products, credits, plan, threads, defaultDensity }
+  return { instagram, kit: { logoUrl: kit.logoUrl }, products, credits: balance?.remaining ?? null,
+    plan: balance?.period.plan ?? legacyPlan, rates: billing.catalog.rates, threads, defaultDensity }
 }
 
 /** Authorization is checked by the caller; ownership is also scoped to the connected account. */

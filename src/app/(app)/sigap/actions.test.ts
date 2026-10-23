@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { remainingCredits } from '@/lib/ai'
+import { DEFAULT_CATALOG } from '@/lib/billing-catalog-options'
+vi.mock('@/lib/billing-catalog', () => ({ getBillingCatalog: vi.fn(async () => ({ version: 1, catalog: DEFAULT_CATALOG })) }))
 import { listProductGroups } from '@/lib/assets'
 import { contentCost, TASK_CREDITS } from '@/lib/billing-options'
 import { getMessage, getSession, updateBulkCard } from '@/lib/chat'

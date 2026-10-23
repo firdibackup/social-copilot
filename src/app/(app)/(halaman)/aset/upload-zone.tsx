@@ -5,18 +5,18 @@ import { useRouter } from 'next/navigation'
 import { useId, useRef, useState, type DragEvent } from 'react'
 import { prepareAndUpload } from '@/components/upload-button'
 import type { AssetGroup } from '@/lib/assets'
-import { TASK_CREDITS } from '@/lib/billing-options'
 import { tagAssetsAction } from './actions'
 import { FIELD, INITIAL_STATE } from './ui'
 
 interface UploadZoneProps {
+  creditCost: number
   groups: AssetGroup[]
   /** Preselected product, from the product filter. */
   defaultGroupId: string | null
 }
 
 /** Drop or pick photos, optionally straight into a product, and have AI tag them afterwards. */
-export function UploadZone({ groups, defaultGroupId }: UploadZoneProps) {
+export function UploadZone({ groups, defaultGroupId, creditCost }: UploadZoneProps) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
   const id = useId()
@@ -128,7 +128,7 @@ export function UploadZone({ groups, defaultGroupId }: UploadZoneProps) {
               className="size-4 accent-teal-700"
             />
             Tag otomatis dengan AI
-            <span className="text-xs text-ink-muted">({TASK_CREDITS.asset_tags} kredit/foto)</span>
+            <span className="text-xs text-ink-muted">({creditCost} kredit/foto)</span>
           </label>
         </div>
       </div>

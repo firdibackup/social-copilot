@@ -5,6 +5,7 @@ import { LoadingState } from '@/components/loading-state'
 import { Notice } from '@/components/notice'
 import { listAssetLibrary, type AssetLibrary } from '@/lib/assets'
 import { requireAccount } from '@/lib/auth'
+import { getBillingCatalog } from '@/lib/billing-catalog'
 import { getBrandFields } from '@/lib/brand'
 import { describeError, loadErrorMessage } from '@/lib/errors'
 import { AssetLibraryView } from './asset-library'
@@ -50,5 +51,6 @@ async function AssetGrid() {
     return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
   }
 
-  return <AssetLibraryView library={library} websiteUrl={websiteUrl} />
+  const { catalog } = await getBillingCatalog()
+  return <AssetLibraryView library={library} websiteUrl={websiteUrl} rates={catalog.rates} />
 }

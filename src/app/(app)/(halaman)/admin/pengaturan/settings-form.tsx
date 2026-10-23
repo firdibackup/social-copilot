@@ -71,10 +71,9 @@ export function SettingsForm({ values, defaults, textModels, textPresets, imageM
 
       <section className={CARD}>
         <div className="space-y-1">
-          <h2 className={CARD_TITLE}>Paket langganan</h2>
+          <h2 className={CARD_TITLE}>Default pemberian akses manual</h2>
           <p className={HINT}>
-            Berlaku untuk semua pengguna. Harga dan durasi dipakai untuk pembayaran berikutnya; kredit langsung berlaku untuk
-            periode yang sedang berjalan.
+            Dipakai saat admin memberikan akses manual. Paket Pro/Max diatur di bagian Paket & kredit di atas.
           </p>
         </div>
         <label className={LABEL}>

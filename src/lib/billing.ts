@@ -1,7 +1,12 @@
 import 'server-only'
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import { getPlan } from './app-settings'
+import { getBillingCatalog } from './billing-catalog'
+import { billingCycle, quotePurchase, type CatalogPlan, type PurchaseSnapshot } from './billing-catalog-options'
 import { usedPercent } from './billing-options'
-import { appUrl } from './env'
+import { describeError } from './errors'
+import { appUrl, env } from './env'
+import { quoteUpgrade, type PaidTerm, type UpgradeSnapshot } from './billing-upgrade-options'
 import { createPaymentRequest, getPaymentRequest } from './mayar'
 import { db, unwrap } from './supabase'
 
@@ -13,6 +18,7 @@ const REUSE_MARGIN_MS = HOUR_MS / 6
 const HISTORY_LIMIT = 12
 
 export interface Period {
+  plan?: CatalogPlan
   start: Date
   end: Date
   /** End of the last paid period, later than `end` when the user paid ahead. */
@@ -28,9 +34,14 @@ export interface Payment {
   createdAt: Date
   periodStart: Date | null
   periodEnd: Date | null
+  kind: 'subscription' | 'upgrade'
+  link: string | null
+  fulfillmentError: string | null
+  planName: string | null
 }
 
 interface PaymentRow {
+  snapshot?: (PurchaseSnapshot | UpgradeSnapshot | { legacy: true; plan: CatalogPlan }) & { monthly?: boolean } | null
   id: string
   mayar_id: string | null
   link: string | null
@@ -46,17 +57,19 @@ export async function getCurrentPeriod(userId: string, now = new Date()): Promis
   const rows = unwrap(
     await db()
       .from('payments')
-      .select('period_start, period_end')
+      .select('period_start, period_end, snapshot, entitlement_plan')
       .eq('user_id', userId)
       .eq('status', 'paid')
       .gt('period_end', now.toISOString())
       .order('period_start', { ascending: true }),
-  ) as { period_start: string; period_end: string }[]
+  ) as { period_start: string; period_end: string; snapshot?: PaymentRow['snapshot']; entitlement_plan?: CatalogPlan | null }[]
   const current = rows.find((row) => new Date(row.period_start) <= now)
   if (!current) return null
+  const start = new Date(current.period_start)
+  const end = new Date(current.period_end)
   return {
-    start: new Date(current.period_start),
-    end: new Date(current.period_end),
+    ...(current.snapshot && ('months' in current.snapshot || current.snapshot.monthly === true) ? billingCycle(start, end, now) : { start, end }),
+    plan: current.entitlement_plan ?? current.snapshot?.plan,
     activeUntil: new Date(Math.max(...rows.map((row) => new Date(row.period_end).getTime()))),
   }
 }
@@ -76,7 +89,7 @@ export interface Usage {
 }
 
 export async function getUsage(userId: string, period: Period): Promise<Usage> {
-  const [used, plan] = await Promise.all([creditsUsed(userId, period.start), getPlan()])
+  const [used, plan] = await Promise.all([creditsUsed(userId, period.start), period.plan ?? getPlan()])
   return { used, credits: plan.credits, percent: usedPercent(used, plan.credits) }
 }
 
@@ -84,78 +97,113 @@ export async function listPayments(userId: string): Promise<Payment[]> {
   const rows = unwrap(
     await db()
       .from('payments')
-      .select('id, amount, status, created_at, period_start, period_end')
+      .select('id, amount, status, created_at, period_start, period_end, kind, link, fulfillment_error, snapshot, expires_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(HISTORY_LIMIT),
-  ) as { id: string; amount: number; status: PaymentStatus; created_at: string; period_start: string | null; period_end: string | null }[]
+  ) as { id: string; amount: number; status: PaymentStatus; created_at: string; period_start: string | null; period_end: string | null;
+    kind: Payment['kind']; link: string | null; fulfillment_error: string | null; snapshot: PaymentRow['snapshot']; expires_at: string | null }[]
   return rows.map((row) => ({
     id: row.id,
     amount: row.amount,
-    status: row.status,
+    status: row.status === 'pending' && row.expires_at && new Date(row.expires_at) <= new Date() ? 'expired' : row.status,
     createdAt: new Date(row.created_at),
     periodStart: toDate(row.period_start),
     periodEnd: toDate(row.period_end),
+    kind: row.kind,
+    link: row.link,
+    fulfillmentError: row.fulfillment_error,
+    planName: row.snapshot?.plan.name ?? null,
   }))
 }
 
-/**
- * Payments go through Mayar only once MAYAR_ENABLED=true. Until then (testing) every period is free: users get one
- * when they sign up and another from /langganan whenever they ask.
- */
+/** Checkout is enabled explicitly; disabling payments does not grant free access. */
 export const paymentsEnabled = () => process.env.MAYAR_ENABLED?.trim() === 'true'
 
 /** A free period of the plan's length, or `days` (from an admin), stacked after any the user already has. */
 export async function grantFreePeriod(userId: string, days?: number): Promise<void> {
-  const length = days ?? (await getPlan()).days
+  const plan = await getPlan()
+  const length = days ?? plan.days
   const { id } = unwrap(
-    await db().from('payments').insert({ user_id: userId, amount: 0, status: 'pending' }).select('id').single(),
+    await db().from('payments').insert({ user_id: userId, amount: 0, status: 'pending', snapshot: {
+      legacy: true, plan: { ...plan, days: length, chatDaily: 100, researchDaily: 10, prioritySupport: false, earlyAccess: false },
+    } }).select('id').single(),
   ) as { id: string }
   unwrap(await db().rpc('activate_payment', { p_id: id, p_days: length }))
 }
 
 /**
- * The checkout link for one more period. A pending link that is still payable is handed out again, so a user who
- * clicks twice pays once. The row is written before Mayar is asked, so every link a user can open has a row.
+ * A pending link is reused only for the same catalog version, plan, and duration.
+ * A unique checkout key prevents simultaneous requests from creating multiple payable links.
  */
-export async function startCheckout(userId: string, email: string, now = new Date()): Promise<string> {
-  const reusable = unwrap(
-    await db()
-      .from('payments')
-      .select('link')
-      .eq('user_id', userId)
-      .eq('status', 'pending')
-      .not('link', 'is', null)
-      .gt('expires_at', new Date(now.getTime() + REUSE_MARGIN_MS).toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1),
-  ) as { link: string }[]
-  if (reusable[0]) return reusable[0].link
+export async function startCheckout(userId: string, email: string, now = new Date(), choice = { planId: 'pro', months: 1, version: 0 }): Promise<string> {
+  const { catalog, version } = await getBillingCatalog()
+  if (choice.version && choice.version !== version) throw new Error('Harga diperbarui. Muat ulang ringkasan pembayaran.')
+  const snapshot = quotePurchase(catalog, version, choice.planId, choice.months)
+  const key = `${userId}:${version}:${choice.planId}:${choice.months}`
+  return createCheckout(userId, email, snapshot, key, now)
+}
 
-  const plan = await getPlan()
-  const expiresAt = new Date(now.getTime() + LINK_TTL_MS)
-  const { id } = unwrap(
-    await db()
-      .from('payments')
-      .insert({ user_id: userId, amount: plan.priceIdr, status: 'pending', expires_at: expiresAt.toISOString() })
-      .select('id')
-      .single(),
-  ) as { id: string }
+export async function getUpgradeQuote(userId: string, planId: string, now = new Date()) {
+  const { catalog, version } = await getBillingCatalog()
+  const target = catalog.plans.find((plan) => plan.id === planId && plan.active)
+  if (!target) throw new Error('Paket tidak tersedia.')
+  const terms = unwrap(await db().from('payments').select('id, period_start, period_end, snapshot, entitlement_plan')
+    .eq('user_id', userId).eq('status', 'paid').gt('period_end', now.toISOString()).order('period_start')) as PaidTerm[]
+  const quote = quoteUpgrade(terms, target, version, now)
+  const payload = Buffer.from(JSON.stringify({ userId, quote })).toString('base64url')
+  return { quote, token: `${payload}.${signQuote(payload)}` }
+}
+
+function signQuote(payload: string) {
+  return createHmac('sha256', env('SUPABASE_SERVICE_ROLE_KEY')).update(payload).digest('base64url')
+}
+
+export async function startUpgradeCheckout(userId: string, email: string, token: string, now = new Date()) {
+  if (token.length > 100_000) throw new Error('Ringkasan upgrade tidak valid.')
+  const [payload, signature = ''] = token.split('.')
+  const expected = signQuote(payload)
+  if (signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+    throw new Error('Ringkasan upgrade tidak valid. Hitung ulang biaya.')
+  }
+  const signed = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { userId: string; quote: UpgradeSnapshot }
+  if (signed.userId !== userId || now.getTime() - new Date(signed.quote.quotedAt).getTime() > REUSE_MARGIN_MS) {
+    throw new Error('Ringkasan upgrade kedaluwarsa. Hitung ulang biaya.')
+  }
+  return createCheckout(userId, email, signed.quote, `${userId}:upgrade:${createHash('sha256').update(payload).digest('hex')}`, now)
+}
+
+async function createCheckout(userId: string, email: string, snapshot: PurchaseSnapshot | UpgradeSnapshot, key: string, now: Date) {
+  const plan = snapshot.plan
+  const upgrade = 'kind' in snapshot
+  const expiresAt = new Date(Math.min(now.getTime() + (upgrade ? HOUR_MS : LINK_TTL_MS),
+    upgrade ? new Date(snapshot.activeUntil).getTime() : Infinity))
+  if (expiresAt.getTime() - now.getTime() < 60_000) throw new Error('Masa aktif hampir berakhir. Aktifkan paket kembali setelah periode ini.')
+  const row = unwrap(await db().rpc('prepare_billing_checkout', {
+    p_user: userId, p_snapshot: snapshot, p_key: key, p_expires: expiresAt.toISOString(),
+  })) as { id: string; link: string | null }
+  if (row.link) return row.link
+  const { id } = row
+  const claimed = unwrap(await db().from('payments').update({ last_checked_at: now.toISOString() })
+    .eq('id', id).is('last_checked_at', null).select('id')) as { id: string }[]
+  if (!claimed.length) throw new Error('Pembayaran sedang disiapkan. Tunggu sebentar lalu cek status.')
 
   try {
     const created = await createPaymentRequest({
       name: plan.name,
-      amount: plan.priceIdr,
+      amount: snapshot.total,
       email,
-      description: `Langganan Carousely ${plan.days} hari`,
-      redirectUrl: appUrl('/langganan', { bayar: 'selesai' }),
+      description: upgrade ? `Upgrade Carousely ${plan.name} · pesanan ${id}` : `Carousely ${plan.name} ${snapshot.months} bulan · pesanan ${id}`,
+      redirectUrl: appUrl('/pengaturan', { bayar: 'selesai', pesanan: id }),
       expiredAt: expiresAt,
     })
-    unwrap(await db().from('payments').update({ mayar_id: created.id, link: created.link }).eq('id', id))
+    unwrap(await db().from('payments').update({ mayar_id: created.id, link: created.link,
+      ...(created.transactionId ? { mayar_transaction_id: created.transactionId } : {}),
+    }).eq('id', id))
     return created.link
   } catch (error) {
     // No link reached the user, so nothing can be paid against this row.
-    await db().from('payments').update({ status: 'expired' }).eq('id', id)
+    await db().from('payments').update({ status: 'expired', checkout_key: null }).eq('id', id)
     throw error
   }
 }
@@ -165,11 +213,10 @@ export async function startCheckout(userId: string, email: string, now = new Dat
  * answer to our own API key counts: a webhook body is never trusted. Returns true when this call activated it.
  */
 export async function confirmPayment(row: PaymentRow, now = new Date()): Promise<boolean> {
-  if (row.status !== 'pending' || !row.mayar_id) return false
+  if (row.status === 'paid' || !row.mayar_id) return false
   const state = await getPaymentRequest(row.mayar_id)
   if (state.status === 'paid' && state.amount === row.amount) {
-    // The plan's length when Mayar confirms; an admin change in between applies to this payment too.
-    const { days } = await getPlan()
+    const { days } = row.snapshot?.plan ?? await getPlan()
     const activated: unknown = unwrap(await db().rpc('activate_payment', { p_id: row.id, p_days: days }))
     return activated === true
   }
@@ -179,7 +226,7 @@ export async function confirmPayment(row: PaymentRow, now = new Date()): Promise
   return false
 }
 
-const PENDING_COLUMNS = 'id, mayar_id, link, amount, status, expires_at'
+const PENDING_COLUMNS = 'id, mayar_id, link, amount, status, expires_at, snapshot'
 
 async function confirmAll(rows: PaymentRow[]): Promise<number> {
   let activated = 0
@@ -192,7 +239,8 @@ async function confirmAll(rows: PaymentRow[]): Promise<number> {
 /** Checks every pending payment of the user, e.g. when they come back from Mayar's checkout. */
 export async function syncPendingPayments(userId: string): Promise<number> {
   const rows = unwrap(
-    await db().from('payments').select(PENDING_COLUMNS).eq('user_id', userId).eq('status', 'pending'),
+    await db().from('payments').select(PENDING_COLUMNS).eq('user_id', userId).in('status', ['pending', 'expired'])
+      .not('mayar_id', 'is', null).order('created_at', { ascending: false }).limit(20),
   ) as PaymentRow[]
   return confirmAll(rows)
 }
@@ -201,7 +249,25 @@ export async function syncPendingPayments(userId: string): Promise<number> {
 export async function syncPaymentsByMayarIds(mayarIds: string[]): Promise<number> {
   if (mayarIds.length === 0) return 0
   const rows = unwrap(
-    await db().from('payments').select(PENDING_COLUMNS).in('mayar_id', mayarIds).eq('status', 'pending'),
+    await db().from('payments').select(PENDING_COLUMNS).in('mayar_id', mayarIds).in('status', ['pending', 'expired']),
   ) as PaymentRow[]
-  return confirmAll(rows)
+  const transactions = unwrap(await db().from('payments').select(PENDING_COLUMNS)
+    .in('mayar_transaction_id', mayarIds).in('status', ['pending', 'expired'])) as PaymentRow[]
+  return confirmAll([...new Map([...rows, ...transactions].map((row) => [row.id, row])).values()])
+}
+
+/** A bounded background sweep recovers payments even if the customer closes the tab. */
+export async function reconcilePayments(): Promise<number> {
+  if (!paymentsEnabled()) return 0
+  const rows = unwrap(await db().from('payments').select(PENDING_COLUMNS)
+    .in('status', ['pending', 'expired']).not('mayar_id', 'is', null)
+    .gt('created_at', new Date(Date.now() - 7 * 86400000).toISOString())
+    .order('last_checked_at', { ascending: true, nullsFirst: true }).limit(20)) as PaymentRow[]
+  let activated = 0
+  for (const row of rows) {
+    try { if (await confirmPayment(row)) activated++ }
+    catch (error) { console.error('[mayar] pemeriksaan berkala gagal:', describeError(error)) }
+    await db().from('payments').update({ last_checked_at: new Date().toISOString() }).eq('id', row.id)
+  }
+  return activated
 }

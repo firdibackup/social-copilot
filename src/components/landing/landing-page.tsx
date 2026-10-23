@@ -8,7 +8,7 @@
  * FORM: User-approved dashboard-led page; scroll-linked depth, interactive feature demos.
  */
 import Link from 'next/link'
-import { useId, useRef, useState } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, MotionConfig, motion, useReducedMotion, useScroll, useTransform } from 'framer-motion'
 import { ArrowDown, ArrowUpRight, CalendarDays, Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ImageIcon, Layers3, Menu, MessageCircle, MousePointer2, Paperclip, Pause, Play, Plus, Send, Settings2, Sparkles, WandSparkles, X } from 'lucide-react'
 import { CarouselyLogo } from '@/components/brand-mark'
@@ -200,7 +200,7 @@ const faqs = [
   { q: 'Apakah preview di halaman ini terhubung ke akun asli?', a: 'Preview ini adalah demo interaktif dengan data ilustrasi. Mencoba ide, melihat jadwal, atau mengirim balasan di demo tidak membuat konten maupun mengirim pesan ke akun Instagram sungguhan.' },
 ]
 
-export function LandingPage() {
+export function LandingPage({ pricing }: { pricing: ReactNode }) {
   const reduceMotion = useReducedMotion()
   const [paused, setPaused] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -209,14 +209,15 @@ export function LandingPage() {
     <a href="#main-content" className={styles.skipLink}>Langsung ke konten</a>
     <header className={styles.header}>
       <Link href="/" aria-label="Carousely beranda"><CarouselyLogo size={34} /></Link>
-      <nav className={styles.desktopNav} aria-label="Navigasi utama"><a href="#fitur">Fitur</a><a href="#cara-kerja">Cara kerja</a><a href="#faq">Tanya jawab</a></nav>
+      <nav className={styles.desktopNav} aria-label="Navigasi utama"><a href="#fitur">Fitur</a><a href="#cara-kerja">Cara kerja</a><a href="#harga">Harga</a><a href="#faq">Tanya jawab</a></nav>
       <div className={styles.headerActions}><Link href="/masuk" className={styles.loginLink}>Masuk</Link><Link href="/daftar" className={styles.navCta}>Mulai sekarang <ArrowUpRight size={16} /></Link><button type="button" className={styles.menuToggle} aria-label={menuOpen ? 'Tutup menu' : 'Buka menu'} aria-expanded={menuOpen} aria-controls="landing-mobile-menu" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={22} /> : <Menu size={22} />}</button></div>
-      {menuOpen && <nav id="landing-mobile-menu" className={styles.mobileMenu} aria-label="Navigasi seluler" onKeyDown={(event) => { if (event.key === 'Escape') { setMenuOpen(false); document.querySelector<HTMLButtonElement>(`.${styles.menuToggle}`)?.focus() } }}><a href="#fitur" onClick={() => setMenuOpen(false)}>Fitur</a><a href="#cara-kerja" onClick={() => setMenuOpen(false)}>Cara kerja</a><a href="#faq" onClick={() => setMenuOpen(false)}>Tanya jawab</a><Link href="/masuk">Masuk ke akun</Link></nav>}
+      {menuOpen && <nav id="landing-mobile-menu" className={styles.mobileMenu} aria-label="Navigasi seluler" onKeyDown={(event) => { if (event.key === 'Escape') { setMenuOpen(false); document.querySelector<HTMLButtonElement>(`.${styles.menuToggle}`)?.focus() } }}><a href="#fitur" onClick={() => setMenuOpen(false)}>Fitur</a><a href="#cara-kerja" onClick={() => setMenuOpen(false)}>Cara kerja</a><a href="#harga" onClick={() => setMenuOpen(false)}>Harga</a><a href="#faq" onClick={() => setMenuOpen(false)}>Tanya jawab</a><Link href="/masuk">Masuk ke akun</Link></nav>}
     </header>
     <main id="main-content"><Hero motionEnabled={motionEnabled} />
       <div className={styles.capabilities}><span><Sparkles size={18} /> Ide & caption AI</span><span><Layers3 size={18} /> Kreasi konten</span><span><CalendarDays size={18} /> Jadwal publikasi</span><span><MessageCircle size={18} /> Inbox Instagram</span></div>
       <FeatureShowcase /><Workflow motionEnabled={motionEnabled} />
       <section className={styles.brandSection} aria-labelledby="brand-title"><div className={styles.brandCanvas}><div className={styles.brandCanvasTop}><span className={styles.miniAvatar}>a.</span><span>Satu brand. Banyak cerita.</span><Layers3 size={19} /></div><div className={styles.brandPosts}>{(['green', 'purple', 'peach'] as const).map((variant, index) => <motion.div key={variant} initial={false} whileInView={motionEnabled ? { rotate: index === 0 ? -7 : index === 2 ? 7 : 0, y: index === 1 ? -15 : 0 } : undefined} viewport={{ once: true, amount: .5 }} transition={{ duration: .7, delay: index * .1 }}><ContentArt variant={variant} /></motion.div>)}</div></div><div className={styles.brandText}><h2 id="brand-title">Tetap terasa kamu.<br />Di setiap postingan.</h2><p>AI membantu merangkai. Kamu yang memberi karakter. Simpan identitas brand, pakai asetmu sendiri, dan ubah setiap draf sampai benar-benar pas.</p><Link href="/daftar" className={styles.textLink}>Bawa brand kamu ke Carousely <ArrowUpRight size={18} /></Link></div></section>
+      {pricing}
       <section className={styles.faq} id="faq" aria-labelledby="faq-title"><div><CircleHelp size={29} /><h2 id="faq-title">Masih penasaran?</h2><p>Kenalan sedikit lagi<br />sebelum mulai berkarya.</p></div><div className={styles.faqList}>{faqs.map(({ q, a }) => <details key={q}><summary>{q}<Plus size={19} /></summary><p>{a}</p></details>)}</div></section>
       <section className={styles.finalCta} aria-labelledby="cta-title"><div className={styles.ctaIllustration} aria-hidden="true"><BotanicalArt light /></div><div><h2 id="cta-title">Ide berikutnya,<br />kita bikin bareng?</h2><p>Kasih ruang untuk kreativitasmu. Carousely bantu sisanya.</p><Link href="/daftar" className={styles.ctaButton}>Mulai dengan Carousely <ArrowUpRight size={20} /></Link></div><svg className={styles.ctaSpark} viewBox="0 0 100 100" aria-hidden="true"><path d="M50 3v94M3 50h94M17 17l66 66M17 83l66-66" stroke="currentColor" strokeWidth="9" /></svg></section>
     </main>

@@ -1,5 +1,10 @@
 import type { Metadata } from 'next'
 import { LandingPage } from '@/components/landing/landing-page'
+import { Suspense } from 'react'
+import { connection } from 'next/server'
+import { getBillingCatalog } from '@/lib/billing-catalog'
+import { DEFAULT_CATALOG } from '@/lib/billing-catalog-options'
+import { LandingPricing } from '@/components/landing/landing-pricing'
 
 export const metadata: Metadata = {
   title: 'Carousely — Ide jalan, konten tayang.',
@@ -13,5 +18,11 @@ export const metadata: Metadata = {
 }
 
 export default function Page() {
-  return <LandingPage />
+  return <LandingPage pricing={<Suspense fallback={<LandingPricing catalog={DEFAULT_CATALOG} provisional />}><Pricing /></Suspense>} />
+}
+
+async function Pricing() {
+  await connection()
+  const billing = await getBillingCatalog().catch(() => null)
+  return <LandingPricing catalog={billing?.catalog ?? DEFAULT_CATALOG} provisional={!billing} />
 }

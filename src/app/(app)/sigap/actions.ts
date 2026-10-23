@@ -3,6 +3,7 @@
 import { refresh } from 'next/cache'
 import { aiErrorMessage, remainingCredits } from '@/lib/ai'
 import { getPlan } from '@/lib/app-settings'
+import { getBillingCatalog } from '@/lib/billing-catalog'
 import { listProductGroups } from '@/lib/assets'
 import { parseRuleInput } from '@/lib/auto-dm-rules'
 import { requireAccount } from '@/lib/auth'
@@ -183,8 +184,9 @@ export async function startBulkAction(sessionId: string, messageId: string, bulk
         }
       }
 
-      const total = plan.reduce((sum, item) => sum + bulkItemCost(item), 0)
-      const [{ remaining }, { credits }] = await Promise.all([remainingCredits(userId), getPlan()])
+      const [{ remaining, period }, billing] = await Promise.all([remainingCredits(userId), getBillingCatalog()])
+      const { credits } = period?.plan ?? await getPlan()
+      const total = plan.reduce((sum, item) => sum + bulkItemCost(item, billing.catalog.rates), 0)
       if (total > remaining) {
         return `Kuota AI tidak cukup: rencana ini butuh ≈ ${formatCreditShare(total, credits)} kuota, sisa ≈ ${formatCreditShare(remaining, credits)}. Kurangi jumlah konten atau perpanjang di halaman Langganan.`
       }
