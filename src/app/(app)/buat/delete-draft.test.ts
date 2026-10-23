@@ -83,11 +83,12 @@ describe('deleteDraftAction', () => {
     expect(refresh).not.toHaveBeenCalled()
   })
 
-  it('deletes cancelled script placeholders without an attachment', async () => {
-    vi.mocked(getContentJob).mockResolvedValue({ ...job, kind: 'script', payload: {} })
+  it.each(['cancelled', 'ready'] as const)('deletes %s script drafts without an attachment', async (status) => {
+    vi.mocked(getContentJob).mockResolvedValue({ ...job, kind: 'script', status, payload: {} })
     expect(await deleteDraftAction(ID)).toBeNull()
     expect(deletePost).toHaveBeenCalledWith(USER, ID)
     expect(removeAttachment).not.toHaveBeenCalled()
+    expect(refresh).toHaveBeenCalledOnce()
   })
 
   it('still refreshes after deletion if storage cleanup fails', async () => {

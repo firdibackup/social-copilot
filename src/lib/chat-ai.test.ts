@@ -21,6 +21,7 @@ import {
   type ChatRequest,
 } from './chat-ai'
 import type { ChatPart } from './chat-options'
+import { discoverScheduleRefs, loadScheduleData } from './chat-schedule'
 import { enqueueContentJob } from './content-jobs'
 import { addIdea, getAccountIdea, saveAccountIdeaScript } from './ideas'
 import { chatCompletion, chatWithTools, webSearch, type ChatAnswer } from './nine-router'
@@ -68,6 +69,7 @@ vi.mock('./ideas', () => ({
 }))
 
 vi.mock('./content-jobs', () => ({ enqueueContentJob: vi.fn() }))
+vi.mock('./chat-schedule', () => ({ discoverScheduleRefs: vi.fn(), loadScheduleData: vi.fn() }))
 vi.mock('./brand', () => ({ getAccountBrandContext: vi.fn() }))
 vi.mock('./billing', () => ({ creditsUsed: vi.fn(), getCurrentPeriod: vi.fn() }))
 
@@ -114,6 +116,7 @@ describe('chatTools', () => {
       'check_content_status',
       'analyze_and_draft',
       'bulk_content',
+      'schedule_content',
       'update_content_strategy',
       'create_auto_dm_rule',
     ])
@@ -434,6 +437,31 @@ describe('answerChat', () => {
 
     expect(reply.content).toHaveLength(20_000)
     expect(rows()).toEqual([expect.objectContaining({ task: 'chat', status: 'ok' })])
+  })
+
+  it('loads live Buat drafts into a persistent schedule card without writing content', async () => {
+    const id = '00000000-0000-4000-8000-000000000001'
+    const ref = { kind: 'post' as const, id, title: 'Kopi pagi' }
+    vi.mocked(discoverScheduleRefs).mockResolvedValue([ref])
+    vi.mocked(loadScheduleData).mockResolvedValue({ items: [{ ...ref, postId: id, stage: 'processing', reason: 'Tunggu gambar.', scheduledAt: null, imageCost: null }], slots: ['2099-10-25T19:00'], planCredits: 10000 })
+    vi.mocked(chatWithTools).mockResolvedValueOnce(call('schedule_content', { topic: 'kopi' }))
+      .mockResolvedValueOnce({ content: 'Tunggu gambar selesai.', toolCalls: [] })
+    const reply = await answerChat(request())
+    expect(discoverScheduleRefs).toHaveBeenCalledWith(USER, 'account-1', 'kopi')
+    expect(reply.parts).toEqual([expect.objectContaining({ type: 'schedule', items: [ref] })])
+    expect(JSON.stringify(reply.parts)).not.toContain('processing')
+    expect(JSON.stringify(vi.mocked(chatWithTools).mock.calls[1][0].at(-1))).toContain('Tunggu gambar.')
+  })
+
+  it('deduplicates explicit references that resolve to the same post', async () => {
+    const postId = '00000000-0000-4000-8000-000000000001'
+    const ideaId = '00000000-0000-4000-8000-000000000002'
+    const base = { title: 'Kopi', postId, stage: 'ready' as const, reason: 'Siap', scheduledAt: null, imageCost: null }
+    vi.mocked(loadScheduleData).mockResolvedValue({ items: [{ ...base, kind: 'post', id: postId }, { ...base, kind: 'idea', id: ideaId }], slots: [], planCredits: 10000 })
+    vi.mocked(chatWithTools).mockResolvedValueOnce(call('schedule_content', { postIds: [postId, postId], ideaIds: [ideaId], from: '2099-10-25T12:00' }))
+      .mockResolvedValueOnce({ content: 'Pilih waktunya.', toolCalls: [] })
+    const reply = await answerChat(request())
+    expect(reply.parts[0]).toMatchObject({ type: 'schedule', from: '2099-10-25T12:00', items: [{ kind: 'post', id: postId, title: 'Kopi' }] })
   })
 
   it('sends a PDF as quoted text once, and images as image parts', async () => {

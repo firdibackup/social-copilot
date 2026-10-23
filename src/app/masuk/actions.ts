@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { authClient } from '@/lib/auth'
 import { grantFreePeriod, paymentsEnabled } from '@/lib/billing'
 import { describeError } from '@/lib/errors'
+import { appUrl } from '@/lib/env'
 import { safeNext } from '@/lib/params'
 
 export interface AuthState {
@@ -16,6 +17,26 @@ const MIN_PASSWORD = 8
 const UNREACHABLE = 'Layanan login tidak bisa dihubungi. Coba lagi sebentar lagi.'
 
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? '')
+
+export async function signInWithGoogle(_previous: AuthState, formData: FormData): Promise<AuthState> {
+  let url: string | null = null
+  try {
+    const { data, error } = await (await authClient()).auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: appUrl('/auth/callback', { next: safeNext(formData.get('next')) }),
+        queryParams: { prompt: 'select_account' },
+      },
+    })
+    if (error) throw error
+    url = data.url
+  } catch (error) {
+    console.error('[auth] Google gagal dimulai:', describeError(error))
+    return { error: 'Login Google belum tersedia. Coba lagi atau masuk dengan email.' }
+  }
+  if (!url) return { error: UNREACHABLE }
+  redirect(url)
+}
 
 export async function signIn(_previous: AuthState, formData: FormData): Promise<AuthState> {
   const email = field(formData, 'email').trim()

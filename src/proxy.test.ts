@@ -29,6 +29,15 @@ afterEach(() => {
 })
 
 describe('proxy', () => {
+  it('serves the public landing page with or without a session', async () => {
+    for (const userId of [null, 'user-1']) {
+      session.userId = userId
+      const response = await visit('/')
+      expect(response.headers.get('location')).toBeNull()
+      expect(response.headers.get('x-middleware-next')).toBe('1')
+    }
+  })
+
   it('rewrites the OAuth return on the bare domain to the callback route', async () => {
     const response = await visit('/?code=abc&state=xyz')
     expect(response.headers.get('x-middleware-rewrite')).toBe(`${ORIGIN}/api/auth/instagram/callback?code=abc&state=xyz`)
@@ -46,7 +55,7 @@ describe('proxy', () => {
   })
 
   it('lets visitors without a session reach sign in, the privacy page and the webhook', async () => {
-    for (const path of ['/masuk', '/daftar', '/privasi', '/api/webhooks/instagram']) {
+    for (const path of ['/masuk', '/daftar', '/privasi', '/auth/callback?code=google-code', '/api/webhooks/instagram']) {
       const response = await visit(path)
       expect(response.headers.get('location'), path).toBeNull()
       expect(response.headers.get('x-middleware-next'), path).toBe('1')

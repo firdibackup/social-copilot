@@ -25,6 +25,10 @@ import { formatLongDay, wibDateKey } from './format'
 import { addIdea, deleteAccountIdea, getAccountIdea, reviseAccountIdea, saveAccountIdeaScript } from './ideas'
 import { chatCompletion, chatWithTools, webSearch, type ContentPart, type ConversationMessage, type ToolCall, type ToolSchema } from './nine-router'
 import { scriptHeadline } from './script-options'
+import { discoverScheduleRefs, loadScheduleData } from './chat-schedule'
+import { MAX_SCHEDULE_ITEMS, type ScheduleRef } from './chat-schedule-options'
+import { isUuid } from './params'
+import { parseWibInput, toWibInput } from './format'
 import {
   DEFAULT_POSTS_PER_WEEK,
   FOCUS_LABELS,
@@ -156,7 +160,7 @@ const BULK_CONTENT: ToolSchema = {
       'Tool ini HANYA menampilkan rencana (judul, sudut, pilar, jumlah slide, poin per slide) di kartu untuk disetujui owner; belum ada kuota yang terpakai.',
       'Setelah owner menekan Setuju di kartu, skrip dan gambar tiap konten dibuat otomatis di latar belakang.',
       'Tiap item: topic (topik baru) ATAU ideaId (ide yang sudah tersimpan di menu Buat), bukan keduanya. Untuk ideaId, tetap isi angle, slides, dan points.',
-      'Jumlah item paling banyak sebanyak post per minggu di strategi konten brand. Tool ini tidak menjadwalkan; owner menjadwalkan sendiri di Buat atau Kalender.',
+      'Jumlah item paling banyak sebanyak post per minggu di strategi konten brand. Untuk penjadwalan konten yang sudah dibuat, gunakan schedule_content.',
       'Untuk mengubah rencana yang sudah ditampilkan, panggil tool ini lagi dengan rencana baru.',
     ].join(' '),
     parameters: {
@@ -182,6 +186,23 @@ const BULK_CONTENT: ToolSchema = {
         },
       },
       required: ['items'],
+    },
+  },
+}
+
+const SCHEDULE_CONTENT: ToolSchema = {
+  type: 'function',
+  function: {
+    name: 'schedule_content',
+    description: 'Tampilkan kartu penjadwalan draft dari Buat atau hasil Sigap. Membaca status terbaru, menawarkan pembuatan gambar untuk skrip, dan slot kosong Kalender. Owner memilih waktu WIB dan menekan Jadwalkan yang siap. Konten yang diproses harus ditunggu; yang siap bisa dijadwalkan dahulu. Tidak langsung menjadwalkan atau membuat gambar.',
+    parameters: {
+      type: 'object',
+      properties: {
+        topic: { type: 'string', description: 'Kata kunci judul; kosong untuk semua draft terbaru.' },
+        postIds: { type: 'array', items: { type: 'string' }, description: 'ID post tertentu dari hasil tool atau riwayat, bila owner merujuk konten tertentu.' },
+        ideaIds: { type: 'array', items: { type: 'string' }, description: 'ID skrip tersimpan yang ingin dibuat gambarnya lalu dijadwalkan.' },
+        from: { type: 'string', description: 'Opsional: mulai mencari slot pada waktu WIB YYYY-MM-DDTHH:mm sesuai permintaan owner.' },
+      },
     },
   },
 }
@@ -261,6 +282,7 @@ export function chatTools(deepSearch: boolean): ToolSchema[] {
     ...(deepSearch ? [INTEL_KOMPETITOR] : []),
     ANALYZE_AND_DRAFT,
     BULK_CONTENT,
+    SCHEDULE_CONTENT,
     UPDATE_CONTENT_STRATEGY,
     CREATE_AUTO_DM_RULE,
   ]
@@ -278,7 +300,7 @@ const SYSTEM_RULES = [
   '- update_content_strategy dan create_auto_dm_rule tidak langsung menyimpan: owner menyetujui lewat kartu konfirmasi. Jangan bilang sudah tersimpan.',
   '- analyze_and_draft langsung menyimpan skrip sebagai ide di menu Buat dan memakai kredit AI. Tulis skrip hanya kalau owner memintanya.',
   '- Untuk beberapa konten utuh sekaligus (skrip dan gambar), pakai bulk_content: tool itu hanya menampilkan rencana. Skrip dan gambar baru dibuat setelah owner menekan Setuju di kartu; jangan bilang kontennya sudah dibuat.',
-  '- Menjadwalkan post belum bisa dari chat: arahkan owner ke menu Buat atau Kalender setelah kontennya jadi.',
+  '- Untuk menjadwalkan konten, pakai schedule_content. Gunakan postIds/ideaIds dari riwayat bila owner merujuk konten tertentu, atau topic kosong untuk draft terbaru. Kartu membaca data Buat dan slot Kalender. Belum terjadwal sampai owner menekan Jadwalkan yang siap. Gambar yang masih diproses harus ditunggu; owner bisa menjadwalkan sisanya yang sudah siap. Skrip saja bisa dibuat gambarnya lewat kartu dahulu.',
 ]
 
 const DEEP_SEARCH_ON =
@@ -341,6 +363,8 @@ export function historyText(message: Pick<ChatMessageView, 'content' | 'parts'>)
         return [
           `[Cek konten "${part.query}": ${part.items.map((item) => `${item.title} (${item.status})`).join('; ') || 'belum pernah dibuat'}]`,
         ]
+      case 'schedule':
+        return [`[Kartu jadwal: ${part.items.map((item) => `${item.kind}Id=${item.id} "${item.title}"`).join('; ')}. Status diperiksa langsung di kartu; panggil schedule_content lagi untuk mengetahui status terbaru. Ini bukan bukti sudah terjadwal.]`]
       case 'bulk': {
         const state = {
           proposed: 'menunggu persetujuan owner, belum ada yang dibuat',
@@ -440,6 +464,31 @@ async function runContentStatus(context: ToolContext, args: Json): Promise<ToolO
   return {
     part: { type: 'content_status', query: topic, items },
     result: items.length > 0 ? JSON.stringify(items) : 'Belum ada post atau ide dengan topik ini.',
+  }
+}
+
+async function runScheduleContent(context: ToolContext, args: Json): Promise<ToolOutcome> {
+  const refs: ScheduleRef[] = []
+  for (const [key, kind] of [['postIds', 'post'], ['ideaIds', 'idea']] as const) {
+    for (const id of Array.isArray(args[key]) ? args[key] : []) {
+      if (!isUuid(id)) return failure('schedule_content', 'ID konten tidak valid. Cari kontennya dahulu.')
+      if (!refs.some((ref) => ref.kind === kind && ref.id === id)) refs.push({ kind, id, title: 'Konten' })
+    }
+  }
+  const from = args.from ? parseWibInput(String(args.from)) : null
+  if (args.from && !from) return failure('schedule_content', 'Waktu mulai tidak valid. Gunakan waktu WIB.')
+  const selected = refs.length ? refs.slice(0, MAX_SCHEDULE_ITEMS) : await discoverScheduleRefs(context.userId, context.accountId, text(args.topic, 200))
+  const data = await loadScheduleData(context.userId, context.accountId, selected, from ?? undefined)
+  const seen = new Set<string>()
+  const items = data.items.filter((item) => {
+    const key = item.postId || item.id
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  return {
+    part: { type: 'schedule', id: crypto.randomUUID(), items: items.map(({ kind, id, title }) => ({ kind, id, title })), ...(from ? { from: toWibInput(from) } : {}) },
+    result: JSON.stringify({ items, slots: data.slots, note: 'Kartu tampil. Owner memilih waktu dan menjadwalkan yang siap. Belum ada perubahan.' }),
   }
 }
 
@@ -802,6 +851,8 @@ async function runTool(context: ToolContext, call: ToolCall): Promise<ToolOutcom
         return await runAnalyzeAndDraft(context, args)
       case 'bulk_content':
         return [await runBulkContent(context, args)]
+      case 'schedule_content':
+        return [await runScheduleContent(context, args)]
       case 'update_content_strategy':
         return [runStrategy(context, args)]
       case 'create_auto_dm_rule':

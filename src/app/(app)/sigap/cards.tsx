@@ -33,15 +33,19 @@ import {
   type BulkPlanItem,
   type BulkStage,
   type BulkStatus,
+  type BulkSettings,
   type ChatPart,
   type CompetitorView,
   type ScriptItem,
 } from '@/lib/chat-options'
 import { formatCreditShare } from '@/lib/billing-options'
+import { AUTO_PRODUCT, type ProductOption } from '@/lib/content-options'
+import { DENSITY_ORDER, isTextDensity, TEXT_DENSITIES, type TextDensity } from '@/lib/density-options'
 import { BULLET, slideProblem, type ScriptSlide } from '@/lib/script-options'
 import { retryContentJobAction } from '../buat/content-actions'
 import { cancelBulkAction, discardScriptAction, resolveConfirmAction, startBulkAction } from './actions'
 import { useBulkStatus } from './use-bulk-status'
+import { ScheduleCard } from './schedule-card'
 
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
 
@@ -57,6 +61,8 @@ export interface CardContext {
   messageId: string
   /** Sends a message to Sigap, e.g. from Analisis yang dipilih. Null while an answer is on its way. */
   ask: ((text: string) => void) | null
+  products: Pick<ProductOption, 'id' | 'label' | 'imageCount'>[]
+  defaultDensity: TextDensity
 }
 
 export const formatBytes = (size: number) =>
@@ -110,6 +116,8 @@ export function PartView({ part, context }: { part: ChatPart; context: CardConte
       return <ContentStatusCard query={part.query} items={part.items} context={context} />
     case 'bulk':
       return <BulkCard part={part} context={context} />
+    case 'schedule':
+      return <ScheduleCard sessionId={context.sessionId} messageId={context.messageId} cardId={part.id} />
     case 'confirm':
       return <ToolConfirmCard part={part} context={context} />
     case 'tool_error':
@@ -499,7 +507,7 @@ function BulkCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk' }>
         </p>
       )
     case 'started':
-      return <BulkContentCard items={part.items} errors={part.errors} />
+      return <BulkContentCard items={part.items} errors={part.errors} cardId={part.id} context={context} />
   }
 }
 
@@ -510,8 +518,13 @@ function BulkCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk' }>
 function BulkPlanCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk' }>; context: CardContext }) {
   const { data } = useBulkStatus([])
   const [draft, setPlan] = useState(part.plan)
+  const [draftSettings, setSettings] = useState<BulkSettings>(part.settings ?? {
+    density: context.defaultDensity,
+    productGroupId: AUTO_PRODUCT,
+  })
   // Once starting, the saved plan is what runs; local edits no longer apply.
   const plan = part.state === 'starting' ? part.plan : draft
+  const settings = part.state === 'starting' ? part.settings ?? draftSettings : draftSettings
   const [pending, setPending] = useState<'start' | 'cancel' | null>(null)
   const [, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -537,7 +550,7 @@ function BulkPlanCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk
       const edits: BulkEdit[] = starting ? [] : plan.map(({ key, title, angle }) => ({ key, title, angle }))
       const result =
         kind === 'start'
-          ? startBulkAction(sessionId, messageId, part.id, edits)
+          ? startBulkAction(sessionId, messageId, part.id, edits, settings)
           : cancelBulkAction(sessionId, messageId, part.id)
       setError(await result.catch(() => FAILED))
       setPending(null)
@@ -564,7 +577,50 @@ function BulkPlanCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk
           )}
         </div>
 
-        <ol className="mt-3 divide-y divide-hairline rounded-xl border border-hairline">
+        <fieldset disabled={!editable} className="mt-4 min-w-0">
+          <legend className="text-xs font-medium text-ink">Pengaturan semua konten</legend>
+          <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="min-w-0 text-xs text-ink-muted">
+              Teks
+              <select
+                value={settings.density}
+                onChange={(event) => {
+                  const density = event.target.value
+                  if (isTextDensity(density)) setSettings((current) => ({ ...current, density }))
+                }}
+                className={`${FIELD} mt-1 min-h-9 disabled:opacity-60`}
+              >
+                {DENSITY_ORDER.map((key) => <option key={key} value={key}>{TEXT_DENSITIES[key].label}</option>)}
+              </select>
+            </label>
+            <label className="min-w-0 text-xs text-ink-muted">
+              Produk
+              <select
+                value={settings.productGroupId ?? ''}
+                onChange={(event) => setSettings((current) => ({ ...current, productGroupId: event.target.value || null }))}
+                className={`${FIELD} mt-1 min-h-9 disabled:opacity-60`}
+              >
+                <option value={AUTO_PRODUCT}>Otomatis</option>
+                {context.products.map((product) => (
+                  <option key={product.id} value={product.id}>{product.label} ({product.imageCount})</option>
+                ))}
+                <option value="">Tanpa</option>
+                {settings.productGroupId && settings.productGroupId !== AUTO_PRODUCT && !context.products.some((product) => product.id === settings.productGroupId) && (
+                  <option value={settings.productGroupId} disabled>Produk tidak tersedia</option>
+                )}
+              </select>
+            </label>
+          </div>
+          <p className="mt-2 text-xs text-ink-muted">{TEXT_DENSITIES[settings.density].description}</p>
+          {plan.some((item) => item.scripted) && (
+            <p className="mt-1 text-xs text-ink-muted">Konten dengan skrip tersimpan tetap memakai teks skripnya.</p>
+          )}
+          {context.products.length === 0 && (
+            <p className="mt-1 text-xs text-ink-muted">Belum ada produk dengan foto aktif. Tambahkan di Aset untuk memakai foto produk.</p>
+          )}
+        </fieldset>
+
+        <ol className="mt-4 divide-y divide-hairline rounded-xl border border-hairline">
           {plan.map((item, index) => (
             <BulkPlanRow
               key={item.key}
@@ -714,7 +770,8 @@ function BulkPlanRow({
 }
 
 /** Posts a started plan made. The worker writes and draws each one; the stages come from polling. */
-function BulkContentCard({ items, errors }: { items: BulkItem[]; errors: string[] }) {
+function BulkContentCard({ items, errors, cardId, context }: { items: BulkItem[]; errors: string[]; cardId: string; context: CardContext }) {
+  const [scheduling, setScheduling] = useState(false)
   const { data, error: pollError, refresh } = useBulkStatus(items.map((item) => item.postId))
 
   const statusOf = (postId: string): BulkStatus | null =>
@@ -723,6 +780,7 @@ function BulkContentCard({ items, errors }: { items: BulkItem[]; errors: string[
   const finished = rows.filter((row) => row.status && !BULK_STAGES[row.status.stage].spin).length
 
   return (
+    <div className="space-y-3">
     <ToolResult icon={Layers} label={`Konten massal · ${items.length} konten`}>
       <div aria-live="polite" className="mb-3 space-y-0.5">
         <p className="text-sm font-medium text-ink">
@@ -740,6 +798,10 @@ function BulkContentCard({ items, errors }: { items: BulkItem[]; errors: string[
           <BulkRow key={item.postId} item={item} status={status} onRetried={refresh} />
         ))}
       </ul>
+
+      <button type="button" onClick={() => setScheduling((value) => !value)} aria-expanded={scheduling} className={`${SECONDARY} mt-3`}>
+        {scheduling ? 'Tutup pengaturan jadwal' : 'Atur jadwal di Sigap'}
+      </button>
 
       {pollError && (
         <div className="mt-2 flex items-center gap-2">
@@ -759,6 +821,8 @@ function BulkContentCard({ items, errors }: { items: BulkItem[]; errors: string[
         </div>
       )}
     </ToolResult>
+    {scheduling && <ScheduleCard sessionId={context.sessionId} messageId={context.messageId} cardId={cardId} />}
+    </div>
   )
 }
 
@@ -804,7 +868,7 @@ function BulkRow({
         </span>
         {status?.stage === 'done' && (
           <Link href={`/buat?id=${item.postId}`} className={LINK}>
-            Buka di Buat untuk dijadwalkan
+            Lihat konten
             <ExternalLink size={12} aria-hidden="true" />
           </Link>
         )}

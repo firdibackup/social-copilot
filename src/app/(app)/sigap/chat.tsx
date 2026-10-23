@@ -1,7 +1,7 @@
 'use client'
 
 import { History, LoaderCircle, Sparkles } from 'lucide-react'
-import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Notice } from '@/components/notice'
@@ -17,6 +17,9 @@ import {
 } from '@/lib/chat-options'
 import { AttachmentBubble, PartView, type CardContext } from './cards'
 import { ChatComposer, type Draft } from './composer'
+import { ConversationLink as Link } from './conversation-link'
+import { useSigapScope } from './sigap-provider'
+import { receiveAnswer, sigapKeys } from './sigap-query'
 
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
 const CUT_OFF = 'Koneksi terputus sebelum jawaban selesai. Muat ulang halaman untuk melihat jawabannya.'
@@ -24,6 +27,8 @@ const CUT_OFF = 'Koneksi terputus sebelum jawaban selesai. Muat ulang halaman un
 interface SigapChatProps {
   sessionId: string | null
   messages: ChatMessageView[]
+  products: CardContext['products']
+  defaultDensity: CardContext['defaultDensity']
 }
 
 /** The message on its way: shown at once, with what Sigap is doing, until the stored one comes back. */
@@ -53,8 +58,10 @@ async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<Cha
  * The open conversation with Sigap. Sent messages show from the stream's `done` event until the page's own data has
  * them; opening another conversation starts over, but keeps the Deep Search toggle.
  */
-export function SigapChat({ sessionId, messages }: SigapChatProps) {
+export function SigapChat({ sessionId, messages, products, defaultDensity }: SigapChatProps) {
   const router = useRouter()
+  const client = useQueryClient()
+  const { scope, isCurrent } = useSigapScope()
   const [received, setReceived] = useState<ChatMessageView[]>([])
   const [pending, setPending] = useState<Pending | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -65,11 +72,12 @@ export function SigapChat({ sessionId, messages }: SigapChatProps) {
   /** Synchronous per-conversation guard for two clicks before React commits the pending state. */
   const sending = useRef(new Set<string | null>())
   /** The conversation on screen, for a stream that ends after the owner opened another one. */
-  const live = useRef(sessionId)
+  const live = useRef<string | null | undefined>(sessionId)
 
   useLayoutEffect(() => {
     // Before old async work can paint into a newly committed conversation.
     live.current = sessionId
+    return () => { live.current = undefined }
   }, [sessionId])
   if (openId !== sessionId) {
     setOpenId(sessionId)
@@ -98,7 +106,7 @@ export function SigapChat({ sessionId, messages }: SigapChatProps) {
     sending.current.add(startedIn)
     const unlock = () => sending.current.delete(startedIn)
     /** Still on the conversation the message went to. */
-    const here = () => live.current === startedIn
+    const here = () => isCurrent() && live.current === startedIn && window.location.pathname === '/sigap' && (new URLSearchParams(window.location.search).get('sesi') || null) === startedIn
     setError(null)
     const form = new FormData()
     form.set('text', text)
@@ -142,6 +150,16 @@ export function SigapChat({ sessionId, messages }: SigapChatProps) {
     try {
       for await (const event of readEvents(response.body)) {
         // Keep consuming the body after navigation: aborting it can cancel the route before the answer is stored.
+        if (event.type !== 'tool') {
+          finished = true
+          if (event.type === 'done') await receiveAnswer(client, scope, event, isCurrent)
+          else if (isCurrent()) {
+            await Promise.all([
+              client.invalidateQueries({ queryKey: sigapKeys.conversation(scope, event.sessionId) }),
+              client.invalidateQueries({ queryKey: sigapKeys.sessions(scope) }),
+            ])
+          }
+        }
         if (!here()) continue
         if (event.type === 'tool') {
           setPending((current) => current && { ...current, tool: event.name })
@@ -149,14 +167,14 @@ export function SigapChat({ sessionId, messages }: SigapChatProps) {
           finished = true
           setReceived((current) => [...current, event.user, event.assistant])
           setPending(null)
-          if (event.created) router.replace(`/sigap?sesi=${event.sessionId}`)
-          else router.refresh()
+          if (event.created) window.history.replaceState(null, '', `/sigap?sesi=${event.sessionId}`)
+          router.refresh()
         } else {
           finished = true
           setPending(null)
           setError(event.message)
-          if (!sessionId) router.replace(`/sigap?sesi=${event.sessionId}`)
-          else router.refresh()
+          if (!sessionId) window.history.replaceState(null, '', `/sigap?sesi=${event.sessionId}`)
+          router.refresh()
         }
       }
     } catch {
@@ -165,13 +183,15 @@ export function SigapChat({ sessionId, messages }: SigapChatProps) {
     if (!finished && here()) {
       setPending(null)
       setError(CUT_OFF)
+      if (startedIn) void client.invalidateQueries({ queryKey: sigapKeys.conversation(scope, startedIn) })
+      void client.invalidateQueries({ queryKey: sigapKeys.sessions(scope) })
     }
     unlock()
     return true
   }
 
   const ask = (text: string) => void send(text, [])
-  const cardContext = (message: ChatMessageView): CardContext => ({ sessionId, messageId: message.id, ask: pending ? null : ask })
+  const cardContext = (message: ChatMessageView): CardContext => ({ sessionId, messageId: message.id, ask: pending ? null : ask, products, defaultDensity })
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

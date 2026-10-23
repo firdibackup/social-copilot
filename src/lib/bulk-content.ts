@@ -38,20 +38,21 @@ export async function getBulkStatuses(userId: string, accountId: string, postIds
 }
 
 /**
- * What Buat's composer would send for one approved plan item, with its defaults: portrait slides that follow the
- * account's references and may feature its products, no logo, the item's pillar. Pure, for tests.
+ * What Buat's composer would send for one approved plan item: shared text/product choices, portrait slides that
+ * follow the account's references, no logo, the item's pillar. Pure, for tests.
  */
 export function bulkContentRequest(
   item: Pick<BulkPlanItem, 'title' | 'slides' | 'pillarId'>,
   ideaId: string,
   density: TextDensity,
+  productGroupId: string | null = AUTO_PRODUCT,
 ): ContentRequest {
   return {
     topic: item.title,
     slides: item.slides,
     format: '4:5',
     referenceId: AUTO_REFERENCE,
-    productGroupId: AUTO_PRODUCT,
+    productGroupId,
     pillarId: item.pillarId,
     includeLogo: false,
     density,

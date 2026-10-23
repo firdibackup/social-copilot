@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-23T00:00:00Z",
+  "title": "Design System: Carousely",
+  "extensions": {
+    "colorMeta": {
+      "primary": { "role": "primary", "displayName": "Primary Indigo", "tonalRamp": ["oklch(15% .21 282)", "oklch(26% .21 282)", "oklch(38% .21 282)", "oklch(49% .21 282)", "oklch(61% .21 282)", "oklch(72% .21 282)", "oklch(84% .21 282)", "oklch(95% .21 282)"] },
+      "primary-hover": { "role": "primary", "displayName": "Primary Hover", "tonalRamp": ["oklch(15% .2 282)", "oklch(26% .2 282)", "oklch(38% .2 282)", "oklch(49% .2 282)", "oklch(61% .2 282)", "oklch(72% .2 282)", "oklch(84% .2 282)", "oklch(95% .2 282)"] },
+      "lavender": { "role": "secondary", "displayName": "Lavender", "tonalRamp": ["oklch(15% .035 294)", "oklch(26% .035 294)", "oklch(38% .035 294)", "oklch(49% .035 294)", "oklch(61% .035 294)", "oklch(72% .035 294)", "oklch(84% .035 294)", "oklch(95% .035 294)"] },
+      "mint": { "role": "tertiary", "displayName": "Mint", "tonalRamp": ["oklch(15% .075 161)", "oklch(26% .075 161)", "oklch(38% .075 161)", "oklch(49% .075 161)", "oklch(61% .075 161)", "oklch(72% .075 161)", "oklch(84% .075 161)", "oklch(95% .075 161)"] },
+      "mint-ink": { "role": "tertiary", "displayName": "Mint Ink", "tonalRamp": ["oklch(15% .09 158)", "oklch(26% .09 158)", "oklch(38% .09 158)", "oklch(49% .09 158)", "oklch(61% .09 158)", "oklch(72% .09 158)", "oklch(84% .09 158)", "oklch(95% .09 158)"] },
+      "text": { "role": "neutral", "displayName": "Ink", "tonalRamp": ["#0e0f1a", "#171827", "#2a2c3d", "#404254", "#6b6d80", "#a2a4b6", "#d3d4e0", "#f8f8fc"] },
+      "text-secondary": { "role": "neutral", "displayName": "Secondary Ink", "tonalRamp": ["#0e0f1a", "#171827", "#2a2c3d", "#404254", "#6b6d80", "#a2a4b6", "#d3d4e0", "#f8f8fc"] },
+      "background": { "role": "neutral", "displayName": "Background", "tonalRamp": ["#0e0f1a", "#171827", "#2a2c3d", "#404254", "#6b6d80", "#a2a4b6", "#d3d4e0", "#f8f8fc"] },
+      "surface": { "role": "neutral", "displayName": "White Surface", "tonalRamp": ["oklch(15% 0 0)", "oklch(26% 0 0)", "oklch(38% 0 0)", "oklch(49% 0 0)", "oklch(61% 0 0)", "oklch(72% 0 0)", "oklch(84% 0 0)", "oklch(95% 0 0)"] },
+      "border": { "role": "neutral", "displayName": "Hairline Border", "tonalRamp": ["#0e0f1a", "#171827", "#2a2c3d", "#404254", "#6b6d80", "#a2a4b6", "#d3d4e0", "#f8f8fc"] },
+      "focus": { "role": "primary", "displayName": "Focus Lavender", "tonalRamp": ["oklch(15% .13 286)", "oklch(26% .13 286)", "oklch(38% .13 286)", "oklch(49% .13 286)", "oklch(61% .13 286)", "oklch(72% .13 286)", "oklch(84% .13 286)", "oklch(95% .13 286)"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Landing Display", "purpose": "Landing hero; responsive overrides live in the CSS module." },
+      "headline": { "displayName": "Landing Headline", "purpose": "Bricolage section headings, with section-specific overrides." },
+      "body": { "displayName": "Landing Base / UI Family", "purpose": "System UI family; listed size and line height are the landing base." }
+    },
+    "shadows": [
+      { "name": "landing-action", "value": "0 5px 13px #6558f520", "purpose": "Primary landing CTA." },
+      { "name": "dashboard", "value": "0 24px 65px -24px #54427b42", "purpose": "Hero workspace preview." },
+      { "name": "floating-preview", "value": "0 15px 35px -15px #4135544d", "purpose": "Floating post and AI preview." },
+      { "name": "demo-panel", "value": "0 12px 30px -18px #34215133", "purpose": "AI and inbox demonstrations." },
+      { "name": "field-focus", "value": "0 0 0 3px color-mix(in srgb, var(--color-focus) 45%, transparent)", "purpose": "Focused non-borderless fields." }
+    ],
+    "motion": [
+      { "name": "fade-in", "value": "180ms ease-out", "purpose": "Global fade entrance." },
+      { "name": "modal-in", "value": "200ms ease-out", "purpose": "Global dialog entrance." },
+      { "name": "landing-state", "value": "200ms", "purpose": "CSS hover transitions; demo changes use 200–220ms." },
+      { "name": "hero-parallax", "value": "dashboard 0 to -65px; post/status 0 to -180px; AI 0 to -115px", "purpose": "Scroll-linked illustration depth, disabled for reduced motion or footer pause." },
+      { "name": "reduced-motion", "value": "landing CSS animation/transition none; global duration 0.01ms, one iteration", "purpose": "Respect system preference; MotionConfig and motionEnabled gate transformed motion." }
+    ],
+    "breakpoints": [
+      { "name": "landing-small-max", "value": "420px" },
+      { "name": "landing-mobile-max", "value": "760px" },
+      { "name": "landing-compact-max", "value": "1100px" },
+      { "name": "landing-wide-min", "value": "1500px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Landing Primary Action", "kind": "button", "refersTo": "button-primary",
+      "description": "Indigo registration action; arrow omitted in this text-only sample.",
+      "html": "<button class=\"ds-primary\">Mulai bikin konten</button>",
+      "css": ".ds-primary{font-family:var(--font-sans,system-ui);font-size:14px;font-weight:600;background:var(--color-primary,#6558f5);color:var(--color-surface,#fff);border:0;border-radius:var(--radius-lg,10px);padding:12px 23px;min-height:50px;box-shadow:0 5px 13px #6558f520;cursor:pointer;transition:background .2s,transform .2s}.ds-primary:hover{background:var(--color-primary-hover,#5145d8);transform:translateY(-2px)}.ds-primary:focus-visible{outline:3px solid var(--color-primary,#6558f5);outline-offset:5px}@media(prefers-reduced-motion:reduce){.ds-primary{transition:none}}"
+    },
+    {
+      "name": "Landing Secondary Action", "kind": "button",
+      "description": "Quiet bordered companion to the primary action.",
+      "html": "<button class=\"ds-secondary\">Lihat cara kerjanya</button>",
+      "css": ".ds-secondary{font-family:var(--font-sans,system-ui);font-size:14px;font-weight:600;background:#ffffffa6;color:#463b60;border:1px solid #ddd7ee;border-radius:10px;padding:12px 23px;min-height:50px;cursor:pointer;transition:background .2s}.ds-secondary:hover{background:#fff}.ds-secondary:focus-visible{outline:3px solid var(--color-primary,#6558f5);outline-offset:5px}@media(prefers-reduced-motion:reduce){.ds-secondary{transition:none}}"
+    },
+    {
+      "name": "Schedule Field", "kind": "input", "refersTo": "field",
+      "description": "Application schedule-card field with the shared global focus treatment.",
+      "html": "<input class=\"ds-field\" type=\"datetime-local\" aria-label=\"Waktu terbit (WIB)\" value=\"2026-10-23T16:00\" />",
+      "css": ".ds-field{font-family:var(--font-sans,system-ui);font-size:14px;min-height:36px;min-width:0;width:100%;border-radius:var(--radius-lg,10px);border:1px solid var(--color-border,#e7e7f0);background:var(--color-surface,#fff);color:var(--color-text,#171827);padding:6px 8px}.ds-field:focus-visible{border-color:var(--color-primary,#6558f5);box-shadow:0 0 0 3px color-mix(in srgb,var(--color-focus,#a9a1ff) 45%,transparent);outline:none}"
+    },
+    {
+      "name": "Landing Navigation", "kind": "nav",
+      "description": "Desktop anchor treatment; mobile menu behavior remains in the application.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Navigasi contoh\"><a href=\"#fitur\">Fitur</a><a href=\"#cara-kerja\">Cara kerja</a><a href=\"#faq\">Tanya jawab</a></nav>",
+      "css": ".ds-nav{display:flex;gap:32px;flex-wrap:wrap;font:14px var(--font-sans,system-ui)}.ds-nav a{color:#505065;text-decoration:none;transition:color .2s}.ds-nav a:hover{color:var(--color-primary,#6558f5)}.ds-nav a:focus-visible{outline:3px solid var(--color-primary,#6558f5);outline-offset:5px}@media(prefers-reduced-motion:reduce){.ds-nav a{transition:none}}"
+    },
+    {
+      "name": "Demo Prompt Chip", "kind": "chip",
+      "description": "Selected illustrative prompt; state wiring is omitted in the static sample.",
+      "html": "<button class=\"ds-chip\" aria-pressed=\"true\">Ide konten tanaman</button>",
+      "css": ".ds-chip{font:11px var(--font-sans,system-ui);min-height:36px;border:1px solid #ded6ec;padding:7px 8px;background:#fff;border-radius:6px;color:#6a5f7d;cursor:pointer}.ds-chip[aria-pressed=true],.ds-chip:hover{background:#f3f0ff;border-color:#b9abe2;color:#5842b8}.ds-chip:focus-visible{outline:3px solid var(--color-primary,#6558f5);outline-offset:5px}"
+    },
+    {
+      "name": "Demo Panel", "kind": "card",
+      "description": "AI/inbox panel frame; static surfaces have no hover affordance.",
+      "html": "<section class=\"ds-panel\"><header class=\"ds-panel-header\"><strong>Sigap</strong><span class=\"ds-tag\">Demo interaktif</span></header><p class=\"ds-panel-copy\">Partner kreatif kamu</p></section>",
+      "css": ".ds-panel{font-family:var(--font-sans,system-ui);color:var(--color-text,#171827);border:1px solid #ded8ea;background:#fff;border-radius:12px;box-shadow:0 12px 30px -18px #34215133;overflow:hidden}.ds-panel-header{display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid #e6e4ef;font-size:12px;font-weight:650}.ds-tag{font-size:8px;font-weight:400;background:#f4f2f9;color:#746783;border-radius:4px;padding:3px 6px;margin-left:auto}.ds-panel-copy{padding:0 18px;font-size:12px;color:#656578}"
+    }
+  ],
+  "narrative": {
+    "overview": "Carousely is ringkas, ramah, dan tepercaya: concise, friendly, and trustworthy. Preserve the existing logo, light workspace, indigo actions, lavender accents, mint support colors, and Bricolage headings. The landing page extends this identity with a spacious dashboard-led introduction and illustrative content previews.",
+    "keyCharacteristics": ["Clear Indonesian labels and familiar product controls.", "Quiet surfaces with selective color and soft corners.", "Expressive landing illustrations around a recognizable workspace."],
+    "rules": [],
+    "dos": ["Do reuse the existing logo, global brand variables, Bricolage headings, and system UI type.", "Do keep Indonesian copy concrete, friendly, and explicit about illustrative demo data.", "Do preserve reduced-motion behavior, pause control, keyboard states, and mobile feature access."],
+    "donts": ["Don't promote sample-brand artwork colors or miniature dashboard typography into application defaults.", "Don't add global landing selectors: keep landing CSS in `landing.module.css`, with element/state rules rooted under its local classes; consume shared tokens from `globals.css`.", "Don't invent customer metrics, pricing, testimonials, or new visual identity commitments."]
+  }
+}

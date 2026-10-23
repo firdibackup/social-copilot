@@ -1,10 +1,14 @@
 /** Sigap, the AI copilot chat: what the server and the page share. Pure, so tests and the browser can use it. */
 import type { ContentStrategy } from './strategy-options'
+import type { ScheduleRef } from './chat-schedule-options'
 import type { AutoDmRuleInput } from './auto-dm-rules'
 import type { ScriptSlide } from './script-options'
 import { contentCost, TASK_CREDITS } from './billing-options'
 import { truncate } from './brand-options'
 import { wibDateKey } from './format'
+import { AUTO_PRODUCT } from './content-options'
+import { isTextDensity, type TextDensity } from './density-options'
+import { isUuid } from './params'
 
 /**
  * Sigap costs no credits; these cap it per WIB day through the atomic `sigap_daily_usage` counter. A script it
@@ -165,6 +169,22 @@ export interface BulkPlanItem {
 /** proposed → (Setuju) starting → started, or proposed → cancelled. Nothing is charged before `starting`. */
 export type BulkState = 'proposed' | 'starting' | 'started' | 'cancelled'
 
+/** Shared by every post in a bulk; saved when approved so a resumed start uses the same choices. */
+export interface BulkSettings {
+  density: TextDensity
+  productGroupId: string | null
+}
+
+export function parseBulkSettings(value: unknown): { settings: BulkSettings } | { error: string } {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return { error: 'Pengaturan konten tidak valid.' }
+  const { density, productGroupId } = value as Record<string, unknown>
+  if (!isTextDensity(density)) return { error: 'Kepadatan teks tidak dikenal.' }
+  if (productGroupId !== null && productGroupId !== AUTO_PRODUCT && !isUuid(productGroupId)) {
+    return { error: 'Produk tidak ditemukan. Pilih ulang produk.' }
+  }
+  return { settings: { density, productGroupId } }
+}
+
 /** What one planned post costs at most: its script (unless it has one) and its images. Pure. */
 export const bulkItemCost = (item: Pick<BulkPlanItem, 'scripted' | 'slides'>) =>
   (item.scripted ? 0 : TASK_CREDITS.content_script) + contentCost(item.slides)
@@ -268,7 +288,8 @@ export type ChatPart =
   | { type: 'analysis'; competitors: string[]; hooks: string[]; frequency: string; pillars: string[] }
   | { type: 'scripts'; items: ScriptItem[]; errors: string[] }
   | { type: 'content_status'; query: string; items: StatusItem[] }
-  | { type: 'bulk'; id: string; state: BulkState; plan: BulkPlanItem[]; items: BulkItem[]; errors: string[] }
+  | { type: 'schedule'; id: string; items: ScheduleRef[]; from?: string }
+  | { type: 'bulk'; id: string; state: BulkState; plan: BulkPlanItem[]; items: BulkItem[]; errors: string[]; settings?: BulkSettings }
   | {
       type: 'confirm'
       id: string
@@ -311,6 +332,7 @@ export const TOOL_LABELS: Record<string, string> = {
   intel_kompetitor: 'Sigap sedang mencari kompetitor…',
   analyze_and_draft: 'Sigap sedang menyusun skrip…',
   bulk_content: 'Sigap sedang menyusun rencana konten massal…',
+  schedule_content: 'Sigap sedang menyiapkan jadwal dari draft di Buat…',
   update_content_strategy: 'Sigap sedang menyusun strategi…',
   create_auto_dm_rule: 'Sigap sedang menyusun aturan Auto DM…',
 }

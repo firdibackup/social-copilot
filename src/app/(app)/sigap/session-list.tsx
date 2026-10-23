@@ -1,8 +1,14 @@
+'use client'
+
 import { MessageSquare, Plus } from 'lucide-react'
-import Link from 'next/link'
+import { useEffect, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { formatListTime } from '@/lib/format'
 import type { ChatSessionView } from '@/lib/chat-options'
 import { DeleteSessionButton } from './session-buttons'
+import { ConversationLink as Link } from './conversation-link'
+import { useSigapScope } from './sigap-provider'
+import { conversationQuery, sigapKeys } from './sigap-query'
 
 /** Hover and focus reach past the text, like Buat's list. */
 const ITEM =
@@ -18,8 +24,21 @@ interface SessionListProps {
 
 /** Sigap's left column: Chat baru and the earlier conversations, most recently used first. */
 export function SessionList({ sessions, activeId, now, className }: SessionListProps) {
+  const client = useQueryClient()
+  const { scope } = useSigapScope()
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cancelPrefetch = () => { if (timer.current) clearTimeout(timer.current) }
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
+  const prefetch = (id: string) => {
+    cancelPrefetch()
+    timer.current = setTimeout(() => {
+      if (client.isFetching({ queryKey: [...sigapKeys.all(scope), 'conversation'] }) < 2) {
+        void client.prefetchQuery(conversationQuery(scope, id))
+      }
+    }, 100)
+  }
   return (
-    <aside aria-label="Riwayat chat" className={`${className} min-h-0 w-full shrink-0 flex-col md:w-[280px] md:border-r md:border-hairline`}>
+    <aside aria-label="Riwayat chat" className={`${className} min-h-0 w-full flex-1 flex-col`}>
       <div className="px-4 pt-3 pb-2">
         <Link
           href="/sigap"
@@ -42,6 +61,10 @@ export function SessionList({ sessions, activeId, now, className }: SessionListP
               <li key={session.id} className="group relative">
                 <Link
                   href={`/sigap?sesi=${session.id}`}
+                  onMouseEnter={() => prefetch(session.id)}
+                  onFocus={() => prefetch(session.id)}
+                  onMouseLeave={cancelPrefetch}
+                  onBlur={cancelPrefetch}
                   aria-current={session.id === activeId ? 'page' : undefined}
                   className={`${ITEM} ${session.id === activeId ? ACTIVE : ''}`}
                 >

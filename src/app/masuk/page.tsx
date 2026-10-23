@@ -21,6 +21,9 @@ export default function MasukPage({ searchParams }: MasukPageProps) {
 
 /** proxy.ts sends visitors here with `next`, the page they wanted. */
 async function SignInForm({ searchParams }: MasukPageProps) {
-  const next = firstValue((await searchParams).next)
-  return <AuthForm mode="masuk" next={next ? safeNext(next) : undefined} />
+  const params = await searchParams
+  const next = firstValue(params.next)
+  const oauthError = firstValue(params.error) === 'google'
+    ? 'Login Google tidak selesai atau sesi sudah kedaluwarsa. Silakan coba lagi.' : undefined
+  return <AuthForm mode="masuk" next={next ? safeNext(next) : undefined} oauthError={oauthError} />
 }

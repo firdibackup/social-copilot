@@ -5,7 +5,7 @@ import { parseAdminEmails } from './lib/admin-options'
 /** Meta's DM webhook and Mayar's payment webhook: they send no cookies, so they skip the session round trip. */
 const WEBHOOKS = new Set(['/api/webhooks/instagram', '/api/webhooks/mayar'])
 /** Pages reachable without a session: sign in and up, and the privacy page Meta links to. */
-const PUBLIC_PATHS = new Set(['/masuk', '/daftar', '/privasi'])
+const PUBLIC_PATHS = new Set(['/masuk', '/daftar', '/privasi', '/auth/callback'])
 /** Signed-in users who open these go to the app instead. */
 const AUTH_PAGES = new Set(['/masuk', '/daftar'])
 /** No route lives here, so a rewrite to it renders the app's ordinary 404 with a real 404 status. */
@@ -21,11 +21,12 @@ const isAdminPath = (pathname: string) => pathname === '/admin' || pathname.star
 export async function proxy(request: NextRequest) {
   const { pathname, search, searchParams } = request.nextUrl
   // The Meta app's redirect URI is the bare domain, so Instagram returns to `/`.
-  // next.config.ts skips its `/` redirect for these same params.
+  // Handle OAuth before serving the public landing page.
   if (pathname === '/' && (searchParams.has('code') || searchParams.has('error'))) {
     return NextResponse.rewrite(new URL(`/api/auth/instagram/callback${search}`, request.url))
   }
-  if (WEBHOOKS.has(pathname)) return NextResponse.next()
+  // The marketing page needs no session or auth-server round trip.
+  if (pathname === '/' || WEBHOOKS.has(pathname)) return NextResponse.next()
 
   // The response that carries refreshed session cookies. setAll replaces it, so only the last one is returned.
   let response = NextResponse.next({ request })

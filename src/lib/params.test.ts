@@ -7,7 +7,7 @@ describe('safeNext', () => {
   })
 
   it('falls back to the calendar for anything that could leave the site', () => {
-    for (const value of ['//evil.test', '/\\evil.test', 'https://evil.test', 'kalender', '', null]) {
+    for (const value of ['//evil.test', '/\\evil.test', '/\t/evil.test', '/\n/evil.test', 'https://evil.test', 'kalender', '', null]) {
       expect(safeNext(value)).toBe('/kalender')
     }
   })

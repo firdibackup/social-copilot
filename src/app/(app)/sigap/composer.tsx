@@ -108,10 +108,9 @@ export function ChatComposer({ busy, deepSearch, onToggleDeepSearch, onSend, dra
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-      event.preventDefault()
-      void submit()
-    }
+    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing || event.keyCode === 229) return
+    event.preventDefault()
+    if (!event.repeat) void submit()
   }
 
   return (
@@ -135,7 +134,7 @@ export function ChatComposer({ busy, deepSearch, onToggleDeepSearch, onSend, dra
           onKeyDown={onKeyDown}
           rows={2}
           maxLength={MESSAGE_MAX_LENGTH}
-          placeholder="Tanya Sigap… (Ctrl/⌘ + Enter untuk kirim)"
+          placeholder="Tanya Sigap… (Enter untuk kirim, Shift + Enter untuk baris baru)"
           aria-label="Pesan untuk Sigap"
           className="block max-h-48 min-h-[3.5rem] w-full resize-y bg-transparent px-3 pt-3 text-sm text-ink placeholder:text-ink-soft focus:outline-none"
         />
@@ -166,8 +165,8 @@ export function ChatComposer({ busy, deepSearch, onToggleDeepSearch, onSend, dra
             type="button"
             onClick={() => void submit()}
             disabled={!canSend}
-            aria-label={disabled ? 'Mengirim…' : 'Kirim (Ctrl/⌘ + Enter)'}
-            title="Kirim (Ctrl/⌘ + Enter)"
+            aria-label={disabled ? 'Mengirim…' : 'Kirim (Enter)'}
+            title="Kirim (Enter)"
             className="ml-auto inline-flex size-9 items-center justify-center rounded-full bg-accent text-white transition-colors hover:bg-accent-deep disabled:opacity-50"
           >
             <Send size={16} aria-hidden="true" />

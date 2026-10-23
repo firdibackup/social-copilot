@@ -3,6 +3,7 @@
 import { refresh } from 'next/cache'
 import { aiErrorMessage, remainingCredits } from '@/lib/ai'
 import { getPlan } from '@/lib/app-settings'
+import { listProductGroups } from '@/lib/assets'
 import { parseRuleInput } from '@/lib/auto-dm-rules'
 import { requireAccount } from '@/lib/auth'
 import { formatCreditShare } from '@/lib/billing-options'
@@ -12,13 +13,15 @@ import {
   applyBulkEdits,
   bulkBrief,
   bulkItemCost,
+  parseBulkSettings,
+  type BulkSettings,
   type BulkItem,
   type BulkPlanItem,
   type ChatPart,
 } from '@/lib/chat-options'
 import { enqueueContentJob, getContentJobByKey } from '@/lib/content-jobs'
+import { AUTO_PRODUCT } from '@/lib/content-options'
 import { getDensityDefault } from '@/lib/density'
-import type { TextDensity } from '@/lib/density-options'
 import { describeError } from '@/lib/errors'
 import { deleteAccountIdea, ensureIdea, getAccountIdea } from '@/lib/ideas'
 import { isUuid } from '@/lib/params'
@@ -108,7 +111,8 @@ async function loadBulkCard(userId: string, accountId: string, sessionId: unknow
  * id), so a second run finds the post the first one made. A new topic gets its script written from the plan's
  * angle and outline, then goes straight on to its images; a saved script is drawn as it is.
  */
-async function queueBulkItem(userId: string, accountId: string, item: BulkPlanItem, density: TextDensity): Promise<BulkItem> {
+async function queueBulkItem(userId: string, accountId: string, item: BulkPlanItem, settings: BulkSettings): Promise<BulkItem> {
+  const { density, productGroupId } = settings
   const existing = await getContentJobByKey(userId, accountId, item.key)
   if (existing) return { postId: existing.post_id, ideaId: existing.idea_id ?? item.key, title: item.title }
 
@@ -116,7 +120,7 @@ async function queueBulkItem(userId: string, accountId: string, item: BulkPlanIt
     const idea = await getAccountIdea(userId, accountId, item.ideaId)
     if (!idea) throw new ContentError('Ide sudah dihapus atau sudah jadi post.')
     if (!idea.script) throw new ContentError('Skripnya belum valid. Perbaiki di Buat.')
-    const request = { ...bulkContentRequest(item, idea.id, density), slides: idea.script.length }
+    const request = { ...bulkContentRequest(item, idea.id, density, productGroupId), slides: idea.script.length }
     const postId = await enqueueContentJob(userId, accountId, item.key, idea.id, 'content', { request, script: idea.script, attachmentPath: null })
     return { postId, ideaId: idea.id, title: idea.title }
   }
@@ -127,7 +131,7 @@ async function queueBulkItem(userId: string, accountId: string, item: BulkPlanIt
     const postId = await enqueueContentJob(userId, accountId, item.key, ideaId, 'script', {
       density,
       brief: bulkBrief(item),
-      auto: { request: bulkContentRequest(item, ideaId, density) },
+      auto: { request: bulkContentRequest(item, ideaId, density, productGroupId) },
     })
     return { postId, ideaId, title: item.title }
   } catch (error) {
@@ -151,7 +155,7 @@ const queueErrorMessage = (error: unknown) => {
  * asking again. Moving the card to `starting` first makes a double click or a second tab start nothing twice; a
  * card left in `starting` (the server stopped mid-way) is finished by the next click, safely, from its saved plan.
  */
-export async function startBulkAction(sessionId: string, messageId: string, bulkId: string, edits: unknown): Promise<ActionError> {
+export async function startBulkAction(sessionId: string, messageId: string, bulkId: string, edits: unknown, inputSettings?: unknown): Promise<ActionError> {
   const { userId, accountId } = await requireAccount()
   try {
     const found = await loadBulkCard(userId, accountId, sessionId, messageId, bulkId)
@@ -161,28 +165,42 @@ export async function startBulkAction(sessionId: string, messageId: string, bulk
     if (card.state === 'cancelled') return 'Rencana ini sudah dibatalkan. Minta Sigap membuat rencana baru.'
 
     let plan = card.plan
+    let settings = card.settings
     if (card.state === 'proposed') {
       const edited = applyBulkEdits(card.plan, edits)
       if ('error' in edited) return edited.error
       plan = edited.plan
+
+      const parsed = parseBulkSettings(inputSettings === undefined
+        ? settings ?? { density: await getDensityDefault(userId, accountId), productGroupId: AUTO_PRODUCT }
+        : inputSettings)
+      if ('error' in parsed) return parsed.error
+      settings = parsed.settings
+      if (settings.productGroupId !== null && settings.productGroupId !== AUTO_PRODUCT) {
+        const products = await listProductGroups(userId, accountId)
+        if (!products.some((product) => product.id === settings!.productGroupId)) {
+          return 'Produk tidak ditemukan atau tidak memiliki foto aktif. Pilih ulang produk.'
+        }
+      }
 
       const total = plan.reduce((sum, item) => sum + bulkItemCost(item), 0)
       const [{ remaining }, { credits }] = await Promise.all([remainingCredits(userId), getPlan()])
       if (total > remaining) {
         return `Kuota AI tidak cukup: rencana ini butuh ≈ ${formatCreditShare(total, credits)} kuota, sisa ≈ ${formatCreditShare(remaining, credits)}. Kurangi jumlah konten atau perpanjang di halaman Langganan.`
       }
-      const moved = await updateBulkCard(userId, accountId, message.id, card.id, 'proposed', { state: 'starting', plan })
+      const moved = await updateBulkCard(userId, accountId, message.id, card.id, 'proposed', { state: 'starting', plan, settings })
       if (moved === 'not_found') return NOT_FOUND
       // Another click or tab is starting it.
       if (moved === 'already') return null
     }
 
-    const density = await getDensityDefault(userId, accountId)
+    // Old cards may have started before bulk settings existed.
+    settings ??= { density: await getDensityDefault(userId, accountId), productGroupId: AUTO_PRODUCT }
     const items: BulkItem[] = []
     const errors: string[] = []
     for (const item of plan) {
       try {
-        const queued = await queueBulkItem(userId, accountId, item, density)
+        const queued = await queueBulkItem(userId, accountId, item, settings)
         if (!items.some((other) => other.postId === queued.postId)) items.push(queued)
       } catch (error) {
         console.error('[sigap] konten massal gagal diantrekan:', describeError(error))

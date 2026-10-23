@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { remainingCredits } from '@/lib/ai'
+import { listProductGroups } from '@/lib/assets'
 import { contentCost, TASK_CREDITS } from '@/lib/billing-options'
 import { getMessage, getSession, updateBulkCard } from '@/lib/chat'
 import type { BulkPlanItem, ChatPart } from '@/lib/chat-options'
@@ -11,6 +12,7 @@ vi.mock('@/lib/auth', () => ({ requireAccount: vi.fn(async () => ({ userId: USER
 vi.mock('@/lib/ai', () => ({ remainingCredits: vi.fn(), aiErrorMessage: () => 'AI gagal.' }))
 vi.mock('@/lib/app-settings', () => ({ getPlan: vi.fn(async () => ({ credits: 10_000 })) }))
 vi.mock('@/lib/density', () => ({ getDensityDefault: vi.fn(async () => 'ringkas') }))
+vi.mock('@/lib/assets', () => ({ listProductGroups: vi.fn() }))
 vi.mock('@/lib/chat', () => ({
   getSession: vi.fn(),
   getMessage: vi.fn(),
@@ -61,6 +63,7 @@ describe('startBulkAction', () => {
     vi.mocked(getAccountIdea).mockReset().mockResolvedValue({ id: SAVED, title: 'Tersimpan', pillarId: null, script: SCRIPT })
     vi.mocked(ensureIdea).mockReset().mockResolvedValue()
     vi.mocked(deleteAccountIdea).mockReset().mockResolvedValue()
+    vi.mocked(listProductGroups).mockReset().mockResolvedValue([])
     let post = 0
     vi.mocked(enqueueContentJob).mockReset().mockImplementation(async () => `post-${++post}`)
   })
@@ -69,7 +72,9 @@ describe('startBulkAction', () => {
     const plan = [{ ...PLAN[0], title: 'Judul baru' }, PLAN[2]]
     expect(await startBulkAction(SESSION, MESSAGE, BULK, edits(plan))).toBeNull()
 
-    expect(updateBulkCard).toHaveBeenNthCalledWith(1, USER, ACCOUNT, MESSAGE, BULK, 'proposed', { state: 'starting', plan })
+    expect(updateBulkCard).toHaveBeenNthCalledWith(1, USER, ACCOUNT, MESSAGE, BULK, 'proposed', {
+      state: 'starting', plan, settings: { density: 'ringkas', productGroupId: 'auto' },
+    })
     expect(ensureIdea).toHaveBeenCalledWith(USER, ACCOUNT, KEY_A, { title: 'Judul baru', pillarId: 'p-promo' })
     expect(enqueueContentJob).toHaveBeenNthCalledWith(1, USER, ACCOUNT, KEY_A, KEY_A, 'script', {
       density: 'ringkas',
@@ -99,6 +104,52 @@ describe('startBulkAction', () => {
     expect(await startBulkAction(SESSION, MESSAGE, BULK, edits(PLAN))).toMatch(/^Kuota AI tidak cukup/)
     expect(updateBulkCard).not.toHaveBeenCalled()
     expect(enqueueContentJob).not.toHaveBeenCalled()
+  })
+
+  it.each(['auto', null, SAVED])('saves shared choices and forwards product %s to both new and saved scripts', async (productGroupId) => {
+    vi.mocked(listProductGroups).mockResolvedValue([{ id: SAVED, title: 'Kopi', description: '', imageCount: 1 }])
+    const settings = { density: 'padat', productGroupId }
+    expect(await startBulkAction(SESSION, MESSAGE, BULK, edits(PLAN), settings)).toBeNull()
+    expect(updateBulkCard).toHaveBeenNthCalledWith(1, USER, ACCOUNT, MESSAGE, BULK, 'proposed', {
+      state: 'starting', plan: PLAN, settings,
+    })
+    expect(enqueueContentJob).toHaveBeenNthCalledWith(1, USER, ACCOUNT, KEY_A, KEY_A, 'script', expect.objectContaining({
+      density: 'padat', auto: { request: expect.objectContaining(settings) },
+    }))
+    expect(enqueueContentJob).toHaveBeenNthCalledWith(3, USER, ACCOUNT, KEY_C, SAVED, 'content', expect.objectContaining({
+      request: expect.objectContaining(settings), script: SCRIPT,
+    }))
+    if (productGroupId === SAVED) expect(listProductGroups).toHaveBeenCalledWith(USER, ACCOUNT)
+    else expect(listProductGroups).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    null,
+    { density: 'unknown', productGroupId: 'auto' },
+    { density: 'ringkas', productGroupId: 'invalid' },
+    { density: 'ringkas', productGroupId: SAVED },
+  ])('rejects invalid or unavailable choices before starting: %j', async (settings) => {
+    expect(await startBulkAction(SESSION, MESSAGE, BULK, edits(PLAN), settings)).toBeTypeOf('string')
+    expect(updateBulkCard).not.toHaveBeenCalled()
+    expect(enqueueContentJob).not.toHaveBeenCalled()
+  })
+
+  it('resumes with approved settings even when a new client sends different choices', async () => {
+    const settings = { density: 'lengkap' as const, productGroupId: null }
+    card({ state: 'starting', plan: [PLAN[0]], settings })
+    expect(await startBulkAction(SESSION, MESSAGE, BULK, [], { density: 'padat', productGroupId: 'auto' })).toBeNull()
+    expect(enqueueContentJob).toHaveBeenCalledWith(USER, ACCOUNT, KEY_A, KEY_A, 'script', expect.objectContaining({
+      density: 'lengkap', auto: { request: expect.objectContaining(settings) },
+    }))
+  })
+
+  it('keeps approved settings when retrying a plan whose jobs all failed to queue', async () => {
+    const settings = { density: 'lengkap' as const, productGroupId: null }
+    card({ settings, plan: [PLAN[0]] })
+    expect(await startBulkAction(SESSION, MESSAGE, BULK, edits([PLAN[0]]))).toBeNull()
+    expect(enqueueContentJob).toHaveBeenCalledWith(USER, ACCOUNT, KEY_A, KEY_A, 'script', expect.objectContaining({
+      density: 'lengkap', auto: { request: expect.objectContaining(settings) },
+    }))
   })
 
   it('starts nothing twice: another click already moved the card', async () => {

@@ -13,16 +13,6 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
-      {
-        source: "/",
-        destination: "/kalender",
-        permanent: false,
-        // Instagram's OAuth return lands on `/`; src/proxy.ts hands it to the callback route.
-        missing: [
-          { type: "query", key: "code" },
-          { type: "query", key: "error" },
-        ],
-      },
       // Studio became part of Buat.
       { source: "/studio", destination: "/buat", permanent: true },
     ];
@@ -30,6 +20,8 @@ const nextConfig: NextConfig = {
   turbopack: {
     rules: {
       "*.css": {
+        // CSS Modules use Next's own pipeline; the Tailwind loader emits global CSS.
+        condition: { not: { path: "*.module.css" } },
         loaders: ["@tailwindcss/turbopack"],
         as: "*.css",
       },

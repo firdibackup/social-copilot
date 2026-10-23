@@ -794,7 +794,9 @@ export function ContentEditor({
                     : script
                       ? `Ubah skrip di kotak bawah bila perlu, lalu kirim: AI membuat caption dan ${script.script.length} slide persis dari teksnya.`
                       : `Tulis topik di bawah: AI menyusun caption dan ${slideCount} slide sekaligus.`}
-                  {job?.status === 'cancelled' && <DeleteDraftButton id={job.post_id} onError={(text) => setNotice({ tone: 'error', text })} />}
+                  {(job?.status === 'cancelled' || (job?.kind === 'script' && job.status === 'ready' && busy === null)) && (
+                    <DeleteDraftButton id={job.post_id} onError={(text) => setNotice({ tone: 'error', text })} />
+                  )}
                   {busy === null && (
                     <button
                       type="button"
