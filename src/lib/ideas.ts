@@ -83,6 +83,20 @@ export async function addIdea(userId: string, accountId: string, idea: Suggested
   return row.id
 }
 
+/**
+ * An idea with a known id, for Sigap's approved bulk plan: starting the plan again (a retry, a second click) finds the
+ * same idea instead of adding another. Callers look for the plan item's job first, so an idea already used up by its
+ * post is not made again.
+ */
+export async function ensureIdea(userId: string, accountId: string, id: string, idea: SuggestedIdea): Promise<void> {
+  unwrap(
+    await db()
+      .from('content_ideas')
+      .upsert({ id, user_id: userId, account_id: accountId, title: idea.title, pillar_id: idea.pillarId },
+        { onConflict: 'id', ignoreDuplicates: true }),
+  )
+}
+
 /** Stores the idea's script; false when the idea is gone (used up by a post, or deleted). */
 export async function saveIdeaScript(userId: string, id: string, script: ScriptSlide[]): Promise<boolean> {
   const rows = unwrap(

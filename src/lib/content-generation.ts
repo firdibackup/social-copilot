@@ -33,7 +33,7 @@ export async function processContentJob(job: ContentJob): Promise<void> {
       await writeScript(job.user_id, idea, async (script) => {
         await watch!.check()
         unwrap(await db().rpc('finish_script_job', { p_post_id: job.post_id, p_lease: job.lease, p_script: script }))
-      }, '', brand, watch.signal, job.payload.density)
+      }, job.payload.brief ?? '', brand, watch.signal, job.payload.density)
       return
     }
     const request = job.payload.request

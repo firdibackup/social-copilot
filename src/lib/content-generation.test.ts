@@ -68,6 +68,15 @@ describe('durable content worker', () => {
     expect(failContentJob).not.toHaveBeenCalled()
   })
 
+  it('writes a bulk plan\'s script from its approved brief', async () => {
+    vi.mocked(getAccountIdea).mockResolvedValue({ id: 'idea', title: 'Kopi', script: null, pillarId: null })
+    vi.mocked(writeScript).mockImplementation(async (_user, _idea, save) => { await save([]); return [] })
+
+    await processContentJob({ ...job, payload: { density: 'lengkap', brief: 'Tulis tepat 4 slide.' } })
+
+    expect(writeScript).toHaveBeenCalledWith('owner', expect.anything(), expect.any(Function), 'Tulis tepat 4 slide.', null, expect.any(AbortSignal), 'lengkap')
+  })
+
   it('does not spend on AI for an account that was switched after enqueue', async () => {
     vi.mocked(getConnectedAccountId).mockResolvedValue('other-account')
     await processContentJob(job)

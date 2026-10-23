@@ -1,11 +1,28 @@
 'use server'
 
 import { refresh } from 'next/cache'
+import { aiErrorMessage, remainingCredits } from '@/lib/ai'
+import { getPlan } from '@/lib/app-settings'
 import { parseRuleInput } from '@/lib/auto-dm-rules'
 import { requireAccount } from '@/lib/auth'
-import { deleteSession, discardScript, getMessage, getSession, resolveConfirmation } from '@/lib/chat'
+import { formatCreditShare } from '@/lib/billing-options'
+import { bulkContentRequest } from '@/lib/bulk-content'
+import { deleteSession, discardScript, getMessage, getSession, resolveConfirmation, updateBulkCard } from '@/lib/chat'
+import {
+  applyBulkEdits,
+  bulkBrief,
+  bulkItemCost,
+  type BulkItem,
+  type BulkPlanItem,
+  type ChatPart,
+} from '@/lib/chat-options'
+import { enqueueContentJob, getContentJobByKey } from '@/lib/content-jobs'
+import { getDensityDefault } from '@/lib/density'
+import type { TextDensity } from '@/lib/density-options'
 import { describeError } from '@/lib/errors'
+import { deleteAccountIdea, ensureIdea, getAccountIdea } from '@/lib/ideas'
 import { isUuid } from '@/lib/params'
+import { ContentError } from '@/lib/posts'
 import { parseStrategy } from '@/lib/strategy-options'
 
 /** An error to show, or null when it went through. */
@@ -71,6 +88,135 @@ export async function discardScriptAction(sessionId: string, messageId: string, 
   } catch (error) {
     console.error('[sigap] skrip gagal dibuang:', describeError(error))
     return 'Gagal membuang skrip. Coba lagi.'
+  }
+  refresh()
+  return null
+}
+
+type BulkCard = Extract<ChatPart, { type: 'bulk' }>
+
+/** The bulk card on the owner's message, or null. */
+async function loadBulkCard(userId: string, accountId: string, sessionId: unknown, messageId: unknown, bulkId: unknown) {
+  if (!isUuid(bulkId)) return null
+  const message = await loadMessage(userId, accountId, sessionId, messageId)
+  const card = message?.parts.find((part): part is BulkCard => part.type === 'bulk' && part.id === bulkId)
+  return message && card ? { message, card } : null
+}
+
+/**
+ * Queues one approved plan item, safely more than once: its key is the job's request key (and a new topic's idea
+ * id), so a second run finds the post the first one made. A new topic gets its script written from the plan's
+ * angle and outline, then goes straight on to its images; a saved script is drawn as it is.
+ */
+async function queueBulkItem(userId: string, accountId: string, item: BulkPlanItem, density: TextDensity): Promise<BulkItem> {
+  const existing = await getContentJobByKey(userId, accountId, item.key)
+  if (existing) return { postId: existing.post_id, ideaId: existing.idea_id ?? item.key, title: item.title }
+
+  if (item.scripted && item.ideaId) {
+    const idea = await getAccountIdea(userId, accountId, item.ideaId)
+    if (!idea) throw new ContentError('Ide sudah dihapus atau sudah jadi post.')
+    if (!idea.script) throw new ContentError('Skripnya belum valid. Perbaiki di Buat.')
+    const request = { ...bulkContentRequest(item, idea.id, density), slides: idea.script.length }
+    const postId = await enqueueContentJob(userId, accountId, item.key, idea.id, 'content', { request, script: idea.script, attachmentPath: null })
+    return { postId, ideaId: idea.id, title: idea.title }
+  }
+
+  const ideaId = item.ideaId ?? item.key
+  if (!item.ideaId) await ensureIdea(userId, accountId, ideaId, { title: item.title, pillarId: item.pillarId })
+  try {
+    const postId = await enqueueContentJob(userId, accountId, item.key, ideaId, 'script', {
+      density,
+      brief: bulkBrief(item),
+      auto: { request: bulkContentRequest(item, ideaId, density) },
+    })
+    return { postId, ideaId, title: item.title }
+  } catch (error) {
+    if (!item.ideaId) await deleteAccountIdea(userId, accountId, ideaId).catch(() => undefined)
+    throw error
+  }
+}
+
+const queueErrorMessage = (error: unknown) => {
+  if (error instanceof ContentError) return error.message
+  const text = describeError(error)
+  if (text.includes('idea_not_found')) return 'Ide sudah dihapus atau sudah jadi post.'
+  if (text.includes('wrong_account')) return 'Akun Instagram berubah. Muat ulang halaman.'
+  if (text.includes('script_not_ready')) return 'Skripnya masih ditulis di Buat. Coba lagi sebentar lagi.'
+  return 'Gagal diantrekan. Coba lagi.'
+}
+
+/**
+ * Setuju on Sigap's bulk plan, with the owner's edits: the only step that spends quota. The whole plan's cost is
+ * checked first, then every post is queued and its script, caption and images are made in the background without
+ * asking again. Moving the card to `starting` first makes a double click or a second tab start nothing twice; a
+ * card left in `starting` (the server stopped mid-way) is finished by the next click, safely, from its saved plan.
+ */
+export async function startBulkAction(sessionId: string, messageId: string, bulkId: string, edits: unknown): Promise<ActionError> {
+  const { userId, accountId } = await requireAccount()
+  try {
+    const found = await loadBulkCard(userId, accountId, sessionId, messageId, bulkId)
+    if (!found) return NOT_FOUND
+    const { message, card } = found
+    if (card.state === 'started') return null
+    if (card.state === 'cancelled') return 'Rencana ini sudah dibatalkan. Minta Sigap membuat rencana baru.'
+
+    let plan = card.plan
+    if (card.state === 'proposed') {
+      const edited = applyBulkEdits(card.plan, edits)
+      if ('error' in edited) return edited.error
+      plan = edited.plan
+
+      const total = plan.reduce((sum, item) => sum + bulkItemCost(item), 0)
+      const [{ remaining }, { credits }] = await Promise.all([remainingCredits(userId), getPlan()])
+      if (total > remaining) {
+        return `Kuota AI tidak cukup: rencana ini butuh ≈ ${formatCreditShare(total, credits)} kuota, sisa ≈ ${formatCreditShare(remaining, credits)}. Kurangi jumlah konten atau perpanjang di halaman Langganan.`
+      }
+      const moved = await updateBulkCard(userId, accountId, message.id, card.id, 'proposed', { state: 'starting', plan })
+      if (moved === 'not_found') return NOT_FOUND
+      // Another click or tab is starting it.
+      if (moved === 'already') return null
+    }
+
+    const density = await getDensityDefault(userId, accountId)
+    const items: BulkItem[] = []
+    const errors: string[] = []
+    for (const item of plan) {
+      try {
+        const queued = await queueBulkItem(userId, accountId, item, density)
+        if (!items.some((other) => other.postId === queued.postId)) items.push(queued)
+      } catch (error) {
+        console.error('[sigap] konten massal gagal diantrekan:', describeError(error))
+        errors.push(`${item.title}: ${queueErrorMessage(error)}`)
+      }
+    }
+
+    if (items.length === 0) {
+      // Nothing was queued, so nothing was spent: the plan stays to try again.
+      await updateBulkCard(userId, accountId, message.id, card.id, 'starting', { state: 'proposed', errors })
+      refresh()
+      return errors.join(' ') || FAILED
+    }
+    await updateBulkCard(userId, accountId, message.id, card.id, 'starting', { state: 'started', items, errors })
+    refresh()
+    return null
+  } catch (error) {
+    console.error('[sigap] konten massal gagal dimulai:', describeError(error))
+    return aiErrorMessage(error)
+  }
+}
+
+/** Batal on Sigap's bulk plan, before anything was made. */
+export async function cancelBulkAction(sessionId: string, messageId: string, bulkId: string): Promise<ActionError> {
+  const { userId, accountId } = await requireAccount()
+  try {
+    const found = await loadBulkCard(userId, accountId, sessionId, messageId, bulkId)
+    if (!found) return NOT_FOUND
+    if (found.card.state !== 'proposed') return null
+    const result = await updateBulkCard(userId, accountId, found.message.id, found.card.id, 'proposed', { state: 'cancelled' })
+    if (result === 'not_found') return NOT_FOUND
+  } catch (error) {
+    console.error('[sigap] rencana konten massal gagal dibatalkan:', describeError(error))
+    return FAILED
   }
   refresh()
   return null

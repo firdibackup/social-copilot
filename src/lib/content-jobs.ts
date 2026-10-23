@@ -13,13 +13,28 @@ export interface ContentJob {
   status: 'pending' | 'running' | 'ready' | 'failed' | 'cancelled'
   error: string | null
   lease: string | null
-  payload: { density?: TextDensity; request?: ContentRequest; script?: ScriptSlide[] | null; attachmentPath?: string | null }
+  payload: {
+    density?: TextDensity
+    request?: ContentRequest
+    script?: ScriptSlide[] | null
+    attachmentPath?: string | null
+    /** A script's direction from Sigap's approved bulk plan. */
+    brief?: string
+    /** A script that goes straight on to its caption and images once written (finish_script_job), with this request. */
+    auto?: { request: ContentRequest }
+  }
 }
 
 export const jobWorking = (job: ContentJob | null) => job?.status === 'pending' || job?.status === 'running'
 
 export async function getContentJob(userId: string, postId: string): Promise<ContentJob | null> {
   return unwrap(await db().from('content_jobs').select('*').eq('user_id', userId).eq('post_id', postId).maybeSingle())
+}
+
+/** The job a request made, found by its request key; for a request that may run twice. */
+export async function getContentJobByKey(userId: string, accountId: string, requestKey: string): Promise<ContentJob | null> {
+  return unwrap(await db().from('content_jobs').select('*').eq('user_id', userId).eq('account_id', accountId)
+    .eq('request_key', requestKey).maybeSingle())
 }
 
 export async function enqueueContentJob(userId: string, accountId: string, requestKey: string, ideaId: string | null,

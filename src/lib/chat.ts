@@ -5,6 +5,7 @@ import {
   historyRange,
   LIMIT_MESSAGES,
   searchPattern,
+  type BulkState,
   type ChatMessageView,
   type ChatPart,
   type ChatSessionView,
@@ -242,6 +243,30 @@ export async function resolveConfirmation(
       p_accept: accept,
     }),
   ) as CardResolution
+}
+
+/**
+ * Moves one bulk_content card on from `from`, merging `patch` into it, under the message's row lock. 'already' when
+ * another request moved it first: the caller then does nothing, so a double click charges nothing twice.
+ */
+export async function updateBulkCard(
+  userId: string,
+  accountId: string,
+  messageId: string,
+  bulkId: string,
+  from: BulkState,
+  patch: Partial<Extract<ChatPart, { type: 'bulk' }>> & { state: BulkState },
+): Promise<'ok' | 'already' | 'not_found'> {
+  return unwrap(
+    await db().rpc('update_sigap_bulk', {
+      p_user_id: userId,
+      p_account_id: accountId,
+      p_message_id: messageId,
+      p_bulk_id: bulkId,
+      p_from: from,
+      p_patch: patch,
+    }),
+  ) as 'ok' | 'already' | 'not_found'
 }
 
 /** Atomically deletes one account-scoped idea and changes only its script card. */

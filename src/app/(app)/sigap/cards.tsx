@@ -3,25 +3,45 @@
 import {
   BadgeCheck,
   Check,
+  ChevronDown,
   CircleAlert,
   CircleDashed,
   ExternalLink,
   FileText,
   Globe,
   Image as ImageIcon,
+  Layers,
   LoaderCircle,
+  RotateCw,
   Search,
   Trash2,
   Users,
+  X,
   type LucideIcon,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useState, useTransition, type ReactNode } from 'react'
 import { ExternalImage } from '@/components/media-image'
 import { formatCount } from '@/lib/analytics-metrics'
-import { analyzeRequest, type ChatPart, type CompetitorView, type ScriptItem } from '@/lib/chat-options'
+import {
+  analyzeRequest,
+  BULK_ANGLE_MAX_LENGTH,
+  BULK_TITLE_MAX_LENGTH,
+  bulkItemCost,
+  type BulkEdit,
+  type BulkItem,
+  type BulkPlanItem,
+  type BulkStage,
+  type BulkStatus,
+  type ChatPart,
+  type CompetitorView,
+  type ScriptItem,
+} from '@/lib/chat-options'
+import { formatCreditShare } from '@/lib/billing-options'
 import { BULLET, slideProblem, type ScriptSlide } from '@/lib/script-options'
-import { discardScriptAction, resolveConfirmAction } from './actions'
+import { retryContentJobAction } from '../buat/content-actions'
+import { cancelBulkAction, discardScriptAction, resolveConfirmAction, startBulkAction } from './actions'
+import { useBulkStatus } from './use-bulk-status'
 
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
 
@@ -88,6 +108,8 @@ export function PartView({ part, context }: { part: ChatPart; context: CardConte
       return <ScriptBatch items={part.items} errors={part.errors} context={context} />
     case 'content_status':
       return <ContentStatusCard query={part.query} items={part.items} context={context} />
+    case 'bulk':
+      return <BulkCard part={part} context={context} />
     case 'confirm':
       return <ToolConfirmCard part={part} context={context} />
     case 'tool_error':
@@ -441,6 +463,370 @@ function ContentStatusCard({
         </ul>
       )}
     </ToolResult>
+  )
+}
+
+const BULK_STAGES: Record<BulkStage, { text: string; tone: string; spin?: boolean }> = {
+  writing: { text: 'Menulis skrip…', tone: 'text-ink-muted', spin: true },
+  review: { text: 'Skrip siap, lanjutkan di Buat', tone: 'text-accent' },
+  drafting: { text: 'Menyusun caption…', tone: 'text-ink-muted', spin: true },
+  rendering: { text: 'Membuat gambar…', tone: 'text-ink-muted', spin: true },
+  done: { text: 'Selesai', tone: 'text-emerald-700' },
+  failed: { text: 'Gagal', tone: 'text-red-700' },
+  cancelled: { text: 'Dibatalkan', tone: 'text-ink-soft' },
+  gone: { text: 'Sudah dihapus', tone: 'text-ink-soft' },
+}
+
+const LINK = 'inline-flex shrink-0 items-center gap-1 text-xs font-medium text-accent hover:underline'
+const FIELD =
+  'block w-full rounded-lg border border-hairline bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft focus:border-accent/60 focus:outline-none'
+
+/** A cost as owners see it: a share of the plan's quota, never raw credits. Null without a plan to compare to. */
+const quotaShare = (cost: number, planCredits: number | undefined) =>
+  planCredits && planCredits > 0 ? `≈ ${formatCreditShare(cost, planCredits)} kuota` : null
+
+/** Sigap's bulk card, by where it stands: a plan to edit, a start to finish, a cancelled plan, or posts on their way. */
+function BulkCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk' }>; context: CardContext }) {
+  switch (part.state) {
+    case 'proposed':
+    case 'starting':
+      return <BulkPlanCard part={part} context={context} />
+    case 'cancelled':
+      return (
+        <p className="flex items-center gap-2 rounded-xl border border-dashed border-hairline px-4 py-3 text-sm text-ink-muted">
+          <X size={14} aria-hidden="true" />
+          Rencana konten massal dibatalkan.
+        </p>
+      )
+    case 'started':
+      return <BulkContentCard items={part.items} errors={part.errors} />
+  }
+}
+
+/**
+ * The plan before anything is written or charged. The owner can rename new topics, change angles of what still
+ * needs a script, and drop posts; Setuju starts them all. `starting` shows it read-only with a way to finish.
+ */
+function BulkPlanCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk' }>; context: CardContext }) {
+  const { data } = useBulkStatus([])
+  const [draft, setPlan] = useState(part.plan)
+  // Once starting, the saved plan is what runs; local edits no longer apply.
+  const plan = part.state === 'starting' ? part.plan : draft
+  const [pending, setPending] = useState<'start' | 'cancel' | null>(null)
+  const [, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+  const { sessionId, messageId } = context
+  const starting = part.state === 'starting'
+  const editable = !starting && pending === null
+
+  const totalShare = quotaShare(
+    plan.reduce((sum, item) => sum + bulkItemCost(item), 0),
+    data?.planCredits,
+  )
+  const missingTitle = plan.some((item) => !item.ideaId && !item.title.trim())
+
+  const update = (key: string, change: Partial<Pick<BulkPlanItem, 'title' | 'angle'>>) =>
+    setPlan((current) => current.map((item) => (item.key === key ? { ...item, ...change } : item)))
+  const remove = (key: string) => setPlan((current) => (current.length > 1 ? current.filter((item) => item.key !== key) : current))
+
+  const run = (kind: 'start' | 'cancel') => {
+    if (!sessionId || pending) return
+    setPending(kind)
+    setError(null)
+    startTransition(async () => {
+      const edits: BulkEdit[] = starting ? [] : plan.map(({ key, title, angle }) => ({ key, title, angle }))
+      const result =
+        kind === 'start'
+          ? startBulkAction(sessionId, messageId, part.id, edits)
+          : cancelBulkAction(sessionId, messageId, part.id)
+      setError(await result.catch(() => FAILED))
+      setPending(null)
+    })
+  }
+
+  return (
+    <section className="rounded-2xl border border-accent/30 bg-paper">
+      <h3 className="flex items-center gap-2 border-b border-hairline px-4 py-2.5 text-xs font-medium text-ink-muted">
+        <Layers size={14} strokeWidth={1.75} aria-hidden="true" />
+        <span className="min-w-0 truncate">Rencana konten massal · {plan.length} konten</span>
+      </h3>
+      <div className="px-4 py-3">
+        <div aria-live="polite">
+          {starting ? (
+            <p className="flex items-center gap-2 text-sm font-medium text-ink">
+              <LoaderCircle size={14} className="animate-spin text-accent" aria-hidden="true" />
+              Sedang memulai…
+            </p>
+          ) : (
+            <p className="text-xs text-ink-muted">
+              Belum ada kuota terpakai. Setelah kamu setujui, skrip dan gambar tiap konten dibuat otomatis.
+            </p>
+          )}
+        </div>
+
+        <ol className="mt-3 divide-y divide-hairline rounded-xl border border-hairline">
+          {plan.map((item, index) => (
+            <BulkPlanRow
+              key={item.key}
+              item={item}
+              number={index + 1}
+              editable={editable}
+              removable={editable && plan.length > 1}
+              onChange={(change) => update(item.key, change)}
+              onRemove={() => remove(item.key)}
+            />
+          ))}
+        </ol>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 border-t border-hairline px-4 py-3">
+        <button
+          type="button"
+          disabled={pending !== null || !sessionId || (!starting && (missingTitle || plan.length === 0))}
+          onClick={() => run('start')}
+          className={PRIMARY}
+        >
+          {pending === 'start' ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}
+          {starting ? 'Lanjutkan' : `Setuju, buat ${plan.length} konten`}
+        </button>
+        {!starting && (
+          <button type="button" disabled={pending !== null || !sessionId} onClick={() => run('cancel')} className={GHOST}>
+            {pending === 'cancel' && <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />}
+            Batal
+          </button>
+        )}
+        {totalShare && <span className="ml-auto text-xs text-ink-muted">Perkiraan total {totalShare}</span>}
+      </div>
+
+      {(error || missingTitle || part.errors.length > 0) && (
+        <div className="space-y-1 px-4 pb-3">
+          {error && <ErrorText>{error}</ErrorText>}
+          {missingTitle && !starting && <ErrorText>Judul konten tidak boleh kosong.</ErrorText>}
+          {part.errors.map((line) => (
+            <ErrorText key={line}>{line}</ErrorText>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function BulkPlanRow({
+  item,
+  number,
+  editable,
+  removable,
+  onChange,
+  onRemove,
+}: {
+  item: BulkPlanItem
+  number: number
+  editable: boolean
+  removable: boolean
+  onChange: (change: Partial<Pick<BulkPlanItem, 'title' | 'angle'>>) => void
+  onRemove: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const titleEditable = editable && !item.ideaId
+  const angleEditable = editable && !item.scripted
+
+  return (
+    <li className="flex gap-3 px-3 py-3">
+      <span className="mt-1.5 inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[11px] font-semibold text-accent">
+        {number}
+      </span>
+      <div className="min-w-0 flex-1 space-y-1.5">
+        {titleEditable ? (
+          <input
+            type="text"
+            value={item.title}
+            maxLength={BULK_TITLE_MAX_LENGTH}
+            onChange={(event) => onChange({ title: event.target.value })}
+            aria-label={`Judul konten ${number}`}
+            placeholder="Judul konten"
+            className={`${FIELD} font-semibold`}
+          />
+        ) : (
+          <p className="pt-1 text-sm font-semibold text-ink">
+            {item.title}
+            {item.ideaId && <span className="ml-2 text-[11px] font-medium text-ink-muted">Ide tersimpan</span>}
+          </p>
+        )}
+
+        {item.scripted ? (
+          <p className="flex items-center gap-1.5 text-xs text-ink-muted">
+            <FileText size={12} aria-hidden="true" />
+            Pakai skrip yang sudah tersimpan
+          </p>
+        ) : angleEditable ? (
+          <input
+            type="text"
+            value={item.angle}
+            maxLength={BULK_ANGLE_MAX_LENGTH}
+            onChange={(event) => onChange({ angle: event.target.value })}
+            aria-label={`Sudut konten ${number}`}
+            placeholder="Sudut atau hook (opsional)"
+            className={`${FIELD} text-xs`}
+          />
+        ) : (
+          item.angle && <p className="text-xs text-ink-muted">{item.angle}</p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-x-2 text-xs text-ink-muted">
+          <span>{item.slides} slide</span>
+          {item.points.length > 0 && (
+            <button
+              type="button"
+              aria-expanded={open}
+              onClick={() => setOpen((value) => !value)}
+              className="inline-flex items-center gap-1 font-medium text-ink-muted hover:text-ink"
+            >
+              <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
+              {open ? 'Sembunyikan garis besar' : 'Lihat garis besar'}
+            </button>
+          )}
+        </div>
+        {open && item.points.length > 0 && (
+          <ol className="space-y-0.5 border-l-2 border-accent-soft pl-3 text-xs text-ink">
+            {item.points.map((point, index) => (
+              <li key={index} className="flex gap-2">
+                <span className="shrink-0 text-ink-soft tabular-nums">{index + 1}.</span>
+                <span>{point}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+      {editable && (
+        <button
+          type="button"
+          disabled={!removable}
+          onClick={onRemove}
+          aria-label={`Hapus "${item.title || `konten ${number}`}" dari rencana`}
+          title={removable ? 'Hapus dari rencana' : 'Minimal satu konten'}
+          className={`${GHOST} -mr-2 shrink-0 px-2`}
+        >
+          <X size={14} aria-hidden="true" />
+        </button>
+      )}
+    </li>
+  )
+}
+
+/** Posts a started plan made. The worker writes and draws each one; the stages come from polling. */
+function BulkContentCard({ items, errors }: { items: BulkItem[]; errors: string[] }) {
+  const { data, error: pollError, refresh } = useBulkStatus(items.map((item) => item.postId))
+
+  const statusOf = (postId: string): BulkStatus | null =>
+    data ? (data.items.find((status) => status.postId === postId) ?? { postId, stage: 'gone', error: null, failedSlides: 0 }) : null
+  const rows = items.map((item) => ({ item, status: statusOf(item.postId) }))
+  const finished = rows.filter((row) => row.status && !BULK_STAGES[row.status.stage].spin).length
+
+  return (
+    <ToolResult icon={Layers} label={`Konten massal · ${items.length} konten`}>
+      <div aria-live="polite" className="mb-3 space-y-0.5">
+        <p className="text-sm font-medium text-ink">
+          {!data
+            ? 'Memuat status…'
+            : finished === items.length
+              ? 'Semua konten sudah diproses'
+              : `${finished} dari ${items.length} konten selesai diproses`}
+        </p>
+        <p className="text-xs text-ink-muted">Skrip dan gambar dibuat otomatis. Kamu bisa menutup halaman ini.</p>
+      </div>
+
+      <ul className="divide-y divide-hairline rounded-xl border border-hairline">
+        {rows.map(({ item, status }) => (
+          <BulkRow key={item.postId} item={item} status={status} onRetried={refresh} />
+        ))}
+      </ul>
+
+      {pollError && (
+        <div className="mt-2 flex items-center gap-2">
+          <ErrorText>Status belum bisa dimuat.</ErrorText>
+          <button type="button" onClick={refresh} className={GHOST}>
+            <RotateCw size={12} aria-hidden="true" />
+            Coba lagi
+          </button>
+        </div>
+      )}
+
+      {errors.length > 0 && (
+        <div className="mt-2 space-y-1">
+          {errors.map((line) => (
+            <ErrorText key={line}>{line}</ErrorText>
+          ))}
+        </div>
+      )}
+    </ToolResult>
+  )
+}
+
+function BulkRow({
+  item,
+  status,
+  onRetried,
+}: {
+  item: BulkItem
+  status: BulkStatus | null
+  /** Polls again, so the retried job's new stage shows up and keeps moving. */
+  onRetried: () => void
+}) {
+  const [retrying, startRetry] = useTransition()
+  const [retryError, setRetryError] = useState<string | null>(null)
+  const stage = status ? BULK_STAGES[status.stage] : null
+  const retryable = status?.stage === 'failed' || status?.stage === 'cancelled'
+
+  const retry = () => {
+    setRetryError(null)
+    startRetry(async () => {
+      setRetryError(await retryContentJobAction(item.postId).catch(() => FAILED))
+      onRetried()
+    })
+  }
+
+  return (
+    <li className="px-3 py-2.5">
+      <div className="flex items-start gap-3">
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-ink">{item.title}</span>
+          <span className={`mt-0.5 flex items-center gap-1.5 text-xs ${stage?.tone ?? 'text-ink-muted'}`}>
+            {(!stage || stage.spin) && <LoaderCircle size={12} className="shrink-0 animate-spin" aria-hidden="true" />}
+            {status?.stage === 'done' && <Check size={12} className="shrink-0" aria-hidden="true" />}
+            {status?.stage === 'failed' && <CircleAlert size={12} className="shrink-0" aria-hidden="true" />}
+            <span className="min-w-0">
+              {!status ? 'Memuat status…' : status.stage === 'failed' && status.error ? `Gagal: ${status.error}` : stage?.text}
+            </span>
+          </span>
+          {status?.stage === 'done' && status.failedSlides > 0 && (
+            <span className="mt-0.5 block text-xs text-amber-700">{status.failedSlides} slide gagal, ulangi di Buat.</span>
+          )}
+        </span>
+        {status?.stage === 'done' && (
+          <Link href={`/buat?id=${item.postId}`} className={LINK}>
+            Buka di Buat untuk dijadwalkan
+            <ExternalLink size={12} aria-hidden="true" />
+          </Link>
+        )}
+        {status?.stage === 'review' && (
+          <Link href={`/buat?id=${item.postId}`} className={LINK}>
+            Buka di Buat
+            <ExternalLink size={12} aria-hidden="true" />
+          </Link>
+        )}
+        {retryable && (
+          <button type="button" disabled={retrying} onClick={retry} className={`${GHOST} -my-1 shrink-0`}>
+            {retrying ? <LoaderCircle size={12} className="animate-spin" aria-hidden="true" /> : <RotateCw size={12} aria-hidden="true" />}
+            Coba lagi
+          </button>
+        )}
+      </div>
+      {retryError && (
+        <div className="mt-1">
+          <ErrorText>{retryError}</ErrorText>
+        </div>
+      )}
+    </li>
   )
 }
 

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { contentCost, TASK_CREDITS } from './billing-options'
 import {
   analyzeRequest,
+  applyBulkEdits,
+  bulkBrief,
+  bulkItemCost,
+  bulkStage,
+  type BulkPlanItem,
   attachmentsProblem,
   checkAttachment,
   HISTORY_MAX,
@@ -123,5 +129,70 @@ describe('suggestions', () => {
 
   it('ask to analyze the picked accounts', () => {
     expect(analyzeRequest(['a', 'b'])).toContain('@a, @b')
+  })
+})
+
+describe('bulkStage', () => {
+  const idle = { inProgress: 0 }
+
+  it('shows a script that stopped at ready (one Buat queued) as review', () => {
+    expect(bulkStage({ kind: 'script', status: 'pending' }, idle)).toBe('writing')
+    expect(bulkStage({ kind: 'script', status: 'running' }, idle)).toBe('writing')
+    expect(bulkStage({ kind: 'script', status: 'ready' }, idle)).toBe('review')
+  })
+
+  it('follows the approved content through its slides', () => {
+    expect(bulkStage({ kind: 'content', status: 'pending' }, idle)).toBe('drafting')
+    expect(bulkStage({ kind: 'content', status: 'ready' }, { inProgress: 2 })).toBe('rendering')
+    expect(bulkStage({ kind: 'content', status: 'ready' }, idle)).toBe('done')
+  })
+
+  it('reports failures, cancellation and deleted posts', () => {
+    expect(bulkStage({ kind: 'script', status: 'failed' }, idle)).toBe('failed')
+    expect(bulkStage({ kind: 'content', status: 'cancelled' }, idle)).toBe('cancelled')
+    expect(bulkStage(null, idle)).toBe('gone')
+  })
+})
+
+describe('bulk plan', () => {
+  const item = (key: string, overrides: Partial<BulkPlanItem> = {}): BulkPlanItem => ({
+    key, title: `Judul ${key}`, angle: 'Sudut', pillarId: null, ideaId: null, scripted: false, slides: 3, points: ['A', 'B', 'C'], ...overrides,
+  })
+  const plan = [item('a'), item('b', { ideaId: 'idea-b' }), item('c', { ideaId: 'idea-c', scripted: true })]
+
+  it('costs the script and the images, or only the images of a saved script', () => {
+    expect(bulkItemCost(item('a'))).toBe(TASK_CREDITS.content_script + contentCost(3))
+    expect(bulkItemCost(item('c', { scripted: true, slides: 5 }))).toBe(contentCost(5))
+  })
+
+  it('keeps the owner\'s order, removals, new titles and angles', () => {
+    expect(applyBulkEdits(plan, [{ key: 'c', title: 'x', angle: 'x' }, { key: 'a', title: '  Baru  ', angle: ' Lain ' }])).toEqual({
+      plan: [item('c', { ideaId: 'idea-c', scripted: true }), item('a', { title: 'Baru', angle: 'Lain' })],
+    })
+  })
+
+  it('never renames a saved idea or changes a saved script', () => {
+    const result = applyBulkEdits(plan, [{ key: 'b', title: 'Ganti', angle: 'Baru' }])
+    expect(result).toEqual({ plan: [item('b', { ideaId: 'idea-b', angle: 'Baru' })] })
+  })
+
+  it('refuses unknown or repeated posts, empty titles, an empty plan', () => {
+    expect(applyBulkEdits(plan, [{ key: 'z', title: 'x', angle: '' }])).toHaveProperty('error')
+    expect(applyBulkEdits(plan, [{ key: 'a', title: 'x', angle: '' }, { key: 'a', title: 'x', angle: '' }])).toHaveProperty('error')
+    expect(applyBulkEdits(plan, [{ key: 'a', title: ' ', angle: '' }])).toEqual({ error: 'Judul konten tidak boleh kosong.' })
+    expect(applyBulkEdits(plan, [])).toEqual({ error: 'Pilih minimal satu konten.' })
+    expect(applyBulkEdits(plan, 'x')).toHaveProperty('error')
+  })
+
+  it('briefs the script with the angle, the slide count and the outline', () => {
+    expect(bulkBrief(item('a')).split('\n')).toEqual([
+      'Sudut konten: Sudut',
+      'Tulis tepat 3 slide.',
+      'Garis besar yang sudah disetujui owner (ikuti urutannya; sesuaikan bila judul berubah):',
+      '1. A',
+      '2. B',
+      '3. C',
+    ])
+    expect(bulkBrief(item('a', { angle: '', points: [] }))).toBe('Tulis tepat 3 slide.')
   })
 })

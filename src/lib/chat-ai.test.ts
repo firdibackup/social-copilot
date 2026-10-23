@@ -8,6 +8,7 @@ import { reserveDailyUsage } from './chat'
 import {
   answerChat,
   buildSystemPrompt,
+  bulkRequests,
   chatTools,
   competitorSearch,
   historyText,
@@ -20,9 +21,10 @@ import {
   type ChatRequest,
 } from './chat-ai'
 import type { ChatPart } from './chat-options'
-import { addIdea, saveAccountIdeaScript } from './ideas'
+import { enqueueContentJob } from './content-jobs'
+import { addIdea, getAccountIdea, saveAccountIdeaScript } from './ideas'
 import { chatCompletion, chatWithTools, webSearch, type ChatAnswer } from './nine-router'
-import { parseStrategy, type ContentStrategy } from './strategy-options'
+import { DEFAULT_POSTS_PER_WEEK, parseStrategy, type ContentStrategy } from './strategy-options'
 
 const database = vi.hoisted(() => ({ inserted: [] as { table: string; row: unknown }[] }))
 
@@ -65,6 +67,7 @@ vi.mock('./ideas', () => ({
   saveAccountIdeaScript: vi.fn(),
 }))
 
+vi.mock('./content-jobs', () => ({ enqueueContentJob: vi.fn() }))
 vi.mock('./brand', () => ({ getAccountBrandContext: vi.fn() }))
 vi.mock('./billing', () => ({ creditsUsed: vi.fn(), getCurrentPeriod: vi.fn() }))
 
@@ -110,6 +113,7 @@ describe('chatTools', () => {
       'web_search',
       'check_content_status',
       'analyze_and_draft',
+      'bulk_content',
       'update_content_strategy',
       'create_auto_dm_rule',
     ])
@@ -156,6 +160,15 @@ describe('historyText', () => {
         ],
         errors: ['Promo: gagal'],
       },
+      { type: 'bulk', id: 'b', state: 'started', plan: [], items: [{ postId: 'post-1', ideaId: 'idea-2', title: 'Latte art' }], errors: ['Ide x: hilang'] },
+      {
+        type: 'bulk',
+        id: 'b2',
+        state: 'proposed',
+        plan: [{ key: 'k', title: 'Seduh V60', angle: '', pillarId: null, ideaId: null, scripted: false, slides: 4, points: [] }],
+        items: [],
+        errors: [],
+      },
       { type: 'confirm', id: 'c', kind: 'strategy', title: 'Perbarui strategi', lines: [], payload: STRATEGY, state: 'saved' },
       { type: 'failed', message: 'x' },
     ]
@@ -165,6 +178,9 @@ describe('historyText', () => {
       '[web_search "tren kopi": Tren (https://x.test)]',
       '[Skrip ideaId=idea-1 "Seduh V60", 1 slide: Mulai (dibuang owner)]',
       '[Skrip gagal: Promo: gagal]',
+      '[Rencana konten massal: disetujui, skrip dan gambar dibuat otomatis: "Latte art" postId=post-1 ideaId=idea-2]',
+      '[Konten massal gagal: Ide x: hilang]',
+      '[Rencana konten massal: menunggu persetujuan owner, belum ada yang dibuat: "Seduh V60" (4 slide)]',
       '[Kartu konfirmasi "Perbarui strategi": disetujui dan tersimpan]',
       '[Jawaban gagal]',
     ])
@@ -236,6 +252,44 @@ describe('scriptRequests', () => {
       { title: 'Palsu', brief: '', pillarId: null, ideaId: null },
     ])
     expect(scriptRequests('x', null)).toEqual([])
+  })
+})
+
+describe('bulkRequests', () => {
+  const IDEA = '3f2b6c1e-8a4d-4f7e-9b2a-1c5d6e7f8a9b'
+
+  it('takes a topic or a saved idea, never both or neither, each idea once', () => {
+    const value = [
+      { topic: ' Latte art ', pillar: 'PROMO', angle: ' Rahasia susu ', slides: 4, points: ['Hook', ' ', 'Isi', 'CTA'] },
+      { ideaId: IDEA.toUpperCase() },
+      { ideaId: IDEA },
+      { topic: 'Dua-duanya', ideaId: IDEA },
+      { ideaId: 'bukan-uuid' },
+      {},
+      'x',
+      { topic: 'Pilar asing', pillar: 'Lainnya', slides: 99 },
+    ]
+    expect(bulkRequests(value, STRATEGY)).toEqual({
+      requests: [
+        { topic: 'Latte art', pillarId: 'p-promo', angle: 'Rahasia susu', slides: 4, points: ['Hook', 'Isi', 'CTA'] },
+        { ideaId: IDEA, angle: '', slides: 3, points: [] },
+        { topic: 'Pilar asing', pillarId: null, angle: '', slides: 10, points: [] },
+      ],
+      cap: 3,
+    })
+  })
+
+  it('takes the slides from the points when the model gave none, and never fewer than two', () => {
+    expect(bulkRequests([{ topic: 'A', points: ['1', '2', '3', '4', '5'] }], null).requests[0]).toMatchObject({ slides: 5 })
+    expect(bulkRequests([{ topic: 'A', slides: 1 }], null).requests[0]).toMatchObject({ slides: 2 })
+  })
+
+  it('stops at the posts per week, or the default without a strategy', () => {
+    const many = Array.from({ length: 9 }, (_, index) => ({ topic: `Topik ${index}` }))
+    expect(bulkRequests(many, { ...STRATEGY, postsPerWeek: 2 }).requests).toHaveLength(2)
+    expect(bulkRequests(many, null)).toMatchObject({ cap: DEFAULT_POSTS_PER_WEEK })
+    expect(bulkRequests(many, null).requests).toHaveLength(DEFAULT_POSTS_PER_WEEK)
+    expect(bulkRequests('x', null).requests).toEqual([])
   })
 })
 
@@ -505,6 +559,70 @@ describe('answerChat', () => {
     expect(addIdea).toHaveBeenNthCalledWith(2, USER, 'account-1', expect.objectContaining({ title: 'Dua' }))
     expect(reply.parts).toEqual([
       expect.objectContaining({ type: 'scripts', items: [expect.objectContaining({ ideaId: 'idea-1' }), expect.objectContaining({ ideaId: 'idea-2' })] }),
+    ])
+  })
+
+  it('shows a bulk plan for new topics and saved ideas without saving, queueing or charging anything', async () => {
+    const saved = '3f2b6c1e-8a4d-4f7e-9b2a-1c5d6e7f8a9b'
+    const scripted = '4f2b6c1e-8a4d-4f7e-9b2a-1c5d6e7f8a9b'
+    vi.mocked(chatWithTools)
+      .mockResolvedValueOnce(call('bulk_content', {
+        items: [
+          { topic: 'Latte art', pillar: 'Promo', angle: 'Susu yang pas', slides: 3, points: ['Hook', 'Isi', 'CTA'] },
+          { ideaId: saved, angle: 'Takaran', slides: 4 },
+          { ideaId: scripted },
+        ],
+      }))
+      .mockResolvedValueOnce({ content: 'Ini rencananya.', toolCalls: [] })
+    vi.mocked(getAccountIdea).mockReset()
+      .mockResolvedValueOnce({ id: saved, title: 'Seduh V60', pillarId: null, script: null })
+      .mockResolvedValueOnce({
+        id: scripted,
+        title: 'Kopi susu',
+        pillarId: 'p-promo',
+        script: [{ label: 'Hook', title: 'Mulai', body: '' }, { label: 'CTA', title: 'Selesai', body: '' }],
+      })
+    vi.mocked(enqueueContentJob).mockReset()
+
+    const reply = await answerChat(request())
+
+    expect(addIdea).not.toHaveBeenCalled()
+    expect(enqueueContentJob).not.toHaveBeenCalled()
+    expect(reply.parts).toEqual([
+      {
+        type: 'bulk',
+        id: expect.any(String),
+        state: 'proposed',
+        plan: [
+          { key: expect.any(String), title: 'Latte art', angle: 'Susu yang pas', pillarId: 'p-promo', ideaId: null, scripted: false, slides: 3, points: ['Hook', 'Isi', 'CTA'] },
+          { key: expect.any(String), title: 'Seduh V60', angle: 'Takaran', pillarId: null, ideaId: saved, scripted: false, slides: 4, points: [] },
+          { key: expect.any(String), title: 'Kopi susu', angle: '', pillarId: 'p-promo', ideaId: scripted, scripted: true, slides: 2, points: ['Mulai', 'Selesai'] },
+        ],
+        items: [],
+        errors: [],
+      },
+    ])
+    const plan = (reply.parts[0] as Extract<ChatPart, { type: 'bulk' }>).plan
+    expect(new Set(plan.map((item) => item.key)).size).toBe(3)
+    expect(JSON.stringify(vi.mocked(chatWithTools).mock.calls[1][0].at(-1))).toContain('belum ada skrip, gambar, atau kuota')
+  })
+
+  it('leaves out a saved idea that is gone, and reports the cap', async () => {
+    const gone = '3f2b6c1e-8a4d-4f7e-9b2a-1c5d6e7f8a9b'
+    const items = [{ ideaId: gone }, ...Array.from({ length: 3 }, (_, index) => ({ topic: `Topik ${index}` }))]
+    vi.mocked(chatWithTools)
+      .mockResolvedValueOnce(call('bulk_content', { items }))
+      .mockResolvedValueOnce({ content: 'Sebagian.', toolCalls: [] })
+    vi.mocked(getAccountIdea).mockReset().mockResolvedValue(null)
+
+    const reply = await answerChat(request())
+
+    expect(reply.parts).toEqual([
+      expect.objectContaining({
+        type: 'bulk',
+        plan: [expect.objectContaining({ title: 'Topik 0' }), expect.objectContaining({ title: 'Topik 1' })],
+        errors: [expect.stringContaining(gone), 'Hanya 3 konten per permintaan, sesuai 3 post per minggu di strategi konten.'],
+      }),
     ])
   })
 

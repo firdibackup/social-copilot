@@ -4,8 +4,19 @@ import { ApifyError, findCompetitors, MAX_COMPETITORS, type Competitor, type Com
 import { EMPTY_RULE, parseRuleInput, type AutoDmRuleInput } from './auto-dm-rules'
 import { isObject, lengthOf, truncate, type BrandContext } from './brand-options'
 import { findContent, loadSummaryBatch, reserveDailyUsage, saveSummary, type ChatSession } from './chat'
-import { summaryBatch, type ChatMessageView, type ChatPart, type CompetitorView, type ScriptItem } from './chat-options'
+import {
+  BULK_ANGLE_MAX_LENGTH,
+  BULK_POINT_MAX_LENGTH,
+  MIN_BULK_SLIDES,
+  summaryBatch,
+  type BulkPlanItem,
+  type ChatMessageView,
+  type ChatPart,
+  type CompetitorView,
+  type ScriptItem,
+} from './chat-options'
 import { IDEA_MAX_LENGTH, writeScript } from './content-ai'
+import { DEFAULT_SLIDES, MAX_SLIDES } from './content-options'
 import { getDensityDefault } from './density'
 import { DEFAULT_DENSITY, type TextDensity } from './density-options'
 import { ConfigError, describeError } from './errors'
@@ -15,6 +26,7 @@ import { addIdea, deleteAccountIdea, getAccountIdea, reviseAccountIdea, saveAcco
 import { chatCompletion, chatWithTools, webSearch, type ContentPart, type ConversationMessage, type ToolCall, type ToolSchema } from './nine-router'
 import { scriptHeadline } from './script-options'
 import {
+  DEFAULT_POSTS_PER_WEEK,
   FOCUS_LABELS,
   newPillarId,
   normalizeShares,
@@ -135,6 +147,45 @@ const ANALYZE_AND_DRAFT: ToolSchema = {
   },
 }
 
+const BULK_CONTENT: ToolSchema = {
+  type: 'function',
+  function: {
+    name: 'bulk_content',
+    description: [
+      'Rencanakan beberapa konten carousel utuh sekaligus, mis. untuk jadwal minggu ini.',
+      'Tool ini HANYA menampilkan rencana (judul, sudut, pilar, jumlah slide, poin per slide) di kartu untuk disetujui owner; belum ada kuota yang terpakai.',
+      'Setelah owner menekan Setuju di kartu, skrip dan gambar tiap konten dibuat otomatis di latar belakang.',
+      'Tiap item: topic (topik baru) ATAU ideaId (ide yang sudah tersimpan di menu Buat), bukan keduanya. Untuk ideaId, tetap isi angle, slides, dan points.',
+      'Jumlah item paling banyak sebanyak post per minggu di strategi konten brand. Tool ini tidak menjadwalkan; owner menjadwalkan sendiri di Buat atau Kalender.',
+      'Untuk mengubah rencana yang sudah ditampilkan, panggil tool ini lagi dengan rencana baru.',
+    ].join(' '),
+    parameters: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              topic: { type: 'string', description: `Judul konten baru, maksimal ${IDEA_MAX_LENGTH} karakter.` },
+              ideaId: { type: 'string', description: 'ID ide yang sudah tersimpan di menu Buat, untuk dilanjutkan.' },
+              pillar: { type: 'string', description: 'Untuk topic baru: nama pilar konten brand yang paling cocok, kalau ada.' },
+              angle: { type: 'string', description: `Sudut/hook konten dalam satu kalimat, maksimal ${BULK_ANGLE_MAX_LENGTH} karakter.` },
+              slides: { type: 'integer', description: `Jumlah slide, ${MIN_BULK_SLIDES}–${MAX_SLIDES}.` },
+              points: {
+                type: 'array',
+                items: { type: 'string' },
+                description: `Satu poin singkat per slide, urut dari Hook sampai CTA, maksimal ${BULK_POINT_MAX_LENGTH} karakter per poin.`,
+              },
+            },
+          },
+        },
+      },
+      required: ['items'],
+    },
+  },
+}
+
 const UPDATE_CONTENT_STRATEGY: ToolSchema = {
   type: 'function',
   function: {
@@ -209,6 +260,7 @@ export function chatTools(deepSearch: boolean): ToolSchema[] {
     CHECK_CONTENT_STATUS,
     ...(deepSearch ? [INTEL_KOMPETITOR] : []),
     ANALYZE_AND_DRAFT,
+    BULK_CONTENT,
     UPDATE_CONTENT_STRATEGY,
     CREATE_AUTO_DM_RULE,
   ]
@@ -225,7 +277,8 @@ const SYSTEM_RULES = [
   '- Catatan dalam [kurung siku] di riwayat percakapan ditulis sistem tentang kartu yang tampil. Jangan menulis catatan seperti itu sendiri.',
   '- update_content_strategy dan create_auto_dm_rule tidak langsung menyimpan: owner menyetujui lewat kartu konfirmasi. Jangan bilang sudah tersimpan.',
   '- analyze_and_draft langsung menyimpan skrip sebagai ide di menu Buat dan memakai kredit AI. Tulis skrip hanya kalau owner memintanya.',
-  '- Membuat gambar dan menjadwalkan post belum bisa dari chat: arahkan owner ke menu Buat (buka ide yang skripnya siap) lalu Kalender.',
+  '- Untuk beberapa konten utuh sekaligus (skrip dan gambar), pakai bulk_content: tool itu hanya menampilkan rencana. Skrip dan gambar baru dibuat setelah owner menekan Setuju di kartu; jangan bilang kontennya sudah dibuat.',
+  '- Menjadwalkan post belum bisa dari chat: arahkan owner ke menu Buat atau Kalender setelah kontennya jadi.',
 ]
 
 const DEEP_SEARCH_ON =
@@ -288,6 +341,22 @@ export function historyText(message: Pick<ChatMessageView, 'content' | 'parts'>)
         return [
           `[Cek konten "${part.query}": ${part.items.map((item) => `${item.title} (${item.status})`).join('; ') || 'belum pernah dibuat'}]`,
         ]
+      case 'bulk': {
+        const state = {
+          proposed: 'menunggu persetujuan owner, belum ada yang dibuat',
+          starting: 'disetujui, sedang diantrekan',
+          started: 'disetujui, skrip dan gambar dibuat otomatis',
+          cancelled: 'dibatalkan owner',
+        }[part.state]
+        const listed =
+          part.state === 'started'
+            ? part.items.map((item) => `"${item.title}" postId=${item.postId} ideaId=${item.ideaId}`)
+            : part.plan.map((item) => `"${item.title}" (${item.slides} slide${item.ideaId ? `, ideaId=${item.ideaId}` : ''})`)
+        return [
+          `[Rencana konten massal: ${state}: ${listed.join('; ') || 'tidak ada'}]`,
+          ...part.errors.map((error) => `[Konten massal gagal: ${error}]`),
+        ]
+      }
       case 'confirm': {
         const state = { pending: 'menunggu persetujuan', saved: 'disetujui dan tersimpan', cancelled: 'dibatalkan owner' }[part.state]
         return [`[Kartu konfirmasi "${part.title}": ${state}]`]
@@ -500,6 +569,88 @@ async function draftScript(context: ToolContext, request: ScriptRequest): Promis
 
 const ownerMessage = (error: unknown) => (error instanceof ToolInputError ? error.message : aiErrorMessage(error))
 
+export type BulkRequest = (
+  | { topic: string; pillarId: string | null; ideaId?: undefined }
+  | { ideaId: string; topic?: undefined }
+) & { angle: string; slides: number; points: string[] }
+
+/** Slides the model planned, else as many as its points, else the composer's default; always 2–10. Pure. */
+function plannedSlides(value: unknown, points: string[]): number {
+  const asked = typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : points.length || DEFAULT_SLIDES
+  return Math.min(MAX_SLIDES, Math.max(MIN_BULK_SLIDES, asked))
+}
+
+/**
+ * The posts the model planned in one bulk_content call: each a new topic or a saved idea (never both, never
+ * neither; an idea at most once), at most the strategy's posts per week. Pure, for tests.
+ */
+export function bulkRequests(value: unknown, strategy: ContentStrategy | null): { requests: BulkRequest[]; cap: number } {
+  const cap = strategy?.postsPerWeek ?? DEFAULT_POSTS_PER_WEEK
+  if (!Array.isArray(value)) return { requests: [], cap }
+  const seen = new Set<string>()
+  const requests = value.flatMap((item): BulkRequest[] => {
+    if (!isObject(item)) return []
+    const topic = text(item.topic, IDEA_MAX_LENGTH)
+    const ideaId = typeof item.ideaId === 'string' && UUID.test(item.ideaId) ? item.ideaId.toLowerCase() : null
+    if (Boolean(topic) === Boolean(ideaId)) return []
+    const points = (Array.isArray(item.points) ? item.points : [])
+      .map((point) => text(point, BULK_POINT_MAX_LENGTH).replace(/\s+/g, ' '))
+      .filter(Boolean)
+      .slice(0, MAX_SLIDES)
+    const outline = { angle: text(item.angle, BULK_ANGLE_MAX_LENGTH), slides: plannedSlides(item.slides, points), points }
+    if (ideaId) {
+      if (seen.has(ideaId)) return []
+      seen.add(ideaId)
+      return [{ ideaId, ...outline }]
+    }
+    const pillar = text(item.pillar, 80).toLowerCase()
+    const pillarId = (pillar && strategy?.pillars.find((entry) => entry.name.toLowerCase() === pillar)?.id) || null
+    return [{ topic, pillarId, ...outline }]
+  })
+  return { requests: requests.slice(0, cap), cap }
+}
+
+/**
+ * Sigap's bulk plan: a card with every post's title, angle, slides and outline, for the owner to edit and approve.
+ * Nothing is written, saved or charged here; startBulkAction does that once the owner says Setuju.
+ */
+async function runBulkContent(context: ToolContext, args: Json): Promise<ToolOutcome> {
+  const { userId, accountId } = context
+  const { requests, cap } = bulkRequests(args.items, context.brand?.strategy ?? null)
+  if (requests.length === 0) return { part: null, result: 'Gagal: isi items, tiap item dengan topic atau ideaId (salah satu).' }
+  const asked = Array.isArray(args.items) ? args.items.length : 0
+  const plan: BulkPlanItem[] = []
+  const errors: string[] = []
+  for (const request of requests) {
+    if (request.ideaId === undefined) {
+      plan.push({ key: crypto.randomUUID(), title: request.topic, angle: request.angle, pillarId: request.pillarId, ideaId: null,
+        scripted: false, slides: request.slides, points: request.points })
+      continue
+    }
+    const idea = await getAccountIdea(userId, accountId, request.ideaId)
+    if (!idea) {
+      errors.push(`Ide ${request.ideaId} tidak ada di akun Instagram ini (mungkin dibuang atau sudah jadi post).`)
+      continue
+    }
+    // A saved script is drawn as it is: its slides and headlines are the outline.
+    plan.push(idea.script
+      ? { key: crypto.randomUUID(), title: idea.title, angle: '', pillarId: idea.pillarId, ideaId: idea.id, scripted: true,
+          slides: idea.script.length, points: idea.script.map((slide) => truncate(slide.title, BULK_POINT_MAX_LENGTH)) }
+      : { key: crypto.randomUUID(), title: idea.title, angle: request.angle, pillarId: idea.pillarId, ideaId: idea.id,
+          scripted: false, slides: request.slides, points: request.points })
+  }
+  if (plan.length === 0) return failure('bulk_content', errors.join(' '))
+  if (asked > cap) errors.push(`Hanya ${cap} konten per permintaan, sesuai ${cap} post per minggu di strategi konten.`)
+  return {
+    part: { type: 'bulk', id: crypto.randomUUID(), state: 'proposed', plan, items: [], errors },
+    result: JSON.stringify({
+      planned: plan.map(({ title, slides, ideaId, scripted }) => ({ title, slides, ideaId, scripted })),
+      errors,
+      note: 'Baru rencana: belum ada skrip, gambar, atau kuota yang terpakai. Owner bisa mengubah judul dan sudut lalu menekan Setuju di kartu; setelah itu skrip dan gambar dibuat otomatis.',
+    }),
+  }
+}
+
 async function runAnalyzeAndDraft(context: ToolContext, args: Json): Promise<ToolOutcome[]> {
   const outcomes: ToolOutcome[] = []
   if (isObject(args.analysis)) {
@@ -649,6 +800,8 @@ async function runTool(context: ToolContext, call: ToolCall): Promise<ToolOutcom
         return [await runIntel(context, args)]
       case 'analyze_and_draft':
         return await runAnalyzeAndDraft(context, args)
+      case 'bulk_content':
+        return [await runBulkContent(context, args)]
       case 'update_content_strategy':
         return [runStrategy(context, args)]
       case 'create_auto_dm_rule':
