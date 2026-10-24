@@ -63,7 +63,7 @@ describe('Threads OAuth callback', () => {
   it('sends a user without a subscription to Langganan', async () => {
     vi.mocked(currentPeriod).mockResolvedValue(null)
 
-    expect(redirectTarget(await callback('code=abc&state=s1')).path).toBe('/pengaturan')
+    expect(redirectTarget(await callback('code=abc&state=s1')).path).toBe('/langganan')
   })
 
   it.each([

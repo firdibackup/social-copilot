@@ -2,8 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 import { currentUser, requireUser } from '@/lib/auth'
-import { getUpgradeQuote, paymentsEnabled, startCheckout, startUpgradeCheckout, syncPendingPayments } from '@/lib/billing'
+import { getCurrentPeriod, getUpgradeQuote, paymentsEnabled, startCheckout, startUpgradeCheckout, syncPendingPayments } from '@/lib/billing'
 import { describeError } from '@/lib/errors'
+import { parseCustomerContact } from '@/lib/whatsapp'
 
 function billingError(error: unknown) {
   console.error('[billing]', describeError(error))
@@ -24,7 +25,11 @@ export async function upgradeQuoteAction(planId: string) {
   catch (error) { return { error: billingError(error) } }
 }
 
-export async function checkoutAction(input: { planId: string; months: number; version: number; upgradeToken?: string }) {
+export async function checkoutAction(input: {
+  planId: string; months: number; version: number; upgradeToken?: string
+  /** Who the bill is for: sent to Mayar and kept for WhatsApp follow-ups. */
+  contact: { name: string; whatsapp: string }
+}) {
   const user = await currentUser()
   if (!user) return { error: 'Sesi berakhir. Masuk kembali untuk melanjutkan.' }
   if (!paymentsEnabled()) return { error: 'Pembayaran belum diaktifkan.' }
@@ -33,11 +38,21 @@ export async function checkoutAction(input: { planId: string; months: number; ve
       || !Number.isSafeInteger(input.months) || (input.upgradeToken !== undefined && typeof input.upgradeToken !== 'string')) {
       return { error: 'Pilihan paket tidak valid.' }
     }
+    const contact = parseCustomerContact(input.contact)
+    if ('error' in contact) return { error: contact.error, field: 'contact' as const }
     const link = input.upgradeToken
-      ? await startUpgradeCheckout(user.id, user.email, input.upgradeToken)
-      : await startCheckout(user.id, user.email, new Date(), input)
+      ? await startUpgradeCheckout(user.id, user.email, contact, input.upgradeToken)
+      : await startCheckout(user.id, user.email, contact, new Date(), input)
     return { link }
   } catch (error) { return { error: billingError(error) } }
+}
+
+/** Whether a paid period covers now. Reads the database only, so the return page can poll it cheaply. */
+export async function subscriptionActiveAction() {
+  const user = await currentUser()
+  if (!user) return { active: false }
+  try { return { active: !!(await getCurrentPeriod(user.id)) } }
+  catch { return { active: false } }
 }
 
 export async function checkPaymentAction() {

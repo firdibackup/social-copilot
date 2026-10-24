@@ -3,11 +3,13 @@
 import Link from 'next/link'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { ArrowUpRight, Check, CreditCard, RefreshCw, X } from 'lucide-react'
-import { addBillingMonths, quotePurchase, type BillingCatalog, type CatalogPlan } from '@/lib/billing-catalog-options'
+import { addBillingMonths, estimatedPosts, quotePurchase, type BillingCatalog, type CatalogPlan } from '@/lib/billing-catalog-options'
 import { canUpgrade, type UpgradeSnapshot } from '@/lib/billing-upgrade-options'
 import { formatRupiah } from '@/lib/billing-options'
 import type { Payment, Usage } from '@/lib/billing'
 import { Notice } from '@/components/notice'
+import { CheckoutContactFields, useCheckoutContact } from '@/components/checkout-contact-fields'
+import { InstagramAiIcon } from '@/components/instagram-ai-icon'
 import { checkPaymentAction, checkoutAction, upgradeQuoteAction } from './billing-actions'
 
 type HistoryPayment = Omit<Payment, 'createdAt' | 'periodStart' | 'periodEnd'> & { createdAt: string; periodStart: string | null; periodEnd: string | null }
@@ -16,6 +18,8 @@ interface Props {
   period: { plan: CatalogPlan | null; start: string; end: string; activeUntil: string } | null
   payments: HistoryPayment[]; initialIntent?: string; selectedPlan?: string; initialMonths: number
   returned: boolean; orderId?: string; onboarded: boolean; syncError: boolean
+  /** Prefill for the billing name and WhatsApp number. */
+  contact: { name: string; whatsapp: string }
 }
 type Intent = 'subscribe' | 'renew' | 'upgrade' | 'status'
 const BUTTON = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-hairline px-4 py-2 text-sm font-medium text-ink hover:bg-bg disabled:cursor-wait disabled:opacity-50'
@@ -36,6 +40,7 @@ export function BillingPanel(props: Props) {
   const [upgrade, setUpgrade] = useState<{ quote: UpgradeSnapshot; token: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const contact = useCheckoutContact(props.contact, 'billing')
   const upgradePlans = period?.plan ? catalog.plans.filter((plan) => canUpgrade(period.plan!, plan)) : []
   const plans = intent === 'upgrade' ? upgradePlans : catalog.plans.filter((plan) => plan.active)
   const selected = plans.find((plan) => plan.id === planId) ?? plans[0]
@@ -74,16 +79,20 @@ export function BillingPanel(props: Props) {
   function pay() {
     if (!selected) return
     setError(null)
+    const quoting = intent === 'upgrade' && !upgrade
+    const details = quoting ? null : contact.validate()
+    if (!quoting && !details) return
     startTransition(async () => {
       try {
-        if (intent === 'upgrade' && !upgrade) {
+        if (quoting) {
           const result = await upgradeQuoteAction(selected.id)
           if (result.error) setError(result.error)
           else if (result.data) setUpgrade(result.data)
           return
         }
-        const result = await checkoutAction({ planId: selected.id, months, version: props.version, upgradeToken: upgrade?.token })
-        if (result.error) setError(result.error)
+        const result = await checkoutAction({ planId: selected.id, months, version: props.version, upgradeToken: upgrade?.token, contact: details! })
+        if ('field' in result && result.field === 'contact') contact.showServerError(result.error)
+        else if (result.error) setError(result.error)
         else if (result.link) window.location.assign(result.link)
       } catch { setError('Pembayaran belum bisa disiapkan. Coba lagi.') }
     })
@@ -109,7 +118,8 @@ export function BillingPanel(props: Props) {
           <p className="text-xs text-ink-muted">{period.end < period.activeUntil ? `Kuota diperbarui ${date(period.end)}.` : `Kuota berlaku sampai ${date(period.end)}.`} Sisa kuota tidak terbawa ke periode berikutnya.</p>
         </div>}
         <div className="flex flex-wrap gap-2">
-          <button ref={trigger} onClick={() => open(period ? 'renew' : 'subscribe')} className={PRIMARY}><CreditCard size={16} aria-hidden="true" />{period ? 'Perpanjang' : payments.some((payment) => payment.status === 'paid') ? 'Aktifkan Kembali' : 'Pilih Paket'}</button>
+          {period ? <button ref={trigger} onClick={() => open('renew')} className={PRIMARY}><CreditCard size={16} aria-hidden="true" />Perpanjang</button>
+            : <Link href="/langganan" className={PRIMARY}><CreditCard size={16} aria-hidden="true" />{payments.some((payment) => payment.status === 'paid') ? 'Aktifkan Kembali' : 'Pilih Paket'}</Link>}
           {!!upgradePlans.length && <button onClick={() => open('upgrade')} className={BUTTON}>Upgrade Paket<ArrowUpRight size={16} aria-hidden="true" /></button>}
           {waiting && <button onClick={() => open('status')} className={BUTTON}>Pembayaran Tertunda</button>}
         </div>
@@ -122,7 +132,6 @@ export function BillingPanel(props: Props) {
           <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-2">
             {[['Ide konten', catalog.rates.content_ideas], ['Skrip konten', catalog.rates.content_script], ['Konten baru (di luar gambar)', catalog.rates.content], ['Gambar AI per gambar', catalog.rates.image], ['Edit gambar', catalog.rates.slide_edit], ['Edit caption', catalog.rates.caption_edit], ['Draf balasan', catalog.rates.reply_draft]].map(([label, cost]) => <div key={label} className="contents"><dt>{label}</dt><dd className="tabular-nums text-ink">{cost} kredit</dd></div>)}
           </dl>
-          {period?.plan && <p>SIGAP: {number(period.plan.chatDaily)} pesan/hari. Riset Instagram: {number(period.plan.researchDaily)} kali/hari. Batas harian direset pukul 00.00 WIB.</p>}
         </div>
       </details>
       <details className="border-t border-hairline px-5 py-4 sm:px-6"><summary className="cursor-pointer text-sm font-medium text-ink">Riwayat pembayaran</summary>
@@ -155,12 +164,12 @@ export function BillingPanel(props: Props) {
           <fieldset disabled={pending} className="space-y-3"><legend className="mb-2 text-sm font-medium">{intent === 'upgrade' ? `Dari ${period?.plan?.name ?? 'paket aktif'} ke` : 'Pilih paket'}</legend>
             <div className={`grid gap-3 ${plans.length > 1 ? 'sm:grid-cols-2' : ''}`}>{plans.map((plan) => <label key={plan.id} className={`cursor-pointer rounded-xl border p-4 ${selected?.id === plan.id ? 'border-primary bg-primary/5' : 'border-hairline hover:bg-bg'}`}>
               <span className="flex items-center justify-between gap-3"><strong>{plan.name}</strong><input type="radio" name="billing-plan" value={plan.id} checked={selected?.id === plan.id} onChange={() => { setPlanId(plan.id); setUpgrade(null); setError(null) }} /></span>
-              <span className="mt-2 block text-sm text-ink-muted">{plan.description}</span><span className="mt-3 block text-sm font-medium">{number(plan.credits)} kredit / bulan</span>
+              <span className="mt-2 block text-sm text-ink-muted">{plan.description}</span><span className="mt-3 block text-sm font-medium">±{number(estimatedPosts(plan.credits))} post / bulan</span>
               <span className="mt-1 block text-sm text-ink-muted">{formatRupiah(plan.priceIdr)} / bulan</span>
             </label>)}</div>
           </fieldset>
           {!plans.length && <Notice tone="warning">Belum ada paket yang tersedia untuk pilihan ini.</Notice>}
-          {selected && <p className="text-sm text-ink-muted">SIGAP {number(selected.chatDaily)} pesan/hari · Riset {number(selected.researchDaily)} kali/hari{selected.prioritySupport ? ' · Support prioritas' : ''}{selected.earlyAccess ? ' · Early access' : ''}</p>}
+          {selected && <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-muted"><span className="inline-flex items-center gap-1.5 font-medium text-ink"><InstagramAiIcon width={18} height={18} />Riset Instagram/Threads</span><span className="rounded-full bg-[linear-gradient(90deg,#FA7E1E,#D62976,#962FBF)] px-2 py-0.5 text-[11px] font-semibold text-white">Fitur unggulan</span>{selected.prioritySupport && <span>· Support prioritas</span>}{selected.earlyAccess && <span>· Early access</span>}</p>}
           {intent !== 'upgrade' && <fieldset disabled={pending}><legend className="mb-3 text-sm font-medium">Durasi langganan</legend><div className="flex flex-wrap gap-2">{catalog.durations.map((duration) => <button type="button" key={duration.months} aria-pressed={months === duration.months} onClick={() => setMonths(duration.months)} className={`${BUTTON} ${months === duration.months ? 'border-primary bg-primary/5 text-primary' : ''}`}>
             {duration.months} bulan{duration.discount > 0 ? ` · −${duration.discount}%` : ''}</button>)}</div></fieldset>}
           <div className="space-y-3 border-t border-hairline pt-5 text-sm">
@@ -175,6 +184,7 @@ export function BillingPanel(props: Props) {
             </> : purchase && <><p className="text-ink-muted">{start ? `Masa tambahan: ${date(start.toISOString())}–${date(addBillingMonths(start, months).toISOString())}.` : `Aktif selama ${months} bulan sejak pembayaran dikonfirmasi.`} Kuota AI diperbarui setiap bulan.</p>
               <dl className="space-y-2"><div className="flex justify-between"><dt>Harga {months} bulan</dt><dd>{formatRupiah(purchase.plan.priceIdr * months)}</dd></div>{purchase.discount > 0 && <div className="flex justify-between"><dt>Diskon {purchase.discount}%</dt><dd>−{formatRupiah(purchase.plan.priceIdr * months - purchase.total)}</dd></div>}<div className="flex justify-between border-t border-hairline pt-3 font-semibold"><dt>Total pembayaran</dt><dd>{formatRupiah(purchase.total)}</dd></div></dl></>}
           </div>
+          {enabled && !waiting && !!selected && (intent !== 'upgrade' || !!upgrade) && <CheckoutContactFields contact={contact} disabled={pending} className="border-t border-hairline pt-5" />}
         </>}
       </div>
       {intent !== 'status' && <footer className="sticky bottom-0 border-t border-hairline bg-paper p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-6">

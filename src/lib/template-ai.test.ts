@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { runLogged } from './ai'
 import { chatCompletion } from './nine-router'
-import { analyzeTemplates, buildTemplateMessages, readTemplateAnalyses } from './template-ai'
+import { analyzeTemplates, buildTemplateMessages, classifyDesigns, readTemplateAnalyses } from './template-ai'
 import { failTemplateAnalysis, listTemplatesToAnalyze, loadTemplateImages, saveTemplateAnalysis } from './templates'
 
 vi.mock('./ai', async (importOriginal) => ({
@@ -68,6 +68,33 @@ describe('buildTemplateMessages', () => {
     expect(intro).toContain('- single:')
     expect(parts.map((part) => part.type)).toEqual(['text', 'text', 'image_url', 'text', 'image_url'])
     expect(parts[1].text).toBe('Gambar 1; ID a')
+  })
+})
+
+describe('classifyDesigns', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(runLogged).mockImplementation(async (_user, _task, _input, ask) => ask())
+  })
+
+  it('reads each design, charged to the owner under reference_labels', async () => {
+    vi.mocked(chatCompletion).mockResolvedValue(
+      JSON.stringify({ templates: { a: { styles: ['bold'], label: 'cover', note: 'Judul besar' } } }),
+    )
+
+    const read = await classifyDesigns('user-1', [image('a'), image('b')])
+
+    expect(Object.fromEntries(read)).toEqual({ a: { styles: ['bold'], label: 'cover', note: 'Judul besar' } })
+    const call = vi.mocked(runLogged).mock.calls[0]
+    expect(call.slice(0, 3)).toEqual(['user-1', 'reference_labels', { count: 2 }])
+    expect(call[4]).not.toHaveProperty('unmetered')
+  })
+
+  it('throws when nothing could be read, so the owner sees why', async () => {
+    vi.mocked(chatCompletion).mockRejectedValue(new Error('timeout'))
+
+    await expect(classifyDesigns('user-1', [image('a')])).rejects.toThrow('timeout')
   })
 })
 

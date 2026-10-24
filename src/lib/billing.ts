@@ -9,6 +9,7 @@ import { appUrl, env } from './env'
 import { quoteUpgrade, type PaidTerm, type UpgradeSnapshot } from './billing-upgrade-options'
 import { createPaymentRequest, getPaymentRequest } from './mayar'
 import { db, unwrap } from './supabase'
+import { mayarMobile, type CustomerContact } from './whatsapp'
 
 const HOUR_MS = 60 * 60 * 1000
 /** How long a Mayar link stays payable. */
@@ -136,12 +137,12 @@ export async function grantFreePeriod(userId: string, days?: number): Promise<vo
  * A pending link is reused only for the same catalog version, plan, and duration.
  * A unique checkout key prevents simultaneous requests from creating multiple payable links.
  */
-export async function startCheckout(userId: string, email: string, now = new Date(), choice = { planId: 'pro', months: 1, version: 0 }): Promise<string> {
+export async function startCheckout(userId: string, email: string, contact: CustomerContact, now = new Date(), choice = { planId: 'pro', months: 1, version: 0 }): Promise<string> {
   const { catalog, version } = await getBillingCatalog()
   if (choice.version && choice.version !== version) throw new Error('Harga diperbarui. Muat ulang ringkasan pembayaran.')
   const snapshot = quotePurchase(catalog, version, choice.planId, choice.months)
   const key = `${userId}:${version}:${choice.planId}:${choice.months}`
-  return createCheckout(userId, email, snapshot, key, now)
+  return createCheckout(userId, email, contact, snapshot, key, now)
 }
 
 export async function getUpgradeQuote(userId: string, planId: string, now = new Date()) {
@@ -159,7 +160,7 @@ function signQuote(payload: string) {
   return createHmac('sha256', env('SUPABASE_SERVICE_ROLE_KEY')).update(payload).digest('base64url')
 }
 
-export async function startUpgradeCheckout(userId: string, email: string, token: string, now = new Date()) {
+export async function startUpgradeCheckout(userId: string, email: string, contact: CustomerContact, token: string, now = new Date()) {
   if (token.length > 100_000) throw new Error('Ringkasan upgrade tidak valid.')
   const [payload, signature = ''] = token.split('.')
   const expected = signQuote(payload)
@@ -170,10 +171,10 @@ export async function startUpgradeCheckout(userId: string, email: string, token:
   if (signed.userId !== userId || now.getTime() - new Date(signed.quote.quotedAt).getTime() > REUSE_MARGIN_MS) {
     throw new Error('Ringkasan upgrade kedaluwarsa. Hitung ulang biaya.')
   }
-  return createCheckout(userId, email, signed.quote, `${userId}:upgrade:${createHash('sha256').update(payload).digest('hex')}`, now)
+  return createCheckout(userId, email, contact, signed.quote, `${userId}:upgrade:${createHash('sha256').update(payload).digest('hex')}`, now)
 }
 
-async function createCheckout(userId: string, email: string, snapshot: PurchaseSnapshot | UpgradeSnapshot, key: string, now: Date) {
+async function createCheckout(userId: string, email: string, contact: CustomerContact, snapshot: PurchaseSnapshot | UpgradeSnapshot, key: string, now: Date) {
   const plan = snapshot.plan
   const upgrade = 'kind' in snapshot
   const expiresAt = new Date(Math.min(now.getTime() + (upgrade ? HOUR_MS : LINK_TTL_MS),
@@ -182,6 +183,8 @@ async function createCheckout(userId: string, email: string, snapshot: PurchaseS
   const row = unwrap(await db().rpc('prepare_billing_checkout', {
     p_user: userId, p_snapshot: snapshot, p_key: key, p_expires: expiresAt.toISOString(),
   })) as { id: string; link: string | null }
+  // Kept on the row even when its link is reused: the team follows up with the latest contact.
+  unwrap(await db().from('payments').update({ customer_name: contact.name, customer_whatsapp: contact.whatsapp }).eq('id', row.id))
   if (row.link) return row.link
   const { id } = row
   const claimed = unwrap(await db().from('payments').update({ last_checked_at: now.toISOString() })
@@ -190,11 +193,12 @@ async function createCheckout(userId: string, email: string, snapshot: PurchaseS
 
   try {
     const created = await createPaymentRequest({
-      name: plan.name,
+      name: contact.name,
       amount: snapshot.total,
       email,
+      mobile: mayarMobile(contact.whatsapp),
       description: upgrade ? `Upgrade Carousely ${plan.name} · pesanan ${id}` : `Carousely ${plan.name} ${snapshot.months} bulan · pesanan ${id}`,
-      redirectUrl: appUrl('/pengaturan', { bayar: 'selesai', pesanan: id }),
+      redirectUrl: appUrl('/langganan', { bayar: 'selesai', pesanan: id }),
       expiredAt: expiresAt,
     })
     unwrap(await db().from('payments').update({ mayar_id: created.id, link: created.link,
@@ -270,4 +274,25 @@ export async function reconcilePayments(): Promise<number> {
     await db().from('payments').update({ last_checked_at: new Date().toISOString() }).eq('id', row.id)
   }
   return activated
+}
+
+/**
+ * What the checkout form starts with: the contact of the user's last checkout, or else the name they signed up with
+ * (Google gives one), their Instagram username, or the part of the email before the @.
+ */
+export async function getCheckoutContact(userId: string, email: string): Promise<{ name: string; whatsapp: string }> {
+  const [last] = unwrap(await db().from('payments').select('customer_name, customer_whatsapp').eq('user_id', userId)
+    .not('customer_whatsapp', 'is', null).order('created_at', { ascending: false }).limit(1)) as
+    { customer_name: string | null; customer_whatsapp: string | null }[]
+  if (last?.customer_name && last.customer_whatsapp) return { name: last.customer_name, whatsapp: mayarMobile(last.customer_whatsapp) }
+  const { data } = await db().auth.admin.getUserById(userId)
+  const meta = (data.user?.user_metadata ?? {}) as Record<string, unknown>
+  const signedUpAs = [meta.full_name, meta.name].find((value): value is string => typeof value === 'string' && value.trim() !== '')
+  let name = signedUpAs?.trim()
+  if (!name) {
+    const instagram = unwrap(await db().from('instagram_connections').select('username').eq('user_id', userId).limit(1)) as { username: string }[]
+    name = instagram[0]?.username ?? email.split('@')[0] ?? ''
+  }
+  const phone = typeof data.user?.phone === 'string' && data.user.phone ? mayarMobile(data.user.phone.replace(/\D/g, '')) : ''
+  return { name: name.slice(0, 100), whatsapp: phone }
 }

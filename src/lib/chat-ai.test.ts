@@ -139,6 +139,13 @@ describe('buildSystemPrompt', () => {
     expect(prompt).not.toContain('Ringkasan percakapan sebelumnya')
   })
 
+  it('keeps Sigap on social media and marketing, declining the rest politely', () => {
+    const prompt = buildSystemPrompt(BRAND, false, '', now)
+    expect(prompt).toContain('Topikmu: Instagram dan media sosial')
+    expect(prompt).toContain('Di luar topik itu')
+    expect(prompt).toContain('Tolak dengan sopan')
+  })
+
   it('tells the model when Intel Kompetitor is on, and carries the summary', () => {
     const prompt = buildSystemPrompt(null, true, 'Owner ingin konten edukasi.', now)
     expect(prompt).toContain('Intel Kompetitor aktif')

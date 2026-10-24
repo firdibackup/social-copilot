@@ -41,6 +41,7 @@ import { FacebookReconnectError, getDiscoveryAccount, markFacebookNeedsReconnect
 import { imageType, isJpeg, MAX_IMAGE_BYTES } from '@/lib/image'
 import { paletteFromBytes } from '@/lib/image-palette'
 import { toReferenceDataUrl } from '@/lib/slide-image'
+import { classifyDesigns } from '@/lib/template-ai'
 import { fetchOwnProfile, fetchRecentMedia, InstagramApiError, type InstagramPost } from '@/lib/instagram'
 import { isUuid } from '@/lib/params'
 import { fetchImage, RemoteFetchError } from '@/lib/web-fetch'
@@ -194,7 +195,10 @@ export async function analyzeProfileAction(websiteUrl: unknown, includeInstagram
   }
 }
 
-/** Receives a JPEG prepared in the browser (see toReferenceJpeg) and its palette. */
+/**
+ * Receives a JPEG prepared in the browser (see toReferenceJpeg, or cropTile for a design cut from a grid) and its
+ * palette; a cut-out design may bring the label and layout description classifyGridTilesAction gave it.
+ */
 export async function uploadReferenceAction(formData: FormData): Promise<ActionError> {
   const { userId, accountId } = await requireAccount()
   const file = formData.get('file')
@@ -208,15 +212,27 @@ export async function uploadReferenceAction(formData: FormData): Promise<ActionE
   } catch {
     // A missing palette is filled in by the page later.
   }
+  const label = formData.get('label')
+  if (label !== null && (typeof label !== 'string' || !LABELS.has(label))) return 'Label tidak valid.'
+  const description = text(formData.get('description'))
+  if (lengthOf(description) > DESCRIPTION_MAX_LENGTH) return `Deskripsi maksimal ${DESCRIPTION_MAX_LENGTH} karakter.`
+  const fromGrid = formData.get('source') === 'grid'
 
   try {
-    await addReference(userId, accountId, {
+    const id = await addReference(userId, accountId, {
       images: [{ bytes, type: 'image/jpeg' }],
+      labels: label ? [label as ReferenceLabel] : undefined,
       source: 'upload',
-      sourceLabel: 'Unggahan',
+      sourceLabel: fromGrid ? 'Potongan grid' : 'Unggahan',
       permalink: null,
       palette,
     })
+    // The image is saved; a description that fails is only missing until the next visual analysis.
+    if (description) {
+      await updateReference(userId, id, { description }).catch((error: unknown) =>
+        console.error('[brand] deskripsi potongan gagal disimpan:', describeError(error)),
+      )
+    }
   } catch (error) {
     if (error instanceof ReferenceLimitError) return error.message
     console.error('[brand] referensi gagal disimpan:', describeError(error))
@@ -224,6 +240,42 @@ export async function uploadReferenceAction(formData: FormData): Promise<ActionE
   }
   refresh()
   return null
+}
+
+/** At most this many designs are sorted per click; a bigger grid is sorted in several. */
+const MAX_GRID_TILES = 20
+
+export type GridTileLabels =
+  | { tiles: ({ label: ReferenceLabel; description: string } | null)[] }
+  | { error: string }
+
+/**
+ * The label (Cover/Isi/CTA/Umum) and a short layout description of each design cut from a grid, in the order sent
+ * as `tile` files; null for one the AI could not read. Nothing is saved: the owner checks them first.
+ */
+export async function classifyGridTilesAction(formData: FormData): Promise<GridTileLabels> {
+  const { userId } = await requireAccount()
+  const files = formData.getAll('tile')
+  if (files.length === 0) return { error: 'Pilih minimal satu potongan.' }
+  if (files.length > MAX_GRID_TILES) return { error: `Maksimal ${MAX_GRID_TILES} potongan sekali deteksi.` }
+  const images: { id: string; dataUrl: string }[] = []
+  for (const [index, file] of files.entries()) {
+    if (!(file instanceof Blob) || file.size === 0 || file.size > MAX_IMAGE_BYTES) return { error: 'Potongan tidak valid.' }
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    if (!isJpeg(bytes)) return { error: 'Potongan bukan JPEG.' }
+    images.push({ id: `tile-${index + 1}`, dataUrl: await toReferenceDataUrl(bytes) })
+  }
+  try {
+    const read = await classifyDesigns(userId, images)
+    return {
+      tiles: images.map(({ id }) => {
+        const analysis = read.get(id)
+        return analysis ? { label: analysis.label, description: analysis.note } : null
+      }),
+    }
+  } catch (error) {
+    return { error: aiErrorMessage(error) }
+  }
 }
 
 export interface PostsAccount {

@@ -34,4 +34,9 @@ describe('purchased entitlements', () => {
       expect(() => parseBillingCatalog(catalog)).toThrow()
     }
   })
+  it('gives a task added after the catalog was saved its default rate', () => {
+    const catalog = structuredClone(DEFAULT_CATALOG) as { rates: Record<string, number> }
+    delete catalog.rates.reference_labels
+    expect(parseBillingCatalog(catalog).rates.reference_labels).toBe(DEFAULT_CATALOG.rates.reference_labels)
+  })
 })

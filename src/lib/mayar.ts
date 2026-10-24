@@ -46,9 +46,12 @@ const text = (source: Json, key: string): string => {
 }
 
 export interface NewPaymentRequest {
+  /** The customer's name, shown on Mayar's checkout and receipt. */
   name: string
   amount: number
   email: string
+  /** The customer's phone (WhatsApp) number. */
+  mobile?: string
   description: string
   /** Where Mayar sends the customer after paying. */
   redirectUrl: string

@@ -3,6 +3,7 @@ import type { User } from '@supabase/supabase-js'
 import type { SessionUser } from './auth'
 import { grantFreePeriod, listPayments, type Payment } from './billing'
 import { describeError } from './errors'
+import type { UnfinishedPayment } from './payment-followup-options'
 import { db, unwrap } from './supabase'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -280,6 +281,89 @@ export async function getAdminOverview(now = new Date()): Promise<AdminOverview>
   }
 }
 
+/** How far back the follow-up list looks. Older abandoned checkouts are not worth a chat. */
+export const FOLLOWUP_DAYS = 14
+const FOLLOWUP_LIMIT = 500
+
+interface UnfinishedRow {
+  id: string
+  user_id: string
+  amount: number
+  status: 'pending' | 'expired'
+  kind: 'subscription' | 'upgrade'
+  created_at: string
+  expires_at: string | null
+  link: string | null
+  snapshot: { plan?: { name?: string }; months?: number } | null
+  customer_name: string | null
+  customer_whatsapp: string | null
+  reminded_at: string | null
+  reminder_count: number
+}
+
+/**
+ * Users whose last Mayar checkout in the window is unfinished: one row each, the latest checkout, newest first. A user
+ * who paid after it is done and drops out. A link past its expiry counts as expired even before the sweep marks it.
+ */
+export async function listUnfinishedPayments(now = new Date()): Promise<UnfinishedPayment[]> {
+  const since = new Date(now.getTime() - FOLLOWUP_DAYS * DAY_MS).toISOString()
+  const [unfinished, paid, users] = await Promise.all([
+    db().from('payments')
+      .select('id, user_id, amount, status, kind, created_at, expires_at, link, snapshot, customer_name, customer_whatsapp, reminded_at, reminder_count')
+      .in('status', ['pending', 'expired']).not('mayar_id', 'is', null).gt('created_at', since)
+      .order('created_at', { ascending: false }).limit(FOLLOWUP_LIMIT),
+    db().from('payments').select('user_id, created_at').eq('status', 'paid').gt('amount', 0).gt('created_at', since),
+    allAuthUsers(),
+  ])
+  const lastPaid = new Map<string, number>()
+  for (const row of unwrap(paid) as { user_id: string; created_at: string }[]) {
+    lastPaid.set(row.user_id, Math.max(lastPaid.get(row.user_id) ?? 0, new Date(row.created_at).getTime()))
+  }
+  const emails = new Map(users.map((user) => [user.id, user.email ?? '']))
+  const byUser = new Map<string, { row: UnfinishedRow; attempts: number; contact: Pick<UnfinishedRow, 'customer_name' | 'customer_whatsapp'> }>()
+  for (const row of unwrap(unfinished) as UnfinishedRow[]) {
+    if (!emails.has(row.user_id) || (lastPaid.get(row.user_id) ?? 0) > new Date(row.created_at).getTime()) continue
+    const seen = byUser.get(row.user_id)
+    if (seen) {
+      seen.attempts++
+      // An older checkout may have the number when the latest predates the form.
+      if (!seen.contact.customer_whatsapp && row.customer_whatsapp) seen.contact = row
+    } else byUser.set(row.user_id, { row, attempts: 1, contact: row })
+  }
+  return [...byUser.values()].map(({ row, attempts, contact }) => {
+    const expiresAt = toDate(row.expires_at)
+    return {
+      paymentId: row.id,
+      userId: row.user_id,
+      email: emails.get(row.user_id) ?? '',
+      name: contact.customer_name,
+      whatsapp: contact.customer_whatsapp,
+      planName: row.snapshot?.plan?.name ?? null,
+      months: typeof row.snapshot?.months === 'number' ? row.snapshot.months : null,
+      kind: row.kind,
+      amount: row.amount,
+      status: row.status === 'pending' && (!expiresAt || expiresAt > now) ? 'pending' : 'expired',
+      createdAt: new Date(row.created_at),
+      expiresAt,
+      link: row.link,
+      remindedAt: toDate(row.reminded_at),
+      reminderCount: row.reminder_count,
+      attempts,
+    }
+  })
+}
+
+/** Records that an admin opened a WhatsApp follow-up for a payment. */
+export async function markPaymentReminded(admin: SessionUser, paymentId: string): Promise<number> {
+  const [row] = unwrap(await db().from('payments').select('user_id, amount').eq('id', paymentId).limit(1)) as { user_id: string; amount: number }[]
+  if (!row) throw new AdminError('Pembayaran tidak ditemukan.')
+  const count: unknown = unwrap(await db().rpc('mark_payment_reminded', { p_id: paymentId }))
+  if (typeof count !== 'number') throw new AdminError('Pembayaran ini sudah lunas.')
+  const user = await authUser(row.user_id).catch(() => null)
+  await logAdminAction(admin, 'remind_payment', user ? targetOf(user) : null, { paymentId, reminder: count })
+  return count
+}
+
 export type AdminAction =
   | 'grant_days'
   | 'end_subscription'
@@ -296,6 +380,7 @@ export type AdminAction =
   | 'update_template'
   | 'toggle_template'
   | 'delete_template'
+  | 'remind_payment'
 
 /** Records what an admin did. A log that can't be written doesn't undo the action. */
 export async function logAdminAction(

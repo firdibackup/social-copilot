@@ -218,7 +218,7 @@ describe('GET /api/auth/instagram/callback', () => {
   it('sends a user without an active subscription to Langganan, without touching the state', async () => {
     vi.mocked(currentPeriod).mockResolvedValue(null)
 
-    expect(redirectTarget(await callback('code=abc&state=s1')).path).toBe('http://localhost:3000/pengaturan')
+    expect(redirectTarget(await callback('code=abc&state=s1')).path).toBe('http://localhost:3000/langganan')
     expect(consumeOAuthState).not.toHaveBeenCalled()
   })
 

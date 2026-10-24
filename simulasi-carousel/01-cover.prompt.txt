@@ -1,0 +1,14 @@
+An Instagram post image, 4:5 portrait.
+It is slide 1 of 5 of one carousel. All slides share one design system: the same background treatment, margins, fonts, text colours and graphic motifs, so they read as one set when swiped. The cover, the inner slides and the closing slide each have their own layout for their role.
+This is the cover slide: a hook that makes people stop and swipe.
+Scene: Two basketball players side by side as cutout photos: a muscular shooting guard in a dark jersey number 5 roaring with excitement, and a tall lanky point guard in a teal jersey number 1 smiling confidently.
+image1 is a design reference: follow its style, composition and mood, not its content.
+Layout: stack the text and the imagery in full-width horizontal bands, one above the other; never set the text in a column beside a photo, card or object, even when an input image does. Keep every photo, card, panel and text block fully inside the frame with clear margins: nothing cut off at the edges, except a background photo that fills the whole frame.
+Text: render exactly this text and no other words: "Duet Ant-Man dan LaMelo: Calon Monster atau Overhyped?". Make it large, legible and fully inside the frame. Set it in Inter bold, or a close match.
+Every word of the text must appear in full and spelled exactly as given: never abbreviate, shorten, paraphrase or leave out words. Give the text the room it needs; when space is tight, make the photo or graphic smaller, never the text.
+Typography: crisp, modern and professional, like a well-designed, current Instagram post by a professional designer. Draw the fonts at their normal proportions: never condensed, compressed, squashed, stretched or distorted letters. Flat text only: no drop shadows, outlines, strokes, glows, bevels, 3D effects or gradient fills on letters. Strong contrast: dark text on light areas or light text on dark areas; set text on a plain area or a solid panel, never directly over a busy part of a photo. At most two font weights and one accent colour for text; no rainbow, neon or multi-coloured words. Clear hierarchy with generous line spacing, and at least 8% margin from every edge.
+Overall: contemporary and uncluttered; no clip-art, stock-template look, lens flares, glossy effects, heavy vignettes or busy borders.
+Brand: Sigap Sport (Media olahraga & pop culture).
+Visual style: Editorial pop-culture news posts: bold sans-serif headlines at the top, small pill tags, a black-and-white cutout photo with hot-pink duotone, a big circle outline behind the subject, sparkle stars and halftone dots.
+Brand colours: primary #ff2d87, secondary #0a0a0a, background #f3efe6, text #ffffff. Use them for backgrounds, graphic elements and text.
+Brand fonts: headings Inter, body Inter.

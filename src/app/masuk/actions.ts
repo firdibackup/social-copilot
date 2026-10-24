@@ -71,7 +71,7 @@ export async function signUp(_previous: AuthState, formData: FormData): Promise<
   }
   // Without auto confirm, Supabase would wait for an email link; there is no SMTP to send one.
   if (!data.session) return { error: 'Akun dibuat, tapi belum aktif. Hubungi admin Carousely.', email }
-  redirect('/pengaturan?billing=pilih')
+  redirect('/langganan')
 }
 
 export async function signOut(): Promise<void> {

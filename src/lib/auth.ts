@@ -84,13 +84,13 @@ export const currentOnboarded = cache(async (userId: string): Promise<boolean> =
 
 /**
  * The signed-in user's id, for everything behind the subscription: the app pages, their actions and the OAuth
- * routes. Without a paid period covering now, the user goes to billing settings; after paying, to the onboarding wizard
+ * routes. Without a paid period covering now, the user goes to the subscribe page /langganan; after paying, to the onboarding wizard
  * at /mulai until it is finished or skipped.
  */
 export async function requireActiveUser(): Promise<string> {
   const userId = await requireUser()
   const [period, onboarded] = await Promise.all([currentPeriod(userId), currentOnboarded(userId)])
-  if (!period) redirect('/pengaturan?billing=pilih')
+  if (!period) redirect('/langganan')
   if (!onboarded) redirect('/mulai')
   return userId
 }

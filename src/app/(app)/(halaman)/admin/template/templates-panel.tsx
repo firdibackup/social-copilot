@@ -1,8 +1,9 @@
 'use client'
 
-import { FolderInput, ImagePlus, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
+import { FolderInput, Grid2x2, ImagePlus, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useActionState, useMemo, useRef, useState, useTransition } from 'react'
+import { GridSplitter, type GridSelection } from '@/components/grid-splitter'
 import { MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
 import { REFERENCE_LABELS, type ReferenceLabel } from '@/lib/brand-options'
@@ -78,6 +79,8 @@ export function TemplatesPanel({ templates }: { templates: DesignTemplate[] }) {
 function Toolbar({ pending }: { pending: number }) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
+  const gridRef = useRef<HTMLInputElement>(null)
+  const [gridFile, setGridFile] = useState<File | null>(null)
   const [progress, setProgress] = useState<string | null>(null)
   const [errors, setErrors] = useState<string[]>([])
   const [result, setResult] = useState<FormState>(INITIAL)
@@ -109,6 +112,38 @@ function Toolbar({ pending }: { pending: number }) {
       })
       router.refresh()
     }
+  }
+
+  async function uploadTiles({ tiles, crop, markAdded }: GridSelection) {
+    setErrors([])
+    setResult(INITIAL)
+    const failures: string[] = []
+    const done: typeof tiles = []
+    for (const [position, tile] of tiles.entries()) {
+      setProgress(`Menambahkan ${position + 1} dari ${tiles.length}…`)
+      let failure: string | null
+      try {
+        const prepared = await crop(tile)
+        const formData = new FormData()
+        formData.set('file', prepared.blob, `potongan-${tile.index + 1}.jpg`)
+        failure = await uploadTemplateAction(formData).catch(() => 'Unggahan terputus. Coba lagi.')
+      } catch {
+        failure = 'Potongan gagal dibuat di browser. Coba lagi.'
+      }
+      if (failure) failures.push(`Potongan ${tile.index + 1}: ${failure}`)
+      else done.push(tile)
+    }
+    setProgress(null)
+    setErrors(failures)
+    if (done.length > 0) {
+      markAdded(done)
+      setResult({
+        error: null,
+        success: `${done.length} template dari grid ditambahkan. Klik Analisis dengan AI untuk mengelompokkannya.`,
+      })
+      router.refresh()
+    }
+    if (failures.length === 0) setGridFile(null)
   }
 
   const run = (action: () => Promise<FormState>) =>
@@ -152,6 +187,27 @@ function Toolbar({ pending }: { pending: number }) {
           <ImagePlus aria-hidden="true" className="size-4" />
           Unggah gambar
         </button>
+        <input
+          ref={gridRef}
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (file) {
+              setResult(INITIAL)
+              setErrors([])
+              setGridFile(file)
+            }
+          }}
+        />
+        <button type="button" className={BUTTON} disabled={working} onClick={() => gridRef.current?.click()}>
+          <Grid2x2 aria-hidden="true" className="size-4" />
+          Dari grid
+        </button>
         <button type="button" className={BUTTON} disabled={working} onClick={() => run(importTemplatesAction)}>
           <FolderInput aria-hidden="true" className="size-4" />
           Impor contoh desain bawaan
@@ -166,7 +222,28 @@ function Toolbar({ pending }: { pending: number }) {
           {busy ? 'Memproses…' : `Analisis dengan AI${pending > 0 ? ` (${pending})` : ''}`}
         </button>
       </div>
-      {progress && <p className="text-sm text-zinc-600">{progress}</p>}
+      {gridFile && (
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4">
+          <GridSplitter
+            key={`${gridFile.name}:${gridFile.lastModified}:${gridFile.size}`}
+            file={gridFile}
+            busy={working}
+            onCancel={() => setGridFile(null)}
+          >
+            {(selection) => (
+              <button
+                type="button"
+                className={PRIMARY_BUTTON}
+                disabled={working || selection.tiles.length === 0}
+                onClick={() => void uploadTiles(selection)}
+              >
+                {progress ?? `Tambahkan ${selection.tiles.length} template`}
+              </button>
+            )}
+          </GridSplitter>
+        </div>
+      )}
+      {progress && !gridFile && <p className="text-sm text-zinc-600">{progress}</p>}
       {result.error && <Notice tone="error">{result.error}</Notice>}
       {result.success && <Notice tone="success">{result.success}</Notice>}
       {errors.length > 0 && (

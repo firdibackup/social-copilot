@@ -12,6 +12,7 @@ const RATE_LABELS: Record<string, string> = {
   slide_edit: 'Edit gambar', caption_edit: 'Edit caption', content_ideas: 'Ide konten', content_script: 'Skrip',
   brand_profile: 'Profil brand', brand_visual: 'Visual brand', brand_strategy: 'Strategi brand', website_catalog: 'Katalog website',
   asset_tags: 'Tag aset (per foto)', reply_draft: 'Draf balasan', template_analysis: 'Analisis template admin',
+  reference_labels: 'Kategori referensi dari grid',
   chat: 'Chat SIGAP (per pesan)', deep_search: 'Riset (di samping batas harian)', chat_summary: 'Ringkasan percakapan',
 }
 

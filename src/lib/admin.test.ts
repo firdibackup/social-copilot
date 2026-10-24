@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AdminError, adjustCredits, deleteUser, endSubscription, grantDays, resetCredits, setBanned, setPassword } from './admin'
+import { AdminError, adjustCredits, deleteUser, endSubscription, grantDays, listUnfinishedPayments, markPaymentReminded, resetCredits, setBanned, setPassword } from './admin'
+import { reminderMessage } from './payment-followup-options'
 import { grantFreePeriod } from './billing'
 
 /** A query builder that records each call and resolves to the next queued result for any table. */
@@ -7,7 +8,7 @@ const fake = vi.hoisted(() => ({
   results: [] as { data: unknown; error: unknown }[],
   queries: [] as { table: string; steps: [string, unknown[]][] }[],
   rpc: vi.fn(),
-  auth: { getUserById: vi.fn(), updateUserById: vi.fn(), deleteUser: vi.fn() },
+  auth: { getUserById: vi.fn(), updateUserById: vi.fn(), deleteUser: vi.fn(), listUsers: vi.fn() },
   storage: { list: vi.fn(), remove: vi.fn() },
 }))
 
@@ -200,5 +201,76 @@ describe('logAdminAction', () => {
 
     await expect(grantDays(ADMIN, USER, 7)).resolves.toBeUndefined()
     expect(grantFreePeriod).toHaveBeenCalled()
+  })
+})
+
+describe('listUnfinishedPayments', () => {
+  const NOW = new Date('2026-10-24T10:00:00Z')
+  const row = (id: string, userId: string, createdAt: string, extra: Record<string, unknown> = {}) => ({
+    id, user_id: userId, amount: 139_000, status: 'pending', kind: 'subscription', created_at: createdAt,
+    expires_at: '2026-10-25T09:00:00Z', link: `https://pay.test/${id}`, snapshot: { plan: { name: 'Pro' }, months: 1 },
+    customer_name: 'Budi', customer_whatsapp: '6281234567890', reminded_at: null, reminder_count: 0, ...extra,
+  })
+
+  it('keeps the latest unfinished checkout per user, drops users who paid after it, and expires stale links', async () => {
+    fake.auth.listUsers.mockResolvedValue({ data: { users: [
+      { id: 'u1', email: 'budi@example.com' }, { id: 'u2', email: 'sari@example.com' }, { id: 'u3', email: 'adi@example.com' },
+    ] }, error: null })
+    fake.results.push(
+      ok([
+        row('p3', 'u1', '2026-10-24T09:00:00Z', { customer_whatsapp: null }),
+        row('p2', 'u2', '2026-10-23T09:00:00Z', { expires_at: '2026-10-24T09:00:00Z' }),
+        row('p1', 'u1', '2026-10-22T09:00:00Z'),
+        row('p0', 'u3', '2026-10-21T09:00:00Z'),
+        row('gone', 'deleted-user', '2026-10-21T09:00:00Z'),
+      ]),
+      ok([{ user_id: 'u3', created_at: '2026-10-22T00:00:00Z' }]),
+    )
+
+    const list = await listUnfinishedPayments(NOW)
+
+    expect(list.map((item) => [item.paymentId, item.status, item.attempts, item.whatsapp])).toEqual([
+      ['p3', 'pending', 2, '6281234567890'],
+      ['p2', 'expired', 1, '6281234567890'],
+    ])
+    expect(list[0]).toMatchObject({ email: 'budi@example.com', planName: 'Pro', months: 1, link: 'https://pay.test/p3' })
+  })
+})
+
+describe('markPaymentReminded', () => {
+  it('counts the reminder and logs it against the user', async () => {
+    fake.results.push(ok([{ user_id: USER, amount: 139_000 }]))
+    fake.rpc.mockResolvedValue(ok(2))
+
+    await expect(markPaymentReminded(ADMIN, 'pay-1')).resolves.toBe(2)
+    expect(fake.rpc).toHaveBeenCalledWith('mark_payment_reminded', { p_id: 'pay-1' })
+    expect(inserts('admin_log')).toEqual([expect.objectContaining({ action: 'remind_payment', target_email: 'budi@example.com', detail: { paymentId: 'pay-1', reminder: 2 } })])
+  })
+
+  it('refuses a payment that is gone or already paid', async () => {
+    fake.results.push(ok([]))
+    await expect(markPaymentReminded(ADMIN, 'pay-1')).rejects.toThrow('tidak ditemukan')
+    fake.results.push(ok([{ user_id: USER, amount: 139_000 }]))
+    fake.rpc.mockResolvedValue(ok(null))
+    await expect(markPaymentReminded(ADMIN, 'pay-1')).rejects.toThrow('sudah lunas')
+  })
+})
+
+describe('reminderMessage', () => {
+  const base = {
+    paymentId: 'p1', userId: 'u1', email: 'budi@example.com', name: 'Budi', whatsapp: '6281234567890', planName: 'Pro', months: 3,
+    kind: 'subscription' as const, amount: 375_000, createdAt: new Date(), remindedAt: null, reminderCount: 0, attempts: 1,
+  }
+
+  it('sends the payable link while it lasts, and the subscribe page once it expired', () => {
+    const pending = reminderMessage({ ...base, status: 'pending', link: 'https://pay.test/x', expiresAt: new Date('2026-10-25T09:00:00Z') }, 'https://app.test/langganan')
+    expect(pending).toContain('Halo Budi')
+    expect(pending).toContain('paket Pro 3 bulan')
+    expect(pending).toContain('https://pay.test/x')
+    expect(pending).not.toContain('app.test')
+    const expired = reminderMessage({ ...base, name: null, status: 'expired', link: 'https://pay.test/x', expiresAt: null }, 'https://app.test/langganan')
+    expect(expired.startsWith('Halo, kami')).toBe(true)
+    expect(expired).toContain('https://app.test/langganan')
+    expect(expired).not.toContain('pay.test')
   })
 })

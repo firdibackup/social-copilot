@@ -1,9 +1,10 @@
 'use client'
 
-import { Check, ChevronLeft, ChevronRight, ExternalLink, ImagePlus, Search, Trash2 } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, ExternalLink, Grid2x2, ImagePlus, Search, Sparkles, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { GridSplitter, type GridSelection, type GridTile } from '@/components/grid-splitter'
 import { LoadingState } from '@/components/loading-state'
 import { ExternalImage, MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
@@ -20,6 +21,7 @@ import { toReferenceJpeg } from '@/lib/image'
 import type { InstagramPost } from '@/lib/instagram'
 import { paletteFromBlob } from '@/lib/palette'
 import {
+  classifyGridTilesAction,
   deleteReferenceAction,
   discoverPostsAction,
   importReferencesAction,
@@ -45,10 +47,14 @@ interface ReferencesPanelProps {
   references: BrandReference[]
   instagramUsername: string | null
   discoveryReady: boolean
+  /** Credits one AI batch of grid tiles costs (catalog rate reference_labels). */
+  labelCredits: number
 }
 
-export function ReferencesPanel({ references, instagramUsername, discoveryReady }: ReferencesPanelProps) {
+export function ReferencesPanel({ references, instagramUsername, discoveryReady, labelCredits }: ReferencesPanelProps) {
   const [picker, setPicker] = useState<'instagram' | 'discovery' | null>(null)
+  const [gridFile, setGridFile] = useState<File | null>(null)
+  const gridInput = useRef<HTMLInputElement>(null)
   useMissingPalettes(references)
 
   const room = MAX_REFERENCES - references.length
@@ -74,8 +80,34 @@ export function ReferencesPanel({ references, instagramUsername, discoveryReady 
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-start gap-2">
         <UploadReferences disabled={room <= 0} />
+        <input
+          ref={gridInput}
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (file) {
+              setGridFile(file)
+              setPicker(null)
+            }
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => gridInput.current?.click()}
+          disabled={room <= 0}
+          title="Potong screenshot profil atau moodboard jadi beberapa referensi"
+          className={BUTTON}
+        >
+          <Grid2x2 size={16} aria-hidden="true" />
+          Dari grid
+        </button>
         {instagramUsername && (
           <button
             type="button"
@@ -96,6 +128,18 @@ export function ReferencesPanel({ references, instagramUsername, discoveryReady 
           Dari akun lain
         </button>
       </div>
+
+      {gridFile && (
+        <div className={CARD}>
+          <GridReferences
+            key={`${gridFile.name}:${gridFile.lastModified}:${gridFile.size}`}
+            file={gridFile}
+            room={room}
+            labelCredits={labelCredits}
+            onDone={() => setGridFile(null)}
+          />
+        </div>
+      )}
 
       {picker === 'instagram' && <OwnPosts room={room} imported={permalinks} onDone={() => setPicker(null)} />}
       {picker === 'discovery' &&
@@ -210,6 +254,232 @@ function UploadReferences({ disabled }: { disabled: boolean }) {
         <ImagePlus size={16} aria-hidden="true" />
         {progress ?? 'Unggah gambar'}
       </button>
+      {errors.length > 0 && (
+        <ul role="alert" className="space-y-0.5 text-sm text-red-700">
+          {errors.map((error) => (
+            <li key={error}>{error}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+/** Tiles per classifyGridTilesAction call: one AI batch, so each call costs one batch's credits. */
+const CLASSIFY_BATCH = 12
+
+interface TileDetail {
+  label: ReferenceLabel
+  description: string
+  /** What the AI did with the tile: read it, or could not. */
+  ai?: 'read' | 'unread'
+}
+
+const EMPTY_DETAIL: TileDetail = { label: 'single', description: '' }
+
+/** A grid picture cut into designs, each added as its own reference with an optional AI label and description. */
+function GridReferences({
+  file,
+  room,
+  labelCredits,
+  onDone,
+}: {
+  file: File
+  room: number
+  labelCredits: number
+  onDone: () => void
+}) {
+  const router = useRouter()
+  const [details, setDetails] = useState<Record<string, TileDetail>>({})
+  const [progress, setProgress] = useState<{
+    task: 'detect' | 'add'
+    text: string
+  } | null>(null)
+  const [errors, setErrors] = useState<string[]>([])
+  const [notice, setNotice] = useState<string | null>(null)
+
+  const detailOf = (tile: GridTile) => details[tile.key] ?? EMPTY_DETAIL
+  const update = (tile: GridTile, change: Partial<TileDetail>) =>
+    setDetails((previous) => ({
+      ...previous,
+      [tile.key]: { ...(previous[tile.key] ?? EMPTY_DETAIL), ...change },
+    }))
+
+  async function detect({ tiles, crop }: GridSelection) {
+    setErrors([])
+    setNotice(null)
+    const found: Record<string, TileDetail> = {}
+    let failure: string | null = null
+    try {
+      for (let start = 0; start < tiles.length; start += CLASSIFY_BATCH) {
+        const batch = tiles.slice(start, start + CLASSIFY_BATCH)
+        setProgress({
+          task: 'detect',
+          text:
+            tiles.length > CLASSIFY_BATCH
+              ? `Mendeteksi ${start + 1}–${start + batch.length} dari ${tiles.length}…`
+              : 'Mendeteksi kategori…',
+        })
+        const formData = new FormData()
+        for (const tile of batch) formData.append('tile', (await crop(tile)).blob, `potongan-${tile.index + 1}.jpg`)
+        const response = await classifyGridTilesAction(formData).catch(() => ({
+          error: FAILED,
+        }))
+        if ('error' in response) {
+          failure = response.error
+          break
+        }
+        batch.forEach((tile, index) => {
+          const read = response.tiles[index]
+          found[tile.key] = read
+            ? {
+                label: read.label,
+                description: read.description.slice(0, DESCRIPTION_MAX_LENGTH),
+                ai: 'read',
+              }
+            : { ...(details[tile.key] ?? EMPTY_DETAIL), ai: 'unread' }
+        })
+      }
+    } catch {
+      failure = 'Potongan gagal dibuat di browser. Coba lagi.'
+    }
+    setDetails((previous) => ({ ...previous, ...found }))
+    setProgress(null)
+    if (failure) setErrors([failure])
+    const unread = Object.values(found).filter((detail) => detail.ai === 'unread').length
+    if (unread > 0) setNotice(`${unread} potongan tidak terbaca AI. Pilih labelnya sendiri.`)
+  }
+
+  async function add({ tiles, crop, markAdded }: GridSelection) {
+    setErrors([])
+    setNotice(null)
+    const failed: string[] = []
+    const done: GridTile[] = []
+    for (const [position, tile] of tiles.entries()) {
+      setProgress({
+        task: 'add',
+        text: `Menambahkan ${position + 1} dari ${tiles.length}…`,
+      })
+      const detail = detailOf(tile)
+      let failure: string | null
+      try {
+        const prepared = await crop(tile)
+        const formData = new FormData()
+        formData.set('file', prepared.blob, `potongan-${tile.index + 1}.jpg`)
+        formData.set('palette', JSON.stringify(prepared.palette))
+        formData.set('label', detail.label)
+        if (detail.description.trim()) formData.set('description', detail.description.trim())
+        formData.set('source', 'grid')
+        failure = await uploadReferenceAction(formData).catch(() => 'Unggahan terputus. Coba lagi.')
+      } catch {
+        failure = 'Potongan gagal dibuat di browser. Coba lagi.'
+      }
+      if (failure) failed.push(`Potongan ${tile.index + 1}: ${failure}`)
+      else done.push(tile)
+    }
+    setProgress(null)
+    setErrors(failed)
+    if (done.length > 0) {
+      markAdded(done)
+      router.refresh()
+    }
+    if (failed.length === 0) onDone()
+  }
+
+  const busy = progress !== null
+
+  return (
+    <div className="space-y-3">
+      <GridSplitter
+        file={file}
+        maxSelectable={room}
+        limitHint={
+          room <= 0
+            ? 'Galeri sudah penuh. Hapus referensi lama dulu.'
+            : `Galeri tinggal muat ${room} referensi lagi, jadi hanya ${room} potongan yang bisa dipilih.`
+        }
+        busy={busy}
+        onCancel={onDone}
+        renderTile={(tile) => {
+          const detail = detailOf(tile)
+          return (
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-xs text-zinc-500">
+                Label
+                <select
+                  value={detail.label}
+                  onChange={(event) =>
+                    update(tile, {
+                      label: event.target.value as ReferenceLabel,
+                    })
+                  }
+                  disabled={busy}
+                  className="rounded-md border border-zinc-200 bg-white px-1.5 py-1 text-xs text-zinc-900"
+                >
+                  {LABEL_ORDER.map((label) => (
+                    <option key={label} value={label}>
+                      {REFERENCE_LABELS[label]}
+                    </option>
+                  ))}
+                </select>
+                {detail.ai === 'read' && (
+                  <span className="inline-flex items-center gap-0.5 text-[11px] text-primary">
+                    <Sparkles size={11} aria-hidden="true" />
+                    AI
+                  </span>
+                )}
+              </label>
+              <label className="block space-y-1">
+                <span className="sr-only">Deskripsi potongan {tile.index + 1}</span>
+                <textarea
+                  value={detail.description}
+                  onChange={(event) => update(tile, { description: event.target.value })}
+                  disabled={busy}
+                  rows={3}
+                  maxLength={DESCRIPTION_MAX_LENGTH}
+                  placeholder={
+                    detail.ai === 'unread' ? 'AI tidak bisa membaca potongan ini.' : 'Deskripsi layout (opsional)'
+                  }
+                  className={`${FIELD} px-2 py-1.5 text-xs`}
+                />
+              </label>
+            </div>
+          )
+        }}
+      >
+        {(selection) => {
+          const count = selection.tiles.length
+          const batches = Math.ceil(count / CLASSIFY_BATCH)
+          return (
+            <>
+              <button
+                type="button"
+                onClick={() => void add(selection)}
+                disabled={busy || count === 0}
+                className={PRIMARY_BUTTON}
+              >
+                {progress?.task === 'add' ? progress.text : `Tambahkan ${count} referensi`}
+              </button>
+              <button
+                type="button"
+                onClick={() => void detect(selection)}
+                disabled={busy || count === 0}
+                title={`Memakai sekitar ${batches * labelCredits} kredit`}
+                className={BUTTON}
+              >
+                <Sparkles size={16} aria-hidden="true" className={progress?.task === 'detect' ? 'animate-pulse' : ''} />
+                {progress?.task === 'detect' ? progress.text : 'Deteksi kategori dengan AI'}
+              </button>
+              {count > 0 && (
+                <span className="text-xs text-zinc-500">
+                  Opsional · memakai sekitar {batches * labelCredits} kredit
+                </span>
+              )}
+            </>
+          )
+        }}
+      </GridSplitter>
+      {notice && <Notice tone="warning">{notice}</Notice>}
       {errors.length > 0 && (
         <ul role="alert" className="space-y-0.5 text-sm text-red-700">
           {errors.map((error) => (

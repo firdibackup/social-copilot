@@ -37,7 +37,7 @@ function OnboardingLoading() {
 
 async function WizardLoader() {
   const userId = await requireUser()
-  if (!(await currentPeriod(userId))) redirect('/pengaturan?billing=pilih')
+  if (!(await currentPeriod(userId))) redirect('/langganan')
   let answers: OnboardingAnswers
   try {
     answers = await getOnboarding(userId)

@@ -46,7 +46,7 @@ describe('requireActiveUser', () => {
     session.userId = 'user-2'
     vi.mocked(getCurrentPeriod).mockResolvedValue(null)
 
-    await expect(requireActiveUser()).rejects.toThrow('REDIRECT /pengaturan?billing=pilih')
+    await expect(requireActiveUser()).rejects.toThrow('REDIRECT /langganan')
   })
 
   it('sends a visitor without a session to sign in', async () => {
@@ -69,7 +69,7 @@ describe('requireActiveUser', () => {
     vi.mocked(getCurrentPeriod).mockResolvedValue(null)
     vi.mocked(isOnboarded).mockResolvedValue(false)
 
-    await expect(requireActiveUser()).rejects.toThrow('REDIRECT /pengaturan?billing=pilih')
+    await expect(requireActiveUser()).rejects.toThrow('REDIRECT /langganan')
   })
 
   it('lets the user through when the onboarding status cannot be read', async () => {

@@ -4,6 +4,8 @@ import { Suspense } from 'react'
 import { LoadingState } from '@/components/loading-state'
 import { Notice } from '@/components/notice'
 import { requireAccount } from '@/lib/auth'
+import { getBillingCatalog } from '@/lib/billing-catalog'
+import { DEFAULT_CATALOG } from '@/lib/billing-catalog-options'
 import { getBrandKit, listReferences, VISUAL_REFERENCE_LIMIT } from '@/lib/brand'
 import { getConnection } from '@/lib/connection'
 import { describeError, loadErrorMessage } from '@/lib/errors'
@@ -37,13 +39,14 @@ async function BrandStudio() {
   const { userId, accountId } = await requireAccount()
   let data
   try {
-    const [kit, references, instagram, facebook] = await Promise.all([
+    const [kit, references, instagram, facebook, billing] = await Promise.all([
       getBrandKit(userId, accountId),
       listReferences(userId, accountId),
       getConnection(userId),
       getFacebookConnection(userId, accountId),
+      getBillingCatalog().catch(() => ({ catalog: DEFAULT_CATALOG })),
     ])
-    data = { kit, references, instagram, facebook }
+    data = { kit, references, instagram, facebook, labelCredits: billing.catalog.rates.reference_labels }
   } catch (error) {
     console.error('[brand] gagal memuat:', describeError(error))
     return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
@@ -78,6 +81,7 @@ async function BrandStudio() {
         references={data.references}
         instagramUsername={instagramUsername}
         discoveryReady={data.facebook?.status === 'active'}
+        labelCredits={data.labelCredits}
       />
     </div>
   )

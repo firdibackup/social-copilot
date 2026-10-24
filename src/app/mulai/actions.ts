@@ -14,7 +14,7 @@ export type OnboardingResult = { error: string } | { next: string }
  */
 export async function saveOnboardingAction(input: unknown, complete: unknown): Promise<OnboardingResult> {
   const userId = await requireUser()
-  if (!(await currentPeriod(userId))) return { next: '/pengaturan?billing=pilih' }
+  if (!(await currentPeriod(userId))) return { next: '/langganan' }
   const parsed = parseAnswers(input)
   if ('error' in parsed) return parsed
   try {

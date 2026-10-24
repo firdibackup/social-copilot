@@ -123,7 +123,7 @@ async function switchToAccount(userId: string, previous: string | null, accountI
 export async function GET(request: Request): Promise<Response> {
   const user = await currentUser()
   if (!user) return Response.redirect(appUrl('/masuk'), 303)
-  if (!(await currentPeriod(user.id))) return Response.redirect(appUrl('/pengaturan', { billing: 'pilih' }), 303)
+  if (!(await currentPeriod(user.id))) return Response.redirect(appUrl('/langganan'), 303)
   const result = await completeLogin(user.id, new URL(request.url).searchParams).catch((error: unknown) => {
     if (error instanceof CallbackFailure) {
       return { ig_error: error.code, ...(error.detail ? { ig_error_detail: error.detail } : {}) }

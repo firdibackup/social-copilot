@@ -45,6 +45,7 @@ vi.mock('./mayar', async (importOriginal) => ({
 }))
 
 const USER = 'user-1'
+const CONTACT = { name: 'Budi Santoso', whatsapp: '6281234567890' }
 const NOW = new Date('2026-10-16T10:00:00Z')
 const PENDING = { id: 'pay-1', mayar_id: 'pr-1', link: 'https://pay.test/pl/x', amount: 99_000, status: 'pending' as const, expires_at: '2026-10-17T10:00:00Z' }
 const ok = (data: unknown) => ({ data, error: null })
@@ -77,23 +78,26 @@ describe('startCheckout', () => {
   it('hands out a pending link that is still payable instead of making another', async () => {
     fake.rpc.mockResolvedValue(ok({ id: 'pay-1', link: 'https://pay.test/pl/old' }))
 
-    await expect(startCheckout(USER, 'budi@example.com', NOW)).resolves.toBe('https://pay.test/pl/old')
+    await expect(startCheckout(USER, 'budi@example.com', CONTACT, NOW)).resolves.toBe('https://pay.test/pl/old')
     expect(createPaymentRequest).not.toHaveBeenCalled()
     expect(fake.rpc).toHaveBeenCalledWith('prepare_billing_checkout', expect.objectContaining({ p_user: USER }))
+    expect(step('payments', 'update')[0]?.[0]).toEqual({ customer_name: 'Budi Santoso', customer_whatsapp: '6281234567890' })
   })
 
   it('writes the payment row before asking Mayar, then stores the link', async () => {
     fake.rpc.mockResolvedValue(ok({ id: 'pay-2', link: null }))
-    fake.results.push(ok([{ id: 'pay-2' }]), ok(null))
+    fake.results.push(ok(null), ok([{ id: 'pay-2' }]), ok(null))
     vi.mocked(createPaymentRequest).mockResolvedValue({ id: 'pr-2', link: 'https://pay.test/pl/new' })
 
-    await expect(startCheckout(USER, 'budi@example.com', NOW)).resolves.toBe('https://pay.test/pl/new')
+    await expect(startCheckout(USER, 'budi@example.com', CONTACT, NOW)).resolves.toBe('https://pay.test/pl/new')
     expect(fake.rpc).toHaveBeenCalledWith('prepare_billing_checkout', expect.objectContaining({ p_user: USER, p_snapshot: expect.objectContaining({ total: 139_000, months: 1, plan: expect.objectContaining({ id: 'pro', credits: 2500 }) }) }))
     expect(createPaymentRequest).toHaveBeenCalledWith(
       expect.objectContaining({
+        name: 'Budi Santoso',
         amount: 139_000,
         email: 'budi@example.com',
-        redirectUrl: 'http://localhost:3000/pengaturan?bayar=selesai&pesanan=pay-2',
+        mobile: '081234567890',
+        redirectUrl: 'http://localhost:3000/langganan?bayar=selesai&pesanan=pay-2',
         expiredAt: new Date('2026-10-17T10:00:00Z'),
       }),
     )
@@ -102,17 +106,17 @@ describe('startCheckout', () => {
 
   it('closes the row when Mayar refuses, so nothing can be paid against it', async () => {
     fake.rpc.mockResolvedValue(ok({ id: 'pay-3', link: null }))
-    fake.results.push(ok([{ id: 'pay-3' }]), ok(null))
+    fake.results.push(ok(null), ok([{ id: 'pay-3' }]), ok(null))
     vi.mocked(createPaymentRequest).mockRejectedValue(new MayarApiError('down', 503))
 
-    await expect(startCheckout(USER, 'budi@example.com', NOW)).rejects.toThrow('down')
+    await expect(startCheckout(USER, 'budi@example.com', CONTACT, NOW)).rejects.toThrow('down')
     expect(step('payments', 'update').at(-1)?.[0]).toEqual({ status: 'expired', checkout_key: null })
   })
 
   it('only the caller that claims a checkout may create its Mayar link', async () => {
     fake.rpc.mockResolvedValue(ok({ id: 'pay-2', link: null }))
-    fake.results.push(ok([]))
-    await expect(startCheckout(USER, 'budi@example.com', NOW)).rejects.toThrow('sedang disiapkan')
+    fake.results.push(ok(null), ok([]))
+    await expect(startCheckout(USER, 'budi@example.com', CONTACT, NOW)).rejects.toThrow('sedang disiapkan')
     expect(createPaymentRequest).not.toHaveBeenCalled()
   })
 
@@ -130,14 +134,14 @@ describe('startCheckout', () => {
     fake.results.push(ok([{ id: 'term-1', period_start: '2026-10-01T00:00:00Z', period_end: '2026-11-01T00:00:00Z',
       snapshot: { months: 1, plan: DEFAULT_CATALOG.plans[0] }, entitlement_plan: null }]))
     const signed = await getUpgradeQuote(USER, 'max', NOW)
-    await expect(startUpgradeCheckout('other-user', 'other@example.com', signed.token, NOW)).rejects.toThrow('kedaluwarsa')
-    await expect(startUpgradeCheckout(USER, 'budi@example.com', `${signed.token}tampered`, NOW)).rejects.toThrow('tidak valid')
-    await expect(startUpgradeCheckout(USER, 'budi@example.com', signed.token, new Date(NOW.getTime() + 11 * 60000))).rejects.toThrow('kedaluwarsa')
+    await expect(startUpgradeCheckout('other-user', 'other@example.com', CONTACT, signed.token, NOW)).rejects.toThrow('kedaluwarsa')
+    await expect(startUpgradeCheckout(USER, 'budi@example.com', CONTACT, `${signed.token}tampered`, NOW)).rejects.toThrow('tidak valid')
+    await expect(startUpgradeCheckout(USER, 'budi@example.com', CONTACT, signed.token, new Date(NOW.getTime() + 11 * 60000))).rejects.toThrow('kedaluwarsa')
     expect(fake.rpc).not.toHaveBeenCalled()
     fake.rpc.mockResolvedValue(ok({ id: 'upgrade-1', link: null }))
-    fake.results.push(ok([{ id: 'upgrade-1' }]), ok(null))
+    fake.results.push(ok(null), ok([{ id: 'upgrade-1' }]), ok(null))
     vi.mocked(createPaymentRequest).mockResolvedValue({ id: 'mayar-upgrade', link: 'https://pay.test/upgrade' })
-    await expect(startUpgradeCheckout(USER, 'budi@example.com', signed.token, NOW)).resolves.toBe('https://pay.test/upgrade')
+    await expect(startUpgradeCheckout(USER, 'budi@example.com', CONTACT, signed.token, NOW)).resolves.toBe('https://pay.test/upgrade')
     expect(fake.rpc).toHaveBeenCalledWith('prepare_billing_checkout', expect.objectContaining({ p_snapshot: signed.quote }))
     vi.unstubAllEnvs()
   })

@@ -71,7 +71,7 @@ async function completeLogin(userId: string, params: URLSearchParams): Promise<C
 export async function GET(request: Request): Promise<Response> {
   const user = await currentUser()
   if (!user) return Response.redirect(appUrl('/masuk'), 303)
-  if (!(await currentPeriod(user.id))) return Response.redirect(appUrl('/pengaturan', { billing: 'pilih' }), 303)
+  if (!(await currentPeriod(user.id))) return Response.redirect(appUrl('/langganan'), 303)
   const result = await completeLogin(user.id, new URL(request.url).searchParams).catch((error: unknown) => {
     if (error instanceof CallbackFailure) return { th_error: error.code }
     throw error

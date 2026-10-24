@@ -28,6 +28,9 @@ export const DEFAULT_CATALOG: BillingCatalog = {
   durations: [{ months: 1, discount: 0 }, { months: 3, discount: 5 }, { months: 6, discount: 11 }, { months: 12, discount: 17 }],
   rates: { ...TASK_CREDITS, image: 20 }, supportUrl: '', supportHours: '',
 }
+/** Rough monthly post count shown instead of raw credits: 2.500 credits ≈ 30 carousel posts. */
+export const estimatedPosts = (credits: number) => Math.floor((credits * 30) / 2_500)
+
 export interface PurchaseSnapshot {
   version: number
   plan: CatalogPlan
@@ -80,13 +83,16 @@ export function parseBillingCatalog(value: unknown): BillingCatalog {
     if (!object(duration) || !integer(duration.months, 1, 12) || !integer(duration.discount, 0, 90) || months.has(duration.months as number)) throw new Error('Durasi harus unik, 1–12 bulan; diskon 0–90%.')
     months.add(duration.months as number)
   }
-  if (!object(value.rates) || Object.keys(DEFAULT_CATALOG.rates).some((key) => !integer((value.rates as Record<string, unknown>)[key], 0, 10_000))) throw new Error('Tarif kredit setiap fitur harus 0–10.000.')
-  if (value.rates.content_slide !== 0 || value.rates.template_analysis !== 0) throw new Error('Slide yang sudah dibayar dan analisis template admin harus 0 kredit.')
+  if (!object(value.rates)) throw new Error('Tarif kredit setiap fitur harus 0–10.000.')
+  // A task added after the catalog was saved takes its default rate until an admin sets one.
+  const rates: Record<string, unknown> = { ...DEFAULT_CATALOG.rates, ...value.rates }
+  if (Object.keys(DEFAULT_CATALOG.rates).some((key) => !integer(rates[key], 0, 10_000))) throw new Error('Tarif kredit setiap fitur harus 0–10.000.')
+  if (rates.content_slide !== 0 || rates.template_analysis !== 0) throw new Error('Slide yang sudah dibayar dan analisis template admin harus 0 kredit.')
   if (!shortText(value.supportHours, 200) || !shortText(value.supportUrl, 500)) throw new Error('Informasi support terlalu panjang.')
   if (value.supportUrl) {
     let url: URL
     try { url = new URL(String(value.supportUrl)) } catch { throw new Error('Tautan support harus URL HTTPS.') }
     if (url.protocol !== 'https:' || url.username || url.password) throw new Error('Tautan support harus URL HTTPS.')
   }
-  return value as unknown as BillingCatalog
+  return { ...value, rates } as unknown as BillingCatalog
 }

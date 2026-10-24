@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { ArrowUpRight, Check } from 'lucide-react'
-import { quotePurchase, type BillingCatalog } from '@/lib/billing-catalog-options'
+import { estimatedPosts as postsFor, quotePurchase, type BillingCatalog } from '@/lib/billing-catalog-options'
 import { formatRupiah } from '@/lib/billing-options'
 import styles from './pricing.module.css'
 
@@ -28,9 +28,9 @@ export function LandingPricing({ catalog, provisional = false }: { catalog: Bill
         {plans.map((plan) => {
           const quote = quotePurchase(catalog, 0, plan.id, months)
           const multiplier = pro && plan.id !== pro.id && plan.credits > pro.credits ? plan.credits / pro.credits : null
-          const estimatedPosts = Math.floor(plan.credits * 30 / 2500)
+          const estimatedPosts = postsFor(plan.credits)
           const features = [
-            `${plan.credits.toLocaleString('id-ID')} kredit AI setiap bulan`,
+            `±${estimatedPosts.toLocaleString('id-ID')} post setiap bulan`,
             'Sigap AI Chatbot',
             'Deep riset Instagram + Threads (segera untuk Threads)',
             'Ide, skrip, carousel, gambar, dan caption AI',
@@ -46,7 +46,7 @@ export function LandingPricing({ catalog, provisional = false }: { catalog: Bill
             {estimatedPosts > 0 && <p className={styles.estimate}><strong>Estimasi {estimatedPosts.toLocaleString('id-ID')}+ post per bulan</strong><span>Siap kamu review tiap minggu.</span></p>}
             <div className={styles.price} aria-live="polite"><strong>{formatRupiah(Math.round(quote.total / months))}</strong><span>/bulan</span></div>
             <p className={styles.total}>{months === 1 ? 'Dibayar bulanan' : `Total ${formatRupiah(quote.total)} untuk ${months} bulan`}<br />{months === 1 ? 'Tanpa perpanjangan otomatis.' : 'Dibayar sekaligus, bukan cicilan.'}</p>
-            <Link href={`/pengaturan?billing=pilih&paket=${encodeURIComponent(plan.id)}&bulan=${months}`} className={styles.choose}>Pilih {plan.name}<ArrowUpRight size={18} aria-hidden="true" /></Link>
+            <Link href={`/langganan?paket=${encodeURIComponent(plan.id)}&bulan=${months}`} className={styles.choose}>Pilih {plan.name}<ArrowUpRight size={18} aria-hidden="true" /></Link>
             <ul>{features.map((feature) => <li key={feature}><Check size={16} aria-hidden="true" /><span>{feature}</span></li>)}</ul>
           </article>
         })}

@@ -85,6 +85,43 @@ export function readTemplateAnalyses(content: string, expectedIds: string[]): Ma
   return analyses
 }
 
+/**
+ * The owner's designs cut from a grid picture, sorted like templates before they are saved as references: one
+ * request per batch, each charged TASK_CREDITS.reference_labels. Null for a tile the AI could not read or whose
+ * batch failed; the owner labels those by hand.
+ */
+export async function classifyDesigns(
+  userId: string,
+  images: { id: string; dataUrl: string }[],
+): Promise<Map<string, TemplateAnalysis>> {
+  const read = new Map<string, TemplateAnalysis>()
+  let failure: unknown = null
+  for (const batch of visualBatches(images)) {
+    const ids = batch.map((image) => image.id)
+    try {
+      const analyses = await runLogged(
+        userId,
+        'reference_labels',
+        { count: ids.length },
+        async () => {
+          const content = await chatCompletion(buildTemplateMessages(batch))
+          const found = readTemplateAnalyses(content, ids)
+          if (found.size === 0) throw new AiOutputError(snippetOf(content))
+          return found
+        },
+        { logOutput: (found) => Object.fromEntries(found) },
+      )
+      for (const [id, analysis] of analyses) read.set(id, analysis)
+    } catch (error) {
+      console.error('[referensi] deteksi kategori gagal:', describeError(error))
+      failure = error
+    }
+  }
+  // Nothing read at all: the caller shows why (credits spent, 9Router down) instead of an empty result.
+  if (read.size === 0 && failure) throw failure
+  return read
+}
+
 export interface AnalysisResult {
   analyzed: number
   failed: number

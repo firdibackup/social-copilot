@@ -38,6 +38,8 @@ export const TASK_CREDITS: Record<LoggedTask, number> = {
   reply_draft: 1,
   /** Admin › Template: the admin's own analysis, never charged (runLogged's `unmetered`). */
   template_analysis: 0,
+  /** Brand › Referensi › Dari grid: per request, which sorts up to 12 cut-out designs at once. */
+  reference_labels: 2,
   /**
    * Sigap costs no credits: chat and Intel Kompetitor are capped per day instead (DAILY_LIMITS in chat-options.ts),
    * with atomic counters; these rows remain the audit log. A script it writes is still `content_script`.

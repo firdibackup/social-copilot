@@ -9,6 +9,7 @@ import {
   endSubscription,
   grantDays,
   logAdminAction,
+  markPaymentReminded,
   resetCredits,
   setBanned,
   setPassword,
@@ -252,4 +253,19 @@ export async function templateAction(_previous: FormState, formData: FormData): 
   }
   refresh()
   return done(message)
+}
+
+/** Called as the admin opens the WhatsApp chat, so the list shows who was already reminded. */
+export async function markRemindedAction(paymentId: string): Promise<{ error: string | null }> {
+  const admin = await requireAdmin()
+  if (!isUuid(paymentId)) return { error: 'Pembayaran tidak ditemukan.' }
+  try {
+    await markPaymentReminded(admin, paymentId)
+  } catch (error) {
+    if (error instanceof AdminError) return { error: error.message }
+    console.error('[admin] pengingat pembayaran gagal dicatat:', describeError(error))
+    return { error: 'Pengingat gagal dicatat. Sudah menjalankan migrasi kontak pembayaran?' }
+  }
+  refresh()
+  return { error: null }
 }
