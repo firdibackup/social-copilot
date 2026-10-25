@@ -7,6 +7,7 @@
  * FIRST VIEWPORT: Centered headline above a wide calendar with floating editorial posts.
  * FORM: User-approved dashboard-led page; scroll-linked depth, interactive feature demos.
  */
+import Image from 'next/image'
 import Link from 'next/link'
 import { useId, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, MotionConfig, motion, useReducedMotion, useScroll, useTransform } from 'framer-motion'
@@ -192,6 +193,11 @@ function Workflow({ motionEnabled }: { motionEnabled: boolean }) {
   </section>
 }
 
+const partners = [
+  { name: 'RE/MAX', src: '/partners/remax.svg', width: 220, height: 60 },
+  { name: 'SUME', src: '/partners/sume.png', width: 1745, height: 431 },
+]
+
 const faqs = [
   { q: 'Carousely cocok untuk siapa?', a: 'Untuk pemilik UMKM, kreator, dan pengelola media sosial yang ingin menyiapkan konten serta mengelola Instagram dari satu tempat. Kamu bisa mulai dari ide sederhana, foto produk, atau bahan konten yang sudah ada.' },
   { q: 'Akun Instagram apa yang bisa dihubungkan?', a: 'Gunakan akun Instagram Business atau Creator. Hubungkan akun melalui alur resmi Instagram di pengaturan Carousely dan berikan izin yang diperlukan untuk fitur publikasi serta pesan.' },
@@ -215,6 +221,7 @@ export function LandingPage({ pricing }: { pricing: ReactNode }) {
     </header>
     <main id="main-content"><Hero motionEnabled={motionEnabled} />
       <div className={styles.capabilities}><span><Sparkles size={18} /> Ide & caption AI</span><span><Layers3 size={18} /> Kreasi konten</span><span><CalendarDays size={18} /> Jadwal publikasi</span><span><MessageCircle size={18} /> Inbox Instagram</span></div>
+      <section className={styles.partners} aria-labelledby="partners-title"><h2 id="partners-title">Dipercaya oleh partner kami</h2><div>{partners.map(({ name, ...logo }) => <Image key={name} {...logo} alt={name} />)}</div></section>
       <FeatureShowcase /><Workflow motionEnabled={motionEnabled} />
       <section className={styles.brandSection} aria-labelledby="brand-title"><div className={styles.brandCanvas}><div className={styles.brandCanvasTop}><span className={styles.miniAvatar}>a.</span><span>Satu brand. Banyak cerita.</span><Layers3 size={19} /></div><div className={styles.brandPosts}>{(['green', 'purple', 'peach'] as const).map((variant, index) => <motion.div key={variant} initial={false} whileInView={motionEnabled ? { rotate: index === 0 ? -7 : index === 2 ? 7 : 0, y: index === 1 ? -15 : 0 } : undefined} viewport={{ once: true, amount: .5 }} transition={{ duration: .7, delay: index * .1 }}><ContentArt variant={variant} /></motion.div>)}</div></div><div className={styles.brandText}><h2 id="brand-title">Tetap terasa kamu.<br />Di setiap postingan.</h2><p>AI membantu merangkai. Kamu yang memberi karakter. Simpan identitas brand, pakai asetmu sendiri, dan ubah setiap draf sampai benar-benar pas.</p><Link href="/daftar" className={styles.textLink}>Bawa brand kamu ke Carousely <ArrowUpRight size={18} /></Link></div></section>
       {pricing}
