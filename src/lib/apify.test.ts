@@ -1,5 +1,42 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApifyError, competitorInput, findCompetitors, readCompetitors } from './apify'
+import {
+  ApifyError,
+  competitorCacheKey,
+  competitorInput,
+  findCompetitors,
+  getCachedCompetitors,
+  KEYWORD_CACHE_TTL_MS,
+  MAX_COMPETITORS,
+  normalizeCompetitorSearch,
+  readCachedCompetitors,
+  readCompetitors,
+  saveCachedCompetitors,
+  USERNAME_CACHE_TTL_MS,
+} from './apify'
+
+type Result = { data: unknown; error: unknown }
+const store = vi.hoisted(() => ({
+  read: { data: null, error: null } as Result,
+  write: { data: null, error: null } as Result,
+  filters: [] as unknown[][],
+  upserts: [] as unknown[][],
+}))
+
+vi.mock('./supabase', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./supabase')>()),
+  db: () => ({
+    from: () => {
+      const query = {
+        select: () => query,
+        eq: (...args: unknown[]) => (store.filters.push(['eq', ...args]), query),
+        gt: (...args: unknown[]) => (store.filters.push(['gt', ...args]), query),
+        maybeSingle: async () => store.read,
+        upsert: async (...args: unknown[]) => (store.upserts.push(args), store.write),
+      }
+      return query
+    },
+  }),
+}))
 
 const PROFILE = {
   username: 'KopiKenangan',
@@ -122,5 +159,131 @@ describe('findCompetitors', () => {
     fetchMock.mockRejectedValue(new TypeError('fetch failed'))
 
     await expect(findCompetitors({ kind: 'keyword', keyword: 'kopi' }, 1)).rejects.toMatchObject({ status: 0 })
+  })
+})
+
+describe('competitor cache keys', () => {
+  it('normalizes usernames: no @, trimmed, lowercase, unique, sorted, cut to max', () => {
+    expect(normalizeCompetitorSearch({ kind: 'username', usernames: ['@KopiKenangan', ' janjiw ', '@kopikenangan'] }, 5)).toEqual({
+      search: { kind: 'username', usernames: ['janjiw', 'kopikenangan'] },
+      max: 2,
+    })
+    expect(normalizeCompetitorSearch({ kind: 'username', usernames: ['c', 'b', 'a', 'evil/path'] }, 2)).toEqual({
+      search: { kind: 'username', usernames: ['b', 'c'] },
+      max: 2,
+    })
+  })
+
+  it('normalizes keywords and clamps max between one and MAX_COMPETITORS', () => {
+    expect(normalizeCompetitorSearch({ kind: 'keyword', keyword: '  Skincare \n  Indonesia! ' }, 50)).toEqual({
+      search: { kind: 'keyword', keyword: 'skincare indonesia!' },
+      max: MAX_COMPETITORS,
+    })
+    expect(normalizeCompetitorSearch({ kind: 'keyword', keyword: 'kopi' }, 0).max).toBe(1)
+    expect(normalizeCompetitorSearch({ kind: 'keyword', keyword: 'kopi' }, Number.NaN).max).toBe(MAX_COMPETITORS)
+  })
+
+  it('gives the same key regardless of order or case, and different keys for different searches', () => {
+    const key = competitorCacheKey({ kind: 'username', usernames: ['@KopiKenangan', 'janjiw'] }, 5)
+    expect(key).toMatch(/^v1:[0-9a-f]{64}$/)
+    expect(competitorCacheKey({ kind: 'username', usernames: ['janjiw', 'kopikenangan', 'KOPIKENANGAN'] }, 5)).toBe(key)
+    expect(competitorCacheKey({ kind: 'username', usernames: ['janjiw'] }, 5)).not.toBe(key)
+    expect(competitorCacheKey({ kind: 'keyword', keyword: 'Kopi  Susu' }, 3)).toBe(competitorCacheKey({ kind: 'keyword', keyword: 'kopi susu' }, 3))
+    expect(competitorCacheKey({ kind: 'keyword', keyword: 'kopi susu' }, 3)).not.toBe(competitorCacheKey({ kind: 'keyword', keyword: 'kopi susu' }, 4))
+    // A username and a keyword with the same text never share a row.
+    expect(competitorCacheKey({ kind: 'username', usernames: ['kopi'] }, 1)).not.toBe(competitorCacheKey({ kind: 'keyword', keyword: 'kopi' }, 1))
+  })
+
+  it('keeps usernames for a day and keywords for half a day', () => {
+    expect(USERNAME_CACHE_TTL_MS).toBe(24 * 60 * 60 * 1000)
+    expect(KEYWORD_CACHE_TTL_MS).toBe(12 * 60 * 60 * 1000)
+  })
+})
+
+describe('readCachedCompetitors', () => {
+  const [account] = readCompetitors([PROFILE])
+  const asked = normalizeCompetitorSearch({ kind: 'username', usernames: ['kopikenangan'] }, 5)
+
+  it('accepts what readCompetitors produced', () => {
+    expect(readCachedCompetitors(JSON.parse(JSON.stringify([account])), asked)).toEqual([account])
+  })
+
+  it('treats a broken, empty, oversized or foreign result as a miss', () => {
+    expect(readCachedCompetitors({ username: 'kopikenangan' }, asked)).toBeNull()
+    expect(readCachedCompetitors([], asked)).toBeNull()
+    expect(readCachedCompetitors([{ ...account, followers: '1k' }], asked)).toBeNull()
+    expect(readCachedCompetitors([{ ...account, avatar: 'http://tidak-aman.test' }], asked)).toBeNull()
+    expect(readCachedCompetitors([{ ...account, recentPosts: [{ caption: 1 }] }], asked)).toBeNull()
+    expect(readCachedCompetitors([account, { ...account, username: 'lain' }], asked)).toBeNull()
+    // A row that holds an account nobody asked for is never served under this key.
+    expect(readCachedCompetitors([{ ...account, username: 'lain' }], asked)).toBeNull()
+  })
+})
+
+describe('competitor cache in Supabase', () => {
+  const [account] = readCompetitors([PROFILE])
+  const search = { kind: 'username' as const, usernames: ['KopiKenangan'] }
+
+  beforeEach(() => {
+    store.read = { data: null, error: null }
+    store.write = { data: null, error: null }
+    store.filters = []
+    store.upserts = []
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('reads only an unexpired row under the search key', async () => {
+    store.read = { data: { result: [account] }, error: null }
+
+    await expect(getCachedCompetitors(search, 5)).resolves.toEqual([account])
+    expect(store.filters).toEqual([
+      ['eq', 'cache_key', competitorCacheKey(search, 5)],
+      ['gt', 'expires_at', expect.any(String)],
+    ])
+  })
+
+  it('treats no row (missing or expired), a broken row and a failed read as a miss', async () => {
+    await expect(getCachedCompetitors(search, 5)).resolves.toBeNull()
+    store.read = { data: { result: { rusak: true } }, error: null }
+    await expect(getCachedCompetitors(search, 5)).resolves.toBeNull()
+    store.read = { data: null, error: { message: 'connection refused' } }
+    await expect(getCachedCompetitors(search, 5)).resolves.toBeNull()
+    expect(console.error).toHaveBeenCalledTimes(2)
+  })
+
+  it('upserts a result with its expiry, and never an empty one', async () => {
+    vi.useFakeTimers({ now: new Date('2026-10-25T00:00:00.000Z') })
+
+    await saveCachedCompetitors(search, 5, [])
+    expect(store.upserts).toEqual([])
+    await saveCachedCompetitors(search, 5, [account])
+    await saveCachedCompetitors({ kind: 'keyword', keyword: ' Kopi  Susu ' }, 3, [account])
+    expect(store.upserts).toEqual([
+      [
+        {
+          cache_key: competitorCacheKey(search, 5),
+          search_kind: 'username',
+          normalized_query: 'kopikenangan',
+          max_results: 1,
+          result: [account],
+          created_at: '2026-10-25T00:00:00.000Z',
+          expires_at: '2026-10-26T00:00:00.000Z',
+        },
+        { onConflict: 'cache_key' },
+      ],
+      [expect.objectContaining({ search_kind: 'keyword', normalized_query: 'kopi susu', max_results: 3, expires_at: '2026-10-25T12:00:00.000Z' }), { onConflict: 'cache_key' }],
+    ])
+  })
+
+  it('swallows a failed write', async () => {
+    store.write = { data: null, error: { message: 'permission denied' } }
+
+    await expect(saveCachedCompetitors(search, 5, [account])).resolves.toBeUndefined()
+    expect(console.error).toHaveBeenCalledWith('[apify] cache gagal disimpan:', expect.any(String), 'Error: Supabase: permission denied')
   })
 })

@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { findCompetitors } from './apify'
+import { ApifyError, findCompetitors, getCachedCompetitors, saveCachedCompetitors, type Competitor } from './apify'
 import { parseRuleInput } from './auto-dm-rules'
 import { creditsUsed, getCurrentPeriod } from './billing'
 import { getAccountBrandContext } from './brand'
 import type { BrandContext } from './brand-options'
-import { reserveDailyUsage } from './chat'
+import { releaseDailyUsage, reserveDailyUsage } from './chat'
 import {
   answerChat,
   buildSystemPrompt,
@@ -52,6 +52,8 @@ vi.mock('./nine-router', async (importOriginal) => ({
 vi.mock('./apify', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./apify')>()),
   findCompetitors: vi.fn(),
+  getCachedCompetitors: vi.fn(),
+  saveCachedCompetitors: vi.fn(),
 }))
 
 vi.mock('./chat', () => ({
@@ -399,7 +401,10 @@ describe('answerChat', () => {
     vi.mocked(webSearch).mockReset()
     vi.mocked(chatCompletion).mockReset()
     vi.mocked(findCompetitors).mockReset()
+    vi.mocked(getCachedCompetitors).mockReset().mockResolvedValue(null)
+    vi.mocked(saveCachedCompetitors).mockReset().mockResolvedValue()
     vi.mocked(reserveDailyUsage).mockReset().mockResolvedValue('2026-10-23')
+    vi.mocked(releaseDailyUsage).mockReset()
     vi.mocked(addIdea).mockReset()
     vi.mocked(saveAccountIdeaScript).mockReset().mockResolvedValue(true)
     tools.mockReset()
@@ -562,10 +567,97 @@ describe('answerChat', () => {
     expect(reserveDailyUsage).toHaveBeenCalledWith(USER, 'deep_search')
     expect(reply.parts[0]).toMatchObject({ type: 'competitors', query: '@kopikenangan' })
     expect(rows()).toContainEqual(
-      expect.objectContaining({ task: 'deep_search', credits: 0, output: { usernames: ['kopikenangan'] } }),
+      expect.objectContaining({
+        task: 'deep_search',
+        credits: 0,
+        model: 'apify/instagram-scraper',
+        input: expect.objectContaining({ searchKind: 'username', cacheHit: false }),
+        output: { usernames: ['kopikenangan'], resultCount: 1, cacheHit: false },
+      }),
     )
     expect(JSON.stringify(rows())).not.toContain('secret')
     expect(JSON.stringify(vi.mocked(chatWithTools).mock.calls[1][0].at(-1))).not.toContain('secret')
+  })
+
+  describe('Intel Kompetitor cache', () => {
+    const ACCOUNT: Competitor = {
+      username: 'kopikenangan',
+      name: 'Kopi Kenangan',
+      bio: 'Kopi',
+      followers: 1000,
+      postsCount: 10,
+      verified: true,
+      avatar: 'https://cdn.test/signed?sig=secret',
+      recentPosts: [{ caption: 'Promo', likes: 5, comments: 1, postedAt: '2026-10-20T03:00:00.000Z', type: 'Image', url: 'https://www.instagram.com/p/a/', hashtags: ['kopi'] }],
+    }
+    // The card exactly as before the cache: the UI and the stored message read this shape.
+    const PART = {
+      type: 'competitors',
+      query: '@kopikenangan, @janjiw',
+      competitors: [{ ...ACCOUNT, recentPosts: [{ caption: 'Promo', likes: 5, comments: 1, postedAt: '2026-10-20T03:00:00.000Z', url: 'https://www.instagram.com/p/a/' }] }],
+    }
+    const NORMALIZED = { kind: 'username', usernames: ['janjiw', 'kopikenangan'] }
+    const ask = (args: unknown) => {
+      vi.mocked(chatWithTools)
+        .mockResolvedValueOnce(call('intel_kompetitor', args))
+        .mockResolvedValueOnce({ content: 'Ini hasilnya.', toolCalls: [] })
+      return answerChat(request({ deepSearch: true }))
+    }
+
+    it('answers a hit from the cache without Apify or a research slot', async () => {
+      vi.mocked(getCachedCompetitors).mockResolvedValue([ACCOUNT])
+
+      const reply = await ask({ usernames: ['@KopiKenangan', ' janjiw ', 'kopikenangan'] })
+
+      expect(getCachedCompetitors).toHaveBeenCalledWith(NORMALIZED, 2)
+      expect(findCompetitors).not.toHaveBeenCalled()
+      expect(reserveDailyUsage).not.toHaveBeenCalledWith(USER, 'deep_search')
+      expect(saveCachedCompetitors).not.toHaveBeenCalled()
+      expect(reply.parts).toEqual([PART])
+      expect(rows()).toContainEqual(
+        expect.objectContaining({
+          task: 'deep_search',
+          model: 'competitor_cache',
+          output: { usernames: ['kopikenangan'], resultCount: 1, cacheHit: true },
+        }),
+      )
+      expect(JSON.stringify(vi.mocked(chatWithTools).mock.calls[1][0].at(-1))).not.toContain('secret')
+    })
+
+    it('reserves a slot before Apify on a miss, then caches the result', async () => {
+      const order: string[] = []
+      vi.mocked(reserveDailyUsage).mockImplementation(async (_user, task) => (order.push(`reserve:${task}`), '2026-10-25'))
+      vi.mocked(findCompetitors).mockImplementation(async () => (order.push('apify'), [ACCOUNT]))
+
+      const reply = await ask({ usernames: ['kopikenangan', 'janjiw'] })
+
+      expect(order).toEqual(['reserve:deep_search', 'apify'])
+      expect(findCompetitors).toHaveBeenCalledWith(NORMALIZED, 2, expect.anything())
+      expect(saveCachedCompetitors).toHaveBeenCalledWith(NORMALIZED, 2, [ACCOUNT])
+      expect(releaseDailyUsage).not.toHaveBeenCalled()
+      expect(reply.parts).toEqual([PART])
+    })
+
+    it('keeps the slot for an empty result but does not cache it', async () => {
+      vi.mocked(findCompetitors).mockResolvedValue([])
+
+      const reply = await ask({ keyword: '  Kopi   Susu ' })
+
+      expect(getCachedCompetitors).toHaveBeenCalledWith({ kind: 'keyword', keyword: 'kopi susu' }, 5)
+      expect(reserveDailyUsage).toHaveBeenCalledWith(USER, 'deep_search')
+      expect(releaseDailyUsage).not.toHaveBeenCalled()
+      expect(saveCachedCompetitors).toHaveBeenCalledWith({ kind: 'keyword', keyword: 'kopi susu' }, 5, [])
+      expect(reply.parts).toEqual([{ type: 'competitors', query: 'Kopi   Susu', competitors: [] }])
+    })
+
+    it('gives the slot back and caches nothing when Apify fails', async () => {
+      vi.mocked(findCompetitors).mockRejectedValue(new ApifyError('Not enough credit', 402))
+
+      await ask({ usernames: ['kopikenangan'] }).catch(() => null)
+
+      expect(releaseDailyUsage).toHaveBeenCalledWith(USER, 'deep_search', '2026-10-23')
+      expect(saveCachedCompetitors).not.toHaveBeenCalled()
+    })
   })
 
   it('writes multiple requested scripts sequentially', async () => {

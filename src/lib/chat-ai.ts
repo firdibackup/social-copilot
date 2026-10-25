@@ -1,6 +1,16 @@
 import 'server-only'
 import { aiErrorMessage, cleanList, describeBrand, loadAccountBrandContext, quote, runLogged } from './ai'
-import { ApifyError, findCompetitors, MAX_COMPETITORS, type Competitor, type CompetitorSearch } from './apify'
+import {
+  ApifyError,
+  competitorCacheKey,
+  findCompetitors,
+  getCachedCompetitors,
+  MAX_COMPETITORS,
+  normalizeCompetitorSearch,
+  saveCachedCompetitors,
+  type Competitor,
+  type CompetitorSearch,
+} from './apify'
 import { EMPTY_RULE, parseRuleInput, type AutoDmRuleInput } from './auto-dm-rules'
 import { isObject, lengthOf, truncate, type BrandContext } from './brand-options'
 import { findContent, loadSummaryBatch, reserveDailyUsage, releaseDailyUsage, saveSummary, type ChatSession } from './chat'
@@ -53,6 +63,8 @@ const TOO_MANY_STEPS = 'Permintaan ini butuh terlalu banyak langkah. Coba pecah 
 /** Leaves time to persist the assistant message and close the stream before the 300 s route limit. */
 const ANSWER_TIMEOUT_MS = 210_000
 const APIFY_MODEL = 'apify/instagram-scraper'
+/** The audit row's model for a search answered from competitor_cache, so admin stats don't count it as an Apify run. */
+const COMPETITOR_CACHE_MODEL = 'competitor_cache'
 
 /** The tool can't run with what the model asked; the message is safe to show and to tell the model. */
 class ToolInputError extends Error {
@@ -529,17 +541,37 @@ async function runIntel(context: ToolContext, args: Json): Promise<ToolOutcome> 
   if (!context.deepSearch) return failure('intel_kompetitor', 'Nyalakan tombol Intel Kompetitor di kotak pesan dulu.')
   const search = competitorSearch(args)
   if (!search) return { part: null, result: 'Gagal: isi usernames atau keyword.' }
-  const max = typeof args.max === 'number' ? args.max : MAX_COMPETITORS
-  const day = await reserveDailyUsage(context.userId, 'deep_search')
-  let accounts: Competitor[]
-  try {
-    accounts = await runLogged(context.userId, 'deep_search', { search, max }, () => findCompetitors(search, max, context.signal), {
-      model: APIFY_MODEL,
-      logOutput: (found) => ({ usernames: found.map((account) => account.username) }),
+  const requestedMax = typeof args.max === 'number' ? args.max : MAX_COMPETITORS
+  const { search: normalized, max } = normalizeCompetitorSearch(search, requestedMax)
+  // The key's prefix stands in for the keyword, which may be private, in the audit row.
+  const input = { searchKind: search.kind, requestedMax, max, cacheKey: competitorCacheKey(normalized, max).slice(0, 15) }
+  const logOutput = (cacheHit: boolean) => (found: Competitor[]) => ({
+    usernames: found.map((account) => account.username),
+    resultCount: found.length,
+    cacheHit,
+  })
+  let accounts = await getCachedCompetitors(normalized, max)
+  if (accounts) {
+    const cached = accounts
+    // A hit costs no research slot and runs no actor; the row only keeps the audit trail.
+    await runLogged(context.userId, 'deep_search', { ...input, cacheHit: true }, async () => cached, {
+      model: COMPETITOR_CACHE_MODEL,
+      logOutput: logOutput(true),
     })
-  } catch (error) {
-    await releaseDailyUsage(context.userId, 'deep_search', day)
-    throw error
+  } else {
+    // ponytail: duplicate identical misses may run concurrently; add a Postgres advisory lock only if measured Apify duplication becomes material.
+    const day = await reserveDailyUsage(context.userId, 'deep_search')
+    try {
+      accounts = await runLogged(context.userId, 'deep_search', { ...input, cacheHit: false }, () => findCompetitors(normalized, max, context.signal), {
+        model: APIFY_MODEL,
+        logOutput: logOutput(false),
+      })
+    } catch (error) {
+      await releaseDailyUsage(context.userId, 'deep_search', day)
+      throw error
+    }
+    // The actor ran, so an empty result keeps its slot, but it isn't cached: a passing failure mustn't stick for hours.
+    await saveCachedCompetitors(normalized, max, accounts)
   }
   const query = search.kind === 'username' ? search.usernames.map((name) => `@${name}`).join(', ') : search.keyword
   return {

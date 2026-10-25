@@ -1,5 +1,8 @@
 import 'server-only'
+import { createHash } from 'node:crypto'
 import { env } from './env'
+import { describeError } from './errors'
+import { db, unwrap } from './supabase'
 
 /**
  * Apify, for Intel Kompetitor in Sigap only: public Instagram profiles found by username or keyword, through the
@@ -140,4 +143,135 @@ export async function findCompetitors(search: CompetitorSearch, max: number, out
     throw new ApifyError(message || `HTTP ${response.status}`, response.status)
   }
   return readCompetitors(body, max)
+}
+
+/**
+ * competitor_cache: a short-lived copy of findCompetitors' sanitized results, shared by every user (public profiles
+ * only), so a repeated search skips Apify and the daily research slot. An optimisation, never the source of truth.
+ */
+export const USERNAME_CACHE_TTL_MS = 24 * 60 * 60 * 1000
+export const KEYWORD_CACHE_TTL_MS = 12 * 60 * 60 * 1000
+const CACHE_KEY_VERSION = 1
+
+export interface NormalizedSearch {
+  search: CompetitorSearch
+  max: number
+}
+
+/**
+ * The canonical form of a search, so the same request always hits the same row. Usernames are cut to `max` in the
+ * given order (the first ones are what was asked for), then sorted; their `max` becomes their count. Pure, for tests.
+ */
+export function normalizeCompetitorSearch(search: CompetitorSearch, max: number): NormalizedSearch {
+  const limit = Number.isFinite(max) ? Math.min(Math.max(1, Math.floor(max)), MAX_COMPETITORS) : MAX_COMPETITORS
+  if (search.kind === 'keyword') {
+    return { search: { kind: 'keyword', keyword: search.keyword.replace(/\s+/g, ' ').trim().toLowerCase() }, max: limit }
+  }
+  const usernames = [...new Set(search.usernames.map((name) => name.trim().replace(/^@/, '').toLowerCase()))]
+    .filter((name) => INSTAGRAM_USERNAME.test(name))
+    .slice(0, limit)
+    .sort()
+  return { search: { kind: 'username', usernames }, max: Math.max(1, usernames.length) }
+}
+
+const cacheQuery = (search: CompetitorSearch) => (search.kind === 'username' ? search.usernames.join(',') : search.keyword)
+
+/** SHA-256 of the versioned canonical search: fixed length, and a keyword never lands in a log line. Pure, for tests. */
+export function competitorCacheKey(search: CompetitorSearch, max: number): string {
+  const normalized = normalizeCompetitorSearch(search, max)
+  const canonical = JSON.stringify({
+    version: CACHE_KEY_VERSION,
+    kind: normalized.search.kind,
+    query: cacheQuery(normalized.search),
+    max: normalized.max,
+  })
+  return `v${CACHE_KEY_VERSION}:${createHash('sha256').update(canonical).digest('hex')}`
+}
+
+const cacheTtlMs = (search: CompetitorSearch) => (search.kind === 'username' ? USERNAME_CACHE_TTL_MS : KEYWORD_CACHE_TTL_MS)
+
+const nullableCount = (value: unknown) => value === null || (typeof value === 'number' && Number.isFinite(value) && value >= 0)
+const nullableString = (value: unknown) => value === null || typeof value === 'string'
+
+function isCachedPost(value: unknown): value is CompetitorPost {
+  return (
+    isObject(value) &&
+    typeof value.caption === 'string' && value.caption.length <= CAPTION_LENGTH &&
+    nullableCount(value.likes) && nullableCount(value.comments) &&
+    nullableString(value.postedAt) && typeof value.type === 'string' && nullableString(value.url) &&
+    Array.isArray(value.hashtags) && value.hashtags.length <= 10 && value.hashtags.every((tag) => typeof tag === 'string')
+  )
+}
+
+function isCachedCompetitor(value: unknown): value is Competitor {
+  return (
+    isObject(value) &&
+    typeof value.username === 'string' && INSTAGRAM_USERNAME.test(value.username) &&
+    typeof value.name === 'string' && value.name.length <= 100 && typeof value.bio === 'string' && value.bio.length <= BIO_LENGTH &&
+    nullableCount(value.followers) && nullableCount(value.postsCount) && typeof value.verified === 'boolean' &&
+    (value.avatar === null || (typeof value.avatar === 'string' && value.avatar.startsWith('https://'))) &&
+    Array.isArray(value.recentPosts) && value.recentPosts.length <= MAX_RECENT_POSTS && value.recentPosts.every(isCachedPost)
+  )
+}
+
+/**
+ * A stored result, or null when any part of it isn't a Competitor the parser would have produced, or (for usernames)
+ * holds an account that wasn't asked for. Pure, for tests.
+ */
+export function readCachedCompetitors(value: unknown, normalized: NormalizedSearch): Competitor[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > normalized.max || !value.every(isCachedCompetitor)) return null
+  const { search } = normalized
+  if (search.kind === 'username' && !value.every((account) => search.usernames.includes(account.username))) return null
+  return value
+}
+
+/** The cached result of a search, or null on a miss. A broken row or an unreachable table is a miss, never an error. */
+export async function getCachedCompetitors(search: CompetitorSearch, max: number): Promise<Competitor[] | null> {
+  const normalized = normalizeCompetitorSearch(search, max)
+  const key = competitorCacheKey(normalized.search, normalized.max)
+  try {
+    const row = unwrap(
+      await db()
+        .from('competitor_cache')
+        .select('result')
+        .eq('cache_key', key)
+        .gt('expires_at', new Date().toISOString())
+        .maybeSingle(),
+    ) as { result: unknown } | null
+    if (!row) return null
+    const cached = readCachedCompetitors(row.result, normalized)
+    if (!cached) console.error('[apify] cache rusak, diabaikan:', key.slice(0, 15))
+    return cached
+  } catch (error) {
+    console.error('[apify] cache gagal dibaca:', key.slice(0, 15), describeError(error))
+    return null
+  }
+}
+
+/** Best effort: a failed write only costs the next request an Apify run. An empty result is never kept. */
+export async function saveCachedCompetitors(search: CompetitorSearch, max: number, result: Competitor[]): Promise<void> {
+  if (result.length === 0) return
+  const normalized = normalizeCompetitorSearch(search, max)
+  const key = competitorCacheKey(normalized.search, normalized.max)
+  const now = Date.now()
+  try {
+    unwrap(
+      await db()
+        .from('competitor_cache')
+        .upsert(
+          {
+            cache_key: key,
+            search_kind: normalized.search.kind,
+            normalized_query: cacheQuery(normalized.search),
+            max_results: normalized.max,
+            result,
+            created_at: new Date(now).toISOString(),
+            expires_at: new Date(now + cacheTtlMs(normalized.search)).toISOString(),
+          },
+          { onConflict: 'cache_key' },
+        ),
+    )
+  } catch (error) {
+    console.error('[apify] cache gagal disimpan:', key.slice(0, 15), describeError(error))
+  }
 }
