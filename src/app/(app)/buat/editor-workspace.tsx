@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'next/navigation'
 import { LoadingState } from '@/components/loading-state'
 import { Notice } from '@/components/notice'
@@ -11,7 +12,7 @@ import { firstValue, isUuid } from '@/lib/params'
 import { MIN_SLOT_LEAD_MS } from '@/lib/schedule-slots'
 import { ContentEditor } from './content-editor'
 import { StatusNote } from './status-note'
-import { detailQuery, supportQuery } from './editor-query'
+import { detailQuery, editorKeys, supportQuery, type EditorDetail, type EditorSupport } from './editor-query'
 import { useEditorScope } from './editor-provider'
 
 const OK_MESSAGES: Record<string, string> = {
@@ -35,6 +36,15 @@ const FAILED_MESSAGES: Record<string, string> = {
   story: 'Story ini tidak bisa dicoba lagi pada statusnya sekarang.',
 }
 
+/** What the server rendered for the URL it saw; null parts are fetched by the browser. */
+export interface EditorInitial {
+  id: string
+  idea: string
+  at: number
+  detail: EditorDetail | null
+  support: EditorSupport | null
+}
+
 /** A slot picked in Kalender (`?slot=`), while it is still ahead. */
 function pickedSlot(value: string | undefined, now: Date) {
   const at = value ? parseWibInput(value) : null
@@ -47,14 +57,25 @@ function pickedSlot(value: string | undefined, now: Date) {
  * `?slot=` (an empty slot picked in Kalender) one for that slot. `?platform=threads` shows the Threads version. On a
  * phone only one column shows at a time.
  */
-export function EditorWorkspace() {
+export function EditorWorkspace({ initial }: { initial: EditorInitial }) {
   const params = Object.fromEntries(useSearchParams())
   const scope = useEditorScope()
+  const client = useQueryClient()
   const id = firstValue(params.id)
   const ideaParam = firstValue(params.ide)
   const postId = isUuid(id) ? id : null
-  const detail = useQuery(detailQuery(scope, postId ?? '', !postId && isUuid(ideaParam) ? ideaParam : ''))
-  const support = useQuery(supportQuery(scope))
+  const ideaKey = !postId && isUuid(ideaParam) ? ideaParam : ''
+  const seeded = initial.id === (postId ?? '') && initial.idea === ideaKey
+  const detail = useQuery({ ...detailQuery(scope, postId ?? '', ideaKey), ...(seeded && initial.detail && { initialData: initial.detail, initialDataUpdatedAt: initial.at }) })
+  const support = useQuery({ ...supportQuery(scope), ...(initial.support && { initialData: initial.support, initialDataUpdatedAt: initial.at }) })
+  // Each server render (a refresh after an action, or the poll) brings fresh data: other drafts go stale, these are taken as-is.
+  useEffect(() => {
+    const complete = initial.detail && initial.support
+    void client.invalidateQueries({ queryKey: editorKeys.all(scope), refetchType: complete ? 'none' : 'active' })
+    if (!complete) return
+    client.setQueryData(editorKeys.detail(scope, initial.id, initial.idea), initial.detail, { updatedAt: initial.at })
+    client.setQueryData(editorKeys.support(scope), initial.support, { updatedAt: initial.at })
+  }, [client, scope, initial])
   if ((!detail.data && detail.error) || (!support.data && support.error)) {
     return <div className="p-6"><Notice tone="error">Konten belum bisa dimuat. <button className="underline" onClick={() => { void detail.refetch(); void support.refetch() }}>Coba lagi</button></Notice></div>
   }

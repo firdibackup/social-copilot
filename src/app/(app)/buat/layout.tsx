@@ -23,7 +23,7 @@ async function AuthenticatedWorkspace({ children }: { children: ReactNode }) {
   const { userId, accountId } = await requireAccount()
   const scope = `${userId}:${accountId}`
   return (
-    <EditorProvider key={scope} scope={scope} revision={new Date().getTime()}>
+    <EditorProvider key={scope} scope={scope}>
       <WorkspaceFrame list={
         <Suspense fallback={<div className="w-full shrink-0 md:w-[320px]"><LoadingState variant="line" label="Memuat daftar konten…" /></div>}>
           <DraftList />

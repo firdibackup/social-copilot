@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { QueryClient } from '@tanstack/react-query'
+import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { detailQuery, editorKeys, reviveEditorDates, supportQuery } from './editor-query'
 
 afterEach(() => { vi.unstubAllGlobals() })
@@ -43,6 +43,19 @@ describe('editor browser cache', () => {
       await client.fetchQuery(supportQuery('u:a'))
       await client.fetchQuery(supportQuery('u:a'))
       expect(fetcher).toHaveBeenCalledTimes(1)
+    } finally { client.clear() }
+  })
+
+  it('does not refetch a draft the server already rendered', async () => {
+    const fetcher = vi.fn(async () => Response.json({ post: null }))
+    vi.stubGlobal('fetch', fetcher)
+    const client = new QueryClient()
+    try {
+      const observer = new QueryObserver(client, { ...detailQuery('u:a', 'p'), initialData: { post: null } as never, initialDataUpdatedAt: Date.now() })
+      const stop = observer.subscribe(() => {})
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      stop()
+      expect(fetcher).not.toHaveBeenCalled()
     } finally { client.clear() }
   })
 
