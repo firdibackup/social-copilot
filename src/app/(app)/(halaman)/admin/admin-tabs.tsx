@@ -7,6 +7,7 @@ const TABS = [
   { href: '/admin', label: 'Ringkasan' },
   { href: '/admin/pengguna', label: 'Pengguna' },
   { href: '/admin/pembayaran', label: 'Pembayaran' },
+  { href: '/admin/kupon', label: 'Kupon' },
   { href: '/admin/template', label: 'Template' },
   { href: '/admin/pengaturan', label: 'Pengaturan' },
 ]

@@ -35,6 +35,17 @@ describe('parseAnswers', () => {
     expect(parseAnswers({ colors: [{ hex: 'merah', role: 'utama' }] })).toEqual({ error: 'Warna tidak valid.' })
   })
 
+  it('takes a posts-per-week choice and a referral source', () => {
+    expect(parseAnswers({ postsPerWeek: 7, referralSource: '  podcast   bisnis ' })).toEqual({
+      answers: { ...EMPTY_ANSWERS, postsPerWeek: 7, referralSource: 'podcast bisnis' },
+    })
+    expect(parseAnswers({ postsPerWeek: 0 })).toEqual({ answers: EMPTY_ANSWERS })
+    expect(parseAnswers({ postsPerWeek: 4 })).toHaveProperty('error')
+    expect(parseAnswers({ postsPerWeek: '5' })).toHaveProperty('error')
+    expect(parseAnswers({ referralSource: 5 })).toHaveProperty('error')
+    expect(parseAnswers({ referralSource: 'a'.repeat(101) })).toHaveProperty('error')
+  })
+
   it('enforces the text limits', () => {
     expect(parseAnswers({ name: 'a'.repeat(101) })).toEqual({ error: 'Nama brand maksimal 100 karakter.' })
   })

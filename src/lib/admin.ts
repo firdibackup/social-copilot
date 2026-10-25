@@ -294,7 +294,7 @@ interface UnfinishedRow {
   created_at: string
   expires_at: string | null
   link: string | null
-  snapshot: { plan?: { name?: string }; months?: number } | null
+  snapshot: { plan?: { name?: string }; months?: number; coupon?: { code?: string } } | null
   customer_name: string | null
   customer_whatsapp: string | null
   reminded_at: string | null
@@ -312,7 +312,8 @@ export async function listUnfinishedPayments(now = new Date()): Promise<Unfinish
       .select('id, user_id, amount, status, kind, created_at, expires_at, link, snapshot, customer_name, customer_whatsapp, reminded_at, reminder_count')
       .in('status', ['pending', 'expired']).not('mayar_id', 'is', null).gt('created_at', since)
       .order('created_at', { ascending: false }).limit(FOLLOWUP_LIMIT),
-    db().from('payments').select('user_id, created_at').eq('status', 'paid').gt('amount', 0).gt('created_at', since),
+    // Free grants don't count as having paid, but a 100% coupon does: that user finished checking out.
+    db().from('payments').select('user_id, created_at').eq('status', 'paid').or('amount.gt.0,coupon_id.not.is.null').gt('created_at', since),
     allAuthUsers(),
   ])
   const lastPaid = new Map<string, number>()
@@ -340,6 +341,7 @@ export async function listUnfinishedPayments(now = new Date()): Promise<Unfinish
       whatsapp: contact.customer_whatsapp,
       planName: row.snapshot?.plan?.name ?? null,
       months: typeof row.snapshot?.months === 'number' ? row.snapshot.months : null,
+      couponCode: row.snapshot?.coupon?.code ?? null,
       kind: row.kind,
       amount: row.amount,
       status: row.status === 'pending' && (!expiresAt || expiresAt > now) ? 'pending' : 'expired',
@@ -381,6 +383,10 @@ export type AdminAction =
   | 'toggle_template'
   | 'delete_template'
   | 'remind_payment'
+  | 'create_coupon'
+  | 'update_coupon'
+  | 'toggle_coupon'
+  | 'delete_coupon'
 
 /** Records what an admin did. A log that can't be written doesn't undo the action. */
 export async function logAdminAction(

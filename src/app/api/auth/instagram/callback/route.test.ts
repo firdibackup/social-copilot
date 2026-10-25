@@ -93,7 +93,7 @@ describe('GET /api/auth/instagram/callback', () => {
       expect(hasBrandKit).toHaveBeenCalledWith(USER, PROFILE.userId)
       expect(startBrandSync).toHaveBeenCalledWith(USER, PROFILE.userId, {})
       runAfterTasks()
-      expect(syncNewAccount).toHaveBeenCalledWith(USER, PROFILE.userId)
+      expect(syncNewAccount).toHaveBeenCalledWith(USER, PROFILE.userId, undefined)
     })
 
     it('seeds the new account’s brand with the onboarding answers', async () => {
@@ -103,6 +103,8 @@ describe('GET /api/auth/instagram/callback', () => {
         name: 'Kopi Sinar',
         designStyle: 'minimalis',
         headingFont: 'Plus Jakarta Sans',
+        postsPerWeek: 5,
+        referralSource: 'TikTok',
       })
 
       await connect()
@@ -112,6 +114,8 @@ describe('GET /api/auth/instagram/callback', () => {
         design_style: 'minimalis',
         heading_font: 'Plus Jakarta Sans',
       })
+      runAfterTasks()
+      expect(syncNewAccount).toHaveBeenCalledWith(USER, PROFILE.userId, 5)
     })
 
     it('leaves an account that already has a brand as it is', async () => {

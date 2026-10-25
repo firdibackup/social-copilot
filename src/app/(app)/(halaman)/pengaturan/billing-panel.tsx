@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState, useTransition } from 'react'
-import { ArrowUpRight, Check, CreditCard, RefreshCw, X } from 'lucide-react'
+import { ArrowUpRight, Check, CreditCard, RefreshCw, TicketPercent, X } from 'lucide-react'
 import { addBillingMonths, estimatedPosts, quotePurchase, type BillingCatalog, type CatalogPlan } from '@/lib/billing-catalog-options'
 import { canUpgrade, type UpgradeSnapshot } from '@/lib/billing-upgrade-options'
 import { formatRupiah } from '@/lib/billing-options'
@@ -10,7 +10,117 @@ import type { Payment, Usage } from '@/lib/billing'
 import { Notice } from '@/components/notice'
 import { CheckoutContactFields, useCheckoutContact } from '@/components/checkout-contact-fields'
 import { InstagramAiIcon } from '@/components/instagram-ai-icon'
-import { checkPaymentAction, checkoutAction, upgradeQuoteAction } from './billing-actions'
+import { checkPaymentAction, checkoutAction, couponPreviewAction, upgradeQuoteAction } from './billing-actions'
+
+interface AppliedCoupon { code: string; percent: number; couponDiscount: number; total: number; planId: string; months: number }
+const COUPON_FAILED = 'Kupon belum bisa diperiksa. Coba lagi.'
+/** A checkout rejection about the coupon belongs next to the coupon field, not in the top notice. */
+export const isCouponError = (message: string) => /kupon/i.test(message)
+
+/**
+ * Coupon for a new or renewed subscription (never an upgrade). An applied coupon is priced for one plan and duration:
+ * `applied` is only set while those still match, and `reprice` checks it again after either changes. Only the latest
+ * request may land, so a reply that comes back after a newer check, a removal or an edit of the code is ignored.
+ */
+export function useCoupon(idPrefix: string, version: number, planId: string | undefined, months: number) {
+  const id = `${idPrefix}-kupon`
+  const [input, setInput] = useState('')
+  const [applied, setApplied] = useState<AppliedCoupon | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [checking, setChecking] = useState(false)
+  /** The latest check. A reply from an earlier one (other plan, duration or code) or after removal is ignored. */
+  const latest = useRef<{ code: string } | null>(null)
+
+  async function preview(code: string, order: { planId: string; months: number }) {
+    const request = { code }
+    latest.current = request
+    setChecking(true); setError(null)
+    let result: { data?: Omit<AppliedCoupon, 'planId' | 'months'>; error?: string }
+    try { result = await couponPreviewAction({ ...order, version, couponCode: code }) }
+    catch { result = { error: COUPON_FAILED } }
+    if (latest.current !== request) return
+    latest.current = null
+    setChecking(false)
+    if (result.data) setApplied({ ...result.data, ...order })
+    else { setApplied(null); setError(result.error ?? COUPON_FAILED) }
+  }
+  function cancel() { latest.current = null; setChecking(false) }
+
+  return {
+    id, input, error, checking,
+    /** Only while it was priced for exactly this plan and duration. */
+    applied: applied && applied.planId === planId && applied.months === months ? applied : null,
+    change(value: string) {
+      setInput(value)
+      if (error) setError(null)
+      if (latest.current) cancel() // The code changed under its own check.
+    },
+    apply() {
+      const code = input.trim()
+      if (!code) { cancel(); setError('Masukkan kode kupon.'); return }
+      if (planId) void preview(code, { planId, months })
+    },
+    /** Call with the new order whenever the plan or duration changes: the coupon is checked again for it. */
+    reprice(nextPlanId: string | undefined, nextMonths: number) {
+      const code = latest.current?.code ?? applied?.code
+      if (!code || !nextPlanId) return
+      if (!latest.current && applied?.planId === nextPlanId && applied.months === nextMonths) return
+      void preview(code, { planId: nextPlanId, months: nextMonths })
+    },
+    remove() { cancel(); setApplied(null); setError(null); setInput('') },
+    /** Checkout refused the coupon: drop it, keep the typed code so it can be fixed, and bring the field into view. */
+    reject(message: string) {
+      cancel(); setApplied(null); setError(message)
+      const field = document.getElementById(id)
+      field?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' })
+      field?.focus({ preventScroll: true })
+    },
+  }
+}
+export type CouponState = ReturnType<typeof useCoupon>
+
+/** "Kode kupon" with Terapkan; once applied the code locks and an X removes it. Classes follow the host page. */
+export function CouponField({ coupon, disabled, buttonClass, inputClass, className = '' }: {
+  coupon: CouponState; disabled?: boolean; buttonClass: string; inputClass: string; className?: string
+}) {
+  const { applied, error, checking, id } = coupon
+  const note = error ? `${id}-error` : applied ? `${id}-ok` : undefined
+  return (
+    <div className={className}>
+      <label htmlFor={id} className="mb-1.5 block text-xs font-medium text-ink-muted">Kode kupon</label>
+      <div className="flex gap-2">
+        <div className="relative min-w-0 flex-1">
+          <TicketPercent size={16} aria-hidden="true" className={`pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 ${applied ? 'text-mint-ink' : 'text-ink-soft'}`} />
+          <input
+            id={id} name="kupon" type="text" value={applied ? applied.code : coupon.input} placeholder="Punya kode?"
+            maxLength={30} autoComplete="off" autoCapitalize="characters" spellCheck={false}
+            readOnly={!!applied || checking} disabled={disabled}
+            onChange={(event) => coupon.change(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Enter' && !applied && !checking) { event.preventDefault(); coupon.apply() } }}
+            aria-invalid={!!error} aria-describedby={note}
+            className={`${inputClass} block min-h-11 w-full border pl-9 text-base font-medium tracking-wide uppercase placeholder:font-normal placeholder:tracking-normal placeholder:normal-case placeholder:text-zinc-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm ${
+              applied ? 'border-dashed border-mint-ink/40 bg-mint/25 pr-11 text-mint-ink' : `bg-paper pr-3 text-ink ${error ? 'border-red-400' : 'border-hairline hover:border-zinc-300 focus:border-primary'}`}`}
+          />
+          {applied && (
+            <button type="button" onClick={coupon.remove} disabled={disabled} aria-label={`Hapus kupon ${applied.code}`}
+              className="absolute top-1/2 right-1 flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-mint-ink transition-colors hover:bg-mint/60 disabled:opacity-50">
+              <X size={16} aria-hidden="true" />
+            </button>
+          )}
+        </div>
+        {!applied && (
+          <button type="button" onClick={coupon.apply} disabled={disabled || checking || !coupon.input.trim()} className={`${buttonClass} shrink-0`}>
+            {checking ? 'Memeriksa…' : 'Terapkan'}
+          </button>
+        )}
+      </div>
+      <div aria-live="polite">
+        {error && <p id={`${id}-error`} className="mt-1.5 text-xs font-medium text-red-700 text-pretty">{error}</p>}
+        {!error && applied && <p id={`${id}-ok`} className="mt-1.5 flex items-center gap-1 text-xs font-medium text-mint-ink"><Check size={13} aria-hidden="true" />Kupon diterapkan. Hemat {applied.percent}%.</p>}
+      </div>
+    </div>
+  )
+}
 
 type HistoryPayment = Omit<Payment, 'createdAt' | 'periodStart' | 'periodEnd'> & { createdAt: string; periodStart: string | null; periodEnd: string | null }
 interface Props {
@@ -45,6 +155,11 @@ export function BillingPanel(props: Props) {
   const plans = intent === 'upgrade' ? upgradePlans : catalog.plans.filter((plan) => plan.active)
   const selected = plans.find((plan) => plan.id === planId) ?? plans[0]
   const purchase = selected && intent !== 'upgrade' ? quotePurchase(catalog, props.version, selected.id, months) : null
+  const coupon = useCoupon('billing', props.version, selected?.id, months)
+  // Coupons never apply to an upgrade.
+  const applied = purchase ? coupon.applied : null
+  const free = applied?.total === 0
+  const total = upgrade?.quote.total ?? applied?.total ?? purchase?.total
   const waiting = payments.find((payment) => payment.status === 'pending')
   const returnedPayment = props.orderId ? payments.find((payment) => payment.id === props.orderId) : null
   const successful = returnedPayment?.status === 'paid' && !returnedPayment.fulfillmentError
@@ -59,7 +174,9 @@ export function BillingPanel(props: Props) {
   function open(next: Intent) {
     opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     setIntent(next); setUpgrade(null); setError(null)
-    setPlanId(next === 'upgrade' ? upgradePlans[0]?.id ?? '' : period?.plan?.id ?? catalog.plans[0]?.id ?? '')
+    const nextPlan = next === 'upgrade' ? upgradePlans[0]?.id ?? '' : period?.plan?.id ?? catalog.plans[0]?.id ?? ''
+    setPlanId(nextPlan)
+    if (next === 'renew' || next === 'subscribe') coupon.reprice(catalog.plans.find((plan) => plan.active && plan.id === nextPlan)?.id ?? catalog.plans.find((plan) => plan.active)?.id, months)
     dialog.current?.showModal()
   }
   function close() {
@@ -90,8 +207,10 @@ export function BillingPanel(props: Props) {
           else if (result.data) setUpgrade(result.data)
           return
         }
-        const result = await checkoutAction({ planId: selected.id, months, version: props.version, upgradeToken: upgrade?.token, contact: details! })
+        const couponCode = intent !== 'upgrade' && applied ? applied.code : undefined
+        const result = await checkoutAction({ planId: selected.id, months, version: props.version, contact: details!, ...(couponCode ? { couponCode } : { upgradeToken: upgrade?.token }) })
         if ('field' in result && result.field === 'contact') contact.showServerError(result.error)
+        else if (result.error && couponCode && isCouponError(result.error)) coupon.reject(result.error)
         else if (result.error) setError(result.error)
         else if (result.link) window.location.assign(result.link)
       } catch { setError('Pembayaran belum bisa disiapkan. Coba lagi.') }
@@ -136,7 +255,7 @@ export function BillingPanel(props: Props) {
       </details>
       <details className="border-t border-hairline px-5 py-4 sm:px-6"><summary className="cursor-pointer text-sm font-medium text-ink">Riwayat pembayaran</summary>
         {!payments.length ? <p className="mt-4 text-sm text-ink-muted">Belum ada pembayaran.</p> : <ul className="mt-2 divide-y divide-hairline">{payments.map((payment) => <li key={payment.id} className="flex flex-wrap justify-between gap-2 py-3 text-sm">
-          <div><p className="font-medium text-ink">{payment.kind === 'upgrade' ? 'Upgrade' : 'Paket'} {payment.planName ?? 'Carousely'}</p><p className="mt-1 text-xs text-ink-muted">{date(payment.createdAt)} · {LABELS[payment.status]}</p>
+          <div><p className="font-medium text-ink">{payment.kind === 'upgrade' ? 'Upgrade' : 'Paket'} {payment.planName ?? 'Carousely'}</p><p className="mt-1 text-xs text-ink-muted">{date(payment.createdAt)} · {LABELS[payment.status]}{payment.couponCode && ` · Kupon ${payment.couponCode}`}</p>
             {payment.periodStart && payment.periodEnd && <p className="mt-1 text-xs text-ink-muted">{date(payment.periodStart)}–{date(payment.periodEnd)}</p>}</div>
           <span className="tabular-nums text-ink">{payment.amount ? formatRupiah(payment.amount) : 'Gratis'}</span>
         </li>)}</ul>}
@@ -163,14 +282,14 @@ export function BillingPanel(props: Props) {
           {waiting && <Notice tone="warning">Ada pembayaran tertunda. <button onClick={() => setIntent('status')} className="font-medium underline">Lihat pembayaran</button> sebelum membuat pesanan baru.</Notice>}
           <fieldset disabled={pending} className="space-y-3"><legend className="mb-2 text-sm font-medium">{intent === 'upgrade' ? `Dari ${period?.plan?.name ?? 'paket aktif'} ke` : 'Pilih paket'}</legend>
             <div className={`grid gap-3 ${plans.length > 1 ? 'sm:grid-cols-2' : ''}`}>{plans.map((plan) => <label key={plan.id} className={`cursor-pointer rounded-xl border p-4 ${selected?.id === plan.id ? 'border-primary bg-primary/5' : 'border-hairline hover:bg-bg'}`}>
-              <span className="flex items-center justify-between gap-3"><strong>{plan.name}</strong><input type="radio" name="billing-plan" value={plan.id} checked={selected?.id === plan.id} onChange={() => { setPlanId(plan.id); setUpgrade(null); setError(null) }} /></span>
+              <span className="flex items-center justify-between gap-3"><strong>{plan.name}</strong><input type="radio" name="billing-plan" value={plan.id} checked={selected?.id === plan.id} onChange={() => { setPlanId(plan.id); setUpgrade(null); setError(null); if (intent !== 'upgrade') coupon.reprice(plan.id, months) }} /></span>
               <span className="mt-2 block text-sm text-ink-muted">{plan.description}</span><span className="mt-3 block text-sm font-medium">±{number(estimatedPosts(plan.credits))} post / bulan</span>
               <span className="mt-1 block text-sm text-ink-muted">{formatRupiah(plan.priceIdr)} / bulan</span>
             </label>)}</div>
           </fieldset>
           {!plans.length && <Notice tone="warning">Belum ada paket yang tersedia untuk pilihan ini.</Notice>}
           {selected && <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-muted"><span className="inline-flex items-center gap-1.5 font-medium text-ink"><InstagramAiIcon width={18} height={18} />Riset Instagram/Threads</span><span className="rounded-full bg-[linear-gradient(90deg,#FA7E1E,#D62976,#962FBF)] px-2 py-0.5 text-[11px] font-semibold text-white">Fitur unggulan</span>{selected.prioritySupport && <span>· Support prioritas</span>}{selected.earlyAccess && <span>· Early access</span>}</p>}
-          {intent !== 'upgrade' && <fieldset disabled={pending}><legend className="mb-3 text-sm font-medium">Durasi langganan</legend><div className="flex flex-wrap gap-2">{catalog.durations.map((duration) => <button type="button" key={duration.months} aria-pressed={months === duration.months} onClick={() => setMonths(duration.months)} className={`${BUTTON} ${months === duration.months ? 'border-primary bg-primary/5 text-primary' : ''}`}>
+          {intent !== 'upgrade' && <fieldset disabled={pending}><legend className="mb-3 text-sm font-medium">Durasi langganan</legend><div className="flex flex-wrap gap-2">{catalog.durations.map((duration) => <button type="button" key={duration.months} aria-pressed={months === duration.months} onClick={() => { setMonths(duration.months); coupon.reprice(selected?.id, duration.months) }} className={`${BUTTON} ${months === duration.months ? 'border-primary bg-primary/5 text-primary' : ''}`}>
             {duration.months} bulan{duration.discount > 0 ? ` · −${duration.discount}%` : ''}</button>)}</div></fieldset>}
           <div className="space-y-3 border-t border-hairline pt-5 text-sm">
             {intent === 'upgrade' ? <>
@@ -182,16 +301,17 @@ export function BillingPanel(props: Props) {
                 <p className="text-xs text-ink-muted">Ringkasan berlaku 10 menit. Tautan pembayaran berlaku maksimal 1 jam.</p>
                 <button disabled={pending} onClick={() => setUpgrade(null)} className="text-primary underline underline-offset-4">Hitung ulang biaya</button></>}
             </> : purchase && <><p className="text-ink-muted">{start ? `Masa tambahan: ${date(start.toISOString())}–${date(addBillingMonths(start, months).toISOString())}.` : `Aktif selama ${months} bulan sejak pembayaran dikonfirmasi.`} Kuota AI diperbarui setiap bulan.</p>
-              <dl className="space-y-2"><div className="flex justify-between"><dt>Harga {months} bulan</dt><dd>{formatRupiah(purchase.plan.priceIdr * months)}</dd></div>{purchase.discount > 0 && <div className="flex justify-between"><dt>Diskon {purchase.discount}%</dt><dd>−{formatRupiah(purchase.plan.priceIdr * months - purchase.total)}</dd></div>}<div className="flex justify-between border-t border-hairline pt-3 font-semibold"><dt>Total pembayaran</dt><dd>{formatRupiah(purchase.total)}</dd></div></dl></>}
+              <dl className="space-y-2"><div className="flex justify-between"><dt>Harga {months} bulan</dt><dd>{formatRupiah(purchase.plan.priceIdr * months)}</dd></div>{purchase.discount > 0 && <div className="flex justify-between"><dt>Diskon {purchase.discount}%</dt><dd>−{formatRupiah(purchase.plan.priceIdr * months - purchase.total)}</dd></div>}{applied && <div className="flex justify-between gap-4 text-mint-ink"><dt>Kupon {applied.code} (−{applied.percent}%)</dt><dd className="tabular-nums">−{formatRupiah(applied.couponDiscount)}</dd></div>}<div className="flex justify-between border-t border-hairline pt-3 font-semibold"><dt>Total pembayaran</dt><dd>{formatRupiah(applied?.total ?? purchase.total)}</dd></div></dl>
+              <CouponField coupon={coupon} disabled={pending} buttonClass={BUTTON} inputClass="rounded-lg py-2" /></>}
           </div>
-          {enabled && !waiting && !!selected && (intent !== 'upgrade' || !!upgrade) && <CheckoutContactFields contact={contact} disabled={pending} className="border-t border-hairline pt-5" />}
+          {(enabled || free) && !waiting && !!selected && (intent !== 'upgrade' || !!upgrade) && <CheckoutContactFields contact={contact} disabled={pending} className="border-t border-hairline pt-5" />}
         </>}
       </div>
       {intent !== 'status' && <footer className="sticky bottom-0 border-t border-hairline bg-paper p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-6">
-        {(upgrade || purchase) && <p className="mb-3 flex justify-between gap-3 text-sm font-semibold tabular-nums"><span>Total pembayaran</span><span>{formatRupiah(upgrade?.quote.total ?? purchase!.total)}</span></p>}
-        <button disabled={pending || !enabled || !selected || !!waiting} onClick={pay} className={`${PRIMARY} w-full`}>
-        {pending ? 'Menyiapkan…' : !enabled ? 'Pembayaran belum diaktifkan' : intent === 'upgrade' ? upgrade ? 'Bayar & Upgrade' : 'Hitung Biaya Upgrade' : 'Lanjut ke Pembayaran'}
-      </button><p className="mt-2 text-center text-xs text-ink-muted">Pembayaran diproses melalui Mayar.</p></footer>}
+        {total !== undefined && <p className="mb-3 flex justify-between gap-3 text-sm font-semibold tabular-nums"><span>Total pembayaran</span><span>{formatRupiah(total)}</span></p>}
+        <button disabled={pending || (!enabled && !free) || !selected || !!waiting || (!!purchase && coupon.checking)} onClick={pay} className={`${PRIMARY} w-full`}>
+        {free ? pending ? 'Mengaktifkan…' : 'Aktifkan Gratis' : pending ? 'Menyiapkan…' : !enabled ? 'Pembayaran belum diaktifkan' : intent === 'upgrade' ? upgrade ? 'Bayar & Upgrade' : 'Hitung Biaya Upgrade' : 'Lanjut ke Pembayaran'}
+      </button>{!free && <p className="mt-2 text-center text-xs text-ink-muted">Pembayaran diproses melalui Mayar.</p>}</footer>}
     </dialog>
   </section>
 }

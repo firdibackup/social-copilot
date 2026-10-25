@@ -54,6 +54,7 @@ Pelanggan lama yang masih mempunyai akses aktif dipindahkan ke Pro melalui `2026
 - PGlite tidak menggantikan pengujian integrasi Supabase, RLS pada deployment, konkurensi multi-koneksi, maupun pembayaran Mayar sandbox.
 - Contoh menjalankan pemeriksaan SQL: `node scripts/check-billing-sql.mjs <lokasi-module-pglite>/dist/index.js`.
 - `scripts/check-billing-upgrade-sql.mjs` memeriksa migrasi upgrade, reservasi checkout, aktivasi langsung, snapshot tagihan yang tetap utuh, siklus/pemakaian kredit, webhook ganda, perpanjangan, quote kedaluwarsa secara data, konflik pembayaran terlambat, dan hak eksekusi.
+- `scripts/check-coupon-sql.mjs` memeriksa kupon: rebutan kuota terakhir, pakai ulang tautan yang sama, tautan kedaluwarsa mengembalikan kuota, sekali per akun, kupon 100% langsung aktif tanpa Mayar, total 0 palsu ditolak, kupon diubah/nonaktif/kedaluwarsa, batas paket/durasi, upgrade, larangan hapus kupon terpakai, dan hak eksekusi.
 
 ## Upgrade langsung
 

@@ -54,4 +54,8 @@ export const ACTION_LABELS: Record<string, string> = {
   toggle_template: 'Aktif/nonaktifkan template',
   delete_template: 'Hapus template',
   remind_payment: 'Ingatkan pembayaran via WhatsApp',
+  create_coupon: 'Buat kupon',
+  update_coupon: 'Ubah kupon',
+  toggle_coupon: 'Aktif/nonaktifkan kupon',
+  delete_coupon: 'Hapus kupon',
 }

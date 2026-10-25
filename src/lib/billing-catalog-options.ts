@@ -39,6 +39,9 @@ export interface PurchaseSnapshot {
   months: number
   discount: number
   total: number
+  /** Set when a coupon was applied: `total` is then after the coupon, `couponDiscount` what it took off. */
+  coupon?: { id: string; code: string; percent: number }
+  couponDiscount?: number
 }
 export function quotePurchase(catalog: BillingCatalog, version: number, planId: string, months: number): PurchaseSnapshot {
   const plan = catalog.plans.find((plan) => plan.id === planId && plan.active)

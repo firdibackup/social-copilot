@@ -6,7 +6,7 @@ import { useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } 
 import { DesignStylePicker, FontPreview, FontSelect } from '@/components/design-style-picker'
 import { CarouselyLogo } from '@/components/brand-mark'
 import { Notice } from '@/components/notice'
-import { BRAND_TEXT_LIMITS, normalizeHex, type BrandColor } from '@/lib/brand-options'
+import { BRAND_TEXT_LIMITS, type BrandColor } from '@/lib/brand-options'
 import {
   ACCOUNT_KINDS,
   DEFAULT_BODY_FONT,
@@ -15,7 +15,13 @@ import {
   designStyleOf,
   type AccountKind,
 } from '@/lib/design-styles'
-import type { OnboardingAnswers } from '@/lib/onboarding-options'
+import {
+  POSTS_PER_WEEK_CHOICES,
+  REFERRAL_MAX_LENGTH,
+  REFERRAL_OTHER,
+  REFERRAL_SOURCES,
+  type OnboardingAnswers,
+} from '@/lib/onboarding-options'
 import { saveOnboardingAction } from './actions'
 
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
@@ -26,9 +32,7 @@ const PRIMARY =
 const GHOST =
   'inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium text-ink-muted transition-colors hover:bg-zinc-100 hover:text-ink disabled:opacity-50'
 
-const SWATCHES = ['#0f766e', '#1d4ed8', '#7c3aed', '#db2777', '#dc2626', '#ea580c', '#ca8a04', '#15803d', '#18181b', '#a6834e']
-
-type StepId = 'kind' | 'name' | 'description' | 'audience' | 'style' | 'fonts' | 'color' | 'done'
+type StepId = 'kind' | 'name' | 'description' | 'audience' | 'posts' | 'style' | 'fonts' | 'referral' | 'done'
 
 interface Step {
   id: StepId
@@ -62,6 +66,12 @@ const STEPS: Step[] = [
     hint: 'Contoh: ibu muda 25–35 tahun di Jabodetabek yang suka masak praktis.',
   },
   {
+    id: 'posts',
+    title: 'Berapa kali posting per minggu?',
+    hint: 'Ini jadi jadwal dan kalender kontenmu. Bisa diubah kapan saja di halaman Brand.',
+    required: (answers) => answers.postsPerWeek > 0,
+  },
+  {
     id: 'style',
     title: 'Gaya desain seperti apa yang kamu mau?',
     hint: 'Ini yang paling menentukan tampilan carousel. Cover, isi, dan CTA akan punya layout sendiri dalam gaya yang sama.',
@@ -73,9 +83,10 @@ const STEPS: Step[] = [
     hint: 'Sudah kami sarankan sesuai gaya yang dipilih. Ganti kalau punya font brand sendiri.',
   },
   {
-    id: 'color',
-    title: 'Warna utama brand?',
-    hint: 'Opsional. Kalau dilewati, warna diambil dari post Instagram-mu nanti.',
+    id: 'referral',
+    title: 'Tahu Carousely dari mana?',
+    hint: 'Satu pertanyaan terakhir, biar kami tahu cara menjangkau orang sepertimu.',
+    required: (answers) => answers.referralSource.trim() !== '',
   },
   {
     id: 'done',
@@ -86,18 +97,12 @@ const STEPS: Step[] = [
 
 const primaryColor = (colors: BrandColor[]) => colors.find((color) => color.role === 'utama')?.hex ?? ''
 
-function withPrimary(colors: BrandColor[], hex: string): BrandColor[] {
-  const rest = colors.filter((color) => color.role !== 'utama')
-  return hex ? [{ hex, role: 'utama' }, ...rest] : rest
-}
-
 export function Wizard({ initial }: { initial: OnboardingAnswers }) {
   const router = useRouter()
   const [answers, setAnswers] = useState<OnboardingAnswers>(initial)
   const [index, setIndex] = useState(0)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [hexInput, setHexInput] = useState(primaryColor(initial.colors))
   const heading = useRef<HTMLHeadingElement>(null)
 
   const step = STEPS[index]
@@ -156,11 +161,8 @@ export function Wizard({ initial }: { initial: OnboardingAnswers }) {
   return (
     <div className="fixed inset-0 flex flex-col overflow-y-auto bg-bg">
       <header className="sticky top-0 z-10 border-b border-hairline bg-bg/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-5">
+        <div className="mx-auto flex h-14 max-w-5xl items-center gap-4 px-5">
           <CarouselyLogo />
-          <button type="button" onClick={finish} disabled={pending} className="text-sm text-ink-muted hover:text-ink">
-            Lewati, isi nanti
-          </button>
         </div>
         <div
           className="h-0.5 bg-hairline"
@@ -188,14 +190,7 @@ export function Wizard({ initial }: { initial: OnboardingAnswers }) {
           <p className="mt-2 text-ink-muted">{step.hint}</p>
 
           <div className="mt-8">
-            <StepBody
-              id={step.id}
-              answers={answers}
-              update={update}
-              textareaKeys={textareaKeys}
-              hexInput={hexInput}
-              setHexInput={setHexInput}
-            />
+            <StepBody id={step.id} answers={answers} update={update} textareaKeys={textareaKeys} />
           </div>
 
           {error && (
@@ -211,17 +206,10 @@ export function Wizard({ initial }: { initial: OnboardingAnswers }) {
               <ArrowLeft size={16} aria-hidden="true" />
               Kembali
             </button>
-            <div className="flex items-center gap-3">
-              {!step.required && !last && (
-                <button type="button" onClick={() => go(index + 1)} className={GHOST}>
-                  Lewati
-                </button>
-              )}
-              <button type="submit" disabled={!answered || pending} className={PRIMARY}>
-                {last ? (pending ? 'Menyimpan…' : 'Simpan & hubungkan Instagram') : 'Lanjut'}
-                {last ? <Check size={16} aria-hidden="true" /> : <ArrowRight size={16} aria-hidden="true" />}
-              </button>
-            </div>
+            <button type="submit" disabled={!answered || pending} className={PRIMARY}>
+              {last ? (pending ? 'Menyimpan…' : 'Simpan & hubungkan Instagram') : 'Lanjut'}
+              {last ? <Check size={16} aria-hidden="true" /> : <ArrowRight size={16} aria-hidden="true" />}
+            </button>
           </div>
           {style && step.id === 'style' && (
             <p className="sr-only" aria-live="polite">
@@ -239,11 +227,9 @@ interface StepBodyProps {
   answers: OnboardingAnswers
   update: <K extends keyof OnboardingAnswers>(field: K, value: OnboardingAnswers[K]) => void
   textareaKeys: (event: KeyboardEvent<HTMLTextAreaElement>) => void
-  hexInput: string
-  setHexInput: (value: string) => void
 }
 
-function StepBody({ id, answers, update, textareaKeys, hexInput, setHexInput }: StepBodyProps) {
+function StepBody({ id, answers, update, textareaKeys }: StepBodyProps) {
   const style = designStyleOf(answers.designStyle)
   const primary = primaryColor(answers.colors)
 
@@ -343,47 +329,21 @@ function StepBody({ id, answers, update, textareaKeys, hexInput, setHexInput }: 
         </div>
       )
     }
-    case 'color':
+    case 'posts':
       return (
-        <div className="space-y-5">
-          <div className="flex flex-wrap gap-3" role="radiogroup" aria-label="Warna utama">
-            {SWATCHES.map((hex) => (
-              <button
-                key={hex}
-                type="button"
-                role="radio"
-                aria-checked={primary === hex}
-                aria-label={hex}
-                onClick={() => {
-                  update('colors', withPrimary(answers.colors, primary === hex ? '' : hex))
-                  setHexInput(primary === hex ? '' : hex)
-                }}
-                className={`size-11 rounded-full border-2 transition-transform hover:scale-105 ${
-                  primary === hex ? 'border-ink ring-2 ring-white ring-inset' : 'border-transparent'
-                }`}
-                style={{ background: hex }}
-              />
-            ))}
-          </div>
-          <label className="block max-w-xs space-y-1.5">
-            <span className="text-sm font-medium text-ink">Atau kode warna sendiri</span>
-            <div className="flex items-center gap-2">
-              <span className="size-11 shrink-0 rounded-xl border border-hairline" style={{ background: primary || 'transparent' }} />
-              <input
-                value={hexInput}
-                onChange={(event) => {
-                  setHexInput(event.target.value)
-                  const hex = normalizeHex(event.target.value)
-                  if (hex || event.target.value.trim() === '') update('colors', withPrimary(answers.colors, hex ?? ''))
-                }}
-                placeholder="#0f766e"
-                maxLength={7}
-                className={FIELD}
-              />
-            </div>
-          </label>
+        <div role="radiogroup" aria-label="Posting per minggu" className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
+          {POSTS_PER_WEEK_CHOICES.map((count) => (
+            <OptionCard
+              key={count}
+              selected={answers.postsPerWeek === count}
+              onSelect={() => update('postsPerWeek', count)}
+              label={`${count} post / minggu`}
+            />
+          ))}
         </div>
       )
+    case 'referral':
+      return <ReferralStep value={answers.referralSource} onChange={(value) => update('referralSource', value)} />
     case 'done':
       return <Summary answers={answers} />
   }
@@ -396,17 +356,7 @@ function Summary({ answers }: { answers: OnboardingAnswers }) {
     ['Brand', [answers.name, answers.category].filter(Boolean).join(' · ') || '—'],
     ['Gaya desain', style.label],
     ['Font', `${answers.headingFont || style.headingFont} · ${answers.bodyFont || style.bodyFont}`],
-    [
-      'Warna utama',
-      primaryColor(answers.colors) ? (
-        <span className="inline-flex items-center gap-2">
-          <span className="size-4 rounded-full border border-hairline" style={{ background: primaryColor(answers.colors) }} />
-          {primaryColor(answers.colors)}
-        </span>
-      ) : (
-        'Dari post Instagram'
-      ),
-    ],
+    ['Posting', answers.postsPerWeek > 0 ? `${answers.postsPerWeek} post / minggu` : '—'],
   ]
   return (
     <div className="space-y-6">
@@ -443,6 +393,73 @@ function Choice({ selected, onSelect, title, hint }: { selected: boolean; onSele
         <span className="block text-sm text-ink-muted">{hint}</span>
       </span>
       {selected && <Check size={18} className="mt-0.5 shrink-0 text-accent" aria-hidden="true" />}
+    </button>
+  )
+}
+
+const isReadySource = (value: string) => (REFERRAL_SOURCES as readonly string[]).includes(value)
+
+function ReferralStep({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  // "Lainnya" stays chosen even while its text is still empty.
+  const [other, setOther] = useState(value !== '' && !isReadySource(value))
+  const [otherText, setOtherText] = useState(other ? value : '')
+
+  return (
+    <div className="space-y-4">
+      <div role="radiogroup" aria-label="Sumber" className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-3">
+        {REFERRAL_SOURCES.map((source) => (
+          <OptionCard
+            key={source}
+            selected={!other && value === source}
+            onSelect={() => {
+              setOther(false)
+              onChange(source)
+            }}
+            label={source}
+          />
+        ))}
+        <OptionCard
+          selected={other}
+          onSelect={() => {
+            setOther(true)
+            onChange(otherText)
+          }}
+          label={REFERRAL_OTHER}
+        />
+      </div>
+      {other && (
+        <label className="block animate-fade-in space-y-1.5">
+          <span className="text-sm font-medium text-ink">Dari mana?</span>
+          <input
+            autoFocus
+            value={otherText}
+            onChange={(event) => {
+              setOtherText(event.target.value)
+              onChange(event.target.value)
+            }}
+            maxLength={REFERRAL_MAX_LENGTH}
+            placeholder="mis. podcast, webinar, iklan…"
+            className={FIELD}
+          />
+        </label>
+      )}
+    </div>
+  )
+}
+
+function OptionCard({ selected, onSelect, label }: { selected: boolean; onSelect: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      className={`relative flex items-center justify-center rounded-xl border bg-white px-4 py-6 text-center font-medium text-ink transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+        selected ? 'border-accent ring-1 ring-accent' : 'border-hairline hover:border-zinc-300'
+      }`}
+    >
+      {label}
+      {selected && <Check size={16} className="absolute top-3 right-3 text-accent" aria-hidden="true" />}
     </button>
   )
 }

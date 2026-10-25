@@ -2,7 +2,10 @@ import 'server-only'
 import { isHex, type BrandColor, type BrandFields } from './brand-options'
 import { getConnectedAccountId } from './connection'
 import { isAccountKind, isDesignStyle } from './design-styles'
-import { EMPTY_ANSWERS, type OnboardingAnswers } from './onboarding-options'
+import { EMPTY_ANSWERS, isPostsPerWeekChoice, type OnboardingAnswers } from './onboarding-options'
+import { getAccountStrategy, saveStrategy } from './brand'
+import { getScheduleSettings, saveSlots } from './schedule'
+import { generateSlots } from './schedule-slots'
 import { db, unwrap } from './supabase'
 
 interface OnboardingRow {
@@ -15,15 +18,20 @@ interface OnboardingRow {
   heading_font: string
   body_font: string
   colors: unknown
+  posts_per_week: number
+  referral_source: string
   completed_at: string | null
 }
 
-const COLUMNS = 'account_kind, name, category, description, audience, design_style, heading_font, body_font, colors, completed_at'
+type KitAnswersRow = Omit<OnboardingRow, 'completed_at' | 'posts_per_week' | 'referral_source'>
+
+const COLUMNS =
+  'account_kind, name, category, description, audience, design_style, heading_font, body_font, colors, posts_per_week, referral_source, completed_at'
 
 const colorsFrom = (value: unknown): BrandColor[] =>
   Array.isArray(value) ? value.filter((item): item is BrandColor => isHex(item?.hex) && typeof item?.role === 'string') : []
 
-function answersOf(row: Omit<OnboardingRow, 'completed_at'>): OnboardingAnswers {
+function answersOf(row: KitAnswersRow & Partial<Pick<OnboardingRow, 'posts_per_week' | 'referral_source'>>): OnboardingAnswers {
   return {
     accountKind: isAccountKind(row.account_kind) ? row.account_kind : '',
     name: row.name,
@@ -34,6 +42,8 @@ function answersOf(row: Omit<OnboardingRow, 'completed_at'>): OnboardingAnswers 
     headingFont: row.heading_font,
     bodyFont: row.body_font,
     colors: colorsFrom(row.colors),
+    postsPerWeek: isPostsPerWeekChoice(row.posts_per_week) ? row.posts_per_week : 0,
+    referralSource: row.referral_source ?? '',
   }
 }
 
@@ -62,7 +72,7 @@ export async function getOnboarding(userId: string): Promise<OnboardingAnswers> 
       .eq('user_id', userId)
       .eq('account_id', accountId)
       .maybeSingle(),
-  ) as Omit<OnboardingRow, 'completed_at'> | null
+  ) as KitAnswersRow | null
   return kit ? answersOf(kit) : { ...EMPTY_ANSWERS }
 }
 
@@ -116,6 +126,8 @@ export async function saveOnboarding(userId: string, answers: OnboardingAnswers,
           heading_font: answers.headingFont,
           body_font: answers.bodyFont,
           colors: answers.colors,
+          posts_per_week: answers.postsPerWeek,
+          referral_source: answers.referralSource,
           ...(complete ? { completed_at: now } : {}),
           updated_at: now,
         },
@@ -124,13 +136,30 @@ export async function saveOnboarding(userId: string, answers: OnboardingAnswers,
   )
   if (!complete) return
   const accountId = await getConnectedAccountId(userId)
+  if (!accountId) return
   const columns = kitColumnsOf(answers)
-  if (!accountId || Object.keys(columns).length === 0) return
-  unwrap(
-    await db()
-      .from('brand_kit')
-      .upsert({ user_id: userId, account_id: accountId, ...columns, updated_at: now }, { onConflict: 'user_id,account_id' }),
-  )
+  if (Object.keys(columns).length > 0) {
+    unwrap(
+      await db()
+        .from('brand_kit')
+        .upsert({ user_id: userId, account_id: accountId, ...columns, updated_at: now }, { onConflict: 'user_id,account_id' }),
+    )
+  }
+  if (answers.postsPerWeek) await applyPostsPerWeek(userId, accountId, answers.postsPerWeek)
+}
+
+/**
+ * The answered posts per week for an account that is already connected: it becomes the strategy's rhythm, or,
+ * without a strategy yet, the posting slots, unless the owner already set their own.
+ */
+async function applyPostsPerWeek(userId: string, accountId: string, postsPerWeek: number): Promise<void> {
+  const strategy = await getAccountStrategy(userId, accountId)
+  if (strategy) {
+    if (strategy.postsPerWeek !== postsPerWeek) await saveStrategy(userId, accountId, { ...strategy, postsPerWeek })
+    return
+  }
+  const { isCustom } = await getScheduleSettings(userId, accountId)
+  if (!isCustom) await saveSlots(userId, accountId, generateSlots(postsPerWeek))
 }
 
 /** The finished wizard's answers, to seed a newly connected account's kit; null without a finished wizard. */

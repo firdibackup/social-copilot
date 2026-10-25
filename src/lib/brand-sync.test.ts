@@ -157,6 +157,12 @@ describe('syncNewAccount', () => {
     expect(lastKitUpdate()).toEqual({ syncStatus: null })
   })
 
+  it('uses the posts per week answered in the onboarding', async () => {
+    await syncNewAccount(USER, ACCOUNT, 7)
+
+    expect(saveStrategy).toHaveBeenCalledWith(USER, ACCOUNT, { ...STRATEGY, postsPerWeek: 7 })
+  })
+
   it('keeps a strategy the account already has', async () => {
     vi.mocked(getAccountStrategy).mockResolvedValue(STRATEGY)
 

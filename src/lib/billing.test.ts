@@ -5,6 +5,9 @@ import { DEFAULT_PLAN } from './billing-options'
 import { DEFAULT_CATALOG } from './billing-catalog-options'
 vi.mock('./billing-catalog', () => ({ getBillingCatalog: vi.fn(async () => ({ version: 1, catalog: DEFAULT_CATALOG })) }))
 import { createPaymentRequest, getPaymentRequest, MayarApiError } from './mayar'
+import { findCoupon } from './coupons'
+import { CouponError } from './coupon-options'
+vi.mock('./coupons', () => ({ findCoupon: vi.fn() }))
 
 /** A query builder that records each call and resolves to the next queued result for any table. */
 const fake = vi.hoisted(() => ({
@@ -62,6 +65,8 @@ beforeEach(() => {
   vi.mocked(createPaymentRequest).mockReset()
   vi.mocked(getPaymentRequest).mockReset()
   vi.mocked(getPlan).mockResolvedValue(DEFAULT_PLAN)
+  vi.mocked(findCoupon).mockReset()
+  vi.stubEnv('MAYAR_ENABLED', 'true')
 })
 
 describe('startCheckout', () => {
@@ -144,6 +149,61 @@ describe('startCheckout', () => {
     await expect(startUpgradeCheckout(USER, 'budi@example.com', CONTACT, signed.token, NOW)).resolves.toBe('https://pay.test/upgrade')
     expect(fake.rpc).toHaveBeenCalledWith('prepare_billing_checkout', expect.objectContaining({ p_snapshot: signed.quote }))
     vi.unstubAllEnvs()
+  })
+})
+
+describe('startCheckout with a coupon', () => {
+  const COUPON = { id: 'c-1', code: 'HEMAT20', percent: 20, maxUses: 10, active: true, expiresAt: null, planIds: [], months: [] }
+
+  it('stacks the coupon after the duration discount and sends the snapshot with it', async () => {
+    vi.mocked(findCoupon).mockResolvedValue({ coupon: COUPON, usage: { used: 0, usedByUser: false } })
+    fake.rpc.mockResolvedValue(ok({ id: 'pay-4', link: null, status: 'pending' }))
+    fake.results.push(ok(null), ok([{ id: 'pay-4' }]), ok(null))
+    vi.mocked(createPaymentRequest).mockResolvedValue({ id: 'pr-4', link: 'https://pay.test/pl/kupon' })
+
+    await expect(startCheckout(USER, 'budi@example.com', CONTACT, NOW, { planId: 'pro', months: 3, version: 1, couponCode: ' hemat20 ' }))
+      .resolves.toBe('https://pay.test/pl/kupon')
+    // 139.000 × 3 − 5% = 396.150; − 20% = 316.920
+    expect(findCoupon).toHaveBeenCalledWith(USER, 'HEMAT20')
+    expect(fake.rpc).toHaveBeenCalledWith('prepare_billing_checkout', expect.objectContaining({
+      p_key: `${USER}:1:pro:3:HEMAT20`,
+      p_snapshot: expect.objectContaining({ total: 316_920, discount: 5, couponDiscount: 79_230, coupon: { id: 'c-1', code: 'HEMAT20', percent: 20 } }),
+    }))
+    expect(createPaymentRequest).toHaveBeenCalledWith(expect.objectContaining({ amount: 316_920 }))
+  })
+
+  it('activates a 100% coupon without Mayar, even while payments are off', async () => {
+    vi.stubEnv('MAYAR_ENABLED', '')
+    vi.mocked(findCoupon).mockResolvedValue({ coupon: { ...COUPON, code: 'GRATIS', percent: 100 }, usage: { used: 0, usedByUser: false } })
+    fake.rpc.mockResolvedValue(ok({ id: 'pay-5', link: null, status: 'paid' }))
+    fake.results.push(ok(null))
+
+    await expect(startCheckout(USER, 'budi@example.com', CONTACT, NOW, { planId: 'max', months: 1, version: 1, couponCode: 'GRATIS' }))
+      .resolves.toBe('http://localhost:3000/langganan?bayar=selesai&pesanan=pay-5')
+    expect(fake.rpc).toHaveBeenCalledWith('prepare_billing_checkout', expect.objectContaining({ p_snapshot: expect.objectContaining({ total: 0 }) }))
+    expect(createPaymentRequest).not.toHaveBeenCalled()
+  })
+
+  it('refuses a paid checkout while payments are off', async () => {
+    vi.stubEnv('MAYAR_ENABLED', '')
+    vi.mocked(findCoupon).mockResolvedValue({ coupon: COUPON, usage: { used: 0, usedByUser: false } })
+    await expect(startCheckout(USER, 'budi@example.com', CONTACT, NOW, { planId: 'pro', months: 1, version: 1, couponCode: 'HEMAT20' }))
+      .rejects.toThrow('belum diaktifkan')
+    expect(fake.rpc).not.toHaveBeenCalled()
+  })
+
+  it('refuses an exhausted or already used coupon before reserving anything', async () => {
+    vi.mocked(findCoupon).mockResolvedValue({ coupon: COUPON, usage: { used: 10, usedByUser: false } })
+    await expect(startCheckout(USER, 'b@example.com', CONTACT, NOW, { planId: 'pro', months: 1, version: 1, couponCode: 'HEMAT20' })).rejects.toThrow(CouponError)
+    vi.mocked(findCoupon).mockResolvedValue({ coupon: COUPON, usage: { used: 1, usedByUser: true } })
+    await expect(startCheckout(USER, 'b@example.com', CONTACT, NOW, { planId: 'pro', months: 1, version: 1, couponCode: 'HEMAT20' })).rejects.toThrow('sudah pernah')
+    expect(fake.rpc).not.toHaveBeenCalled()
+  })
+
+  it('skips the coupon lookup when no code is given', async () => {
+    fake.rpc.mockResolvedValue(ok({ id: 'pay-1', link: 'https://pay.test/pl/old' }))
+    await startCheckout(USER, 'budi@example.com', CONTACT, NOW, { planId: 'pro', months: 1, version: 1, couponCode: '  ' })
+    expect(findCoupon).not.toHaveBeenCalled()
   })
 })
 

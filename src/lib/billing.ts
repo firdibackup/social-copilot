@@ -3,6 +3,8 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import { getPlan } from './app-settings'
 import { getBillingCatalog } from './billing-catalog'
 import { billingCycle, quotePurchase, type CatalogPlan, type PurchaseSnapshot } from './billing-catalog-options'
+import { normalizeCouponCode, withCoupon } from './coupon-options'
+import { findCoupon } from './coupons'
 import { usedPercent } from './billing-options'
 import { describeError } from './errors'
 import { appUrl, env } from './env'
@@ -39,6 +41,7 @@ export interface Payment {
   link: string | null
   fulfillmentError: string | null
   planName: string | null
+  couponCode: string | null
 }
 
 interface PaymentRow {
@@ -115,6 +118,7 @@ export async function listPayments(userId: string): Promise<Payment[]> {
     link: row.link,
     fulfillmentError: row.fulfillment_error,
     planName: row.snapshot?.plan.name ?? null,
+    couponCode: row.snapshot && 'coupon' in row.snapshot ? row.snapshot.coupon?.code ?? null : null,
   }))
 }
 
@@ -133,15 +137,38 @@ export async function grantFreePeriod(userId: string, days?: number): Promise<vo
   unwrap(await db().rpc('activate_payment', { p_id: id, p_days: length }))
 }
 
+export interface CheckoutChoice {
+  planId: string
+  months: number
+  version: number
+  /** Empty or missing: no coupon. */
+  couponCode?: string
+}
+
 /**
- * A pending link is reused only for the same catalog version, plan, and duration.
- * A unique checkout key prevents simultaneous requests from creating multiple payable links.
+ * The purchase for this choice, with the coupon taken off when one is given. Throws a CouponError the user can read
+ * when the coupon can't be used; the database checks it again, under a lock, when the payment is reserved.
  */
-export async function startCheckout(userId: string, email: string, contact: CustomerContact, now = new Date(), choice = { planId: 'pro', months: 1, version: 0 }): Promise<string> {
+export async function quoteCheckout(userId: string, choice: CheckoutChoice, now = new Date()): Promise<PurchaseSnapshot> {
   const { catalog, version } = await getBillingCatalog()
   if (choice.version && choice.version !== version) throw new Error('Harga diperbarui. Muat ulang ringkasan pembayaran.')
-  const snapshot = quotePurchase(catalog, version, choice.planId, choice.months)
-  const key = `${userId}:${version}:${choice.planId}:${choice.months}`
+  const purchase = quotePurchase(catalog, version, choice.planId, choice.months)
+  const code = normalizeCouponCode(choice.couponCode)
+  if (!code) return purchase
+  const { coupon, usage } = await findCoupon(userId, code)
+  return withCoupon(purchase, coupon, usage, now)
+}
+
+/**
+ * A pending link is reused only for the same catalog version, plan, duration, and coupon.
+ * A unique checkout key prevents simultaneous requests from creating multiple payable links.
+ * A 100% coupon leaves nothing to pay: the database starts the period at once and no Mayar link is made, so it works
+ * even while payments are off. Returns where to send the user.
+ */
+export async function startCheckout(userId: string, email: string, contact: CustomerContact, now = new Date(), choice: CheckoutChoice = { planId: 'pro', months: 1, version: 0 }): Promise<string> {
+  const snapshot = await quoteCheckout(userId, choice, now)
+  if (snapshot.total > 0 && !paymentsEnabled()) throw new Error('Pembayaran belum diaktifkan.')
+  const key = `${userId}:${snapshot.version}:${snapshot.plan.id}:${snapshot.months}:${snapshot.coupon?.code ?? ''}`
   return createCheckout(userId, email, contact, snapshot, key, now)
 }
 
@@ -182,9 +209,11 @@ async function createCheckout(userId: string, email: string, contact: CustomerCo
   if (expiresAt.getTime() - now.getTime() < 60_000) throw new Error('Masa aktif hampir berakhir. Aktifkan paket kembali setelah periode ini.')
   const row = unwrap(await db().rpc('prepare_billing_checkout', {
     p_user: userId, p_snapshot: snapshot, p_key: key, p_expires: expiresAt.toISOString(),
-  })) as { id: string; link: string | null }
+  })) as { id: string; link: string | null; status: PaymentStatus }
   // Kept on the row even when its link is reused: the team follows up with the latest contact.
   unwrap(await db().from('payments').update({ customer_name: contact.name, customer_whatsapp: contact.whatsapp }).eq('id', row.id))
+  // Free through a 100% coupon: already active, nothing to pay at Mayar.
+  if (row.status === 'paid') return appUrl('/langganan', { bayar: 'selesai', pesanan: row.id })
   if (row.link) return row.link
   const { id } = row
   const claimed = unwrap(await db().from('payments').update({ last_checked_at: now.toISOString() })
@@ -197,7 +226,8 @@ async function createCheckout(userId: string, email: string, contact: CustomerCo
       amount: snapshot.total,
       email,
       mobile: mayarMobile(contact.whatsapp),
-      description: upgrade ? `Upgrade Carousely ${plan.name} · pesanan ${id}` : `Carousely ${plan.name} ${snapshot.months} bulan · pesanan ${id}`,
+      description: upgrade ? `Upgrade Carousely ${plan.name} · pesanan ${id}`
+        : `Carousely ${plan.name} ${snapshot.months} bulan${snapshot.coupon ? ` · kupon ${snapshot.coupon.code}` : ''} · pesanan ${id}`,
       redirectUrl: appUrl('/langganan', { bayar: 'selesai', pesanan: id }),
       expiredAt: expiresAt,
     })

@@ -12,6 +12,7 @@ import { estimatedPosts, quotePurchase, type BillingCatalog, type CatalogPlan } 
 import { formatRupiah } from '@/lib/billing-options'
 import { signOut } from '@/app/masuk/actions'
 import { checkPaymentAction, checkoutAction, subscriptionActiveAction } from '@/app/(app)/(halaman)/pengaturan/billing-actions'
+import { CouponField, isCouponError, useCoupon } from '@/app/(app)/(halaman)/pengaturan/billing-panel'
 
 type ClientPayment = Omit<Payment, 'createdAt' | 'periodStart' | 'periodEnd'> & { createdAt: string; periodStart: string | null; periodEnd: string | null }
 interface Props {
@@ -44,6 +45,11 @@ export function SubscribePage(props: Props) {
   const selected = plans.find((plan) => plan.id === planId) ?? plans[0]
   const purchase = selected ? quotePurchase(catalog, props.version, selected.id, months) : null
   const gross = purchase ? purchase.plan.priceIdr * months : 0
+  const coupon = useCoupon('langganan', props.version, selected?.id, months)
+  const applied = purchase ? coupon.applied : null
+  // A 100% coupon activates right away, without Mayar, so it works even while payments are switched off.
+  const free = applied?.total === 0
+  const total = applied?.total ?? purchase?.total ?? 0
   const waiting = payments.find((payment) => payment.status === 'pending')
   const returnedPayment = props.orderId ? payments.find((payment) => payment.id === props.orderId) : undefined
   const expired = props.returned && returnedPayment?.status === 'expired'
@@ -84,17 +90,21 @@ export function SubscribePage(props: Props) {
     if (!details) return
     startPaying(async () => {
       try {
-        const result = await checkoutAction({ planId: selected.id, months, version: props.version, contact: details })
+        const couponCode = applied?.code
+        const result = await checkoutAction({ planId: selected.id, months, version: props.version, contact: details, ...(couponCode && { couponCode }) })
         if ('field' in result && result.field === 'contact') contact.showServerError(result.error)
+        else if (result.error && couponCode && isCouponError(result.error)) coupon.reject(result.error)
         else if (result.error) setError(result.error)
         else if (result.link) window.location.assign(result.link)
       } catch { setError('Pembayaran belum bisa disiapkan. Coba lagi.') }
     })
   }
 
-  const ctaLabel = paying ? 'Menyiapkan pembayaran…' : !enabled ? 'Pembayaran belum diaktifkan' : waiting ? 'Selesaikan pembayaran tertunda' : 'Lanjut ke Pembayaran'
-  const ctaDisabled = busy || !enabled || !selected || !!waiting
-  const askContact = enabled && !waiting && !!selected
+  const ctaLabel = free && !waiting ? paying ? 'Mengaktifkan…' : 'Aktifkan Gratis'
+    : paying ? 'Menyiapkan pembayaran…' : !enabled ? 'Pembayaran belum diaktifkan' : waiting ? 'Selesaikan pembayaran tertunda' : 'Lanjut ke Pembayaran'
+  const ctaDisabled = busy || (!enabled && !free) || !selected || !!waiting || coupon.checking
+  const ctaArrow = !paying && (enabled || free) && !waiting
+  const askContact = (enabled || free) && !waiting && !!selected
 
   return (
     <div className="fixed inset-0 flex flex-col overflow-y-auto bg-bg">
@@ -129,7 +139,7 @@ export function SubscribePage(props: Props) {
           {error && <Notice tone="error">{error}</Notice>}
           {props.syncError && <Notice tone="warning">Status pembayaran terbaru belum bisa diperiksa. Gunakan Cek Status untuk mencoba lagi.</Notice>}
           {fulfillmentError && <Notice tone="warning">Pembayaran diterima, tetapi aktivasi perlu bantuan tim. Nomor pesanan: {fulfillmentError.id}.</Notice>}
-          {!enabled && <Notice tone="warning">Pembayaran belum diaktifkan. Coba lagi nanti atau hubungi tim Carousely.</Notice>}
+          {!enabled && !free && <Notice tone="warning">Pembayaran belum diaktifkan. Coba lagi nanti atau hubungi tim Carousely.</Notice>}
         </div>
 
         {showStatus && (
@@ -172,7 +182,7 @@ export function SubscribePage(props: Props) {
               <fieldset disabled={busy}>
                 <legend className="mb-3 text-sm font-semibold text-ink">Paket</legend>
                 <div className={`grid gap-4 ${plans.length > 1 ? 'sm:grid-cols-2' : ''}`}>
-                  {plans.map((plan) => <PlanCard key={plan.id} plan={plan} checked={selected?.id === plan.id} onSelect={() => { setPlanId(plan.id); setError(null) }} />)}
+                  {plans.map((plan) => <PlanCard key={plan.id} plan={plan} checked={selected?.id === plan.id} onSelect={() => { setPlanId(plan.id); setError(null); coupon.reprice(plan.id, months) }} />)}
                 </div>
               </fieldset>
             ) : <Notice tone="warning">Belum ada paket yang tersedia. Coba lagi nanti.</Notice>}
@@ -187,7 +197,7 @@ export function SubscribePage(props: Props) {
                   const active = months === duration.months
                   return (
                     <label key={duration.months} className={`relative flex min-h-16 cursor-pointer flex-col items-center justify-center rounded-xl border px-3 py-2.5 text-center transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-focus ${active ? 'border-primary bg-primary/5 text-primary' : 'border-hairline bg-paper text-ink hover:border-zinc-300'}`}>
-                      <input type="radio" name="durasi" value={duration.months} checked={active} onChange={() => setMonths(duration.months)} className="sr-only" />
+                      <input type="radio" name="durasi" value={duration.months} checked={active} onChange={() => { setMonths(duration.months); coupon.reprice(selected?.id, duration.months) }} className="sr-only" />
                       <span className="text-sm font-semibold">{duration.months} bulan</span>
                       <span className={`mt-0.5 text-xs ${duration.discount > 0 ? 'font-medium text-mint-ink' : 'text-ink-muted'}`}>{duration.discount > 0 ? `Hemat ${duration.discount}%` : 'Harga normal'}</span>
                     </label>
@@ -205,17 +215,19 @@ export function SubscribePage(props: Props) {
                 <dl className="mt-4 space-y-2.5 text-sm">
                   <div className="flex justify-between gap-4"><dt className="text-ink-muted">{formatRupiah(purchase.plan.priceIdr)} × {months} bulan</dt><dd className="tabular-nums text-ink">{formatRupiah(gross)}</dd></div>
                   {purchase.discount > 0 && <div className="flex justify-between gap-4 text-mint-ink"><dt>Diskon {purchase.discount}%</dt><dd className="tabular-nums">−{formatRupiah(gross - purchase.total)}</dd></div>}
-                  <div className="flex items-baseline justify-between gap-4 border-t border-hairline pt-3"><dt className="font-semibold text-ink">Total</dt><dd className="font-display text-2xl font-bold tabular-nums tracking-[-0.02em] text-ink">{formatRupiah(purchase.total)}</dd></div>
+                  {applied && <div className="flex justify-between gap-4 text-mint-ink"><dt className="min-w-0 break-words">Kupon {applied.code} (−{applied.percent}%)</dt><dd className="tabular-nums">−{formatRupiah(applied.couponDiscount)}</dd></div>}
+                  <div className="flex items-baseline justify-between gap-4 border-t border-hairline pt-3"><dt className="font-semibold text-ink">Total</dt><dd className="font-display text-2xl font-bold tabular-nums tracking-[-0.02em] text-ink">{formatRupiah(total)}</dd></div>
                 </dl>
-                {months > 1 && <p className="mt-1 text-right text-xs text-ink-muted">≈ {formatRupiah(Math.round(purchase.total / months))} / bulan</p>}
+                {months > 1 && !free && <p className="mt-1 text-right text-xs text-ink-muted">≈ {formatRupiah(Math.round(total / months))} / bulan</p>}
+                <CouponField coupon={coupon} disabled={busy || !!waiting} buttonClass={SECONDARY} inputClass="rounded-xl py-2.5 transition-colors" className="mt-5 border-t border-hairline pt-5" />
                 <p className="mt-4 flex gap-2 text-xs text-ink-muted"><Check size={14} className="mt-px shrink-0 text-mint-ink" aria-hidden="true" />Aktif {months} bulan sejak pembayaran dikonfirmasi. Kuota diperbarui setiap bulan.</p>
               </>
             ) : <p className="mt-3 text-sm text-ink-muted">Pilih paket untuk melihat total.</p>}
             {askContact && <CheckoutContactFields contact={contact} disabled={busy} className="mt-5 border-t border-hairline pt-5" />}
             <button type="button" disabled={ctaDisabled} onClick={pay} className={`${PRIMARY} mt-5 hidden w-full lg:inline-flex`}>
-              {ctaLabel}{!paying && enabled && !waiting && <ArrowRight size={16} aria-hidden="true" />}
+              {ctaLabel}{ctaArrow && <ArrowRight size={16} aria-hidden="true" />}
             </button>
-            <Footnote className="mt-4 hidden lg:flex" />
+            <Footnote free={free} className="mt-4 hidden lg:flex" />
           </aside>
         </div>
       </main>
@@ -223,21 +235,21 @@ export function SubscribePage(props: Props) {
       {/* Mobile: the total and CTA stay within thumb reach. */}
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-hairline bg-paper/95 px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
         <div className="mx-auto flex max-w-5xl items-center gap-4">
-          {purchase && <div className="min-w-0 shrink-0"><p className="text-xs text-ink-muted">Total</p><p className="font-display text-lg font-bold tabular-nums tracking-[-0.02em] text-ink">{formatRupiah(purchase.total)}</p></div>}
+          {purchase && <div className="min-w-0 shrink-0"><p className="text-xs text-ink-muted">Total</p><p className="font-display text-lg font-bold tabular-nums tracking-[-0.02em] text-ink">{formatRupiah(total)}</p></div>}
           <button type="button" disabled={ctaDisabled} onClick={pay} className={`${PRIMARY} flex-1`}>
-            {ctaLabel}{!paying && enabled && !waiting && <ArrowRight size={16} aria-hidden="true" />}
+            {ctaLabel}{ctaArrow && <ArrowRight size={16} aria-hidden="true" />}
           </button>
         </div>
-        <Footnote className="mx-auto mt-2 flex max-w-5xl justify-center" />
+        <Footnote free={free} className="mx-auto mt-2 flex max-w-5xl justify-center" />
       </div>
     </div>
   )
 }
 
-function Footnote({ className = '' }: { className?: string }) {
+function Footnote({ free, className = '' }: { free: boolean; className?: string }) {
   return (
     <p className={`items-center gap-1.5 text-[11px] leading-snug text-ink-muted ${className}`}>
-      <ShieldCheck size={13} className="shrink-0" aria-hidden="true" />Pembayaran diproses melalui Mayar · Prabayar, tanpa perpanjangan otomatis
+      <ShieldCheck size={13} className="shrink-0" aria-hidden="true" />{free ? 'Gratis dengan kupon · Tanpa pembayaran, tanpa perpanjangan otomatis' : 'Pembayaran diproses melalui Mayar · Prabayar, tanpa perpanjangan otomatis'}
     </p>
   )
 }

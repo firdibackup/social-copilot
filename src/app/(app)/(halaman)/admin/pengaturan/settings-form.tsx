@@ -109,7 +109,7 @@ export function SettingsForm({ values, defaults, textModels, textPresets, imageM
       {state.success && <Notice tone="success">{state.success}</Notice>}
       <div className="flex flex-wrap items-center gap-3">
         <button type="submit" disabled={saving} className={PRIMARY_BUTTON}>
-          {saving ? 'Menyimpan…' : 'Simpan pengaturan'}
+          {saving ? 'Menyimpan…' : 'Simpan model & akses manual'}
         </button>
         {updatedAt && <span className="text-xs text-zinc-500">Terakhir diubah {formatDateTime(new Date(updatedAt))}</span>}
       </div>

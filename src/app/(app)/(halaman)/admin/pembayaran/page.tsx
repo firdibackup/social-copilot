@@ -130,6 +130,9 @@ async function Payments({ searchParams }: PembayaranPageProps) {
                     <p className="text-zinc-900">
                       {payment.planName ?? 'Carousely'}
                       <span className="text-zinc-500"> · {payment.kind === 'upgrade' ? 'Upgrade' : payment.months ? `${payment.months} bulan` : 'Langganan'}</span>
+                      {payment.couponCode && (
+                        <span className="ml-1.5 rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs text-zinc-700">Kupon {payment.couponCode}</span>
+                      )}
                     </p>
                     <p className="font-medium tabular-nums text-zinc-900">{formatRupiah(payment.amount)}</p>
                   </td>

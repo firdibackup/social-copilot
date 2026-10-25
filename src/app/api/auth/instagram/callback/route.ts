@@ -115,7 +115,7 @@ async function switchToAccount(userId: string, previous: string | null, accountI
   if (await hasBrandKit(userId, accountId)) return
   const answers = await getCompletedAnswers(userId)
   if (await startBrandSync(userId, accountId, answers ? kitColumnsOf(answers) : {})) {
-    after(() => syncNewAccount(userId, accountId))
+    after(() => syncNewAccount(userId, accountId, answers?.postsPerWeek || undefined))
   }
 }
 

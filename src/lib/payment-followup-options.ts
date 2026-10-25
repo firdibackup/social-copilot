@@ -11,6 +11,8 @@ export interface UnfinishedPayment {
   whatsapp: string | null
   planName: string | null
   months: number | null
+  /** The coupon applied at checkout, if any. */
+  couponCode?: string | null
   kind: 'subscription' | 'upgrade'
   amount: number
   /** "pending" while the Mayar link can still be paid. */

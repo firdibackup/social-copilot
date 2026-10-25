@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { Notice } from '@/components/notice'
 import { MIN_PRICE_IDR, type BillingCatalog, type CatalogPlan } from '@/lib/billing-catalog-options'
 import { formatRupiah } from '@/lib/billing-options'
@@ -21,6 +21,14 @@ export function BillingForm({ catalog, version }: { catalog: BillingCatalog; ver
   const [state, action, pending] = useActionState(saveCatalogAction, { error: null, success: null })
   const updatePlan = (index: number, patch: Partial<CatalogPlan>) => setConfig((current) => ({ ...current,
     plans: current.plans.map((plan, i) => i === index ? { ...plan, ...patch } : plan) }))
+  // This page has a second form below with its own save button; edits here are lost if only that one is pressed.
+  const dirty = JSON.stringify(config) !== JSON.stringify(catalog)
+  useEffect(() => {
+    if (!dirty) return
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault()
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
   return (
     <form action={action} className="space-y-5">
       <input type="hidden" name="version" value={version} />
@@ -78,7 +86,8 @@ export function BillingForm({ catalog, version }: { catalog: BillingCatalog; ver
         <label className={LABEL}>Jam layanan<input className={FIELD} placeholder="Senin–Jumat, 09.00–17.00 WIB" value={config.supportHours} onChange={(e) => setConfig((current) => ({ ...current, supportHours: e.target.value }))} /></label>
       </fieldset>
       {state.error && <Notice tone="error">{state.error}</Notice>}
-      {state.success && <Notice tone="success">{state.success}</Notice>}
+      {state.success && !dirty && <Notice tone="success">{state.success}</Notice>}
+      {dirty && !pending && <Notice tone="warning">Perubahan paket & kredit belum disimpan. Tekan “Simpan paket & kredit” di bawah ini; tombol simpan di bagian Model AI tidak menyimpan harga paket.</Notice>}
       <button className={PRIMARY_BUTTON} type="submit" disabled={pending}>{pending ? 'Menyimpan…' : 'Simpan paket & kredit'}</button>
     </form>
   )

@@ -28,8 +28,9 @@ const IMPORTED = 3
  * is already in the kit and stays: only empty fields are filled. Free: the AI requests are logged at 0 credits. Each step that
  * fails is logged and the rest still run; the kit ends with sync_status null, or 'failed' when a step failed, so
  * Brand can say so. Never throws: it runs after the callback's redirect, where nobody would see an error.
+ * `postsPerWeek`, answered in the onboarding, wins over the drafted strategy's rhythm.
  */
-export async function syncNewAccount(userId: string, accountId: string): Promise<void> {
+export async function syncNewAccount(userId: string, accountId: string, postsPerWeek?: number): Promise<void> {
   let failed = false
   async function step<T>(name: string, run: () => Promise<T>): Promise<T | null> {
     try {
@@ -73,7 +74,7 @@ export async function syncNewAccount(userId: string, accountId: string): Promise
       await step('strategi', async () => {
         if (await getAccountStrategy(userId, accountId)) return
         const strategy = await analyzeStrategy(userId, { brand: profileText, recent: captions }, { cost: 0 })
-        await saveStrategy(userId, accountId, strategy)
+        await saveStrategy(userId, accountId, postsPerWeek ? { ...strategy, postsPerWeek } : strategy)
       })
     }
 
