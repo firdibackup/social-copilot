@@ -206,10 +206,25 @@ export function Wizard({ initial }: { initial: OnboardingAnswers }) {
               <ArrowLeft size={16} aria-hidden="true" />
               Kembali
             </button>
-            <button type="submit" disabled={!answered || pending} className={PRIMARY}>
-              {last ? (pending ? 'Menyimpan…' : 'Simpan & hubungkan Instagram') : 'Lanjut'}
-              {last ? <Check size={16} aria-hidden="true" /> : <ArrowRight size={16} aria-hidden="true" />}
-            </button>
+            <div className="flex items-center gap-3">
+              {!last && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void save(false)
+                    go(index + 1)
+                  }}
+                  disabled={pending}
+                  className={GHOST}
+                >
+                  Lewati
+                </button>
+              )}
+              <button type="submit" disabled={!answered || pending} className={PRIMARY}>
+                {last ? (pending ? 'Menyimpan…' : 'Simpan & hubungkan Instagram') : 'Lanjut'}
+                {last ? <Check size={16} aria-hidden="true" /> : <ArrowRight size={16} aria-hidden="true" />}
+              </button>
+            </div>
           </div>
           {style && step.id === 'style' && (
             <p className="sr-only" aria-live="polite">
