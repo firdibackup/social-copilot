@@ -123,10 +123,14 @@
 .capabilities { display: flex; justify-content: center; flex-wrap: wrap; gap: 65px; max-width: 1160px; margin: auto; padding: 33px 24px; border-bottom: 1px solid var(--lp-line); }
 .capabilities span { display: inline-flex; align-items: center; gap: 10px; color: #746e83; font-size: 12px; }
 .capabilities svg { color: #8b7aaf; }
-.partners { max-width: 1160px; margin: auto; padding: 44px 24px; border-bottom: 1px solid var(--lp-line); text-align: center; }
-.partners h2 { margin: 0 0 26px; color: #746e83; font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
-.partners div { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 32px 72px; }
-.partners img { width: auto; height: 34px; }
+.partners { max-width: 1160px; margin: auto; padding: 76px 24px 84px; border-bottom: 1px solid var(--lp-line); text-align: center; }
+/* .landing prefix: beats the generic `.landing h2` section size declared below */
+.landing .partners h2 { font-size: clamp(24px, 2.4vw, 30px); line-height: 1.2; letter-spacing: -.035em; color: #302650; }
+.partners > p { color: var(--lp-muted); font-size: 14px; margin: 12px 0 38px; }
+.partners > div { display: flex; justify-content: center; flex-wrap: wrap; gap: 16px; }
+.partners > div > span { display: grid; place-items: center; width: 230px; height: 100px; padding: 0 34px; border: 1px solid var(--lp-line); border-radius: 14px; background: #fcfbff; transition: border-color .2s, background .2s; }
+.partners > div > span:hover { border-color: #d3c7f3; background: #f6f4ff; }
+.partners img { width: auto; max-width: 100%; height: 36px; object-fit: contain; }
 .features { max-width: 1160px; margin: auto; padding: 112px 28px 82px; }
 .sectionHeading { text-align: center; }
 .landing h2 { font-size: clamp(32px, 3.5vw, 47px); line-height: 1.12; letter-spacing: -.04em; font-weight: 650; margin: 0; text-wrap: balance; }
@@ -323,6 +327,12 @@
   .heroBottom { margin-top: 0; padding: 26px 22px 20px; font-size: 10px; justify-content: space-between; }
   .capabilities { gap: 20px 28px; padding: 26px 20px; }
   .capabilities span { font-size: 11px; min-width: 140px; }
+  .partners { padding: 56px 20px 60px; }
+  .landing .partners h2 { font-size: 24px; }
+  .partners > p { font-size: 13px; margin: 10px 0 28px; }
+  .partners > div { gap: 12px; }
+  .partners > div > span { width: calc(50% - 6px); max-width: 200px; height: 84px; padding: 0 20px; }
+  .partners img { height: 28px; }
   .features { padding: 72px 22px 55px; }
   .landing h2 { font-size: 35px; }
   .sectionHeading > p { font-size: 13px; margin: 20px 0 25px; }
