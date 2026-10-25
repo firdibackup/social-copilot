@@ -1,4 +1,4 @@
-import { addBillingMonths, type CatalogPlan, type PurchaseSnapshot } from './billing-catalog-options'
+import { addBillingMonths, MIN_PRICE_IDR, type CatalogPlan, type PurchaseSnapshot } from './billing-catalog-options'
 
 export interface PaidTerm {
   id: string
@@ -50,7 +50,7 @@ export function quoteUpgrade(terms: PaidTerm[], target: CatalogPlan, version: nu
       amount: Math.round((target.priceIdr - old.priceIdr) * (100 - discount) / 100 * months) }
   })
   const total = lines.reduce((sum, line) => sum + line.amount, 0)
-  if (total < 1000) throw new Error('Sisa biaya upgrade di bawah Rp 1.000. Perpanjang dulu atau tunggu periode berikutnya.')
+  if (total < MIN_PRICE_IDR) throw new Error('Sisa biaya upgrade di bawah Rp 1.000. Perpanjang dulu atau tunggu periode berikutnya.')
   if (total > 100_000_000) throw new Error('Hubungi tim untuk upgrade masa aktif ini.')
   return { kind: 'upgrade', version, plan: { ...target }, total, quotedAt: now.toISOString(),
     activeUntil: new Date(Math.max(...remaining.map((term) => new Date(term.period_end).getTime()))).toISOString(),

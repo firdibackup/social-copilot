@@ -1,4 +1,4 @@
-import { TASK_CREDITS, type Plan } from './billing-options'
+import { formatRupiah, TASK_CREDITS, type Plan } from './billing-options'
 
 export interface CatalogPlan extends Plan {
   id: string
@@ -28,6 +28,8 @@ export const DEFAULT_CATALOG: BillingCatalog = {
   durations: [{ months: 1, discount: 0 }, { months: 3, discount: 5 }, { months: 6, discount: 11 }, { months: 12, discount: 17 }],
   rates: { ...TASK_CREDITS, image: 20 }, supportUrl: '', supportHours: '',
 }
+/** Mayar rejects payment amounts below Rp 1.000. */
+export const MIN_PRICE_IDR = 1_000
 /** Rough monthly post count shown instead of raw credits: 2.500 credits ≈ 30 carousel posts. */
 export const estimatedPosts = (credits: number) => Math.floor((credits * 30) / 2_500)
 
@@ -60,6 +62,20 @@ export function billingCycle(start: Date, end: Date, now: Date): { start: Date; 
   if (addBillingMonths(start, month) > now) month--
   return { start: addBillingMonths(start, month), end: new Date(Math.min(end.getTime(), addBillingMonths(start, month + 1).getTime())) }
 }
+/**
+ * Save-time only: a large discount on a cheap plan can push the paid total below what Mayar accepts.
+ * Not part of parsing, so a catalog saved before this rule still loads.
+ */
+export function assertPayableTotals(catalog: BillingCatalog): void {
+  for (const plan of catalog.plans) {
+    if (!plan.active) continue
+    for (const duration of catalog.durations) {
+      if (Math.round(plan.priceIdr * duration.months * (100 - duration.discount) / 100) < MIN_PRICE_IDR) {
+        throw new Error(`Total paket ${plan.name} untuk ${duration.months} bulan setelah diskon ${duration.discount}% di bawah ${formatRupiah(MIN_PRICE_IDR)}. Naikkan harga atau kurangi diskon.`)
+      }
+    }
+  }
+}
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
 const integer = (value: unknown, min: number, max: number) => typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max
 const shortText = (value: unknown, max: number) => typeof value === 'string' && value.length <= max
@@ -68,9 +84,12 @@ export function parseBillingCatalog(value: unknown): BillingCatalog {
   if (!object(value) || !Array.isArray(value.plans) || !value.plans.length || value.plans.length > 20) throw new Error('Isi 1–20 paket.')
   const ids = new Set<string>()
   for (const plan of value.plans) {
+    if (object(plan) && typeof plan.priceIdr === 'number' && plan.priceIdr < MIN_PRICE_IDR) {
+      throw new Error(`Harga paket ${String(plan.name || plan.id)} minimal ${formatRupiah(MIN_PRICE_IDR)}. Mayar menolak pembayaran di bawah nominal itu.`)
+    }
     if (!object(plan) || typeof plan.id !== 'string' || !/^[a-z][a-z0-9-]{0,39}$/.test(plan.id) || ids.has(plan.id)
       || !shortText(plan.name, 80) || !String(plan.name).trim() || !shortText(plan.description, 250)
-      || !integer(plan.priceIdr, 1_000, 100_000_000) || !integer(plan.credits, 1, 1_000_000)
+      || !integer(plan.priceIdr, MIN_PRICE_IDR, 100_000_000) || !integer(plan.credits, 1, 1_000_000)
       || plan.days !== 30 || !integer(plan.chatDaily, 0, 100_000) || !integer(plan.researchDaily, 0, 10_000)
       || typeof plan.active !== 'boolean' || typeof plan.prioritySupport !== 'boolean' || typeof plan.earlyAccess !== 'boolean') {
       throw new Error('Pengaturan paket tidak valid. ID harus unik; harga dan kuota harus bilangan bulat.')

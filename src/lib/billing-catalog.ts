@@ -1,5 +1,5 @@
 import 'server-only'
-import { parseBillingCatalog } from './billing-catalog-options'
+import { assertPayableTotals, parseBillingCatalog } from './billing-catalog-options'
 import { db, unwrap } from './supabase'
 
 export async function getBillingCatalog() {
@@ -8,6 +8,7 @@ export async function getBillingCatalog() {
 }
 export async function saveBillingCatalog(adminId: string, version: number, input: unknown): Promise<void> {
   const config = parseBillingCatalog(input)
+  assertPayableTotals(config)
   const saved = unwrap(await db().rpc('save_billing_catalog', { p_admin: adminId, p_version: version, p_config: config }))
   if (!saved) throw new Error('Pengaturan sudah diubah di tab lain. Muat ulang sebelum menyimpan.')
 }

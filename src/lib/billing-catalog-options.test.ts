@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addBillingMonths, billingCycle, DEFAULT_CATALOG, parseBillingCatalog, quotePurchase } from './billing-catalog-options'
+import { addBillingMonths, assertPayableTotals, billingCycle, DEFAULT_CATALOG, MIN_PRICE_IDR, parseBillingCatalog, quotePurchase } from './billing-catalog-options'
 
 describe('purchased entitlements', () => {
   it('prices all durations from the catalog and locks a separate plan snapshot', () => {
@@ -22,8 +22,22 @@ describe('purchased entitlements', () => {
   })
   it('rejects malformed prices, duplicate IDs, unsafe support URLs and double charging slides', () => {
     expect(parseBillingCatalog(DEFAULT_CATALOG)).toEqual(DEFAULT_CATALOG)
+    const cheapest = structuredClone(DEFAULT_CATALOG)
+    cheapest.plans[0].priceIdr = MIN_PRICE_IDR
+    cheapest.durations = [{ months: 1, discount: 0 }]
+    expect(parseBillingCatalog(cheapest).plans[0].priceIdr).toBe(MIN_PRICE_IDR)
+    cheapest.plans[0].priceIdr = 1
+    expect(() => parseBillingCatalog(cheapest)).toThrow('minimal Rp')
+    cheapest.plans[0].priceIdr = MIN_PRICE_IDR
+    cheapest.durations = [{ months: 1, discount: 10 }]
+    expect(parseBillingCatalog(cheapest).durations[0].discount).toBe(10)
+    expect(() => assertPayableTotals(cheapest)).toThrow('setelah diskon')
+    cheapest.plans[0].active = false
+    expect(() => assertPayableTotals(cheapest)).not.toThrow()
+    expect(() => assertPayableTotals(DEFAULT_CATALOG)).not.toThrow()
     for (const mutate of [
       (c: typeof DEFAULT_CATALOG) => { c.plans[0].priceIdr = -1 },
+      (c: typeof DEFAULT_CATALOG) => { c.plans[0].priceIdr = 0 },
       (c: typeof DEFAULT_CATALOG) => { c.plans[1].id = 'pro' },
       (c: typeof DEFAULT_CATALOG) => { c.supportUrl = 'javascript:alert(1)' },
       (c: typeof DEFAULT_CATALOG) => { c.rates.content_slide = 20 },

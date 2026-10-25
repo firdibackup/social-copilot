@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from 'react'
 import { Notice } from '@/components/notice'
-import type { BillingCatalog, CatalogPlan } from '@/lib/billing-catalog-options'
+import { MIN_PRICE_IDR, type BillingCatalog, type CatalogPlan } from '@/lib/billing-catalog-options'
 import { formatRupiah } from '@/lib/billing-options'
 import { BUTTON, CARD, CARD_TITLE, FIELD, HINT, LABEL, PRIMARY_BUTTON } from '../ui'
 import { saveCatalogAction } from './billing-actions'
@@ -36,7 +36,7 @@ export function BillingForm({ catalog, version }: { catalog: BillingCatalog; ver
             <label className={LABEL}>ID paket<input className={FIELD} value={plan.id} required pattern="[a-z][a-z0-9-]{0,39}" onChange={(e) => updatePlan(index, { id: e.target.value })} /></label>
             <label className={LABEL}>Nama<input className={FIELD} value={plan.name} required maxLength={80} onChange={(e) => updatePlan(index, { name: e.target.value })} /></label>
             <label className={`${LABEL} sm:col-span-2`}>Deskripsi<input className={FIELD} value={plan.description} maxLength={250} onChange={(e) => updatePlan(index, { description: e.target.value })} /></label>
-            {([['priceIdr', 'Harga bulanan (Rp)', 1000], ['credits', 'Kredit per bulan', 1], ['chatDaily', 'Chat per hari', 0], ['researchDaily', 'Riset per hari', 0]] as const).map(([key, label, min]) => (
+            {([['priceIdr', `Harga bulanan (min. ${formatRupiah(MIN_PRICE_IDR)})`, MIN_PRICE_IDR], ['credits', 'Kredit per bulan', 1], ['chatDaily', 'Chat per hari', 0], ['researchDaily', 'Riset per hari', 0]] as const).map(([key, label, min]) => (
               <label key={key} className={LABEL}>{label}<input className={FIELD} type="number" min={min} step={1} required value={plan[key]} onChange={(e) => updatePlan(index, { [key]: Number(e.target.value) })} /></label>
             ))}
           </div>
