@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react'
 import Link from 'next/link'
 import { connection } from 'next/server'
 import { InstagramIcon } from '@/components/instagram-icon'
+import { CalendarPeriodLink } from './calendar-period-link'
 import { MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
 import { LateBadge, PostStatusBadge, STATUS_DOT_CLASS } from '@/components/post-status-badge'
@@ -268,13 +269,13 @@ async function MonthView({
   return (
     <section aria-label={formatMonth(month)} className="space-y-3">
       <div className="flex items-center gap-1">
-        <Link href={`/kalender?bulan=${shiftMonth(month, -1)}`} aria-label="Bulan sebelumnya" className="rounded-md p-1.5 hover:bg-zinc-100">
+        <CalendarPeriodLink href={`/kalender?bulan=${shiftMonth(month, -1)}`} label="Bulan sebelumnya">
           <ChevronLeft size={18} aria-hidden="true" />
-        </Link>
+        </CalendarPeriodLink>
         <h2 className="min-w-36 text-center font-medium text-zinc-900 capitalize">{formatMonth(month)}</h2>
-        <Link href={`/kalender?bulan=${shiftMonth(month, 1)}`} aria-label="Bulan berikutnya" className="rounded-md p-1.5 hover:bg-zinc-100">
+        <CalendarPeriodLink href={`/kalender?bulan=${shiftMonth(month, 1)}`} label="Bulan berikutnya">
           <ChevronRight size={18} aria-hidden="true" />
-        </Link>
+        </CalendarPeriodLink>
         <Link href="/kalender" className="ml-2 text-sm text-zinc-600 hover:text-zinc-900">
           Hari ini
         </Link>
@@ -409,13 +410,13 @@ async function WeekView({ userId, accountId, start, now, slots }: WeekViewProps)
   return (
     <section aria-label={`Minggu ${label}`} className="space-y-3">
       <div className="flex items-center gap-1">
-        <Link href={weekHref(addDays(start, -7))} aria-label="Minggu sebelumnya" className="rounded-md p-1.5 hover:bg-zinc-100">
+        <CalendarPeriodLink href={weekHref(addDays(start, -7))} label="Minggu sebelumnya">
           <ChevronLeft size={18} aria-hidden="true" />
-        </Link>
+        </CalendarPeriodLink>
         <h2 className="min-w-36 text-center font-medium text-zinc-900">{label}</h2>
-        <Link href={weekHref(addDays(start, 7))} aria-label="Minggu berikutnya" className="rounded-md p-1.5 hover:bg-zinc-100">
+        <CalendarPeriodLink href={weekHref(addDays(start, 7))} label="Minggu berikutnya">
           <ChevronRight size={18} aria-hidden="true" />
-        </Link>
+        </CalendarPeriodLink>
         <Link href="/kalender?tampilan=minggu" className="ml-2 text-sm text-zinc-600 hover:text-zinc-900">
           Hari ini
         </Link>
