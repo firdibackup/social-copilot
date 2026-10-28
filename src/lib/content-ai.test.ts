@@ -95,12 +95,35 @@ const SCRIPT: ScriptSlide[] = [
 const rows = () => database.inserted.map((insert) => insert.row)
 
 describe('buildContentMessages', () => {
-  it('plans a carousel as cover, inner slides with one point each, and a CTA', () => {
-    const user = buildContentMessages('Tips seduh', 5, null)[1].content
+  it('plans a carousel through hook, bridge, value, recap and CTA', () => {
+    const user = buildContentMessages('Tips seduh', 7, null)[1].content
 
-    expect(user).toContain('slide 1 = cover')
-    expect(user).toContain('slide 2–4 = isi, satu poin per slide')
-    expect(user).toContain('slide 5 = CTA')
+    expect(user).toContain('slide 1 = Hook')
+    expect(user).toContain('slide 2 = Bridge')
+    expect(user).toContain('slide 3 = Problem')
+    expect(user).toContain('slide 4 = Reframe')
+    expect(user).toContain('slide 5 = Value')
+    expect(user).toContain('slide 6 = Recap/Proof')
+    expect(user).toContain('slide 7 = CTA')
+  })
+
+  it('uses every detailed role when ten slides are available', () => {
+    const user = buildContentMessages('Tips seduh', 10, null)[1].content
+
+    expect(user).toContain('slide 1 = Hook')
+    expect(user).toContain('slide 2 = Bridge')
+    expect(user).toContain('slide 3 = Problem')
+    expect(user).toContain('slide 4 = Reframe')
+    expect(user).toContain('slide 5–7 = Value')
+    expect(user).toContain('slide 8 = Proof')
+    expect(user).toContain('slide 9 = Recap')
+    expect(user).toContain('slide 10 = CTA')
+  })
+
+  it('keeps short carousels useful instead of forcing empty structural slides', () => {
+    expect(buildContentMessages('Tips seduh', 2, null)[1].content).toContain('slide 2 = Value + CTA')
+    expect(buildContentMessages('Tips seduh', 3, null)[1].content).toContain('slide 2 = Value')
+    expect(buildContentMessages('Tips seduh', 3, null)[1].content).toContain('slide 3 = CTA')
   })
 
   it('asks for complete words and sentences, up to 300 characters a slide', () => {
@@ -128,9 +151,9 @@ describe('buildContentMessages', () => {
     expect(user).not.toContain('"attachment"')
   })
 
-  it('plans two slides as cover and inner slide, and one image without roles', () => {
-    expect(buildContentMessages('Tips seduh', 2, null)[1].content).toContain('slide 2 = isi')
-    expect(buildContentMessages('Tips seduh', 1, null)[1].content).not.toContain('= cover')
+  it('plans two slides as hook and useful value, and one image without roles', () => {
+    expect(buildContentMessages('Tips seduh', 2, null)[1].content).toContain('slide 2 = Value + CTA')
+    expect(buildContentMessages('Tips seduh', 1, null)[1].content).not.toContain('= Hook')
   })
 
   it('asks for a carousel with exactly that many slides and quotes the topic', () => {
@@ -399,12 +422,15 @@ describe('buildScriptMessages', () => {
     expect(brief).not.toContain('Tips: …')
   })
 
-  it('lets the AI pick 2–10 slides as Hook, points and CTA, and quotes the idea', () => {
+  it('lets the AI pick 2–10 slides with the full adaptive structure, and quotes the idea', () => {
     const user = String(buildScriptMessages('Bedanya IN, ON, AT', BRAND, 'curiosity')[1].content)
 
     expect(user).toMatch(/^Tentang brand/)
     expect(user).toContain('2–10 slide')
     expect(user).toContain('slide 1 = Hook')
+    expect(user).toContain('slide 2 = Bridge')
+    expect(user).toContain('slide 9 = Recap')
+    expect(user).toContain('slide 10 = CTA')
     expect(user).toContain('Panduan carousel (wajib)')
     expect(user).toContain('"label": "…", "title": "…", "body": "…"')
     expect(user).toContain('Ide:\n"""\nBedanya IN, ON, AT\n"""')

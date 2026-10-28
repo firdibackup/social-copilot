@@ -19,8 +19,20 @@ describe('carouselGuide', () => {
     expect(guide).not.toContain('Arah struktur yang diminta:')
   })
 
+  it('requires every structural role to do a distinct job', () => {
+    const guide = carouselGuide('auto', 'lengkap', 10)
+
+    expect(guide).toContain('Bridge')
+    expect(guide).toContain('Problem')
+    expect(guide).toContain('Reframe')
+    expect(guide).toContain('Value')
+    expect(guide).toContain('Proof')
+    expect(guide).toContain('Recap')
+    expect(guide).toContain('CTA')
+  })
+
   it('requires payoff rather than a CTA-only ending for two slides', () => {
-    expect(carouselGuide('auto', 'lengkap', 2)).toContain('jangan diganti slide CTA saja')
+    expect(carouselGuide('auto', 'lengkap', 2)).toContain('Value + CTA')
   })
 })
 
