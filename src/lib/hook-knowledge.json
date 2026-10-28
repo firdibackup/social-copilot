@@ -1,0 +1,40 @@
+{
+  "version": "2026-10-28",
+  "scope": "Instagram carousel cover",
+  "provenance": "Kurasi struktur dari carousely-hook-knowledge.json/.md milik owner (206 kandidat), diperkaya dari halaman sumber yang dibaca pada 28 Oktober 2026. Bukan salinan wording atau klaim performa.",
+  "sources": [
+    { "id": "S01", "url": "https://blog.hootsuite.com/social-media-hooks/", "title": "The Science Behind Good Social Media Hooks + 18 Examples" },
+    { "id": "S02", "url": "https://buffer.com/resources/copywriting-formulas/", "title": "10 Copywriting Formulas to Convert Skimmers to Buyers" },
+    { "id": "S03", "url": "https://copyblogger.com/10-sure-fire-headline-formulas-that-work/", "title": "22 Sure-Fire Headline Formulas that Work" }
+  ],
+  "rules": [
+    "Template hanya struktur, bukan gaya penulisan. Ikuti gaya bahasa, sapaan, tingkat formalitas, kata khas, dan kata yang dihindari milik brand; arahan gaya owner untuk post ini didahulukan. Jangan meniru gaya keras, slang, huruf kapital, atau persona dari template.",
+    "Pilih satu struktur berdasarkan tujuan, audiens, topik, isi yang akan disampaikan, dan bukti yang tersedia; bukan pilihan acak. Bila ada arahan hook dari owner, adaptasikan struktur yang cocok dengan arahan itu.",
+    "Susun dulu inti manfaat atau jawaban pada slide isi, lalu tulis hook yang menjanjikan manfaat itu. Hook harus menyebut objek, masalah, atau hasil spesifik, bukan hanya nama topik atau umpan samar seperti 'rahasia ini'.",
+    "Ubah kerangka menjadi satu hook natural 3–7 kata; tidak perlu menyalin seluruh kalimat template. Isi semua placeholder dengan konteks nyata, jangan tampilkan ID, label struktur, atau tanda kurung placeholder.",
+    "Angka jumlah tips harus sama dengan isi yang benar-benar diberikan. Angka hasil, durasi, pengalaman pribadi, kutipan, testimoni, klaim peringkat, dan kredensial hanya boleh dipakai jika tersedia di topik atau fakta brand; contoh referensi bukan fakta brand.",
+    "Jika bukti tidak tersedia, pilih pertanyaan, manfaat, langkah, atau perbandingan yang bisa dijawab isi. Jangan membuat cerita, kontroversi, ketakutan, urgensi, atau janji hasil pasti demi hook.",
+    "Bayar janji hook mulai slide 2. Pertanyaan dijawab, perbandingan diberi kriteria, dan daftar disampaikan lengkap. Jangan memindahkan seluruh jawaban ke cover."
+  ],
+  "templates": [
+    { "id": "H001", "structure": "Cara [HASIL] tanpa [HAMBATAN]", "useWhen": "Tutorial yang benar-benar mengatasi hambatan audiens.", "sources": ["S02", "S03"] },
+    { "id": "H007", "structure": "[ALAT/METODE] untuk [KEBUTUHAN_SPESIFIK]", "useWhen": "Isi menyediakan alat atau metode beserta cara memakainya.", "sources": ["S03"] },
+    { "id": "H008", "structure": "Sebelum [TINDAKAN], periksa [HAL]", "useWhen": "Checklist persiapan dengan tindakan yang jelas.", "sources": ["S01"] },
+    { "id": "H009", "structure": "[JUMLAH] cara [HASIL_SPESIFIK]", "useWhen": "Ada sejumlah cara berbeda yang muat dan dijelaskan di isi.", "sources": ["S03"] },
+    { "id": "H010", "structure": "[JUMLAH] langkah menuju [HASIL]", "useWhen": "Tutorial berurutan yang bisa diikuti pembaca.", "sources": ["S03"] },
+    { "id": "H012", "structure": "[JUMLAH] tanda [MASALAH_SPESIFIK]", "useWhen": "Isi menjelaskan indikator yang bisa diperiksa tanpa diagnosis berlebihan.", "sources": ["S03"] },
+    { "id": "H026", "structure": "Benarkah [KEYAKINAN_UMUM]?", "useWhen": "Mitos yang bisa dibahas dengan alasan atau bukti; jangan menciptakan konsensus palsu.", "sources": ["S02"] },
+    { "id": "H035", "structure": "Mengapa [MASALAH_SPESIFIK] terjadi?", "useWhen": "Isi mampu menjelaskan penyebab dan tindakan perbaikannya.", "sources": ["S01", "S02"] },
+    { "id": "H041", "structure": "[AUDIENS], masih [KESULITAN_SPESIFIK]?", "useWhen": "Masalah yang relevan dengan segmen brand; sapaan mengikuti brand.", "sources": ["S03"] },
+    { "id": "H049", "structure": "Temuan dari [PENGAMATAN_NYATA]", "useWhen": "Hanya jika riset atau pengalaman yang dimaksud tersedia dalam konteks.", "sources": ["S01"] },
+    { "id": "H050", "structure": "Bagaimana [SUBJEK] mencapai [HASIL]?", "useWhen": "Studi kasus nyata dengan hasil dan proses yang tersedia, bukan rekaan.", "sources": ["S02"] },
+    { "id": "H060", "structure": "Pelajaran dari [KESALAHAN_NYATA]", "useWhen": "Pengalaman personal atau brand memang diberikan; jangan mengaku pernah mengalaminya tanpa sumber.", "sources": ["S03"] },
+    { "id": "H069", "structure": "Bisakah membedakan [A] dan [B]?", "useWhen": "Kuis dengan jawaban dan penjelasan yang disediakan di isi.", "sources": ["S01"] },
+    { "id": "H070", "structure": "[A] atau [B] untuk [KEBUTUHAN]?", "useWhen": "Perbandingan dengan kriteria pemilihan, tanpa pemenang universal palsu.", "sources": ["S01"] },
+    { "id": "IG-20", "structure": "Template [KEGUNAAN] untuk [SITUASI]", "useWhen": "Isi benar-benar menyediakan template yang bisa digunakan.", "sources": ["S02"] },
+    { "id": "WEB-01", "structure": "Masih melakukan [KESALAHAN] saat [AKTIVITAS]?", "useWhen": "Adaptasi formula Do You Make These Mistakes; tunjukkan koreksi konkret pada isi.", "sources": ["S03"] },
+    { "id": "WEB-02", "structure": "[HASIL] tanpa harus [PRASYARAT_YANG_DIKIRA_WAJIB]", "useWhen": "Adaptasi You Don't Have to Be; isi membuktikan bahwa hambatan tersebut memang tidak wajib.", "sources": ["S03"] },
+    { "id": "WEB-03", "structure": "Dari [KONDISI_AWAL] menuju [KONDISI_TUJUAN]", "useWhen": "Adaptasi Before–After–Bridge; jelaskan jembatannya di isi. Aspirasi bukan klaim hasil pelanggan.", "sources": ["S02"] },
+    { "id": "WEB-04", "structure": "Sudah [UPAYA], mengapa masih [MASALAH]?", "useWhen": "Adaptasi Situation–Complication–Question–Answer; isi menjawab kesenjangan antara upaya dan hasil.", "sources": ["S02"] }
+  ]
+}

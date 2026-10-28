@@ -1,15 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { carouselGuide, HOOK_ARCHETYPES, pickHook } from './carousel-guide'
-
-describe('pickHook', () => {
-  it('can pick every archetype, including at the edges of the random range', () => {
-    expect(pickHook(() => 0)).toBe('authority')
-    expect(pickHook(() => 0.999999)).toBe('contrarian')
-    expect(pickHook(() => 1)).toBe('contrarian')
-    const picked = new Set([0, 0.2, 0.4, 0.6, 0.8].map((value) => pickHook(() => value)))
-    expect(picked).toEqual(new Set(Object.keys(HOOK_ARCHETYPES)))
-  })
-})
+import { carouselGuide, HOOK_ARCHETYPES } from './carousel-guide'
 
 describe('carouselGuide', () => {
   it('names only the chosen archetype', () => {
@@ -17,6 +7,20 @@ describe('carouselGuide', () => {
 
     expect(guide).toContain(HOOK_ARCHETYPES.story)
     expect(guide).not.toContain(HOOK_ARCHETYPES.curiosity)
+  })
+
+  it('selects structures by context and evidence while preserving the brand voice', () => {
+    const guide = carouselGuide()
+
+    expect(guide).toContain('bukan pilihan acak')
+    expect(guide).toContain('Template hanya struktur, bukan gaya penulisan')
+    expect(guide).toContain('contoh referensi bukan fakta brand')
+    expect(guide).toContain('Jika bukti tidak tersedia, pilih pertanyaan')
+    expect(guide).not.toContain('Arah struktur yang diminta:')
+  })
+
+  it('requires payoff rather than a CTA-only ending for two slides', () => {
+    expect(carouselGuide('auto', 'lengkap', 2)).toContain('jangan diganti slide CTA saja')
   })
 })
 

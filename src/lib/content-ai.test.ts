@@ -166,7 +166,7 @@ describe('buildContentMessages', () => {
     const user = String(buildContentMessages('Tips seduh', 5, null, 'contrarian')[1].content)
 
     expect(user).toContain('Panduan carousel (wajib):')
-    expect(user).toContain(`Gaya hook post ini: ${HOOK_ARCHETYPES.contrarian}`)
+    expect(user).toContain(`Arah struktur yang diminta: ${HOOK_ARCHETYPES.contrarian}`)
     expect(user.indexOf('Panduan carousel')).toBeLessThan(user.indexOf('Topik:'))
   })
 
@@ -343,6 +343,23 @@ describe('parseIdeas', () => {
 })
 
 describe('buildContentMessages text density', () => {
+  it.each(['padat', 'ringkas', 'seimbang', 'lengkap'] as const)('keeps %s explanations off the cover in both writing paths', (density) => {
+    const direct = String(buildContentMessages('Bedanya IN, ON, AT', 5, BRAND, 'auto', [], null, null, null, density)[1].content)
+    const script = String(buildScriptMessages('Bedanya IN, ON, AT', BRAND, 'auto', '', density)[1].content)
+
+    for (const prompt of [direct, script]) {
+      expect(prompt).toContain(`Kepadatan teks: ${density}`)
+      expect(prompt).toContain('Berlaku hanya untuk slide isi')
+      expect(prompt).toContain('Cover hanya hook, tanpa paragraf penjelasan, bullet, contoh, tips, atau CTA')
+      expect(prompt).toContain('satu hook 3–7 kata')
+      expect(prompt).toContain('Template hanya struktur, bukan gaya penulisan')
+      expect(prompt).toContain('Gaya bahasa: Santai, pakai "kak"')
+      expect(prompt).not.toContain('Teks di gambar setiap slide')
+    }
+    expect(script).toContain('body wajib string kosong ("")')
+    expect(script).toContain('body hanya pada slide isi')
+  })
+
   it('writes balanced slides by default, between ringkas and lengkap', () => {
     const user = String(buildContentMessages('Tips seduh', 3, null)[1].content)
 
@@ -366,6 +383,8 @@ describe('buildContentMessages text density', () => {
     expect(carousel).toContain('tanpa kalimat penjelasan')
     expect(carousel).not.toContain('2–3 kalimat lengkap')
     expect(single).toContain('Kepadatan teks: padat')
+    expect(single).toContain('Berlaku untuk teks pada satu gambar ini')
+    expect(single).not.toContain('Berlaku hanya untuk slide isi')
   })
 })
 
@@ -420,6 +439,13 @@ describe('parseScriptAnswer', () => {
 })
 
 describe('buildContentMessages with a script', () => {
+  it('preserves approved text even when the owner chooses a different density', () => {
+    const user = String(buildContentMessages('IN, ON, AT', 2, null, 'auto', [], null, SCRIPT, null, 'padat')[1].content)
+    expect(user).toContain(SCRIPT[0].body)
+    expect(user).not.toContain('body wajib string kosong')
+    expect(parseContentPlan(PLAN_ANSWER, 2, [], false, SCRIPT).slides[0].headline).toBe(scriptHeadline(SCRIPT[0]))
+  })
+
   it('fixes the slide count and quotes each slide text to copy', () => {
     const user = String(buildContentMessages('IN, ON, AT', 5, null, 'story', [], null, SCRIPT)[1].content)
 

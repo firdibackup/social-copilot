@@ -1,4 +1,4 @@
-/** How much text goes on a slide's image. Shared by the editor, Pengaturan and the server. */
+/** How much explanatory text goes on inner slides (or a single image), not the cover or CTA. */
 
 export const TEXT_DENSITIES = {
   padat: {

@@ -35,7 +35,7 @@ export function DensityPicker({ initialDensity, connected }: { initialDensity: T
         </legend>
         <p id="kepadatan-hint" className="text-sm text-zinc-500">
           {connected
-            ? 'Default untuk post baru di Buat: seberapa banyak teks di tiap slide. Masih bisa diganti per post.'
+            ? 'Default banyaknya penjelasan di slide isi atau post satu gambar. Hook dan CTA carousel tetap singkat. Bisa diganti per post; skrip yang sudah ada perlu disusun ulang.'
             : 'Hubungkan Instagram dulu.'}
         </p>
       </div>

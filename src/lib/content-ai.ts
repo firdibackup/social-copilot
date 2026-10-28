@@ -2,7 +2,7 @@ import 'server-only'
 import { AiOutputError, describeBrand, loadBrandContext, quote, readJson, runLogged, snippetOf } from './ai'
 import { truncate, type BrandContext } from './brand-options'
 import { CAPTION_MAX_LENGTH } from './caption'
-import { carouselGuide, densityRule, pickHook, type HookArchetype } from './carousel-guide'
+import { carouselGuide, COVER_RULE, densityRule, type HookArchetype } from './carousel-guide'
 import type { ContentRequest } from './content-options'
 import { DEFAULT_DENSITY, type TextDensity } from './density-options'
 import { isUuid } from './params'
@@ -110,7 +110,7 @@ const ATTACHED_TO_EDIT =
  * cover, inner and CTA slides of a reference carousel.
  */
 function slideStructure(slides: number): string {
-  const cover = 'slide 1 = cover (judul atau hook singkat yang membuat orang berhenti dan menggeser)'
+  const cover = 'slide 1 = cover (hanya hook 3–7 kata, tanpa teks penjelasan)'
   if (slides === 2) return `${cover}; slide 2 = isi (poin utamanya)`
   const inner = slides === 3 ? 'slide 2 = isi' : `slide 2–${slides - 1} = isi`
   return `${cover}; ${inner}, satu poin per slide; slide ${slides} = CTA (ajakan bertindak yang jelas)`
@@ -149,7 +149,7 @@ export function buildContentMessages(
   topic: string,
   slides: number,
   brand: BrandContext | null,
-  hook: HookArchetype = pickHook(),
+  hook: HookArchetype = 'auto',
   products: ProductCandidate[] = [],
   attachment: string | null = null,
   script: ScriptSlide[] | null = null,
@@ -170,8 +170,8 @@ export function buildContentMessages(
           '- title: judul singkat post untuk daftar konten, maksimal 8 kata.',
           `- caption: 2–4 paragraf pendek, sekitar 300–700 karakter sebelum hashtag: kalimat pembuka yang menarik, isi, lalu ajakan bertindak (CTA). Tutup dengan 3–8 hashtag relevan di baris terakhir.${carousel ? ' Ajak pembaca menggeser carousel kalau sesuai.' : ''}`,
           `- slides: tepat ${slides} slide, berurutan.${carousel ? ` Susunannya: ${slideStructure(slides)}.` : ''}`,
-          `- ${densityRule(density)}`,
-          ...(carousel ? ['', carouselGuide(hook, density), ''] : []),
+          `- ${densityRule(density, carousel ? 'carousel' : 'single')}`,
+          ...(carousel ? ['', carouselGuide(hook, density, slides), ''] : []),
           `Format JSON: {"title": "…", "caption": "…", "slides": [{"headline": "…", "scene": "…", "productGroupId": ${products.length > 0 ? '"uuid atau null"' : 'null'}${attached}}]}`,
           ...(products.length > 0 ? ['', describeProducts(products)] : []),
           ...(attachment ? ['', ATTACHMENT_GUIDE] : []),
@@ -320,7 +320,7 @@ export function planContent<T>(
             request.topic,
             request.slides,
             brand,
-            pickHook(),
+            'auto',
             products,
             attachment,
             script,
@@ -413,7 +413,7 @@ export function suggestIdeas(
 
 const MIN_SCRIPT_SLIDES = 2
 
-/** What a script slide's body holds at each density. */
+/** What an inner script slide's body holds at each density; never applied to the cover. */
 const SCRIPT_BODY: Record<TextDensity, string> = {
   padat: '2–3 poin sangat singkat dengan awalan "- " (misalnya "- In the room"), tanpa kalimat penjelasan dan tanpa baris Tips.',
   ringkas: 'satu kalimat penjelasan singkat, lalu 2–3 poin pendek dengan awalan "- " (misalnya "- In the room — Di dalam ruangan").',
@@ -426,7 +426,7 @@ const SCRIPT_BODY: Record<TextDensity, string> = {
 export function buildScriptMessages(
   idea: string,
   brand: BrandContext | null,
-  hook: HookArchetype = pickHook(),
+  hook: HookArchetype = 'auto',
   /** Sigap's direction: what the owner asked to change, or what the competitors it studied do. */
   brief = '',
   density: TextDensity = DEFAULT_DENSITY,
@@ -438,10 +438,12 @@ export function buildScriptMessages(
       content: [
         `${brand ? describeBrand(brand) : ''}Tugas: kembangkan ide di bawah menjadi skrip carousel Instagram, slide demi slide, yang memperjelas ide itu sampai pembaca benar-benar paham dan bisa langsung memakainya.`,
         `- Tentukan sendiri jumlah slide yang paling pas dengan isi ide: ${MIN_SCRIPT_SLIDES}–${MAX_SLIDES} slide. Satu poin utama per slide isi; jangan menambah slide hanya supaya banyak, dan jangan memadatkan banyak poin ke satu slide.`,
-        '- Susunan: slide 1 = Hook; slide tengah = isi; slide terakhir = CTA. Slide terakhir boleh memuat poin isi terakhir sebelum ajakannya, misalnya ringkasan "cara mudah mengingat" lalu satu pertanyaan atau kuis singkat untuk dijawab di komentar.',
+        '- Susunan: slide 1 = Hook; slide tengah = isi; slide terakhir = CTA singkat. Jika hanya 2 slide, slide 2 wajib berisi jawaban atau isi yang membayar hook, boleh ditutup satu ajakan singkat.',
         '- label: nama singkat peran atau isi slide untuk owner, 1–3 kata, misalnya "Hook", nama poinnya, atau "CTA" (boleh digabung seperti "AT + CTA").',
-        '- title: judul slide yang tertulis besar di gambar, maksimal 12 kata. Slide isi: poin utamanya, misalnya "IN = Di dalam atau periode waktu yang luas".',
-        `- body: sisa teks yang tertulis di gambar, baris dipisah \\n: ${SCRIPT_BODY[density]} title dan body bersama maksimal ${HEADLINE_MAX_LENGTH} karakter, jadi pilih contoh yang paling jelas.`,
+        `- Cover: ${COVER_RULE} title berisi hook tersebut; body wajib string kosong ("").`,
+        '- title pada slide isi: poin utamanya, maksimal 12 kata, misalnya "IN = Di dalam atau periode waktu yang luas". Batas 12 kata ini bukan untuk hook.',
+        `- body hanya pada slide isi: sisa teks yang tertulis di gambar, baris dipisah \\n: ${SCRIPT_BODY[density]} title dan body bersama maksimal ${HEADLINE_MAX_LENGTH} karakter, jadi pilih contoh yang paling jelas.`,
+        '- Pada carousel 3 slide atau lebih, title pada slide CTA khusus: satu ajakan singkat; body kosong atau satu kalimat pendukung bila diperlukan. Pada carousel 2 slide, slide terakhir tetap memakai aturan slide isi agar janji hook terjawab.',
         `- ${densityRule(density)}`,
         '',
         carouselGuide(hook, density),
@@ -489,7 +491,7 @@ export function writeScript(
   return runLogged(userId, 'content_script', input, async () => {
     const brand = brandContext === undefined ? await loadBrandContext(userId) : brandContext
     const script = parseScriptAnswer(
-      await chatCompletion(buildScriptMessages(idea.title, brand, pickHook(), brief, density), undefined, signal),
+      await chatCompletion(buildScriptMessages(idea.title, brand, 'auto', brief, density), undefined, signal),
     )
     await save(script)
     return script

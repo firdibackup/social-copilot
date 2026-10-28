@@ -565,8 +565,8 @@ export function ContentEditor({
         className={CHIP}
         title={
           script
-            ? 'Teks slide mengikuti skrip. Kepadatan dipakai saat skrip disusun ulang.'
-            : 'Seberapa banyak teks di tiap slide. Default-nya diatur di Pengaturan.'
+            ? 'Teks mengikuti skrip. Pilihan ini mengatur slide isi saat Susun ulang skrip; hook dan CTA tetap singkat.'
+            : 'Seberapa banyak penjelasan di slide isi atau post satu gambar. Hook dan CTA carousel tetap singkat. Default-nya diatur di Pengaturan.'
         }
       >
         Teks
