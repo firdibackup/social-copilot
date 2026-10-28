@@ -418,15 +418,31 @@ describe('parseScriptAnswer', () => {
     })
 
     expect(parseScriptAnswer(answer)).toEqual([
-      { label: 'Hook', title: 'Judul', body: 'Isi\nbaris' },
+      { label: 'Hook', title: 'Judul', body: '' },
       { label: '', title: 'CTA', body: '' },
     ])
   })
 
   it('cuts the body so title and body fit 300 code points on the image', () => {
-    const [slide] = parseScriptAnswer(JSON.stringify({ slides: [{ title: 'Judul', body: '😀'.repeat(400) }, { title: 'CTA' }] }))
+    const [, slide] = parseScriptAnswer(JSON.stringify({ slides: [{ title: 'Hook' }, { title: 'Judul', body: '😀'.repeat(400) }] }))
 
     expect(Array.from(scriptHeadline(slide))).toHaveLength(300)
+  })
+
+  it('removes AI cover explanations by position even when the label is wrong, keeping inner text intact', () => {
+    const inner = { label: 'IN', title: 'IN untuk di dalam', body: 'Gunakan untuk ruang.\n- In the room: di dalam kamar.' }
+    const script = parseScriptAnswer(JSON.stringify({ slides: [
+      { label: 'Pembuka', title: 'Masih Tertukar IN, ON, dan AT?', body: 'Ketiganya berarti di.\n- IN untuk ruang\nTips: perhatikan konteks.' },
+      inner,
+    ] }))
+
+    expect(script[0]).toEqual({ label: 'Hook', title: 'Masih Tertukar IN, ON, dan AT?', body: '' })
+    expect(scriptHeadline(script[0])).toBe('Masih Tertukar IN, ON, dan AT?')
+    expect(script[1]).toEqual(inner)
+  })
+
+  it.each([null, { title: '', body: 'Penjelasan tanpa hook' }, { title: '', body: '' }])('rejects a missing hook rather than promoting an inner slide (%j)', (cover) => {
+    expect(() => parseScriptAnswer(JSON.stringify({ slides: [cover, { title: 'Isi' }, { title: 'CTA' }] }))).toThrow(AiOutputError)
   })
 
   it('keeps at most ten slides', () => {
@@ -688,8 +704,9 @@ describe('requests', () => {
       vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({ slides: SCRIPT }))
       const save = vi.fn(async () => {})
 
-      await expect(writeScript(USER, { id: 'idea-1', title: 'IN, ON, AT' }, save)).resolves.toEqual(SCRIPT)
-      expect(save).toHaveBeenCalledWith(SCRIPT)
+      const expected = [{ ...SCRIPT[0], body: '' }, SCRIPT[1]]
+      await expect(writeScript(USER, { id: 'idea-1', title: 'IN, ON, AT' }, save)).resolves.toEqual(expected)
+      expect(save).toHaveBeenCalledWith(expected)
       expect(String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)).toContain('Nama: Kopi Sinar')
       expect(String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)).not.toContain('Arahan tambahan')
       expect(rows()).toEqual([

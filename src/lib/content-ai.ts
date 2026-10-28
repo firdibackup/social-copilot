@@ -464,14 +464,18 @@ export function buildScriptMessages(
   ]
 }
 
-/** The AI's script: 2–10 slides, each cut to what fits on an image, or an AiOutputError. */
+/** AI scripts always start with a title-only hook. Owner-edited scripts use parseScript instead. */
 export function parseScriptAnswer(content: string): ScriptSlide[] {
   const slides = readJson(content)?.slides
   const listed: unknown[] = Array.isArray(slides) ? slides : []
-  const script = listed
+  const cover = cleanScriptSlide(listed[0])
+  // Do not promote an inner slide or a body paragraph into a missing hook.
+  if (!cover?.title) throw new AiOutputError(snippetOf(content))
+  const inner = listed.slice(1)
     .map(cleanScriptSlide)
     .filter((slide): slide is ScriptSlide => slide !== null)
-    .slice(0, MAX_SLIDES)
+    .slice(0, MAX_SLIDES - 1)
+  const script = [{ ...cover, label: 'Hook', body: '' }, ...inner]
   if (script.length < MIN_SCRIPT_SLIDES) throw new AiOutputError(snippetOf(content))
   return script
 }
