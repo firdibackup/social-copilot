@@ -3,8 +3,7 @@
 import { EyeOff } from 'lucide-react'
 import { useState } from 'react'
 import { Notice } from '@/components/notice'
-import { fillTemplate, REPLY_MAX_LENGTH, type DmTemplate, type Variables } from '@/lib/dm-templates'
-import { COMMENT_MAX_LENGTH } from '@/lib/inbox-rules'
+import { COMMENT_MAX_LENGTH, REPLY_MAX_LENGTH } from '@/lib/inbox-rules'
 import { THREADS_TEXT_LIMIT } from '@/lib/thread-items'
 import {
   deleteCommentAction,
@@ -13,8 +12,7 @@ import {
   replyToCommentAction,
   setCommentHiddenAction,
 } from './comment-actions'
-import { Composer, type TemplateOption } from './composer'
-import { openTemplates } from './templates-events'
+import { Composer } from './composer'
 import { draftThreadsReply, replyToThreadsAction, setThreadsHiddenAction } from './threads-actions'
 
 /** A comment as the browser gets it: times already formatted on the server. */
@@ -33,17 +31,10 @@ export interface CommentView {
   canHide?: boolean
 }
 
-/** The DM templates, filled in per comment as quick replies. */
-export interface CommentTemplates {
-  templates: DmTemplate[]
-  variables: Variables
-}
-
 export type CommentPlatform = 'instagram' | 'threads'
 
 const ACTION = 'text-xs font-medium text-zinc-500 hover:text-zinc-900 disabled:opacity-50'
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
-const LABEL_MAX_LENGTH = 24
 
 /** What a reply does on each platform: Instagram comments, or replies under the account's Threads posts. */
 const REPLY = {
@@ -61,38 +52,22 @@ const REPLY = {
   },
 } as const
 
-const shorten = (value: string) => {
-  const line = value.split('\n', 1)[0].trim()
-  return line.length > LABEL_MAX_LENGTH ? `${line.slice(0, LABEL_MAX_LENGTH - 1)}…` : line
-}
-
-function quickReplies(comment: CommentView, choice: CommentTemplates | undefined): TemplateOption[] {
-  if (!choice || comment.isFromOwner) return []
-  const context = { senderName: comment.name, message: comment.text, variables: choice.variables }
-  return choice.templates.map((template) => ({
-    id: template.id,
-    label: template.keyword ?? shorten(template.body),
-    text: fillTemplate(template.body, context),
-  }))
-}
-
 interface CommentItemProps {
   comment: CommentView
   replies: CommentView[]
   brand: { name: string; logoUrl: string | null }
   platform?: CommentPlatform
-  templates?: CommentTemplates
 }
 
-export function CommentItem({ comment, replies, brand, platform = 'instagram', templates }: CommentItemProps) {
+export function CommentItem({ comment, replies, brand, platform = 'instagram' }: CommentItemProps) {
   return (
     <li className="space-y-3 px-4 py-4">
-      <CommentBody comment={comment} brand={brand} platform={platform} templates={templates} />
+      <CommentBody comment={comment} brand={brand} platform={platform} />
       {replies.length > 0 && (
         <ul className="space-y-3 border-l-2 border-zinc-100 pl-4">
           {replies.map((reply) => (
             <li key={reply.commentId}>
-              <CommentBody comment={reply} brand={brand} platform={platform} templates={templates} />
+              <CommentBody comment={reply} brand={brand} platform={platform} />
             </li>
           ))}
         </ul>
@@ -105,10 +80,9 @@ interface CommentBodyProps {
   comment: CommentView
   brand: CommentItemProps['brand']
   platform: CommentPlatform
-  templates: CommentTemplates | undefined
 }
 
-function CommentBody({ comment, brand, platform, templates }: CommentBodyProps) {
+function CommentBody({ comment, brand, platform }: CommentBodyProps) {
   const [mode, setMode] = useState<'reply' | 'dm' | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -192,8 +166,6 @@ function CommentBody({ comment, brand, platform, templates }: CommentBodyProps) 
           maxLength={actions.maxLength}
           brand={brand}
           autoFocus
-          templates={quickReplies(comment, templates)}
-          onEditTemplates={templates ? openTemplates : undefined}
           send={async (text) => {
             const failure = await actions.send(comment.commentId, text)
             if (!failure) setMode(null)

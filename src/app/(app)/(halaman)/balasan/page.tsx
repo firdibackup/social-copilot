@@ -8,19 +8,16 @@ import { Notice } from '@/components/notice'
 import { requireAccount } from '@/lib/auth'
 import { latestRuns, listRules } from '@/lib/auto-dm'
 import { getConnection, type Connection } from '@/lib/connection'
-import { getVariables, listTemplates } from '@/lib/dm'
-import { formatVariables, type DmTemplate } from '@/lib/dm-templates'
 import { describeError, loadErrorMessage } from '@/lib/errors'
 import { COMMENTS_SCOPE } from '@/lib/instagram'
 import { firstValue, type SearchParams } from '@/lib/params'
 import { THREADS_REPLIES_SCOPE } from '@/lib/threads'
 import { getThreadsConnection, type ThreadsConnection } from '@/lib/threads-connection'
-import type { CommentPlatform, CommentTemplates } from './comment-item'
+import type { CommentPlatform } from './comment-item'
 import { Comments, commentsHref, loadComments, type CommentsData } from './comments'
 import { FilterSelect, RefreshButton, type Pull } from './controls'
 import { AutoDmRules, type RuleCard } from './auto-dm-rules'
 import { dmHref, Inbox, loadBrand, loadInbox, type Brand, type DmFilter, type Filter } from './inbox'
-import { TemplatesPanel } from './templates-panel'
 import { loadThreadsComments, ThreadsComments, type ThreadsCommentsData } from './threads-comments'
 
 export const metadata: Metadata = { title: 'Balasan' }
@@ -36,9 +33,6 @@ export default function BalasanPage({ searchParams }: BalasanPageProps) {
     <div className="space-y-8">
       <Suspense fallback={<LoadingState variant="page" label="Memuat balasan…" />}>
         <BalasanView searchParams={searchParams} />
-      </Suspense>
-      <Suspense fallback={<LoadingState label="Memuat template…" />}>
-        <Templates />
       </Suspense>
     </div>
   )
@@ -90,7 +84,7 @@ async function BalasanView({ searchParams }: { searchParams: Promise<SearchParam
         <div className="max-w-xl space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Balasan</h1>
           <p className="text-zinc-500">
-            DM dan komentar Instagram yang masuk. Template dan ✨ AI hanya mengisi draf yang kamu kirim sendiri;
+            DM dan komentar Instagram yang masuk. ✨ AI membantu menulis draf yang kamu kirim sendiri;
             Aturan Auto DM yang aktif membalas komentar dan DM yang cocok secara otomatis.
           </p>
         </div>
@@ -179,17 +173,6 @@ function PlatformLink({ href, active, label }: { href: string; active: boolean; 
   )
 }
 
-/** The DM templates as quick replies under comments; without them the reply box works as before. */
-async function loadCommentTemplates(userId: string, accountId: string): Promise<CommentTemplates | undefined> {
-  try {
-    const [templates, variables] = await Promise.all([listTemplates(userId, accountId), getVariables(userId, accountId)])
-    return { templates, variables }
-  } catch (error) {
-    console.error('[balasan] template gagal dimuat untuk komentar:', describeError(error))
-    return undefined
-  }
-}
-
 function TabLink({ href, active, label }: { href: string; active: boolean; label: string }) {
   return (
     <Link
@@ -250,11 +233,10 @@ async function CommentsTab({ instagram, ...props }: TabProps & { instagram: Conn
     console.error('[balasan] komentar gagal dimuat:', describeError(error))
     return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
   }
-  const templates = data.view === 'post' ? await loadCommentTemplates(userId, accountId) : undefined
   return (
     <div className="space-y-4">
       <CommentsNotice instagram={instagram} />
-      <Comments data={data} filter={filter} brand={brand} now={now} templates={templates} />
+      <Comments data={data} filter={filter} brand={brand} now={now} />
     </div>
   )
 }
@@ -268,11 +250,10 @@ async function ThreadsCommentsTab({ threads, ...props }: TabProps & { threads: T
     console.error('[balasan] balasan Threads gagal dimuat:', describeError(error))
     return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
   }
-  const templates = data.view === 'post' ? await loadCommentTemplates(userId, accountId) : undefined
   return (
     <div className="space-y-4">
       <ThreadsNotice threads={threads} />
-      <ThreadsComments data={data} filter={filter} brand={brand} now={now} templates={templates} />
+      <ThreadsComments data={data} filter={filter} brand={brand} now={now} />
     </div>
   )
 }
@@ -307,7 +288,6 @@ function ThreadsNotice({ threads }: { threads: ThreadsConnection | null }) {
   }
   return null
 }
-
 function CommentsNotice({ instagram }: { instagram: Connection | null }) {
   if (!instagram) return <Notice tone="warning">Hubungkan akun Instagram dulu di Pengaturan.</Notice>
   // A plain <a>: the route redirects off-site to Instagram.
@@ -333,20 +313,4 @@ function CommentsNotice({ instagram }: { instagram: Connection | null }) {
     )
   }
   return null
-}
-
-async function Templates() {
-  await connection()
-  const { userId, accountId } = await requireAccount()
-  let templates: DmTemplate[]
-  let variablesText: string
-  try {
-    const [list, variables] = await Promise.all([listTemplates(userId, accountId), getVariables(userId, accountId)])
-    templates = list
-    variablesText = formatVariables(variables)
-  } catch (error) {
-    console.error('[balasan] template gagal dimuat:', describeError(error))
-    return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
-  }
-  return <TemplatesPanel templates={templates} variablesText={variablesText} />
 }

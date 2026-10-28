@@ -1,26 +1,17 @@
 'use client'
 
 import { Notice } from '@/components/notice'
-import { REPLY_MAX_LENGTH } from '@/lib/dm-templates'
+import { REPLY_MAX_LENGTH } from '@/lib/inbox-rules'
 import { draftDmReply, sendReply } from './actions'
-import { Composer, type TemplateOption } from './composer'
-import { openTemplates } from './templates-events'
-
-/** The template whose keyword the customer's last message contains. */
-export interface Suggestion {
-  keyword: string
-  text: string
-}
+import { Composer } from './composer'
 
 interface ReplyBoxProps {
   igsid: string
-  options: TemplateOption[]
-  suggestion: Suggestion | null
   windowOpen: boolean
   brand: { name: string; logoUrl: string | null }
 }
 
-export function ReplyBox({ igsid, options, suggestion, windowOpen, brand }: ReplyBoxProps) {
+export function ReplyBox({ igsid, windowOpen, brand }: ReplyBoxProps) {
   if (!windowOpen) {
     return (
       <Notice tone="warning">
@@ -35,14 +26,8 @@ export function ReplyBox({ igsid, options, suggestion, windowOpen, brand }: Repl
       placeholder="Tulis DM…"
       maxLength={REPLY_MAX_LENGTH}
       brand={brand}
-      initialText={suggestion?.text ?? ''}
       send={(text) => sendReply(igsid, text)}
       draft={(text) => draftDmReply(igsid, text)}
-      templates={options}
-      onEditTemplates={openTemplates}
-      suggestionNote={
-        suggestion && <>Diisi dari template kata kunci “{suggestion.keyword}”. Periksa dulu, lalu kirim.</>
-      }
     />
   )
 }

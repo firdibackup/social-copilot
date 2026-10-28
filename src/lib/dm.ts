@@ -1,6 +1,5 @@
 import 'server-only'
 import { markDmSent } from './comments'
-import type { DmTemplate, Variables } from './dm-templates'
 import type { MessageEvent } from './dm-webhook'
 import { isProfileStale } from './inbox-rules'
 import type { CustomerProfile, PrivateReply } from './instagram'
@@ -265,56 +264,4 @@ export async function listMessages(userId: string, igsid: string): Promise<DmMes
     text: row.text,
     sentAt: new Date(row.sent_at),
   }))
-}
-
-/** Oldest first: when two keywords match, the earlier template wins. */
-export async function listTemplates(userId: string, accountId: string): Promise<DmTemplate[]> {
-  return unwrap(
-    await db()
-      .from('dm_templates')
-      .select('id, keyword, body')
-      .eq('user_id', userId)
-      .eq('account_id', accountId)
-      .order('created_at', { ascending: true }),
-  ) as DmTemplate[]
-}
-
-/** Inserts when `id` is null. Returns false when the template to update no longer exists. */
-export async function saveTemplate(
-  userId: string,
-  id: string | null,
-  keyword: string | null,
-  body: string,
-): Promise<boolean> {
-  if (id === null) {
-    unwrap(await db().from('dm_templates').insert({ user_id: userId, keyword, body }))
-    return true
-  }
-  const rows = unwrap(
-    await db().from('dm_templates').update({ keyword, body }).eq('id', id).eq('user_id', userId).select('id'),
-  ) as unknown[]
-  return rows.length === 1
-}
-
-export async function deleteTemplate(userId: string, id: string): Promise<void> {
-  unwrap(await db().from('dm_templates').delete().eq('id', id).eq('user_id', userId))
-}
-
-export async function getVariables(userId: string, accountId: string): Promise<Variables> {
-  const row = unwrap(
-    await db().from('dm_settings').select('variables').eq('user_id', userId).eq('account_id', accountId).maybeSingle(),
-  ) as { variables: unknown } | null
-  const stored = row?.variables
-  if (typeof stored !== 'object' || stored === null) return {}
-  return Object.fromEntries(
-    Object.entries(stored).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
-  )
-}
-
-export async function saveVariables(userId: string, accountId: string, variables: Variables): Promise<void> {
-  unwrap(
-    await db()
-      .from('dm_settings')
-      .upsert({ user_id: userId, account_id: accountId, variables }, { onConflict: 'user_id,account_id' }),
-  )
 }

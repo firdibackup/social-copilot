@@ -16,7 +16,7 @@ import {
   type StoredThreadsReply,
   type ThreadsPostView,
 } from '@/lib/threads-inbox'
-import { CommentItem, type CommentTemplates, type CommentView } from './comment-item'
+import { CommentItem, type CommentView } from './comment-item'
 import { commentsHref, PostThumbnail } from './comments'
 import { MarkThreadsPostSeen } from './controls'
 import type { Brand, Filter } from './inbox'
@@ -81,10 +81,9 @@ interface ThreadsCommentsProps {
   filter: Filter
   brand: Brand
   now: Date
-  templates?: CommentTemplates
 }
 
-export function ThreadsComments({ data, filter, brand, now, templates }: ThreadsCommentsProps) {
+export function ThreadsComments({ data, filter, brand, now }: ThreadsCommentsProps) {
   if (data.view === 'post') {
     const threads = threadComments(data.replies)
     return (
@@ -129,7 +128,6 @@ export function ThreadsComments({ data, filter, brand, now, templates }: Threads
                 replies={replies.map(toView)}
                 brand={brand}
                 platform="threads"
-                templates={templates}
               />
             ))}
           </ul>

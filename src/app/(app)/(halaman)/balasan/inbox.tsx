@@ -5,22 +5,18 @@ import { getBrandKit } from '@/lib/brand'
 import type { Connection } from '@/lib/connection'
 import {
   getConversation,
-  getVariables,
   isReplyWindowOpen,
   listConversations,
   listMessages,
-  listTemplates,
   type Conversation,
   type DmMessage,
 } from '@/lib/dm'
-import { fillTemplate, suggestTemplate } from '@/lib/dm-templates'
 import { describeError } from '@/lib/errors'
 import { formatListTime, formatShortDateTime } from '@/lib/format'
 import { conversationName, isConversationUnread } from '@/lib/inbox-rules'
 import { profilesToRead } from '@/lib/inbox-sync'
-import type { TemplateOption } from './composer'
 import { MarkConversationSeen, SyncProfiles } from './controls'
-import { ReplyBox, type Suggestion } from './reply-box'
+import { ReplyBox } from './reply-box'
 import { ScrollToEnd } from './scroll-to-end'
 
 export type Filter = 'belum' | 'semua'
@@ -44,12 +40,8 @@ export async function loadBrand(userId: string, accountId: string, instagram: Co
 interface Thread {
   conversation: Conversation
   messages: DmMessage[]
-  options: TemplateOption[]
-  suggestion: Suggestion | null
   windowOpen: boolean
 }
-
-const LABEL_MAX_LENGTH = 24
 
 export function dmHref(filter: DmFilter, igsid?: string): string {
   const params = new URLSearchParams()
@@ -59,32 +51,14 @@ export function dmHref(filter: DmFilter, igsid?: string): string {
   return query ? `/balasan?${query}` : '/balasan'
 }
 
-function shorten(value: string): string {
-  const line = value.split('\n', 1)[0].trim()
-  return line.length > LABEL_MAX_LENGTH ? `${line.slice(0, LABEL_MAX_LENGTH - 1)}…` : line
-}
-
 async function loadThread(userId: string, accountId: string, igsid: string, now: Date): Promise<Thread | null> {
-  const [conversation, messages, templates, variables] = await Promise.all([
+  const [conversation, messages] = await Promise.all([
     getConversation(userId, accountId, igsid),
     listMessages(userId, igsid),
-    listTemplates(userId, accountId),
-    getVariables(userId, accountId),
   ])
   if (!conversation) return null
 
-  const customerMessage = messages.findLast((message) => message.fromCustomer)?.text ?? null
-  const context = { senderName: conversation.name ?? conversation.username, message: customerMessage, variables }
-  const options = templates.map((template) => ({
-    id: template.id,
-    label: template.keyword ?? shorten(template.body),
-    text: fillTemplate(template.body, context),
-  }))
-  // Only a conversation that waits for a reply gets a draft; the owner already answered the others.
-  const match = conversation.lastFromCustomer && customerMessage ? suggestTemplate(templates, customerMessage) : null
-  const suggestion = match?.keyword ? { keyword: match.keyword, text: fillTemplate(match.body, context) } : null
-
-  return { conversation, messages, options, suggestion, windowOpen: isReplyWindowOpen(conversation, now) }
+  return { conversation, messages, windowOpen: isReplyWindowOpen(conversation, now) }
 }
 
 interface InboxData {
@@ -240,11 +214,8 @@ function ThreadView({ thread, brand }: { thread: Thread; brand: Brand }) {
         ))}
       </ScrollToEnd>
       <ReplyBox
-        // A new customer message starts a fresh draft, with the template it matches.
-        key={`${conversation.igsid}:${conversation.lastIncomingAt?.toISOString()}`}
+        key={conversation.igsid}
         igsid={conversation.igsid}
-        options={thread.options}
-        suggestion={thread.suggestion}
         windowOpen={thread.windowOpen}
         brand={brand}
       />

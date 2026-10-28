@@ -1,5 +1,7 @@
 /** Read, reply and notification rules for Balasan's DMs and comments. Pure, so the browser and tests share them. */
 
+/** Instagram's limit for a text DM, including private replies to comments. */
+export const REPLY_MAX_LENGTH = 1000
 /** Instagram's limit for a comment, the same as a caption's. A private reply is a DM: REPLY_MAX_LENGTH. */
 export const COMMENT_MAX_LENGTH = 2200
 /** The Komentar tab pulls and lists comments from posts of this many days. */

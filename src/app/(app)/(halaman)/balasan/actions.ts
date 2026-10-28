@@ -5,20 +5,16 @@ import { aiErrorMessage } from '@/lib/ai'
 import { requireAccount } from '@/lib/auth'
 import { getPublishingAccount } from '@/lib/connection'
 import {
-  deleteTemplate,
   getConversation,
   isReplyWindowOpen,
   listMessages,
   markConversationSeen,
   recordMessage,
-  saveTemplate,
-  saveVariables,
 } from '@/lib/dm'
-import { KEYWORD_MAX_LENGTH, parseVariables, REPLY_MAX_LENGTH } from '@/lib/dm-templates'
+import { REPLY_MAX_LENGTH } from '@/lib/inbox-rules'
 import { describeError } from '@/lib/errors'
 import { PROFILE_BATCH, readProfiles, syncConversations } from '@/lib/inbox-sync'
 import { sendDirectMessage } from '@/lib/instagram'
-import { isUuid } from '@/lib/params'
 import { draftReply, REPLY_CONTEXT_MESSAGES } from '@/lib/reply-ai'
 import { instagramErrorMessage, text, type ActionError, type DraftResult, type SyncState } from './action-utils'
 
@@ -66,53 +62,6 @@ export async function sendReply(igsid: unknown, reply: unknown): Promise<ActionE
   await recordMessage(userId, { mid, igsid: customer, fromCustomer: false, text: message, sentAt: new Date() }).catch(
     (error: unknown) => console.error('[balasan] balasan terkirim tapi gagal disimpan:', describeError(error)),
   )
-  refresh()
-  return null
-}
-
-export async function saveTemplateAction(id: unknown, keyword: unknown, body: unknown): Promise<ActionError> {
-  const { userId } = await requireAccount()
-  const templateId = id === null ? null : isUuid(id) ? id : undefined
-  const trigger = text(keyword)
-  const reply = text(body)
-  if (templateId === undefined) return 'Template tidak ditemukan.'
-  if (!reply) return 'Isi template dulu.'
-  if (reply.length > REPLY_MAX_LENGTH) return `Template maksimal ${REPLY_MAX_LENGTH} karakter.`
-  if (trigger.length > KEYWORD_MAX_LENGTH) return `Kata kunci maksimal ${KEYWORD_MAX_LENGTH} karakter.`
-
-  try {
-    if (!(await saveTemplate(userId, templateId, trigger || null, reply))) return 'Template tidak ditemukan.'
-  } catch (error) {
-    console.error('[balasan] template gagal disimpan:', describeError(error))
-    return 'Template gagal disimpan. Periksa koneksi Supabase.'
-  }
-  refresh()
-  return null
-}
-
-export async function deleteTemplateAction(id: unknown): Promise<ActionError> {
-  const { userId } = await requireAccount()
-  if (!isUuid(id)) return 'Template tidak ditemukan.'
-  try {
-    await deleteTemplate(userId, id)
-  } catch (error) {
-    console.error('[balasan] template gagal dihapus:', describeError(error))
-    return 'Template gagal dihapus. Coba lagi.'
-  }
-  refresh()
-  return null
-}
-
-export async function saveVariablesAction(lines: unknown): Promise<ActionError> {
-  const { userId, accountId } = await requireAccount()
-  const parsed = parseVariables(typeof lines === 'string' ? lines : '')
-  if ('error' in parsed) return parsed.error
-  try {
-    await saveVariables(userId, accountId, parsed.variables)
-  } catch (error) {
-    console.error('[balasan] variabel gagal disimpan:', describeError(error))
-    return 'Variabel gagal disimpan. Periksa koneksi Supabase.'
-  }
   refresh()
   return null
 }

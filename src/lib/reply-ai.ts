@@ -1,8 +1,7 @@
 import 'server-only'
 import { AiOutputError, describeBrand, loadBrandContext, quote, readJson, runLogged, snippetOf } from './ai'
 import { truncate, type BrandContext } from './brand-options'
-import { REPLY_MAX_LENGTH } from './dm-templates'
-import { COMMENT_MAX_LENGTH } from './inbox-rules'
+import { COMMENT_MAX_LENGTH, REPLY_MAX_LENGTH } from './inbox-rules'
 import { chatCompletion, type ChatMessage } from './nine-router'
 import { THREADS_TEXT_LIMIT } from './thread-items'
 

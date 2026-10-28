@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getPublishingAccount, markNeedsReconnect, NeedsReconnectError } from '@/lib/connection'
-import { getConversation, recordMessage, saveTemplate, saveVariables, type Conversation } from '@/lib/dm'
+import { getConversation, recordMessage, type Conversation } from '@/lib/dm'
 import { InstagramApiError, sendDirectMessage } from '@/lib/instagram'
-import { saveTemplateAction, saveVariablesAction, sendReply } from './actions'
+import { sendReply } from './actions'
 
 vi.mock('next/cache', () => ({ refresh: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ requireAccount: vi.fn(async () => ({ userId: 'user-1', accountId: 'ig-1' })) }))
@@ -16,8 +16,6 @@ vi.mock('@/lib/dm', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/dm')>()),
   getConversation: vi.fn(),
   recordMessage: vi.fn(),
-  saveTemplate: vi.fn(),
-  saveVariables: vi.fn(),
 }))
 vi.mock('@/lib/instagram', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/instagram')>()),
@@ -26,7 +24,6 @@ vi.mock('@/lib/instagram', async (importOriginal) => ({
 
 const NOW = new Date('2026-10-16T05:00:00Z')
 const CUSTOMER = '901234567890'
-const TEMPLATE_ID = '00000000-0000-4000-8000-000000000001'
 
 const conversation = (lastIncomingAt: Date | null): Conversation => ({
   igsid: CUSTOMER,
@@ -49,7 +46,6 @@ beforeEach(() => {
   vi.mocked(getPublishingAccount).mockResolvedValue({ accessToken: 'token', instagramUserId: '1784', username: 'toko' })
   vi.mocked(sendDirectMessage).mockResolvedValue('mid-out')
   vi.mocked(recordMessage).mockResolvedValue(true)
-  vi.mocked(saveTemplate).mockResolvedValue(true)
 })
 
 afterEach(() => {
@@ -122,37 +118,5 @@ describe('sendReply', () => {
     vi.mocked(recordMessage).mockRejectedValue(new Error('Supabase: down'))
 
     await expect(sendReply(CUSTOMER, 'Halo')).resolves.toBeNull()
-  })
-})
-
-describe('saveTemplateAction', () => {
-  it('saves a new template, turning an empty keyword into a manual-only one', async () => {
-    await expect(saveTemplateAction(null, '  ', ' Halo {sender_name} ')).resolves.toBeNull()
-    expect(saveTemplate).toHaveBeenCalledWith('user-1', null, null, 'Halo {sender_name}')
-  })
-
-  it('updates by id and reports a template that no longer exists', async () => {
-    vi.mocked(saveTemplate).mockResolvedValue(false)
-
-    await expect(saveTemplateAction(TEMPLATE_ID, 'promo', 'Promo!')).resolves.toBe('Template tidak ditemukan.')
-    expect(saveTemplate).toHaveBeenCalledWith('user-1', TEMPLATE_ID, 'promo', 'Promo!')
-  })
-
-  it('rejects a malformed id and an empty body before saving', async () => {
-    await expect(saveTemplateAction('1; drop', 'promo', 'Promo!')).resolves.toBe('Template tidak ditemukan.')
-    await expect(saveTemplateAction(null, 'promo', ' ')).resolves.toBe('Isi template dulu.')
-    expect(saveTemplate).not.toHaveBeenCalled()
-  })
-})
-
-describe('saveVariablesAction', () => {
-  it('saves parsed variables', async () => {
-    await expect(saveVariablesAction('brand_name = Toko Sinar')).resolves.toBeNull()
-    expect(saveVariables).toHaveBeenCalledWith('user-1', 'ig-1', { brand_name: 'Toko Sinar' })
-  })
-
-  it('returns the parse error without saving', async () => {
-    await expect(saveVariablesAction('Brand = X')).resolves.toContain('tidak bisa dibaca')
-    expect(saveVariables).not.toHaveBeenCalled()
   })
 })

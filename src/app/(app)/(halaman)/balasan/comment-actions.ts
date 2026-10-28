@@ -15,7 +15,7 @@ import {
 } from '@/lib/comments'
 import { getPublishingAccount } from '@/lib/connection'
 import { recordPrivateReply } from '@/lib/dm'
-import { REPLY_MAX_LENGTH } from '@/lib/dm-templates'
+import { REPLY_MAX_LENGTH } from '@/lib/inbox-rules'
 import { describeError } from '@/lib/errors'
 import { canPrivateReply, COMMENT_MAX_LENGTH } from '@/lib/inbox-rules'
 import { deleteComment, replyToComment, sendPrivateReply, setCommentHidden } from '@/lib/instagram'

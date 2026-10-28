@@ -18,7 +18,7 @@ import {
   threadComments,
   type PostCommentSummary,
 } from '@/lib/inbox-rules'
-import { CommentItem, type CommentPlatform, type CommentTemplates, type CommentView } from './comment-item'
+import { CommentItem, type CommentPlatform, type CommentView } from './comment-item'
 import { MarkPostSeen } from './controls'
 import type { Brand, Filter } from './inbox'
 
@@ -74,11 +74,10 @@ interface CommentsProps {
   brand: Brand
   now: Date
   /** Quick replies above the reply box. */
-  templates?: CommentTemplates
 }
 
-export function Comments({ data, filter, brand, now, templates }: CommentsProps) {
-  if (data.view === 'post') return <PostComments data={data} filter={filter} brand={brand} now={now} templates={templates} />
+export function Comments({ data, filter, brand, now }: CommentsProps) {
+  if (data.view === 'post') return <PostComments data={data} filter={filter} brand={brand} now={now} />
   if (data.posts.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500">
@@ -154,13 +153,11 @@ function PostComments({
   filter,
   brand,
   now,
-  templates,
 }: {
   data: Extract<CommentsData, { view: 'post' }>
   filter: Filter
   brand: Brand
   now: Date
-  templates?: CommentTemplates
 }) {
   const threads = threadComments(data.comments)
   return (
@@ -204,7 +201,6 @@ function PostComments({
               comment={toView(comment, now)}
               replies={replies.map((reply) => toView(reply, now))}
               brand={brand}
-              templates={templates}
             />
           ))}
         </ul>

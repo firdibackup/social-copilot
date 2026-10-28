@@ -4,7 +4,7 @@ import { listAssets } from './assets'
 import { getBrandContext, getBrandKit, saveBrandKit } from './brand'
 import { EMPTY_BRAND } from './brand-options'
 import { getConnectedAccountId } from './connection'
-import { getConversation, getVariables, listConversations, listTemplates, saveVariables } from './dm'
+import { getConversation, listConversations } from './dm'
 import { getDiscoveryAccount, getFacebookConnection } from './facebook-connection'
 import { listIdeas, recentTitles } from './ideas'
 import { db } from './supabase'
@@ -35,8 +35,6 @@ describe('dashboard reads filter by the connected account', () => {
     ['recentTitles', () => recentTitles('user-1', 'ig-1')],
     ['listConversations', () => listConversations('user-1', 'ig-1', false)],
     ['getConversation', () => getConversation('user-1', 'ig-1', 'igsid-1')],
-    ['listTemplates', () => listTemplates('user-1', 'ig-1')],
-    ['getVariables', () => getVariables('user-1', 'ig-1')],
     ['getBrandKit', () => getBrandKit('user-1', 'ig-1')],
   ])('%s', async (_name, read) => {
     answer({ data: [], error: null })
@@ -67,14 +65,6 @@ describe('singleton writes key on user and account', () => {
     answer({ data: null, error: null })
     await saveBrandKit('user-1', 'ig-1', EMPTY_BRAND)
     expect(calls.find((call) => call[0] === 'upsert')?.[1]).toMatchObject({ sync_status: null })
-  })
-
-  it('saves template variables for the account', async () => {
-    answer({ data: null, error: null })
-    await saveVariables('user-1', 'ig-1', { brand_name: 'Toko' })
-    const upsert = calls.find((call) => call[0] === 'upsert')
-    expect(upsert?.[1]).toMatchObject({ user_id: 'user-1', account_id: 'ig-1' })
-    expect(upsert?.[2]).toEqual({ onConflict: 'user_id,account_id' })
   })
 })
 

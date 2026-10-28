@@ -1,17 +1,10 @@
 'use client'
 
-import { Pencil, Send, Smile, Sparkles } from 'lucide-react'
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { Send, Smile, Sparkles } from 'lucide-react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { Avatar } from '@/components/avatar'
 import { Notice } from '@/components/notice'
 import type { DraftResult } from './action-utils'
-
-/** A template already filled in for this conversation. */
-export interface TemplateOption {
-  id: string
-  label: string
-  text: string
-}
 
 const EMOJIS = [
   '😊', '😁', '😂', '🥰', '😍', '😘', '🤗', '🤩', '😉', '😅',
@@ -27,17 +20,10 @@ interface ComposerProps {
   placeholder: string
   maxLength: number
   brand: { name: string; logoUrl: string | null }
-  initialText?: string
   /** Sends the text; returns a message for the owner, or null once it is out. */
   send: (text: string) => Promise<string | null>
   /** ✨ AI: a draft from the conversation, or the owner's text tidied. */
   draft: (text: string) => Promise<DraftResult>
-  /** Template chips above the box; clicking one fills the draft. */
-  templates?: TemplateOption[]
-  /** ✎ next to the chips: opens Template balasan. */
-  onEditTemplates?: () => void
-  /** Under the box while the text is still the suggested template. */
-  suggestionNote?: ReactNode
   autoFocus?: boolean
 }
 
@@ -50,16 +36,11 @@ export function Composer({
   placeholder,
   maxLength,
   brand,
-  initialText = '',
   send,
   draft,
-  templates = [],
-  onEditTemplates,
-  suggestionNote,
   autoFocus = false,
 }: ComposerProps) {
-  const [text, setText] = useState(initialText)
-  const [isSuggested, setIsSuggested] = useState(initialText !== '')
+  const [text, setText] = useState('')
   const [busy, setBusy] = useState<'send' | 'ai' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [emojiOpen, setEmojiOpen] = useState(false)
@@ -77,7 +58,6 @@ export function Composer({
 
   function replaceText(next: string) {
     setText(next.slice(0, maxLength))
-    setIsSuggested(false)
     setError(null)
   }
 
@@ -104,7 +84,6 @@ export function Composer({
       setError(failure)
     } else {
       setText('')
-      setIsSuggested(false)
     }
   }
 
@@ -131,27 +110,6 @@ export function Composer({
 
   return (
     <div className="space-y-2">
-      {(templates.length > 0 || onEditTemplates) && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {templates.map((template) => (
-            <button
-              key={template.id}
-              type="button"
-              onClick={() => replaceText(template.text)}
-              title={template.text}
-              className="max-w-[14rem] truncate rounded-full border border-hairline bg-paper px-3 py-1 text-xs font-medium text-zinc-700 hover:border-zinc-300 hover:text-ink"
-            >
-              {template.label}
-            </button>
-          ))}
-          {onEditTemplates && (
-            <button type="button" onClick={onEditTemplates} aria-label="Atur template" className={ICON_BUTTON}>
-              <Pencil size={14} aria-hidden="true" />
-            </button>
-          )}
-        </div>
-      )}
-
       <div className="rounded-xl border border-hairline bg-paper focus-within:border-zinc-400">
         <div className="flex items-start gap-3 px-3 pt-3">
           <Avatar src={brand.logoUrl} name={brand.name} className="size-8" />
@@ -222,7 +180,6 @@ export function Composer({
         </div>
       </div>
 
-      {isSuggested && suggestionNote && <p className="text-xs text-ink-muted">{suggestionNote}</p>}
       {error && <Notice tone="error">{error}</Notice>}
     </div>
   )
