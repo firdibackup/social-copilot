@@ -422,15 +422,14 @@ describe('buildScriptMessages', () => {
     expect(brief).not.toContain('Tips: …')
   })
 
-  it('lets the AI pick 2–10 slides with the full adaptive structure, and quotes the idea', () => {
+  it('gives the idea-list writer an exact structure for every allowed slide count', () => {
     const user = String(buildScriptMessages('Bedanya IN, ON, AT', BRAND, 'curiosity')[1].content)
 
     expect(user).toMatch(/^Tentang brand/)
     expect(user).toContain('2–10 slide')
-    expect(user).toContain('slide 1 = Hook')
-    expect(user).toContain('slide 2 = Bridge')
-    expect(user).toContain('slide 9 = Recap')
-    expect(user).toContain('slide 10 = CTA')
+    expect(user).toContain('2 slide: slide 1 = Hook; slide 2 = Value + CTA')
+    expect(user).toContain('7 slide: slide 1 = Hook; slide 2 = Bridge; slide 3 = Problem; slide 4 = Reframe; slide 5 = Value; slide 6 = Recap/Proof; slide 7 = CTA')
+    expect(user).toContain('10 slide: slide 1 = Hook; slide 2 = Bridge; slide 3 = Problem; slide 4 = Reframe; slide 5–7 = Value; slide 8 = Proof; slide 9 = Recap; slide 10 = CTA')
     expect(user).toContain('Panduan carousel (wajib)')
     expect(user).toContain('"label": "…", "title": "…", "body": "…"')
     expect(user).toContain('Ide:\n"""\nBedanya IN, ON, AT\n"""')

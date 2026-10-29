@@ -427,7 +427,7 @@ export function buildScriptMessages(
       content: [
         `${brand ? describeBrand(brand) : ''}Tugas: kembangkan ide di bawah menjadi skrip carousel Instagram, slide demi slide, yang memperjelas ide itu sampai pembaca benar-benar paham dan bisa langsung memakainya.`,
         `- Tentukan sendiri jumlah slide yang paling pas dengan isi ide: ${MIN_SCRIPT_SLIDES}–${MAX_SLIDES} slide. Satu poin utama per slide isi; jangan menambah slide hanya supaya banyak, dan jangan memadatkan banyak poin ke satu slide.`,
-        `- Susunan wajib mengikuti jumlah slide yang dipilih: gunakan ${carouselStructure(MAX_SLIDES)} untuk 10 slide; untuk jumlah lain gunakan urutan adaptif Hook → Bridge → Problem → Reframe → Value → Proof → Recap → CTA, gabungkan peran secara ringkas bila slide lebih sedikit dan jangan menambah filler.`,
+        `- Susunan wajib mengikuti jumlah slide yang dipilih:\n${Array.from({ length: MAX_SLIDES - MIN_SCRIPT_SLIDES + 1 }, (_, index) => { const count = index + MIN_SCRIPT_SLIDES; return `  - ${count} slide: ${carouselStructure(count)}` }).join('\n')}\nGabungkan peran sesuai susunan di atas dan jangan menambah filler.`,
         '- label: nama singkat peran atau isi slide untuk owner, 1–3 kata, misalnya "Hook", nama poinnya, atau "CTA" (boleh digabung seperti "AT + CTA").',
         `- Cover: ${COVER_RULE} title berisi hook tersebut; body wajib string kosong ("").`,
         '- title pada slide isi: poin utamanya, maksimal 12 kata, misalnya "IN = Di dalam atau periode waktu yang luas". Batas 12 kata ini bukan untuk hook.',
