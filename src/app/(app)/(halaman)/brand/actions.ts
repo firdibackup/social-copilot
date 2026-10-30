@@ -196,32 +196,39 @@ export async function analyzeProfileAction(websiteUrl: unknown, includeInstagram
 }
 
 /**
- * Receives a JPEG prepared in the browser (see toReferenceJpeg, or cropTile for a design cut from a grid) and its
- * palette; a cut-out design may bring the label and layout description classifyGridTilesAction gave it.
+ * Receives JPEGs prepared in the browser (see toReferenceJpeg; one upload, or every design cut from a grid, which
+ * become one group in that order) and a palette; grid cut-outs bring one label each and the layout description
+ * classifyGridTilesAction gave them.
  */
 export async function uploadReferenceAction(formData: FormData): Promise<ActionError> {
   const { userId, accountId } = await requireAccount()
-  const file = formData.get('file')
-  if (!(file instanceof Blob)) return 'File tidak ditemukan.'
-  if (file.size === 0 || file.size > MAX_IMAGE_BYTES) return 'Ukuran gambar harus di bawah 8 MB.'
-  const bytes = new Uint8Array(await file.arrayBuffer())
-  if (!isJpeg(bytes)) return 'File bukan JPEG.'
+  const files = formData.getAll('file')
+  if (files.length === 0) return 'File tidak ditemukan.'
+  if (files.length > MAX_GROUP_IMAGES) return `Maksimal ${MAX_GROUP_IMAGES} gambar untuk satu referensi.`
+  const images: { bytes: Uint8Array; type: 'image/jpeg' }[] = []
+  for (const file of files) {
+    if (!(file instanceof Blob)) return 'File tidak ditemukan.'
+    if (file.size === 0 || file.size > MAX_IMAGE_BYTES) return 'Ukuran gambar harus di bawah 8 MB.'
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    if (!isJpeg(bytes)) return 'File bukan JPEG.'
+    images.push({ bytes, type: 'image/jpeg' })
+  }
   let palette: string[] = []
   try {
     palette = parsePalette(JSON.parse(String(formData.get('palette') ?? '[]'))) ?? []
   } catch {
     // A missing palette is filled in by the page later.
   }
-  const label = formData.get('label')
-  if (label !== null && (typeof label !== 'string' || !LABELS.has(label))) return 'Label tidak valid.'
+  const labels = formData.getAll('label')
+  if (!labels.every((label) => typeof label === 'string' && LABELS.has(label))) return 'Label tidak valid.'
   const description = text(formData.get('description'))
   if (lengthOf(description) > DESCRIPTION_MAX_LENGTH) return `Deskripsi maksimal ${DESCRIPTION_MAX_LENGTH} karakter.`
   const fromGrid = formData.get('source') === 'grid'
 
   try {
     const id = await addReference(userId, accountId, {
-      images: [{ bytes, type: 'image/jpeg' }],
-      labels: label ? [label as ReferenceLabel] : undefined,
+      images,
+      labels: labels.length === images.length ? (labels as ReferenceLabel[]) : undefined,
       source: 'upload',
       sourceLabel: fromGrid ? 'Potongan grid' : 'Unggahan',
       permalink: null,

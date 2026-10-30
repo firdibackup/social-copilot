@@ -17,7 +17,7 @@ import { listThreadItems } from './post-threads'
 import { getPost } from './posts'
 import { getScheduleSettings, listTakenTimes } from './schedule'
 import { nextEmptySlots, SLOT_LOOKAHEAD_DAYS } from './schedule-slots'
-import { getPostReferenceId, listUnfinishedSlides } from './slides'
+import { listUnfinishedSlides } from './slides'
 import { getThreadsConnection } from './threads-connection'
 
 const DAY_MS = 86_400_000
@@ -44,10 +44,9 @@ export async function loadEditorDetail({ userId, accountId }: AccountScope, para
   // Check account ownership before loading dependent records or signing their media.
   const post = postId ? await getPost(userId, postId, accountId) : null
   const jobPromise = post ? getContentJob(userId, post.id) : Promise.resolve(null)
-  const [job, slides, referenceId, idea, threadItems, schedule, taken] = await Promise.all([
+  const [job, slides, idea, threadItems, schedule, taken] = await Promise.all([
     jobPromise,
     post ? listUnfinishedSlides(userId, post.id) : [],
-    post ? getPostReferenceId(userId, post.id) : null,
     jobPromise.then((job) => job?.kind === 'script' && job.idea_id
       ? getAccountIdea(userId, accountId, job.idea_id)
       : !postId && isUuid(ideaParam) ? getAccountIdea(userId, accountId, ideaParam) : null),
@@ -56,7 +55,7 @@ export async function loadEditorDetail({ userId, accountId }: AccountScope, para
     listTakenTimes(userId, accountId, now, new Date(now.getTime() + SLOT_LOOKAHEAD_DAYS * DAY_MS)).catch(() => []),
   ])
   return {
-    post, job, referenceId, idea, threadItems,
+    post, job, idea, threadItems,
     slides: slides.map(({ id, position, format, status, error }) => ({
       id, position, format, status: status === 'ready' ? 'generating' as const : status, error,
     })),

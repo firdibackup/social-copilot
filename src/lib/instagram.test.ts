@@ -221,6 +221,11 @@ describe('InstagramApiError.isTransient', () => {
     expect(new InstagramApiError('throttled', 4, 400).isTransient).toBe(true)
   })
 
+  it('treats a failed photo download on Instagram’s side as transient', () => {
+    expect(new InstagramApiError('Fatal', -2, 400).isTransient).toBe(true)
+    expect(new InstagramApiError('Only photo or video can be accepted as media type.', 9004, 400).isTransient).toBe(true)
+  })
+
   it('treats a rejected request as permanent', () => {
     expect(new InstagramApiError('bad ratio', 100, 400).isTransient).toBe(false)
   })

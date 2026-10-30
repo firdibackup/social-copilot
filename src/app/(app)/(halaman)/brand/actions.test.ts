@@ -87,6 +87,24 @@ describe('uploadReferenceAction', () => {
     expect(updateReference).toHaveBeenCalledWith('user-1', 'ref-1', { description: 'Nomor besar, poin di bawah.' })
   })
 
+  it('saves every design cut from a grid as one group, each with its label', async () => {
+    const form = new FormData()
+    form.append('file', jpeg())
+    form.append('file', jpeg())
+    form.append('label', 'cover')
+    form.append('label', 'cta')
+    form.set('source', 'grid')
+
+    await expect(uploadReferenceAction(form)).resolves.toBeNull()
+
+    expect(addReference).toHaveBeenCalledTimes(1)
+    expect(addReference).toHaveBeenCalledWith(
+      'user-1',
+      'ig-1',
+      expect.objectContaining({ images: [expect.anything(), expect.anything()], labels: ['cover', 'cta'] }),
+    )
+  })
+
   it('refuses an unknown label', async () => {
     const form = new FormData()
     form.set('file', jpeg())

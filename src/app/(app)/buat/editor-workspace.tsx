@@ -153,7 +153,6 @@ export function EditorWorkspace({ initial }: { initial: EditorInitial }) {
             imageCount: product.imageCount,
           }))}
           references={references}
-          usedReferenceId={data.referenceId}
           hasLogo={kit.logoUrl !== null}
           credits={credits}
           planCredits={plan.credits}

@@ -10,6 +10,7 @@ import { ExternalImage, MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
 import {
   DESCRIPTION_MAX_LENGTH,
+  MAX_GROUP_IMAGES,
   MAX_REFERENCES,
   NOTE_MAX_LENGTH,
   REFERENCE_LABELS,
@@ -277,7 +278,7 @@ interface TileDetail {
 
 const EMPTY_DETAIL: TileDetail = { label: 'single', description: '' }
 
-/** A grid picture cut into designs, each added as its own reference with an optional AI label and description. */
+/** A grid picture cut into designs, added together as one reference (like a carousel), each with its own label. */
 function GridReferences({
   file,
   room,
@@ -353,37 +354,31 @@ function GridReferences({
   async function add({ tiles, crop, markAdded }: GridSelection) {
     setErrors([])
     setNotice(null)
-    const failed: string[] = []
-    const done: GridTile[] = []
-    for (const [position, tile] of tiles.entries()) {
-      setProgress({
-        task: 'add',
-        text: `Menambahkan ${position + 1} dari ${tiles.length}…`,
-      })
-      const detail = detailOf(tile)
-      let failure: string | null
-      try {
+    setProgress({ task: 'add', text: `Menambahkan ${tiles.length} potongan…` })
+    let failure: string | null
+    try {
+      const formData = new FormData()
+      const descriptions: string[] = []
+      for (const [position, tile] of tiles.entries()) {
+        const detail = detailOf(tile)
         const prepared = await crop(tile)
-        const formData = new FormData()
-        formData.set('file', prepared.blob, `potongan-${tile.index + 1}.jpg`)
-        formData.set('palette', JSON.stringify(prepared.palette))
-        formData.set('label', detail.label)
-        if (detail.description.trim()) formData.set('description', detail.description.trim())
-        formData.set('source', 'grid')
-        failure = await uploadReferenceAction(formData).catch(() => 'Unggahan terputus. Coba lagi.')
-      } catch {
-        failure = 'Potongan gagal dibuat di browser. Coba lagi.'
+        formData.append('file', prepared.blob, `potongan-${tile.index + 1}.jpg`)
+        formData.append('label', detail.label)
+        if (position === 0) formData.set('palette', JSON.stringify(prepared.palette))
+        if (detail.description.trim()) descriptions.push(`Slide ${position + 1}: ${detail.description.trim()}`)
       }
-      if (failure) failed.push(`Potongan ${tile.index + 1}: ${failure}`)
-      else done.push(tile)
+      if (descriptions.length > 0) formData.set('description', descriptions.join('\n').slice(0, DESCRIPTION_MAX_LENGTH))
+      formData.set('source', 'grid')
+      failure = await uploadReferenceAction(formData).catch(() => 'Unggahan terputus. Coba lagi.')
+    } catch {
+      failure = 'Potongan gagal dibuat di browser. Coba lagi.'
     }
     setProgress(null)
-    setErrors(failed)
-    if (done.length > 0) {
-      markAdded(done)
-      router.refresh()
-    }
-    if (failed.length === 0) onDone()
+    setErrors(failure ? [failure] : [])
+    if (failure) return
+    markAdded(tiles)
+    router.refresh()
+    onDone()
   }
 
   const busy = progress !== null
@@ -392,11 +387,11 @@ function GridReferences({
     <div className="space-y-3">
       <GridSplitter
         file={file}
-        maxSelectable={room}
+        maxSelectable={room <= 0 ? 0 : MAX_GROUP_IMAGES}
         limitHint={
           room <= 0
             ? 'Galeri sudah penuh. Hapus referensi lama dulu.'
-            : `Galeri tinggal muat ${room} referensi lagi, jadi hanya ${room} potongan yang bisa dipilih.`
+            : `Satu referensi maksimal ${MAX_GROUP_IMAGES} potongan.`
         }
         busy={busy}
         onCancel={onDone}
@@ -458,7 +453,7 @@ function GridReferences({
                 disabled={busy || count === 0}
                 className={PRIMARY_BUTTON}
               >
-                {progress?.task === 'add' ? progress.text : `Tambahkan ${count} referensi`}
+                {progress?.task === 'add' ? progress.text : `Jadikan 1 referensi (${count} slide)`}
               </button>
               <button
                 type="button"

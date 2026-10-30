@@ -85,8 +85,6 @@ interface ContentEditorProps {
   defaultDensity: TextDensity
   products: ProductOption[]
   references: ReferenceOption[]
-  /** Reference group persisted on this post's slides; displayed read-only after generation. */
-  usedReferenceId: string | null
   hasLogo: boolean
   /** Credits left in the period; null when they couldn't be read (the server still checks). */
   credits: number | null
@@ -133,7 +131,6 @@ export function ContentEditor({
   defaultDensity,
   products,
   references,
-  usedReferenceId,
   hasLogo,
   credits,
   planCredits,
@@ -523,7 +520,6 @@ export function ContentEditor({
     }
   }
 
-  const usedReference = usedReferenceId ? references.find((reference) => reference.id === usedReferenceId) : null
   const options = !post ? (
     <>
       {read ? (
@@ -626,7 +622,6 @@ export function ContentEditor({
     </>
   ) : editable ? (
     <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
-      {usedReference && <span className={CHIP}>Acuan: <span className="font-medium text-ink">{usedReference.label}</span></span>}
       <span className="flex items-center gap-1">
         Ubah:
         <TargetButton active={target === 'slide'} onClick={() => setTarget('slide')}>
@@ -637,7 +632,7 @@ export function ContentEditor({
         </TargetButton>
       </span>
     </div>
-  ) : usedReference ? <span className={CHIP}>Acuan: <span className="font-medium text-ink">{usedReference.label}</span></span> : null
+  ) : null
 
   const counts = inspectCaption(caption)
   const composerCost = post ? (target === 'caption' ? TASK_CREDITS.caption_edit : TASK_CREDITS.slide_edit) : contentCost(newSlides)

@@ -23,8 +23,12 @@ const TOKEN_URL = 'https://api.instagram.com/oauth/access_token'
 const GRAPH_URL = 'https://graph.instagram.com'
 const REQUEST_TIMEOUT_MS = 15_000
 const INVALID_TOKEN_CODE = 190
-/** Graph codes for unknown errors, service hiccups and rate limits: worth retrying later. */
-const TRANSIENT_CODES = new Set([1, 2, 4, 17, 32, 341, 368, 613])
+/**
+ * Graph codes for unknown errors, service hiccups and rate limits: worth retrying later. -2 ("Fatal") and 9004
+ * ("could not be fetched from this uri") are Instagram failing to download a photo this time: the same files went
+ * through a minute later (2026-10-30).
+ */
+const TRANSIENT_CODES = new Set([-2, 1, 2, 4, 17, 32, 341, 368, 613, 9004])
 
 const CONTAINER_STATUSES = ['EXPIRED', 'ERROR', 'FINISHED', 'IN_PROGRESS', 'PUBLISHED'] as const
 export type ContainerStatus = (typeof CONTAINER_STATUSES)[number]

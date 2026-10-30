@@ -55,6 +55,7 @@ const post = (overrides: Partial<ClaimedPost> = {}): ClaimedPost => ({
   ...overrides,
 })
 
+const noWait = async () => {}
 const network = () => new InstagramApiError('Instagram tidak bisa dihubungi (TimeoutError)', null, 0)
 const rejected = () => new InstagramApiError('The aspect ratio is not supported.', 100, 400)
 
@@ -74,7 +75,7 @@ describe('processPost', () => {
   })
 
   it('publishes a single photo and saves the container before publishing', async () => {
-    await processPost(post(), NOW)
+    await processPost(post(), NOW, noWait)
 
     expect(createContainer).toHaveBeenCalledWith('token', 'ig1', {
       image_url: 'https://media.test/a.jpg?token=x',
@@ -98,7 +99,7 @@ describe('processPost', () => {
       params.image_url === 'https://media.test/a' ? 'k1' : params.image_url === 'https://media.test/b' ? 'k2' : 'c1',
     )
 
-    await processPost(post(), NOW)
+    await processPost(post(), NOW, noWait)
 
     expect(createContainer).toHaveBeenCalledWith('token', 'ig1', { image_url: 'https://media.test/a', is_carousel_item: 'true' })
     expect(createContainer).toHaveBeenCalledWith('token', 'ig1', { image_url: 'https://media.test/b', is_carousel_item: 'true' })
@@ -114,7 +115,7 @@ describe('processPost', () => {
   it('marks a post published without publishing again when Instagram already has it', async () => {
     vi.mocked(getContainerStatus).mockResolvedValue('PUBLISHED')
 
-    await processPost(post({ attemptCount: 2, igContainerId: 'c1' }), NOW)
+    await processPost(post({ attemptCount: 2, igContainerId: 'c1' }), NOW, noWait)
 
     expect(getContainerStatus).toHaveBeenCalledWith('token', 'c1')
     expect(publishContainer).not.toHaveBeenCalled()
@@ -124,7 +125,7 @@ describe('processPost', () => {
   })
 
   it('publishes a finished container from an earlier attempt without creating a new one', async () => {
-    await processPost(post({ attemptCount: 2, igContainerId: 'c1' }), NOW)
+    await processPost(post({ attemptCount: 2, igContainerId: 'c1' }), NOW, noWait)
 
     expect(createContainer).not.toHaveBeenCalled()
     expect(publishContainer).toHaveBeenCalledWith('token', 'ig1', 'c1')
@@ -134,7 +135,7 @@ describe('processPost', () => {
     vi.mocked(getContainerStatus).mockResolvedValueOnce('EXPIRED').mockResolvedValueOnce('FINISHED')
     vi.mocked(createContainer).mockResolvedValue('c2')
 
-    await processPost(post({ attemptCount: 2, igContainerId: 'c1' }), NOW)
+    await processPost(post({ attemptCount: 2, igContainerId: 'c1' }), NOW, noWait)
 
     expect(setContainerId).toHaveBeenNthCalledWith(1, 'p1', null)
     expect(setContainerId).toHaveBeenNthCalledWith(2, 'p1', 'c2')
@@ -144,7 +145,7 @@ describe('processPost', () => {
   it('keeps the container and retries in a minute when publishing times out', async () => {
     vi.mocked(publishContainer).mockRejectedValue(network())
 
-    await processPost(post(), NOW)
+    await processPost(post(), NOW, noWait)
 
     expect(scheduleRetry).toHaveBeenCalledWith('p1', minutesFromNow(1), expect.stringContaining('TimeoutError'))
     expect(setContainerId).not.toHaveBeenCalledWith('p1', null)
@@ -155,24 +156,57 @@ describe('processPost', () => {
   it('waits longer after each failed attempt', async () => {
     vi.mocked(publishContainer).mockRejectedValue(network())
 
-    await processPost(post({ attemptCount: 3, igContainerId: 'c1' }), NOW)
+    await processPost(post({ attemptCount: 3, igContainerId: 'c1' }), NOW, noWait)
 
     expect(scheduleRetry).toHaveBeenCalledWith('p1', minutesFromNow(15), expect.any(String))
   })
 
-  it('retries while Instagram is still processing the container', async () => {
+  it('publishes in the same attempt once the container finishes processing', async () => {
+    vi.mocked(getContainerStatus)
+      .mockResolvedValueOnce('IN_PROGRESS')
+      .mockResolvedValueOnce('IN_PROGRESS')
+      .mockResolvedValueOnce('FINISHED')
+    const wait = vi.fn(noWait)
+
+    await processPost(post(), NOW, wait)
+
+    expect(wait).toHaveBeenCalledTimes(2)
+    expect(publishContainer).toHaveBeenCalledWith('token', 'ig1', 'c1')
+    expect(scheduleRetry).not.toHaveBeenCalled()
+  })
+
+  it('retries in a minute while Instagram is still processing the container after the last check', async () => {
     vi.mocked(getContainerStatus).mockResolvedValue('IN_PROGRESS')
 
-    await processPost(post(), NOW)
+    await processPost(post(), NOW, noWait)
 
+    expect(getContainerStatus).toHaveBeenCalledTimes(6)
     expect(publishContainer).not.toHaveBeenCalled()
     expect(scheduleRetry).toHaveBeenCalledWith('p1', minutesFromNow(1), expect.any(String))
+  })
+
+  it('creates carousel children one after another, so Instagram downloads one photo at a time', async () => {
+    vi.mocked(getMediaPaths).mockResolvedValue(['a.jpg', 'b.jpg'])
+    vi.mocked(signMediaUrls).mockResolvedValue(['https://media.test/a', 'https://media.test/b'])
+    let inFlight = 0
+    let most = 0
+    vi.mocked(createContainer).mockImplementation(async (_token, _user, params) => {
+      most = Math.max(most, ++inFlight)
+      await new Promise((resolve) => setTimeout(resolve, 1))
+      inFlight--
+      return params.media_type === 'CAROUSEL' ? 'c1' : `k${params.image_url?.at(-1)}`
+    })
+
+    await processPost(post(), NOW, noWait)
+
+    expect(most).toBe(1)
+    expect(createContainer).toHaveBeenLastCalledWith('token', 'ig1', expect.objectContaining({ children: 'ka,kb' }))
   })
 
   it('gives up after the fifth attempt and keeps the container, since the outcome is unknown', async () => {
     vi.mocked(publishContainer).mockRejectedValue(network())
 
-    await processPost(post({ attemptCount: 5, igContainerId: 'c1' }), NOW)
+    await processPost(post({ attemptCount: 5, igContainerId: 'c1' }), NOW, noWait)
 
     expect(scheduleRetry).not.toHaveBeenCalled()
     expect(markFailed).toHaveBeenCalledWith('p1', expect.stringContaining('TimeoutError'), false)
@@ -182,7 +216,7 @@ describe('processPost', () => {
   it('fails at once and clears the container when Instagram rejects the post', async () => {
     vi.mocked(publishContainer).mockRejectedValue(rejected())
 
-    await processPost(post(), NOW)
+    await processPost(post(), NOW, noWait)
 
     expect(scheduleRetry).not.toHaveBeenCalled()
     expect(markFailed).toHaveBeenCalledWith('p1', expect.stringContaining('aspect ratio'), true)
@@ -191,7 +225,7 @@ describe('processPost', () => {
   it('asks for a reconnect when the token is rejected', async () => {
     vi.mocked(createContainer).mockRejectedValue(new InstagramApiError('Invalid OAuth access token', 190, 400))
 
-    await processPost(post(), NOW)
+    await processPost(post(), NOW, noWait)
 
     expect(markNeedsReconnect).toHaveBeenCalledWith('user-1')
     expect(markFailed).toHaveBeenCalledWith('p1', expect.stringContaining('Sambungkan ulang'), false)
@@ -200,14 +234,14 @@ describe('processPost', () => {
   it('asks for a reconnect when Instagram is not connected', async () => {
     vi.mocked(getPublishingAccount).mockRejectedValue(new NeedsReconnectError('Instagram belum terhubung'))
 
-    await processPost(post(), NOW)
+    await processPost(post(), NOW, noWait)
 
     expect(createContainer).not.toHaveBeenCalled()
     expect(markFailed).toHaveBeenCalledWith('p1', expect.stringContaining('Sambungkan ulang'), false)
   })
 
   it('fails a post of another Instagram account without retry and without calling Instagram', async () => {
-    await processPost(post({ accountId: 'ig-old', igContainerId: 'c0' }), NOW)
+    await processPost(post({ accountId: 'ig-old', igContainerId: 'c0' }), NOW, noWait)
 
     expect(createContainer).not.toHaveBeenCalled()
     expect(getContainerStatus).not.toHaveBeenCalled()
@@ -218,7 +252,7 @@ describe('processPost', () => {
   it('fails the post of a user whose subscription ended, keeping its container for a later retry', async () => {
     vi.mocked(getCurrentPeriod).mockResolvedValue(null)
 
-    await processPost(post({ igContainerId: 'c0' }), NOW)
+    await processPost(post({ igContainerId: 'c0' }), NOW, noWait)
 
     expect(getCurrentPeriod).toHaveBeenCalledWith('user-1', NOW)
     expect(getPublishingAccount).not.toHaveBeenCalled()
@@ -226,14 +260,14 @@ describe('processPost', () => {
   })
 
   it('skips a post more than an hour late on its first attempt', async () => {
-    await processPost(post({ scheduledAt: minutesFromNow(-61) }), NOW)
+    await processPost(post({ scheduledAt: minutesFromNow(-61) }), NOW, noWait)
 
     expect(createContainer).not.toHaveBeenCalled()
     expect(markFailed).toHaveBeenCalledWith('p1', expect.stringContaining('Terlewat'), false)
   })
 
   it('still publishes a retry whose original schedule is long past', async () => {
-    await processPost(post({ scheduledAt: minutesFromNow(-90), attemptCount: 4 }), NOW)
+    await processPost(post({ scheduledAt: minutesFromNow(-90), attemptCount: 4 }), NOW, noWait)
 
     expect(markPublished).toHaveBeenCalledWith('p1', 'm1')
   })
@@ -241,7 +275,7 @@ describe('processPost', () => {
   it('retries when the database fails mid-publish', async () => {
     vi.mocked(markPublished).mockRejectedValueOnce(new Error('Supabase: fetch failed'))
 
-    await processPost(post(), NOW)
+    await processPost(post(), NOW, noWait)
 
     expect(scheduleRetry).toHaveBeenCalledWith('p1', minutesFromNow(1), expect.any(String))
   })

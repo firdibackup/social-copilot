@@ -2,7 +2,14 @@ import { signMediaUrls } from '@/lib/assets'
 import { getCurrentPeriod } from '@/lib/billing'
 import { getPublishingAccount, markNeedsReconnect, NeedsReconnectError } from '@/lib/connection'
 import { describeError } from '@/lib/errors'
-import { createContainer, getContainerStatus, getPermalink, InstagramApiError, publishContainer } from '@/lib/instagram'
+import {
+  createContainer,
+  getContainerStatus,
+  getPermalink,
+  InstagramApiError,
+  publishContainer,
+  type ContainerStatus,
+} from '@/lib/instagram'
 import {
   finishAttempt,
   getMediaPaths,
@@ -20,6 +27,12 @@ import {
 export const MAX_ATTEMPTS = 5
 export const RETRY_DELAYS_MINUTES = [1, 5, 15, 30]
 export const LATE_LIMIT_MS = 60 * 60 * 1000
+/** A fresh carousel container is IN_PROGRESS for a few seconds; checked this often before the attempt gives up. */
+const READY_CHECKS = 6
+const READY_DELAY_MS = 5_000
+
+type Sleep = (ms: number) => Promise<void>
+const sleep: Sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const RECONNECT_MESSAGE = 'Sambungkan ulang Instagram di Pengaturan, lalu pilih Coba lagi.'
 const LATE_MESSAGE = 'Terlewat lebih dari 60 menit dari jadwal. Pilih Coba lagi untuk menerbitkan sekarang.'
@@ -53,9 +66,10 @@ async function createPostContainer(accessToken: string, userId: string, post: Cl
   const urls = await signMediaUrls(paths)
 
   if (urls.length === 1) return createContainer(accessToken, userId, withCaption({ image_url: urls[0] }, post.caption))
-  const children = await Promise.all(
-    urls.map((url) => createContainer(accessToken, userId, { image_url: url, is_carousel_item: 'true' })),
-  )
+  // One at a time: Instagram downloads each image while the request runs, and nine downloads at once from the
+  // Storage VPS made it give up on some ("Fatal", "could not be fetched", 2026-10-30).
+  const children: string[] = []
+  for (const url of urls) children.push(await createContainer(accessToken, userId, { image_url: url, is_carousel_item: 'true' }))
   return createContainer(
     accessToken,
     userId,
@@ -63,7 +77,16 @@ async function createPostContainer(accessToken: string, userId: string, post: Cl
   )
 }
 
-async function publish(post: ClaimedPost, now: Date): Promise<void> {
+/** The container's status once Instagram is done with it, or IN_PROGRESS when it still isn't after the last check. */
+async function waitUntilReady(accessToken: string, containerId: string, wait: Sleep): Promise<ContainerStatus> {
+  for (let check = 1; ; check++) {
+    const status = await getContainerStatus(accessToken, containerId)
+    if (status !== 'IN_PROGRESS' || check === READY_CHECKS) return status
+    await wait(READY_DELAY_MS)
+  }
+}
+
+async function publish(post: ClaimedPost, now: Date, wait: Sleep): Promise<void> {
   if (post.attemptCount === 1 && now.getTime() - post.scheduledAt.getTime() > LATE_LIMIT_MS) {
     throw new PublishFailed(LATE_MESSAGE, false)
   }
@@ -77,7 +100,7 @@ async function publish(post: ClaimedPost, now: Date): Promise<void> {
   // An earlier attempt left a container: Instagram may already have published it.
   let containerId = post.igContainerId
   if (containerId) {
-    const status = await getContainerStatus(accessToken, containerId)
+    const status = await waitUntilReady(accessToken, containerId, wait)
     if (status === 'PUBLISHED') return markPublished(post.id, null)
     if (status === 'IN_PROGRESS') throw new RetryLater(PROCESSING_MESSAGE)
     if (status === 'ERROR' || status === 'EXPIRED') {
@@ -90,7 +113,7 @@ async function publish(post: ClaimedPost, now: Date): Promise<void> {
     containerId = await createPostContainer(accessToken, instagramUserId, post)
     // Saved before publishing, so a crash or timeout from here on is caught by the check above.
     await setContainerId(post.id, containerId)
-    const status = await getContainerStatus(accessToken, containerId)
+    const status = await waitUntilReady(accessToken, containerId, wait)
     if (status === 'IN_PROGRESS') throw new RetryLater(PROCESSING_MESSAGE)
     if (status !== 'FINISHED') throw new PublishFailed(`Instagram gagal memproses foto (${status}).`, true)
   }
@@ -132,9 +155,9 @@ async function settle(post: ClaimedPost, error: unknown, now: Date): Promise<Set
 }
 
 /** One publishing attempt for a claimed post. Every outcome is written to the post and to publish_attempts. */
-export async function processPost(post: ClaimedPost, now = new Date()): Promise<void> {
+export async function processPost(post: ClaimedPost, now = new Date(), wait: Sleep = sleep): Promise<void> {
   const attemptId = await startAttempt(post.id)
-  const settled = await publish(post, now).then(
+  const settled = await publish(post, now, wait).then(
     (): Settled => ({ outcome: 'published', error: null }),
     (error: unknown) => settle(post, error, now),
   )
