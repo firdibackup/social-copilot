@@ -219,12 +219,14 @@ describe('design styles in the prompt', () => {
     )
   })
 
-  it('mixes a reference with the chosen style: the reference’s layout, the style’s typography', () => {
+  it('lets the owner reference fully replace the admin design style', () => {
     const prompt = carousel('isi', [{ kind: 'reference', label: 'isi' }])
 
-    expect(prompt).toContain('The reference decides the layout and composition; the design style below decides the fonts')
-    expect(prompt).toContain('Design style: Minimalis Modern.')
+    expect(prompt).toContain('copy its visual design for this slide: layout, colours, typography, graphic elements, framing and composition')
+    expect(prompt).not.toContain('Design style: Minimalis Modern.')
     expect(prompt).not.toContain('Inner slide layout: a small slide number top-left')
+    expect(prompt).not.toContain('Brand colours:')
+    expect(prompt).not.toContain('Brand fonts:')
   })
 
   it('leaves how a photo meets the text to the reference or example, with no fade of its own', () => {
@@ -265,7 +267,8 @@ describe('design styles in the prompt', () => {
     const prompt = carousel('cover', [{ kind: 'reference', label: 'single' }])
 
     expect(prompt).toContain('image1 is a design reference: follow its style, composition and mood')
-    expect(prompt).toContain('The reference decides the layout and composition')
+    expect(prompt).not.toContain('Design style: Minimalis Modern.')
+    expect(prompt).toContain('Match the typography, weights and hierarchy of the owner reference.')
     expect(prompt).not.toContain('Cover layout:')
   })
 
@@ -505,7 +508,7 @@ describe('slide roles in the prompt', () => {
     ])
 
     expect(prompt).toContain('This is the closing call-to-action slide.')
-    expect(prompt).toContain("image1 is the CTA slide of the owner's reference carousel: copy its layout for this slide")
+    expect(prompt).toContain("image1 is the CTA slide of the owner's reference carousel: copy its visual design for this slide")
   })
 
   it('takes the role the plan gave the slide, not its place', () => {

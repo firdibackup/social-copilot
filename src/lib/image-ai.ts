@@ -84,7 +84,7 @@ function describeInputImage(image: PromptImage, index: number, context: ImageCon
     case 'reference': {
       const note = image.note ? ` The owner's note about it: "${image.note}".` : ''
       if (image.label && image.label !== 'single') {
-        return `${name} is ${REFERENCE_SLIDES[image.label]} of the owner's reference carousel: copy its layout for this slide: where text sits, text size and hierarchy, graphic elements, framing and composition. Do not copy its words, people or products.${note}`
+        return `${name} is ${REFERENCE_SLIDES[image.label]} of the owner's reference carousel: copy its visual design for this slide: layout, colours, typography, graphic elements, framing and composition. Do not copy its words, people or products.${note}`
       }
       if (givesLayout(image, context.role)) {
         return `${name} is a design reference: follow its style, composition and mood, not its content.${note}`
@@ -158,9 +158,6 @@ const TEXT_LEADS =
 const MODERN_LOOK =
   'Overall: contemporary and uncluttered; no clip-art, stock-template look, lens flares, glossy effects, heavy vignettes or busy borders.'
 
-const MIX_LINE =
-  'The reference decides the layout and composition; the design style below decides the fonts, text treatment, graphic elements and overall feel. Where they conflict, keep the reference’s layout and the style’s typography.'
-
 /** Role layouts when the owner's own visual style leads and no reference was sent for the role. */
 const PLAIN_LAYOUTS: Record<LayoutRole, string> = {
   cover: 'Cover layout: the hook as a large headline in the upper part, one clear focal image or graphic below it, plenty of breathing room.',
@@ -196,8 +193,10 @@ export function buildImagePrompt(
   const context: ImageContext = { role, colors: (brand?.colors.length ?? 0) > 0 }
   lines.push(...images.map((image, index) => describeInputImage(image, index, context)))
 
-  const style = styleForBrand(brand)
   const reference = images.some((image) => givesLayout(image, role))
+  // An owner reference is the complete design authority. Admin styles and generic brand visual settings are fallbacks,
+  // not ingredients to mix into a design the owner already supplied.
+  const style = reference ? null : styleForBrand(brand)
   // A slide being edited keeps its own layout, an example shows one, and a later inner slide follows its sibling's;
   // the recipe would only compete.
   // A text-led single post brings its own layout in the scene.
@@ -206,22 +205,23 @@ export function buildImagePrompt(
     reference || images.some((image) => image.kind === 'current' || image.kind === 'example' || image.kind === 'sibling')
   const layoutRole: LayoutRole = role ?? 'single'
   if (style) {
-    if (reference) lines.push(MIX_LINE)
     lines.push(`Design style: ${style.label}. ${style.look}`)
     if (!ownLayout) lines.push(style.layouts[layoutRole])
   } else if (!ownLayout) {
     lines.push(PLAIN_LAYOUTS[layoutRole])
   }
-  if (!textDesign) lines.push(LAYOUT_RULES)
+  if (!textDesign && !reference) lines.push(LAYOUT_RULES)
 
-  const headingFont = brand?.headingFont || style?.headingFont || DEFAULT_HEADING_FONT
-  const bodyFont = brand?.bodyFont || style?.bodyFont || DEFAULT_BODY_FONT
+  const headingFont = reference ? DEFAULT_HEADING_FONT : brand?.headingFont || style?.headingFont || DEFAULT_HEADING_FONT
+  const bodyFont = reference ? DEFAULT_BODY_FONT : brand?.bodyFont || style?.bodyFont || DEFAULT_BODY_FONT
   if (input.headline) {
     const multiline = input.headline.includes('\n')
     const breaks = multiline ? ' Keep its line breaks; the first line is the headline.' : ''
-    const fonts = multiline
-      ? ` Set the first line in ${headingFont} bold and the other lines in ${bodyFont} regular, clearly smaller (or close matches).`
-      : ` Set it in ${headingFont} bold, or a close match.`
+    const fonts = reference
+      ? ' Match the typography, weights and hierarchy of the owner reference.'
+      : multiline
+        ? ` Set the first line in ${headingFont} bold and the other lines in ${bodyFont} regular, clearly smaller (or close matches).`
+        : ` Set it in ${headingFont} bold, or a close match.`
     if (textDesign) {
       lines.push(
         `Text: render exactly this text and no other words: "${input.headline}". Keep its line breaks and order. Use the fonts the scene names; otherwise ${headingFont} bold for headings and ${bodyFont} for the rest.`,
@@ -240,7 +240,7 @@ export function buildImagePrompt(
     lines.push(`Text: none. No words, letters, numbers, captions or watermarks${logo ? ' other than the logo' : ', and no logos'}.`)
   }
   lines.push(MODERN_LOOK)
-  if (brand) lines.push(...describeBrandVisual(brand, style !== null))
+  if (brand && !reference) lines.push(...describeBrandVisual(brand, style !== null))
   return lines.join('\n')
 }
 
