@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PendingLink } from './pending-link'
 import { ProfileAvatar } from '@/components/profile-avatar'
 import { listAutoDmConversationIds } from '@/lib/auto-dm'
 import { getBrandKit } from '@/lib/brand'
@@ -154,7 +154,7 @@ function ConversationRow({ conversation, href, isOpen, now }: ConversationRowPro
   // Opening the thread marks it read; until the next load the row still says it was unread.
   const unread = !isOpen && isConversationUnread(conversation)
   return (
-    <Link
+    <PendingLink
       href={href}
       scroll={false}
       aria-expanded={isOpen}
@@ -174,7 +174,7 @@ function ConversationRow({ conversation, href, isOpen, now }: ConversationRowPro
       <time dateTime={conversation.lastMessageAt.toISOString()} className="shrink-0 self-start text-xs text-zinc-500">
         {formatListTime(conversation.lastMessageAt, now)}
       </time>
-    </Link>
+    </PendingLink>
   )
 }
 

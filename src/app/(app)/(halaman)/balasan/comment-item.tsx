@@ -60,9 +60,19 @@ interface CommentItemProps {
 }
 
 export function CommentItem({ comment, replies, brand, platform = 'instagram' }: CommentItemProps) {
+  const [removed, setRemoved] = useState(false)
+  const [removeError, setRemoveError] = useState<string | null>(null)
+  if (removed) return null
   return (
     <li className="space-y-3 px-4 py-4">
-      <CommentBody comment={comment} brand={brand} platform={platform} />
+      {removeError && <Notice tone="error">{removeError}</Notice>}
+      <CommentBody
+        comment={comment}
+        brand={brand}
+        platform={platform}
+        onRemoved={() => { setRemoveError(null); setRemoved(true) }}
+        onRestore={(error) => { setRemoveError(error); setRemoved(false) }}
+      />
       {replies.length > 0 && (
         <ul className="space-y-3 border-l-2 border-zinc-100 pl-4">
           {replies.map((reply) => (
@@ -80,10 +90,13 @@ interface CommentBodyProps {
   comment: CommentView
   brand: CommentItemProps['brand']
   platform: CommentPlatform
+  onRemoved?: () => void
+  onRestore?: (error: string) => void
 }
 
-function CommentBody({ comment, brand, platform }: CommentBodyProps) {
+function CommentBody({ comment, brand, platform, onRemoved, onRestore }: CommentBodyProps) {
   const [mode, setMode] = useState<'reply' | 'dm' | null>(null)
+  const [hidden, setHidden] = useState(comment.isHidden)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const actions = REPLY[platform]
@@ -92,24 +105,36 @@ function CommentBody({ comment, brand, platform }: CommentBodyProps) {
   async function run(action: () => Promise<string | null>) {
     setPending(true)
     setError(null)
-    setError(await action().catch(() => FAILED))
+    const failure = await action().catch(() => FAILED)
+    setError(failure)
     setPending(false)
+    return failure
   }
 
-  function remove() {
+  function toggleHidden() {
+    const next = !hidden
+    setHidden(next)
+    void run(() => actions.hide(comment.commentId, next)).then((failure) => {
+      if (failure) setHidden(!next)
+    })
+  }
+
+  async function remove() {
     if (!window.confirm('Hapus komentar ini dari Instagram? Balasan di bawahnya ikut terhapus.')) return
-    void run(() => deleteCommentAction(comment.commentId))
+    onRemoved?.()
+    const failure = await deleteCommentAction(comment.commentId).catch(() => FAILED)
+    if (failure) onRestore?.(failure)
   }
 
   return (
     <div className="space-y-2">
-      <div className={comment.isHidden ? 'opacity-60' : undefined}>
+      <div className={hidden ? 'opacity-60' : undefined}>
         <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
           <span className="font-medium text-zinc-900">{comment.isFromOwner ? `${comment.name} (kamu)` : comment.name}</span>
           <time dateTime={comment.at} className="text-xs text-zinc-500">
             {comment.atLabel}
           </time>
-          {comment.isHidden && (
+          {hidden && (
             <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600">
               <EyeOff size={12} aria-hidden="true" />
               Disembunyikan
@@ -132,11 +157,11 @@ function CommentBody({ comment, brand, platform }: CommentBodyProps) {
         {!comment.isFromOwner && comment.canHide !== false && (
           <button
             type="button"
-            onClick={() => run(() => actions.hide(comment.commentId, !comment.isHidden))}
+            onClick={toggleHidden}
             disabled={pending}
             className={ACTION}
           >
-            {comment.isHidden ? 'Tampilkan' : 'Sembunyikan'}
+            {hidden ? 'Tampilkan' : 'Sembunyikan'}
           </button>
         )}
         {isInstagram && !comment.isFromOwner && (

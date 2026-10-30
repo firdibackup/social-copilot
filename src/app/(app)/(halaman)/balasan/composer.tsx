@@ -1,6 +1,6 @@
 'use client'
 
-import { Send, Smile, Sparkles } from 'lucide-react'
+import { LoaderCircle, Send, Smile, Sparkles } from 'lucide-react'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { Avatar } from '@/components/avatar'
 import { Notice } from '@/components/notice'
@@ -174,7 +174,7 @@ export function Composer({
               title="Kirim (Ctrl/⌘ + Enter)"
               className="inline-flex size-9 items-center justify-center rounded-full bg-accent text-white transition-colors hover:bg-accent-deep disabled:opacity-50"
             >
-              <Send size={16} aria-hidden="true" />
+              {busy === 'send' ? <LoaderCircle size={16} className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Send size={16} aria-hidden="true" />}
             </button>
           </div>
         </div>

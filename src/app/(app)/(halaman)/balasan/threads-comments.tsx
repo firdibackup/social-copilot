@@ -1,5 +1,5 @@
 import { ArrowLeft, ExternalLink } from 'lucide-react'
-import Link from 'next/link'
+import { PendingLink } from './pending-link'
 import { formatListTime, formatShortDateTime } from '@/lib/format'
 import {
   COMMENT_DAYS,
@@ -89,13 +89,13 @@ export function ThreadsComments({ data, filter, brand, now }: ThreadsCommentsPro
     return (
       <section aria-label="Balasan post Threads" className="space-y-3">
         <MarkThreadsPostSeen mediaId={data.mediaId} />
-        <Link
+        <PendingLink
           href={commentsHref(filter, undefined, 'threads')}
           className="inline-flex items-center gap-1 text-sm text-zinc-600 hover:text-zinc-900"
         >
           <ArrowLeft size={16} aria-hidden="true" />
           Semua post Threads
-        </Link>
+        </PendingLink>
         <div className={`${CARD} flex items-start gap-3 p-4`}>
           <PostThumbnail post={data.post} size="size-16" />
           <div className="min-w-0 flex-1 space-y-1">
@@ -149,7 +149,7 @@ export function ThreadsComments({ data, filter, brand, now }: ThreadsCommentsPro
     <ul className={`${CARD} divide-y divide-zinc-100`}>
       {data.posts.map((row) => (
         <li key={row.mediaId}>
-          <Link href={commentsHref(filter, row.mediaId, 'threads')} className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-50">
+          <PendingLink href={commentsHref(filter, row.mediaId, 'threads')} className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-50">
             <PostThumbnail post={row.post} />
             <span className="min-w-0 flex-1 space-y-0.5">
               <span className={`block truncate text-sm text-zinc-900 ${row.unread > 0 ? 'font-semibold' : 'font-medium'}`}>
@@ -171,7 +171,7 @@ export function ThreadsComments({ data, filter, brand, now }: ThreadsCommentsPro
             <time dateTime={row.lastCommentAt.toISOString()} className="shrink-0 self-start text-xs text-zinc-500">
               {formatListTime(row.lastCommentAt, now)}
             </time>
-          </Link>
+          </PendingLink>
         </li>
       ))}
     </ul>

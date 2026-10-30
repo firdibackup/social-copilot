@@ -93,23 +93,30 @@ interface FilterSelectProps {
 
 export function FilterSelect({ value, hrefs }: FilterSelectProps) {
   const router = useRouter()
+  const [pending, startTransition] = useTransition()
   const choices = Object.entries(hrefs) as [FilterValue, string][]
   return (
-    <select
-      aria-label="Filter"
-      value={value}
-      onChange={(event) => {
-        const href = choices.find(([choice]) => choice === event.target.value)?.[1]
-        if (href) router.push(href)
-      }}
-      className="rounded-lg border border-zinc-200 bg-white py-1.5 pr-8 pl-3 text-sm font-medium text-zinc-800 focus:border-zinc-400 focus:outline-none"
-    >
-      {choices.map(([choice]) => (
-        <option key={choice} value={choice}>
-          {FILTER_LABELS[choice]}
-        </option>
-      ))}
-    </select>
+    <label className="relative">
+      <span className="sr-only">Filter</span>
+      <select
+        aria-label="Filter"
+        aria-busy={pending}
+        disabled={pending}
+        value={value}
+        onChange={(event) => {
+          const href = choices.find(([choice]) => choice === event.target.value)?.[1]
+          if (href) startTransition(() => router.push(href))
+        }}
+        className="rounded-lg border border-zinc-200 bg-white py-1.5 pr-8 pl-3 text-sm font-medium text-zinc-800 focus:border-zinc-400 focus:outline-none disabled:cursor-wait disabled:opacity-60"
+      >
+        {choices.map(([choice]) => (
+          <option key={choice} value={choice}>
+            {FILTER_LABELS[choice]}
+          </option>
+        ))}
+      </select>
+      {pending && <span className="sr-only" role="status">Memuat balasan</span>}
+    </label>
   )
 }
 

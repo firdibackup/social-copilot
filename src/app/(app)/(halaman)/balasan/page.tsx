@@ -19,6 +19,7 @@ import { FilterSelect, RefreshButton, type Pull } from './controls'
 import { AutoDmRules, type RuleCard } from './auto-dm-rules'
 import { dmHref, Inbox, loadBrand, loadInbox, type Brand, type DmFilter, type Filter } from './inbox'
 import { loadThreadsComments, ThreadsComments, type ThreadsCommentsData } from './threads-comments'
+import { PendingLink } from './pending-link'
 
 export const metadata: Metadata = { title: 'Balasan' }
 
@@ -51,18 +52,22 @@ async function BalasanView({ searchParams }: { searchParams: Promise<SearchParam
   const platform: CommentPlatform = tab === 'komentar' && firstValue(params.platform) === 'threads' ? 'threads' : 'instagram'
   const now = new Date()
 
-  let instagram: Connection | null
-  try {
-    instagram = await getConnection(userId)
-  } catch (error) {
-    console.error('[balasan] koneksi gagal dimuat:', describeError(error))
-    return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
+  const [instagramResult, threads] = await Promise.all([
+    getConnection(userId).then(
+      (value) => ({ value, error: null }),
+      (error: unknown) => ({ value: null, error }),
+    ),
+    getThreadsConnection(userId, accountId).catch((error) => {
+      console.error('[balasan] koneksi Threads gagal dimuat:', describeError(error))
+      return null
+    }),
+  ])
+  if (instagramResult.error) {
+    console.error('[balasan] koneksi gagal dimuat:', describeError(instagramResult.error))
+    return <Notice tone="warning">{loadErrorMessage(instagramResult.error)}</Notice>
   }
+  const instagram: Connection | null = instagramResult.value
   // Threads only adds a view to Komentar: without it the page works as before.
-  const threads = await getThreadsConnection(userId, accountId).catch((error) => {
-    console.error('[balasan] koneksi Threads gagal dimuat:', describeError(error))
-    return null
-  })
   const brand = await loadBrand(userId, accountId, instagram)
   const threadsPull = threads?.status === 'active' && threads.scopes.includes(THREADS_REPLIES_SCOPE)
   const pull: Pull =
@@ -163,19 +168,19 @@ async function BalasanView({ searchParams }: { searchParams: Promise<SearchParam
 
 function PlatformLink({ href, active, label }: { href: string; active: boolean; label: string }) {
   return (
-    <Link
+    <PendingLink
       href={href}
       aria-current={active ? 'page' : undefined}
       className={`rounded-full px-3 py-1 text-sm ${active ? 'bg-zinc-900 text-white' : 'border border-zinc-200 text-zinc-600 hover:bg-zinc-50'}`}
     >
       {label}
-    </Link>
+    </PendingLink>
   )
 }
 
 function TabLink({ href, active, label }: { href: string; active: boolean; label: string }) {
   return (
-    <Link
+    <PendingLink
       href={href}
       aria-current={active ? 'page' : undefined}
       className={`-mb-px border-b-2 pb-2.5 text-sm font-medium ${
@@ -183,7 +188,7 @@ function TabLink({ href, active, label }: { href: string; active: boolean; label
       }`}
     >
       {label}
-    </Link>
+    </PendingLink>
   )
 }
 

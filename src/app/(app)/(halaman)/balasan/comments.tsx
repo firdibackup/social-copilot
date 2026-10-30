@@ -1,5 +1,5 @@
 import { ArrowLeft, ExternalLink, MessageSquare } from 'lucide-react'
-import Link from 'next/link'
+import { PendingLink } from './pending-link'
 import { ExternalImage } from '@/components/media-image'
 import {
   listCommentPosts,
@@ -91,7 +91,7 @@ export function Comments({ data, filter, brand, now }: CommentsProps) {
     <ul className={`${CARD} divide-y divide-zinc-100`}>
       {data.posts.map((row) => (
         <li key={row.mediaId}>
-          <Link
+          <PendingLink
             href={commentsHref(filter, row.mediaId)}
             className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-50"
           >
@@ -114,7 +114,7 @@ export function Comments({ data, filter, brand, now }: CommentsProps) {
             <time dateTime={row.lastCommentAt.toISOString()} className="shrink-0 self-start text-xs text-zinc-500">
               {formatListTime(row.lastCommentAt, now)}
             </time>
-          </Link>
+          </PendingLink>
         </li>
       ))}
     </ul>
@@ -163,13 +163,13 @@ function PostComments({
   return (
     <section aria-label="Komentar post" className="space-y-3">
       <MarkPostSeen mediaId={data.mediaId} />
-      <Link
+      <PendingLink
         href={commentsHref(filter)}
         className="inline-flex items-center gap-1 text-sm text-zinc-600 hover:text-zinc-900"
       >
         <ArrowLeft size={16} aria-hidden="true" />
         Semua post
-      </Link>
+      </PendingLink>
       <div className={`${CARD} flex items-start gap-3 p-4`}>
         <PostThumbnail post={data.post} size="size-16" />
         <div className="min-w-0 flex-1 space-y-1">
