@@ -1,9 +1,15 @@
 'use client'
 
 import { Ellipsis } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { PendingSubmit } from '@/components/pending-submit'
+import { useState, useTransition, type FormEvent } from 'react'
+import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import type { Post } from '@/lib/posts'
-import { cancelPostAction, deletePostAction, duplicatePostAction, publishThreadsNowAction, retryPostAction } from './actions'
+import { cancelPostAction, deletePostNowAction, duplicatePostAction, publishThreadsNowAction, retryPostAction } from './actions'
+import { editorKeys } from './editor-query'
+import { useEditorScope } from './editor-provider'
+import { setPostVisible } from './optimistic-events'
 
 const ITEM = 'block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors'
 
@@ -23,13 +29,10 @@ function MenuForm({ action, id, label, confirmMessage, danger }: MenuFormProps) 
   return (
     <form action={action} onSubmit={confirmFirst}>
       <input type="hidden" name="id" value={id} />
-      <button
-        type="submit"
-        role="menuitem"
-        className={`${ITEM} ${danger ? 'text-red-600 hover:bg-red-50' : 'text-ink hover:bg-zinc-100'}`}
-      >
+      <PendingSubmit role="menuitem" pendingLabel="Memproses…"
+        className={`${ITEM} ${danger ? 'text-red-600 hover:bg-red-50' : 'text-ink hover:bg-zinc-100'} disabled:opacity-50`}>
         {label}
-      </button>
+      </PendingSubmit>
     </form>
   )
 }
@@ -70,7 +73,31 @@ interface MoreMenuProps {
 /** The ⋯ button: where the post goes, its status changes, a copy, and deleting it. */
 export function MoreMenu({ post, onPlatforms }: MoreMenuProps) {
   const [open, setOpen] = useState(false)
+  const [deleting, startDelete] = useTransition()
+  const router = useRouter()
+  const client = useQueryClient()
+  const scope = useEditorScope()
   const canRetry = post.status === 'failed' || (post.status === 'cancelled' && post.isLocked)
+
+  function remove() {
+    if (deleting || !window.confirm(outOn ? `Hapus post dari aplikasi? Post di ${outOn} tidak ikut terhapus.` : 'Hapus post ini?')) return
+    setOpen(false)
+    startDelete(async () => {
+      const key = editorKeys.detail(scope, post.id)
+      const detail = client.getQueryData(key)
+      const previousUrl = `${window.location.pathname}${window.location.search}`
+      setPostVisible(post.id, false)
+      window.history.replaceState(null, '', '/buat')
+      client.removeQueries({ queryKey: key })
+      const error = await deletePostNowAction(post.id).catch(() => 'Gagal menghubungi server. Coba lagi.')
+      if (error) {
+        setPostVisible(post.id, true)
+        if (detail) client.setQueryData(key, detail)
+        window.history.replaceState(null, '', previousUrl)
+        window.alert(error)
+      } else router.refresh()
+    })
+  }
   const outOn = publishedOn(post)
 
   return (
@@ -129,13 +156,10 @@ export function MoreMenu({ post, onPlatforms }: MoreMenuProps) {
             {post.permalink && <MenuLink href={post.permalink} label="Lihat di Instagram" />}
             {post.threads?.permalink && <MenuLink href={post.threads.permalink} label="Lihat di Threads" />}
             {post.status !== 'publishing' && post.threads?.status !== 'publishing' && (
-              <MenuForm
-                action={deletePostAction}
-                id={post.id}
-                label="Hapus post"
-                danger
-                confirmMessage={outOn ? `Hapus post dari aplikasi? Post di ${outOn} tidak ikut terhapus.` : 'Hapus post ini?'}
-              />
+              <button type="button" role="menuitem" disabled={deleting} onClick={remove}
+                className={`${ITEM} text-red-600 hover:bg-red-50 disabled:opacity-50`}>
+                {deleting ? 'Menghapus…' : 'Hapus post'}
+              </button>
             )}
           </div>
         </>

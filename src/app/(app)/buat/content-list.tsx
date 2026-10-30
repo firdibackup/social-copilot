@@ -3,7 +3,7 @@
 import { Lightbulb, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { detailQuery } from './editor-query'
 import { useEditorScope } from './editor-provider'
@@ -16,6 +16,7 @@ import { pillarOf, type ContentStrategy } from '@/lib/strategy-options'
 import { DeleteIdeaButton, FindIdeasButton, OpenIdeaButton } from './idea-buttons'
 import { ContentQueuePoll } from './content-queue-poll'
 import { Thumbnail } from './thumbnail'
+import { POST_VISIBILITY_EVENT } from './optimistic-events'
 
 /** Hover and focus reach past the text, which stays aligned with the section labels. */
 const ITEM =
@@ -51,13 +52,29 @@ export function ContentList({ posts, ideas, strategy }: ContentListProps) {
       if (client.isFetching({ queryKey: ['editor', scope, 'detail'] }) < 2) void client.prefetchQuery(detailQuery(scope, id))
     }, 120)
   }
+  const [hiddenPosts, setHiddenPosts] = useState<Set<string>>(() => new Set())
+  const [hiddenIdeas, setHiddenIdeas] = useState<Set<string>>(() => new Set())
+  useEffect(() => {
+    const update = (event: Event) => {
+      const { id, visible } = (event as CustomEvent<{ id: string; visible: boolean }>).detail
+      setHiddenPosts((current) => {
+        const next = new Set(current)
+        if (visible) next.delete(id)
+        else next.add(id)
+        return next
+      })
+    }
+    window.addEventListener(POST_VISIBILITY_EVENT, update)
+    return () => window.removeEventListener(POST_VISIBILITY_EVENT, update)
+  }, [])
   const params = useSearchParams()
   const selectedId = params.get('id')
   const selectedIdeaId = params.get('ide')
   const editing = Boolean(selectedId || selectedIdeaId || params.get('baru') || params.get('tanggal') || params.get('slot'))
   const threads = params.get('platform') === 'threads'
   const tab = threads ? '&platform=threads' : ''
-  const shown = posts.filter((post) => (threads ? post.threadsEnabled : post.instagramEnabled))
+  const shown = posts.filter((post) => !hiddenPosts.has(post.id) && (threads ? post.threadsEnabled : post.instagramEnabled))
+  const shownIdeas = ideas.filter((idea) => !hiddenIdeas.has(idea.id))
   return (
     <aside aria-label="Daftar konten" className={`${editing ? 'hidden md:flex' : 'flex'} min-h-0 w-full shrink-0 flex-col md:w-[320px] md:border-r md:border-hairline`}>
       <ContentQueuePoll posts={posts} />
@@ -107,12 +124,12 @@ export function ContentList({ posts, ideas, strategy }: ContentListProps) {
           )}
         </ListSection>
 
-        <ListSection title="Ide" count={ideas.length} action={<FindIdeasButton />}>
-          {ideas.length === 0 ? (
+        <ListSection title="Ide" count={shownIdeas.length} action={<FindIdeasButton />}>
+          {shownIdeas.length === 0 ? (
             <p className="py-2 text-sm text-ink-muted">Pilih Cari ide: AI menyusun 10 ide dari Brand Anda.</p>
           ) : (
             <ul>
-              {ideas.map((idea) => (
+              {shownIdeas.map((idea) => (
                 <li key={idea.id} className="group relative">
                   <OpenIdeaButton
                     id={idea.id}
@@ -131,7 +148,9 @@ export function ContentList({ posts, ideas, strategy }: ContentListProps) {
                       {idea.script && <span className="mt-0.5 block text-xs text-ink-muted">Skrip siap · {idea.script.length} slide</span>}
                     </span>
                   </OpenIdeaButton>
-                  <DeleteIdeaButton id={idea.id} />
+                  <DeleteIdeaButton id={idea.id}
+                    hide={() => setHiddenIdeas((current) => new Set(current).add(idea.id))}
+                    restore={() => setHiddenIdeas((current) => { const next = new Set(current); next.delete(idea.id); return next })} />
                 </li>
               ))}
             </ul>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, type FormEvent } from 'react'
+import { PendingSubmit } from '@/components/pending-submit'
 import { disconnectFacebook, disconnectInstagram, disconnectThreads } from './actions'
 
 const BUTTON = 'rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50'
@@ -51,9 +52,9 @@ export function InstagramDisconnectButton({ username, scheduledCount }: Instagra
             >
               Batal
             </button>
-            <button type="submit" className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
+            <PendingSubmit pendingLabel="Memutuskan…" className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60">
               Putuskan
-            </button>
+            </PendingSubmit>
           </div>
         </form>
       </dialog>
@@ -71,9 +72,9 @@ export function ThreadsDisconnectButton({ username }: { username: string }) {
 
   return (
     <form action={disconnectThreads} onSubmit={confirmDisconnect}>
-      <button type="submit" className={BUTTON}>
+      <PendingSubmit pendingLabel="Memutuskan…" className={`${BUTTON} disabled:opacity-60`}>
         Putuskan koneksi
-      </button>
+      </PendingSubmit>
     </form>
   )
 }
@@ -85,9 +86,9 @@ export function FacebookDisconnectButton() {
 
   return (
     <form action={disconnectFacebook} onSubmit={confirmDisconnect}>
-      <button type="submit" className={BUTTON}>
+      <PendingSubmit pendingLabel="Memutuskan…" className={`${BUTTON} disabled:opacity-60`}>
         Putuskan
-      </button>
+      </PendingSubmit>
     </form>
   )
 }

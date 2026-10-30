@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useTransition } from 'react'
 import { deleteSessionAction } from './actions'
 import { useSigapScope } from './sigap-provider'
-import { forgetConversation } from './sigap-query'
+import { forgetConversation, restoreConversation } from './sigap-query'
 
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
 
@@ -23,12 +23,15 @@ export function DeleteSessionButton({ id, title, active }: { id: string; title: 
       onClick={() => {
         if (!window.confirm(`Hapus percakapan "${title}"? Skrip yang sudah tersimpan di Buat tetap ada.`)) return
         startTransition(async () => {
+          const previousUrl = `${window.location.pathname}${window.location.search}`
+          const wasOpen = active && new URLSearchParams(window.location.search).get('sesi') === id
+          const snapshot = await forgetConversation(client, scope, id)
+          if (wasOpen) window.history.replaceState(null, '', '/sigap')
           const error = await deleteSessionAction(id).catch(() => FAILED)
-          if (error) window.alert(error)
-          else if (isCurrent()) {
-            // The user may have opened another chat while deletion was pending.
-            if (active && new URLSearchParams(window.location.search).get('sesi') === id) window.history.replaceState(null, '', '/sigap')
-            await forgetConversation(client, scope, id)
+          if (error) {
+            if (isCurrent()) restoreConversation(client, scope, id, snapshot)
+            if (wasOpen && window.location.pathname === '/sigap' && !window.location.search) window.history.replaceState(null, '', previousUrl)
+            window.alert(error)
           }
         })
       }}

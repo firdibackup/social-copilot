@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient } from '@tanstack/react-query'
 import type { ChatEvent } from '@/lib/chat-options'
-import { conversationQuery, forgetConversation, receiveAnswer, sessionsQuery, sigapKeys, sigapSupportQuery, type Conversation } from './sigap-query'
+import { conversationQuery, forgetConversation, receiveAnswer, restoreConversation, sessionsQuery, sigapKeys, sigapSupportQuery, type Conversation } from './sigap-query'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -53,6 +53,24 @@ describe('Sigap browser cache', () => {
       await receiveAnswer(client, 'u:ig', answer, () => true)
       expect(client.getQueryData<Conversation>(sigapKeys.conversation('u:ig', 'a'))?.messages).toEqual([answer.user, answer.assistant])
       expect(client.getQueryData<Conversation>(sigapKeys.conversation('u:ig', 'b'))?.messages).toEqual([])
+    } finally { client.clear() }
+  })
+
+  it('removes a conversation immediately and can roll both caches back after failure', async () => {
+    const client = new QueryClient()
+    try {
+      const sessions = [{ id: 'a', title: 'A' }, { id: 'b', title: 'B' }]
+      const conversation = { session: { id: 'a' }, messages: [answer.user] }
+      client.setQueryData(sigapKeys.sessions('u:ig'), sessions)
+      client.setQueryData(sigapKeys.conversation('u:ig', 'a'), conversation)
+
+      const snapshot = await forgetConversation(client, 'u:ig', 'a')
+      expect(client.getQueryData(sigapKeys.sessions('u:ig'))).toEqual([sessions[1]])
+      expect(client.getQueryData(sigapKeys.conversation('u:ig', 'a'))).toEqual({ session: null, messages: [] })
+
+      restoreConversation(client, 'u:ig', 'a', snapshot)
+      expect(client.getQueryData(sigapKeys.sessions('u:ig'))).toEqual(sessions)
+      expect(client.getQueryData(sigapKeys.conversation('u:ig', 'a'))).toEqual(conversation)
     } finally { client.clear() }
   })
 

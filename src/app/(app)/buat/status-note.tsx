@@ -1,4 +1,5 @@
 import { Notice } from '@/components/notice'
+import { PendingSubmit } from '@/components/pending-submit'
 import { formatDateTime, formatTime } from '@/lib/format'
 import type { PostStory } from '@/lib/post-stories'
 import type { PostThreads } from '@/lib/post-threads'
@@ -132,9 +133,9 @@ function StoryNote({ post, story }: { post: Post; story: PostStory }) {
           {post.status === 'published' && (
             <form action={retryStoryAction}>
               <input type="hidden" name="id" value={post.id} />
-              <button type="submit" className="font-medium underline">
+              <PendingSubmit pendingLabel="Mengantrekan…" className="font-medium underline disabled:opacity-60">
                 Coba lagi
-              </button>
+              </PendingSubmit>
             </form>
           )}
         </div>

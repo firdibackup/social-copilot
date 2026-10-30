@@ -65,13 +65,24 @@ export async function receiveAnswer(client: QueryClient, scope: string, event: E
   await client.invalidateQueries({ queryKey: sigapKeys.sessions(scope) })
 }
 
-export async function forgetConversation(client: QueryClient, scope: string, id: string) {
+export type ForgottenConversation = { conversation: Conversation | undefined; sessions: ChatSessionView[] | undefined }
+
+export async function forgetConversation(client: QueryClient, scope: string, id: string): Promise<ForgottenConversation> {
   await Promise.all([
     client.cancelQueries({ queryKey: sigapKeys.conversation(scope, id) }),
     client.cancelQueries({ queryKey: sigapKeys.sessions(scope) }),
   ])
+  const snapshot = {
+    conversation: client.getQueryData<Conversation>(sigapKeys.conversation(scope, id)),
+    sessions: client.getQueryData<ChatSessionView[]>(sigapKeys.sessions(scope)),
+  }
   // A tombstone also prevents a late answer from recreating deleted messages.
   client.setQueryData<Conversation>(sigapKeys.conversation(scope, id), { session: null, messages: [] })
   client.setQueryData<ChatSessionView[]>(sigapKeys.sessions(scope), (previous) => previous?.filter((session) => session.id !== id))
-  await client.invalidateQueries({ queryKey: sigapKeys.sessions(scope) })
+  return snapshot
+}
+
+export function restoreConversation(client: QueryClient, scope: string, id: string, snapshot: ForgottenConversation) {
+  client.setQueryData(sigapKeys.conversation(scope, id), snapshot.conversation)
+  client.setQueryData(sigapKeys.sessions(scope), snapshot.sessions)
 }

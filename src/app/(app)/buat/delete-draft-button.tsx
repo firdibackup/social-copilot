@@ -7,6 +7,7 @@ import { Trash2 } from 'lucide-react'
 import { deleteDraftAction } from './content-actions'
 import { editorKeys } from './editor-query'
 import { useEditorScope } from './editor-provider'
+import { setPostVisible } from './optimistic-events'
 
 export function DeleteDraftButton({ id, onError }: { id: string; onError: (message: string) => void }) {
   const router = useRouter()
@@ -19,17 +20,23 @@ export function DeleteDraftButton({ id, onError }: { id: string; onError: (messa
     if (lock.current || !window.confirm('Hapus konten ini? Draft akan dihapus permanen.')) return
     lock.current = true
     setPending(true)
+    const key = editorKeys.detail(scope, id)
+    await client.cancelQueries({ queryKey: key })
+    const detail = client.getQueryData(key)
+    const previousUrl = `${window.location.pathname}${window.location.search}`
+    setPostVisible(id, false)
+    window.history.replaceState(null, '', '/buat')
+    client.removeQueries({ queryKey: key })
     const error = await deleteDraftAction(id).catch(() => 'Gagal menghubungi server. Coba lagi.')
     if (error) {
+      setPostVisible(id, true)
+      if (detail) client.setQueryData(key, detail)
+      window.history.replaceState(null, '', previousUrl)
       lock.current = false
       setPending(false)
       onError(error)
       return
     }
-    // Leave the deleted draft before its active query can be fetched again.
-    window.history.replaceState(null, '', '/buat')
-    await client.cancelQueries({ queryKey: editorKeys.detail(scope, id) })
-    client.removeQueries({ queryKey: editorKeys.detail(scope, id) })
     router.refresh()
   }
 

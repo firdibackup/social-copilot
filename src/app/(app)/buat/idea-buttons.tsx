@@ -85,7 +85,7 @@ export function FindIdeasButton() {
   )
 }
 
-export function DeleteIdeaButton({ id }: { id: string }) {
+export function DeleteIdeaButton({ id, hide, restore }: { id: string; hide: () => void; restore: () => void }) {
   const [pending, startTransition] = useTransition()
 
   return (
@@ -93,7 +93,14 @@ export function DeleteIdeaButton({ id }: { id: string }) {
       type="button"
       aria-label="Hapus ide"
       disabled={pending}
-      onClick={() => startTransition(async () => void (await deleteIdeaAction(id).catch(() => FAILED)))}
+      onClick={() => startTransition(async () => {
+        hide()
+        const error = await deleteIdeaAction(id).catch(() => FAILED)
+        if (error) {
+          restore()
+          window.alert(error)
+        }
+      })}
       className="absolute top-1/2 right-0 -translate-y-1/2 rounded-md p-1.5 text-ink-soft opacity-0 transition-opacity group-hover:opacity-100 hover:bg-zinc-100 hover:text-ink focus-visible:opacity-100 disabled:opacity-40"
     >
       <X size={14} aria-hidden="true" />

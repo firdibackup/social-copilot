@@ -173,17 +173,22 @@ export async function duplicatePostAction(formData: FormData): Promise<void> {
 }
 
 export async function deletePostAction(formData: FormData): Promise<void> {
-  const { userId } = await requireAccount()
   const id = formData.get('id')
   if (!isUuid(id)) redirect('/kalender')
+  redirect((await deletePostNowAction(id)) ? `/buat?id=${id}&gagal=hapus` : '/kalender?tampilan=daftar&ok=hapus')
+}
 
-  // A Threads version being published keeps its post: the worker is still writing to it.
+/** Client mutations use the same guarded delete without waiting for a redirect/render round trip. */
+export async function deletePostNowAction(id: unknown): Promise<string | null> {
+  const { userId } = await requireAccount()
+  if (!isUuid(id)) return 'Post tidak ditemukan.'
   const deleted = await getPost(userId, id)
     .then((post) => (post?.threads?.status === 'publishing' ? false : deletePost(userId, id)))
     .catch((error: unknown) => {
       console.error('[buat] hapus gagal:', describeError(error))
       return false
     })
-  if (deleted) revalidatePath('/buat', 'layout')
-  redirect(deleted ? '/kalender?tampilan=daftar&ok=hapus' : `/buat?id=${id}&gagal=hapus`)
+  if (!deleted) return 'Post gagal dihapus. Coba lagi.'
+  revalidatePath('/buat', 'layout')
+  return null
 }

@@ -1,15 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getPostTargets } from '@/lib/post-threads'
-import { PostLockedError, savePost } from '@/lib/posts'
+import { deletePost, getPost, PostLockedError, savePost } from '@/lib/posts'
 import { scheduleProblem } from '@/lib/publish-checks'
 import { hasSlidesInProgress } from '@/lib/slides'
-import { savePostAction } from './actions'
+import { deletePostNowAction, savePostAction } from './actions'
 import { revalidatePath } from 'next/cache'
 
 vi.mock('@/lib/auth', () => ({ requireAccount: vi.fn(async () => ({ userId: USER, accountId: 'ig-1' })) }))
 vi.mock('@/lib/posts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/posts')>()),
   savePost: vi.fn(),
+  getPost: vi.fn(),
+  deletePost: vi.fn(),
 }))
 vi.mock('@/lib/post-threads', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/post-threads')>()),
@@ -37,6 +39,31 @@ function form(fields: Record<string, string | string[]>): FormData {
 }
 
 const submit = (fields: Record<string, string | string[]>) => savePostAction({ error: null }, form(fields))
+
+describe('deletePostNowAction', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(getPost).mockResolvedValue({ id: POST_ID, threads: null } as never)
+    vi.mocked(deletePost).mockResolvedValue(true)
+  })
+
+  it('rejects invalid ids before reading a post', async () => {
+    expect(await deletePostNowAction('bad')).toBe('Post tidak ditemukan.')
+    expect(getPost).not.toHaveBeenCalled()
+  })
+
+  it('keeps a post while Threads is publishing', async () => {
+    vi.mocked(getPost).mockResolvedValue({ id: POST_ID, threads: { status: 'publishing' } } as never)
+    expect(await deletePostNowAction(POST_ID)).toContain('gagal dihapus')
+    expect(deletePost).not.toHaveBeenCalled()
+  })
+
+  it('deletes and revalidates after success', async () => {
+    expect(await deletePostNowAction(POST_ID)).toBeNull()
+    expect(deletePost).toHaveBeenCalledWith(USER, POST_ID)
+    expect(revalidatePath).toHaveBeenCalledWith('/buat', 'layout')
+  })
+})
 
 describe('savePostAction', () => {
   beforeEach(() => {
