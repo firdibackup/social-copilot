@@ -352,35 +352,38 @@ describe('parseContentPlan', () => {
 })
 
 describe('parseIdeas', () => {
-  it('trims, drops duplicates and keeps at most ten', () => {
+  const script = [{ label: 'Hook', title: 'Mulai', body: '' }, { label: 'CTA', title: 'Ayo', body: '' }]
+
+  it('trims, drops duplicates and keeps at most five', () => {
     const ideas = [' Satu ', 'Satu', '', ...Array.from({ length: 12 }, (_, index) => `Ide ${index}`)]
+      .map((title) => ({ title, script }))
 
     const parsed = parseIdeas(JSON.stringify({ ideas }))
 
-    expect(parsed).toHaveLength(10)
+    expect(parsed).toHaveLength(5)
     expect(parsed.slice(0, 2)).toEqual([
-      { title: 'Satu', pillarId: null },
-      { title: 'Ide 0', pillarId: null },
+      { title: 'Satu', pillarId: null, script },
+      { title: 'Ide 0', pillarId: null, script },
     ])
   })
 
   it('cuts an idea to 200 code points', () => {
-    expect(Array.from(parseIdeas(JSON.stringify({ ideas: ['😀'.repeat(300)] }))[0].title)).toHaveLength(200)
+    expect(Array.from(parseIdeas(JSON.stringify({ ideas: [{ title: '😀'.repeat(300), script }] }))[0].title)).toHaveLength(200)
   })
 
-  it('accepts objects and keeps only valid pillar ids', () => {
+  it('keeps only valid pillar ids', () => {
     const answer = JSON.stringify({
       ideas: [
-        { title: 'Tips seduh', pillarId: 'edukasi' },
-        { title: 'Promo akhir pekan', pillarId: 'tidak-ada' },
-        { title: 'Cerita barista' },
+        { title: 'Tips seduh', pillarId: 'edukasi', script },
+        { title: 'Promo akhir pekan', pillarId: 'tidak-ada', script },
+        { title: 'Cerita barista', script },
       ],
     })
 
     expect(parseIdeas(answer, ['edukasi', 'cerita'])).toEqual([
-      { title: 'Tips seduh', pillarId: 'edukasi' },
-      { title: 'Promo akhir pekan', pillarId: null },
-      { title: 'Cerita barista', pillarId: null },
+      { title: 'Tips seduh', pillarId: 'edukasi', script },
+      { title: 'Promo akhir pekan', pillarId: null, script },
+      { title: 'Cerita barista', pillarId: null, script },
     ])
   })
 
@@ -527,7 +530,7 @@ describe('buildIdeasMessages', () => {
     const user = String(buildIdeasMessages(BRAND, ['Promo Senin', 'Tips seduh'])[1].content)
 
     expect(user).toMatch(/^Tentang brand/)
-    expect(user).toContain('beri 10 ide')
+    expect(user).toContain('buat 5 ide')
     expect(user).toContain('Jangan ulangi ide atau post yang sudah ada:\n"""\nPromo Senin\nTips seduh\n"""')
   })
 
@@ -553,10 +556,10 @@ describe('buildIdeasMessages', () => {
 
     const user = String(buildIdeasMessages(brand, [])[1].content)
 
-    expect(user).toContain('Edukasi Kopi (edukasi): 6 ide')
-    expect(user).toContain('Cerita Kedai (cerita): 3 ide')
-    expect(user).toContain('Promo (promo): 1 ide')
-    expect(user).toContain('{"ideas": [{"title": "…", "pillarId": "…"}]}')
+    expect(user).toContain('Edukasi Kopi (edukasi): 3 ide')
+    expect(user).toContain('Cerita Kedai (cerita): 2 ide')
+    expect(user).toContain('Promo (promo): 0 ide')
+    expect(user).toContain('"pillarId": "…", "script":')
     expect(user).toContain('sesuai strategi konten di atas')
     expect(user).not.toContain('cerita di balik layar, promosi')
   })
@@ -790,23 +793,46 @@ describe('requests', () => {
   })
 
   describe('suggestIdeas', () => {
-    it('saves the ideas inside the charged request and logs only how many titles were avoided', async () => {
-      vi.mocked(chatCompletion).mockResolvedValue('{"ideas": ["Satu", "Dua"]}')
+    it('saves complete ideas with scripts inside one charged request', async () => {
+      const script = [{ label: 'Hook', title: 'Mulai', body: 'Lihat alasannya.' }, { label: 'CTA', title: 'Simpan', body: '' }]
+      vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({ ideas: [
+        { title: 'Satu', script }, { title: 'Dua', script },
+      ] }))
       const save = vi.fn(async () => {})
 
       await expect(suggestIdeas(USER, BRAND, ['Promo Senin'], save)).resolves.toEqual([
-        { title: 'Satu', pillarId: null },
-        { title: 'Dua', pillarId: null },
+        { title: 'Satu', pillarId: null, script },
+        { title: 'Dua', pillarId: null, script },
       ])
       expect(save).toHaveBeenCalledWith([
-        { title: 'Satu', pillarId: null },
-        { title: 'Dua', pillarId: null },
+        { title: 'Satu', pillarId: null, script },
+        { title: 'Dua', pillarId: null, script },
       ])
+      expect(String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)).toContain('5 ide')
+      expect(String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)).toContain('"script"')
+      expect(String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)).toContain('2 slide: slide 1 = Hook; slide 2 = Value + CTA')
+      expect(String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)).toContain('10 slide: slide 1 = Hook')
+      expect(String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)).toContain('subheading opsional')
+      expect(String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)).toContain('Promo Senin')
+    })
+
+    it('rejects title-only ideas so clicking never starts a second writing job', async () => {
+      vi.mocked(chatCompletion).mockResolvedValue('{"ideas": ["Satu"]}')
+      await expect(suggestIdeas(USER, BRAND, [], async () => {})).rejects.toThrow(AiOutputError)
+    })
+
+    it('logs only how many titles were avoided', async () => {
+      const script = [{ label: 'Hook', title: 'Mulai', body: '' }, { label: 'CTA', title: 'Ayo', body: '' }]
+      vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({ ideas: [{ title: 'Satu', script }] }))
+      const save = vi.fn(async () => {})
+      await suggestIdeas(USER, BRAND, ['Promo Senin'], save)
+      expect(save).toHaveBeenCalledOnce()
       expect(rows()).toEqual([expect.objectContaining({ task: 'content_ideas', credits: 2, input: { recent: 1 } })])
     })
 
     it('costs nothing when the ideas cannot be stored', async () => {
-      vi.mocked(chatCompletion).mockResolvedValue('{"ideas": ["Satu"]}')
+      const script = [{ label: 'Hook', title: 'Mulai', body: '' }, { label: 'CTA', title: 'Ayo', body: '' }]
+      vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({ ideas: [{ title: 'Satu', script }] }))
 
       await expect(suggestIdeas(USER, BRAND, [], async () => Promise.reject(new Error('Supabase: down')))).rejects.toThrow()
       expect(rows()).toEqual([expect.objectContaining({ status: 'failed', credits: 0 })])

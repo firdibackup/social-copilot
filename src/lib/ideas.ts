@@ -63,11 +63,13 @@ export async function getAccountIdea(userId: string, accountId: string, id: stri
   return row ? toIdea(row) : null
 }
 
-export async function addIdeas(userId: string, ideas: SuggestedIdea[]): Promise<void> {
+export async function addIdeas(userId: string, accountId: string, ideas: SuggestedIdea[]): Promise<void> {
   unwrap(
     await db()
       .from('content_ideas')
-      .insert(ideas.map((idea) => ({ user_id: userId, title: idea.title, pillar_id: idea.pillarId }))),
+      .insert(ideas.map((idea) => ({
+        user_id: userId, account_id: accountId, title: idea.title, pillar_id: idea.pillarId, script: idea.script ?? null,
+      }))),
   )
 }
 

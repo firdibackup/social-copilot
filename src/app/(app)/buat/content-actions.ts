@@ -252,7 +252,7 @@ export async function generateIdeasAction(): Promise<ActionError> {
   try {
     const brand = await loadBrandContext(userId)
     if (!brand) return 'Lengkapi Brand dulu, minimal nama dan deskripsi, supaya idenya sesuai bisnis Anda.'
-    await suggestIdeas(userId, brand, await recentTitles(userId, accountId), (ideas) => addIdeas(userId, ideas))
+    await suggestIdeas(userId, brand, await recentTitles(userId, accountId), (ideas) => addIdeas(userId, accountId, ideas))
   } catch (error) {
     console.error('[buat] ide gagal dibuat:', describeError(error))
     return aiErrorMessage(error)

@@ -126,13 +126,14 @@ export function ContentList({ posts, ideas, strategy }: ContentListProps) {
 
         <ListSection title="Ide" count={shownIdeas.length} action={<FindIdeasButton />}>
           {shownIdeas.length === 0 ? (
-            <p className="py-2 text-sm text-ink-muted">Pilih Cari ide: AI menyusun 10 ide dari Brand Anda.</p>
+            <p className="py-2 text-sm text-ink-muted">Pilih Cari ide: Mimo menyusun 5 ide lengkap beserta skrip dari Brand Anda.</p>
           ) : (
             <ul>
               {shownIdeas.map((idea) => (
                 <li key={idea.id} className="group relative">
                   <OpenIdeaButton
                     id={idea.id}
+                    ready={idea.script !== null}
                     className={`${ITEM} pr-9 ${idea.id === selectedIdeaId ? ACTIVE : ''}`}
                   >
                     <span className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-hairline bg-white text-ink-muted">

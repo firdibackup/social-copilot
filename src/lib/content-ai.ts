@@ -17,7 +17,7 @@ export const ATTACHMENT_NOTE_MAX_LENGTH = 300
 /** What a slide does with the owner's image when the planner said nothing about it: the image model decides. */
 export const DEFAULT_ATTACHMENT_NOTE =
   'Use this image as its content suits: follow its layout and style if it is a finished design, or show it in this slide if it is a photo.'
-const IDEAS_COUNT = 10
+const IDEAS_COUNT = 5
 
 type Json = Record<string, unknown>
 
@@ -368,9 +368,13 @@ export function buildIdeasMessages(brand: BrandContext, recent: string[]): ChatM
     {
       role: 'user',
       content: [
-        `${describeBrand(brand)}Tugas: beri ${IDEAS_COUNT} ide post Instagram yang berbeda-beda untuk brand ini: ${mix}. Setiap ide berupa satu kalimat pendek, maksimal 12 kata, yang cukup jelas untuk dijadikan topik post.`,
+        `${describeBrand(brand)}Tugas: buat ${IDEAS_COUNT} ide post Instagram lengkap yang berbeda-beda untuk brand ini: ${mix}. Setiap ide memiliki title satu kalimat pendek maksimal 12 kata dan script carousel siap pakai.`,
         ...strategyGuide,
-        pillars.length > 0 ? 'Format JSON: {"ideas": [{"title": "…", "pillarId": "…"}]}' : 'Format JSON: {"ideas": ["…"]}',
+        `- Tentukan jumlah slide paling pas untuk tiap ide, 2–${MAX_SLIDES}. Susunan wajib mengikuti jumlahnya:\n${Array.from({ length: MAX_SLIDES - MIN_SCRIPT_SLIDES + 1 }, (_, index) => { const count = index + MIN_SCRIPT_SLIDES; return `  - ${count} slide: ${carouselStructure(count)}` }).join('\n')}`,
+        `- Cover: ${COVER_RULE} title berisi hook; body berisi subheading opsional atau string kosong.`,
+        `- Slide isi mengikuti kepadatan ${DEFAULT_DENSITY}: ${SCRIPT_BODY[DEFAULT_DENSITY]} title dan body bersama maksimal ${HEADLINE_MAX_LENGTH} karakter.`,
+        '- CTA meminta tepat satu tindakan. Jangan mengarang bukti, angka, pengalaman, harga, promo, atau klaim yang tidak tersedia.',
+        `Format JSON: {"ideas": [{"title": "…", "pillarId": ${pillars.length > 0 ? '"…"' : 'null'}, "script": [{"label": "Hook", "title": "…", "body": "…"}]}]}`,
         ...avoid,
       ].join('\n'),
     },
@@ -380,6 +384,7 @@ export function buildIdeasMessages(brand: BrandContext, recent: string[]): ChatM
 export interface SuggestedIdea {
   title: string
   pillarId: string | null
+  script?: ScriptSlide[]
 }
 
 export function parseIdeas(content: string, validPillarIds: Iterable<string> = []): SuggestedIdea[] {
@@ -389,11 +394,16 @@ export function parseIdeas(content: string, validPillarIds: Iterable<string> = [
   const ideas: SuggestedIdea[] = []
   if (Array.isArray(listed)) {
     for (const item of listed) {
-      const title = typeof item === 'string' ? item.trim() : isObject(item) ? text(item.title) : ''
-      if (!title || seen.has(title)) continue
+      if (!isObject(item)) continue
+      const title = text(item.title)
+      const rawScript = Array.isArray(item.script) ? item.script : []
+      const cover = cleanScriptSlide(rawScript[0])
+      const inner = rawScript.slice(1).map(cleanScriptSlide).filter((slide): slide is ScriptSlide => slide !== null)
+      const script = cover?.title ? [{ ...cover, label: 'Hook' }, ...inner].slice(0, MAX_SLIDES) : []
+      if (!title || seen.has(title) || script.length < MIN_SCRIPT_SLIDES) continue
       seen.add(title)
-      const pillarId = isObject(item) && typeof item.pillarId === 'string' && ids.has(item.pillarId) ? item.pillarId : null
-      ideas.push({ title: truncate(title, IDEA_MAX_LENGTH), pillarId })
+      const pillarId = typeof item.pillarId === 'string' && ids.has(item.pillarId) ? item.pillarId : null
+      ideas.push({ title: truncate(title, IDEA_MAX_LENGTH), pillarId, script })
       if (ideas.length === IDEAS_COUNT) break
     }
   }

@@ -9,7 +9,7 @@ import { saveBeforeNavigation } from './use-save-before-navigation'
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
 
 /** Enqueue before navigation: clicking an idea creates its durable draft exactly once. */
-export function OpenIdeaButton({ id, className, children }: { id: string; className: string; children: ReactNode }) {
+export function OpenIdeaButton({ id, ready, className, children }: { id: string; ready: boolean; className: string; children: ReactNode }) {
   const router = useRouter()
   const lock = useRef(false)
   const [pending, setPending] = useState(false)
@@ -21,6 +21,12 @@ export function OpenIdeaButton({ id, className, children }: { id: string; classN
       setPending(true)
       setError(null)
       if (!(await saveBeforeNavigation())) {
+        lock.current = false
+        setPending(false)
+        return
+      }
+      if (ready) {
+        router.push(`/buat?ide=${id}`)
         lock.current = false
         setPending(false)
         return
