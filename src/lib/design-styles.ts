@@ -3,17 +3,26 @@ import type { SlideRole } from './brand-options'
 
 /** Google Fonts the image model draws well. Each has normal proportions; condensed faces are left out on purpose. */
 export const FONT_CHOICES = [
-  { name: 'Plus Jakarta Sans', kind: 'sans' },
-  { name: 'Poppins', kind: 'sans' },
-  { name: 'Montserrat', kind: 'sans' },
-  { name: 'Inter', kind: 'sans' },
-  { name: 'DM Sans', kind: 'sans' },
-  { name: 'Manrope', kind: 'sans' },
-  { name: 'Outfit', kind: 'sans' },
-  { name: 'Space Grotesk', kind: 'sans' },
-  { name: 'Playfair Display', kind: 'serif' },
-  { name: 'DM Serif Display', kind: 'serif' },
-  { name: 'Fraunces', kind: 'serif' },
+  { name: 'Plus Jakarta Sans', kind: 'sans', use: 'modern & lokal' },
+  { name: 'Inter', kind: 'sans', use: 'bersih & mudah dibaca' },
+  { name: 'DM Sans', kind: 'sans', use: 'modern & ramah' },
+  { name: 'Manrope', kind: 'sans', use: 'premium & minimalis' },
+  { name: 'Sora', kind: 'sans', use: 'tech & futuristis' },
+  { name: 'Space Grotesk', kind: 'sans', use: 'tech & editorial' },
+  { name: 'Outfit', kind: 'sans', use: 'ceria & geometris' },
+  { name: 'Rubik', kind: 'sans', use: 'ramah & tegas' },
+  { name: 'Nunito Sans', kind: 'sans', use: 'hangat & santai' },
+  { name: 'Roboto', kind: 'sans', use: 'netral & informatif' },
+  { name: 'Open Sans', kind: 'sans', use: 'jelas & profesional' },
+  { name: 'Lato', kind: 'sans', use: 'humanis & profesional' },
+  { name: 'Poppins', kind: 'sans', use: 'bold & populer' },
+  { name: 'Montserrat', kind: 'sans', use: 'korporat & tegas' },
+  { name: 'Playfair Display', kind: 'serif', use: 'mewah & editorial' },
+  { name: 'DM Serif Display', kind: 'serif', use: 'editorial & berkarakter' },
+  { name: 'Fraunces', kind: 'serif', use: 'organik & ekspresif' },
+  { name: 'Lora', kind: 'serif', use: 'hangat & elegan' },
+  { name: 'Merriweather', kind: 'serif', use: 'tepercaya & mudah dibaca' },
+  { name: 'Libre Baskerville', kind: 'serif', use: 'klasik & premium' },
 ] as const
 
 export type FontName = (typeof FONT_CHOICES)[number]['name']

@@ -114,11 +114,14 @@ export function FontSelect({ label, value, onChange, recommended, extra = [], cl
         className={`block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-normal text-zinc-900 focus:border-zinc-400 focus:outline-none ${className}`}
       >
         <option value="">{recommended ? `Ikuti gaya (${recommended})` : 'Otomatis'}</option>
-        {FONT_CHOICES.map((font) => (
-          <option key={font.name} value={font.name} style={{ fontFamily: FONT_FAMILY[font.name] }}>
-            {font.name}
-            {font.name === recommended ? ' (disarankan)' : ''}
-          </option>
+        {(['sans', 'serif'] as const).map((kind) => (
+          <optgroup key={kind} label={kind === 'sans' ? 'Sans serif' : 'Serif'}>
+            {FONT_CHOICES.filter((font) => font.kind === kind).map((font) => (
+              <option key={font.name} value={font.name} style={{ fontFamily: FONT_FAMILY[font.name] }}>
+                {font.name} — {font.use}{font.name === recommended ? ' (disarankan)' : ''}
+              </option>
+            ))}
+          </optgroup>
         ))}
         {others.length > 0 && (
           <optgroup label="Lainnya">
