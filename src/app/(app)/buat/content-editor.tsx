@@ -44,6 +44,7 @@ import { MoreMenu } from './more-menu'
 import { PhotoPicker } from './photo-picker'
 import { PlatformDialog, type ThreadsLink } from './platform-dialog'
 import { PostMockup, type SlideItem, type SlideView } from './post-mockup'
+import { ReferencePicker } from './reference-picker'
 import { ScheduleButton } from './schedule-button'
 import { formatScript, useScriptText } from './script-text'
 import { ThreadsEditor, type StoredItem } from './threads-editor'
@@ -555,20 +556,7 @@ export function ContentEditor({
           ))}
         </select>
       </label>
-      {references.length > 0 && (
-        <label className={CHIP} title="Otomatis memilih satu grup referensi utuh agar desain antar-slide konsisten">
-          Acuan
-          <select value={referenceId} onChange={(event) => setReferenceId(event.target.value)} className={`${CHIP_SELECT} max-w-48`}>
-            <option value={AUTO_REFERENCE}>Otomatis · satu grup</option>
-            <option value="">Tanpa referensi</option>
-            {references.map((reference) => (
-              <option key={reference.id} value={reference.id}>
-                {reference.label} ({reference.slideCount})
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      {references.length > 0 && <ReferencePicker references={references} value={referenceId} onChange={setReferenceId} />}
       {products.length > 0 && (
         <label className={CHIP}>
           Produk
