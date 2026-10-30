@@ -29,7 +29,8 @@ interface ContentListProps {
 }
 
 function meta(post: ContentListItem): string {
-  const parts = [post.instagramEnabled ? `${post.slideCount} slide` : 'Threads']
+  const kind = post.slideCount === 1 ? 'Single post' : post.slideCount > 1 ? `Carousel ${post.slideCount} slide` : '0 slide'
+  const parts = [post.instagramEnabled ? kind : 'Threads']
   if (post.generation) return post.generation
   if (post.inProgress > 0) parts.push('sedang dibuat')
   else if (post.status === 'scheduled' && post.scheduledAt) {

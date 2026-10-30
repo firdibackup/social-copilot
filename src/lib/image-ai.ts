@@ -6,7 +6,7 @@ import { getBrandVisual, loadLogoImage, loadReferenceImage, VISUAL_BODY_BUDGET, 
 import type { ColorRole, ReferenceLabel, SlideRole } from './brand-options'
 import { DEFAULT_BODY_FONT, DEFAULT_HEADING_FONT, styleForBrand, type LayoutRole } from './design-styles'
 import { describeError } from './errors'
-import { IMAGE_FORMATS, type ImageInput } from './image-options'
+import { HEADLINE_MAX_LENGTH, IMAGE_FORMATS, type ImageInput } from './image-options'
 import { generateImage, RouterApiError } from './nine-router'
 import { SlideImageError } from './slide-image'
 import { loadTemplateImage } from './templates'
@@ -137,6 +137,17 @@ export const LAYOUT_RULES = [
   'Keep every photo, card, panel and text block fully inside the frame with clear margins: nothing cut off at the edges, except a background photo that fills the whole frame.',
 ].join(' ')
 
+/**
+ * A single post with more text than a carousel slide holds is a text-led design (a cheat sheet, a list of examples):
+ * the owner's own layout, colours and fonts in the scene win over the generic band, colour and font rules.
+ */
+const TEXT_DESIGN_RULES = [
+  'This is a text-led single post, like a well-designed educational cheat sheet: the text is the whole content and takes most of the frame; any icons stay small.',
+  'Follow the layout, sections, columns, boxes, colours, fonts and emphasis described in the scene exactly; they override any general layout or colour rule here.',
+  'Set the text in a clear hierarchy: the title largest, then headings, then body lines, all legible at phone size; keep every line, number and emoji in its given order.',
+  'Typography: crisp and modern; normal letter proportions, never condensed or squashed; flat text with no drop shadows, outlines or glows; strong contrast; at least 5% margin from every edge.',
+].join(' ')
+
 /** The image model otherwise shortens text to fit the space a big photo leaves. */
 const TEXT_IN_FULL =
   'Every word of the text must appear in full and spelled exactly as given: never abbreviate, shorten, paraphrase or leave out words. Give the text the room it needs; when space is tight, make the photo or graphic smaller, never the text.'
@@ -189,7 +200,9 @@ export function buildImagePrompt(
   const reference = images.some((image) => givesLayout(image, role))
   // A slide being edited keeps its own layout, an example shows one, and a later inner slide follows its sibling's;
   // the recipe would only compete.
-  const ownLayout =
+  // A text-led single post brings its own layout in the scene.
+  const textDesign = !carousel && input.headline.length > HEADLINE_MAX_LENGTH
+  const ownLayout = textDesign ||
     reference || images.some((image) => image.kind === 'current' || image.kind === 'example' || image.kind === 'sibling')
   const layoutRole: LayoutRole = role ?? 'single'
   if (style) {
@@ -199,7 +212,7 @@ export function buildImagePrompt(
   } else if (!ownLayout) {
     lines.push(PLAIN_LAYOUTS[layoutRole])
   }
-  lines.push(LAYOUT_RULES)
+  if (!textDesign) lines.push(LAYOUT_RULES)
 
   const headingFont = brand?.headingFont || style?.headingFont || DEFAULT_HEADING_FONT
   const bodyFont = brand?.bodyFont || style?.bodyFont || DEFAULT_BODY_FONT
@@ -209,12 +222,19 @@ export function buildImagePrompt(
     const fonts = multiline
       ? ` Set the first line in ${headingFont} bold and the other lines in ${bodyFont} regular, clearly smaller (or close matches).`
       : ` Set it in ${headingFont} bold, or a close match.`
-    lines.push(
-      `Text: render exactly this text and no other words: "${input.headline}".${breaks} Make it large, legible and fully inside the frame.${fonts}`,
-    )
-    lines.push(TEXT_IN_FULL)
-    if (role === 'isi') lines.push(TEXT_LEADS)
-    lines.push(TYPOGRAPHY_RULES)
+    if (textDesign) {
+      lines.push(
+        `Text: render exactly this text and no other words: "${input.headline}". Keep its line breaks and order. Use the fonts the scene names; otherwise ${headingFont} bold for headings and ${bodyFont} for the rest.`,
+      )
+      lines.push(TEXT_IN_FULL, TEXT_DESIGN_RULES)
+    } else {
+      lines.push(
+        `Text: render exactly this text and no other words: "${input.headline}".${breaks} Make it large, legible and fully inside the frame.${fonts}`,
+      )
+      lines.push(TEXT_IN_FULL)
+      if (role === 'isi') lines.push(TEXT_LEADS)
+      lines.push(TYPOGRAPHY_RULES)
+    }
   } else {
     const logo = images.some((image) => image.kind === 'logo')
     lines.push(`Text: none. No words, letters, numbers, captions or watermarks${logo ? ' other than the logo' : ', and no logos'}.`)

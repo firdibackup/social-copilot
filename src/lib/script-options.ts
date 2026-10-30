@@ -1,6 +1,6 @@
 /** A post's slide-by-slide script, written by the AI from an idea and edited by the owner. Shared by the editor and the server. */
 import { lengthOf, truncate } from './brand-options'
-import { HEADLINE_MAX_LENGTH, MAX_SLIDES } from './image-options'
+import { HEADLINE_MAX_LENGTH, headlineLimit, MAX_SLIDES } from './image-options'
 
 /** A body line that is a point: its "- " or "• " marker, then its text. */
 export const BULLET = /^(\s*[-•]\s)(.*)$/
@@ -35,13 +35,16 @@ export function cleanScriptSlide(value: unknown): ScriptSlide | null {
   return title || body ? { label, title, body } : null
 }
 
-/** Why the slide can't be made as written, or null. */
-export function slideProblem(slide: ScriptSlide, number: number): string | null {
+/** Why the slide can't be made as written, or null. A single post's one slide gets the single post's text limit. */
+export function slideProblem(slide: ScriptSlide, number: number, single = false): string | null {
   if (!slide.title && !slide.body) return `Slide ${number} di skrip masih kosong.`
   if (lengthOf(slide.label) > SCRIPT_LABEL_MAX_LENGTH) return `Label slide ${number} terlalu panjang.`
   if (lengthOf(slide.title) > SCRIPT_TITLE_MAX_LENGTH) return `Judul slide ${number} maksimal ${SCRIPT_TITLE_MAX_LENGTH} karakter.`
-  if (lengthOf(scriptHeadline(slide)) > HEADLINE_MAX_LENGTH) {
-    return `Teks slide ${number} maksimal ${HEADLINE_MAX_LENGTH} karakter agar muat di gambar.`
+  const limit = headlineLimit(single)
+  if (lengthOf(scriptHeadline(slide)) > limit) {
+    return single
+      ? `Teks single post maksimal ${limit.toLocaleString('id-ID')} karakter.`
+      : `Teks slide ${number} maksimal ${limit} karakter agar muat di gambar.`
   }
   return null
 }
@@ -54,7 +57,7 @@ export function parseScript(value: unknown): { script: ScriptSlide[] } | { error
   for (const [index, raw] of value.entries()) {
     if (!isObject(raw)) return { error: 'Skrip tidak valid.' }
     const slide = { label: text(raw.label), title: text(raw.title), body: text(raw.body) }
-    const problem = slideProblem(slide, index + 1)
+    const problem = slideProblem(slide, index + 1, value.length === 1)
     if (problem) return { error: problem }
     script.push(slide)
   }

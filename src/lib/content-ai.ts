@@ -2,11 +2,11 @@ import 'server-only'
 import { AiOutputError, describeBrand, loadBrandContext, quote, readJson, runLogged, snippetOf } from './ai'
 import { truncate, type BrandContext } from './brand-options'
 import { CAPTION_MAX_LENGTH } from './caption'
-import { carouselGuide, carouselStructure, COVER_RULE, densityRule, type HookArchetype } from './carousel-guide'
+import { carouselGuide, carouselStructure, COVER_RULE, densityRule, singleDensityRule, type HookArchetype } from './carousel-guide'
 import type { ContentRequest } from './content-options'
 import { DEFAULT_DENSITY, type TextDensity } from './density-options'
 import { isUuid } from './params'
-import { HEADLINE_MAX_LENGTH, MAX_SLIDES, SCENE_MAX_LENGTH, type Slide } from './image-options'
+import { HEADLINE_MAX_LENGTH, headlineLimit, MAX_SLIDES, sceneLimit, type Slide } from './image-options'
 import { chatCompletion, type ChatMessage } from './nine-router'
 import { cleanScriptSlide, scriptHeadline, type ScriptSlide } from './script-options'
 import { pillarOf, pillarQuota } from './strategy-options'
@@ -59,6 +59,23 @@ const SLIDE_RULES = [
   '- scene: 1–2 kalimat tentang visualnya saja (subjek, tempat, komposisi, suasana). Jangan tulis kata atau kalimat yang harus tampil di gambar di sini; itu tempatnya di headline.',
 ]
 
+/**
+ * A single post has no carousel limits: the owner may paste a whole design (title, formula box, 20 examples,
+ * a note and a footer) with its colours and fonts, and all of it must reach the image.
+ */
+const SINGLE_SLIDE_RULES = [
+  '- headline: SEMUA teks yang tertulis di gambar ini, dalam bahasa konten, tanpa batas jumlah baris (baris dipisah \\n). Kalau topik sudah memuat teks atau susunan desain yang harus tampil (judul, subjudul, kotak, daftar contoh, catatan, footer), salin SEMUA teks itu persis dan urut, termasuk nomor dan emoji; jangan diringkas, dipilih sebagian, atau ditulis ulang. Tulis kata dan kalimat lengkap: jangan pakai singkatan seperti "yg", "dgn", "utk", "krn", "tdk", atau "&". Kosongkan hanya kalau gambar memang lebih kuat tanpa teks.',
+  '- scene: visual dan tata letaknya, bukan teks yang tampil. Kalau topik memuat arahan gaya visual atau susunan desain (warna latar, warna judul dan kotak, font, kolom, ukuran huruf, jarak baris, ikon, kata yang ditebalkan atau diberi warna), tulis ulang SEMUA arahan itu di scene dengan lengkap dan spesifik. Kalau tidak ada, cukup 1–2 kalimat tentang subjek, komposisi, dan suasana.',
+]
+
+const SINGLE_SYSTEM = [
+  'Kamu perancang konten Instagram untuk satu akun bisnis atau kreator di Indonesia: kamu menulis caption dan merancang gambar post-nya sekaligus.',
+  'Aturan:',
+  ...CAPTION_RULES,
+  ...SINGLE_SLIDE_RULES,
+  JSON_ONLY,
+].join('\n')
+
 const CONTENT_SYSTEM = [
   'Kamu perancang konten Instagram untuk satu akun bisnis atau kreator di Indonesia: kamu menulis caption dan merancang gambar post-nya sekaligus.',
   'Aturan:',
@@ -75,6 +92,7 @@ const CAPTION_SYSTEM = [
 ].join('\n')
 
 const SLIDE_SYSTEM = ['Kamu perancang konten visual Instagram.', 'Aturan:', ...SLIDE_RULES, JSON_ONLY].join('\n')
+const SINGLE_SLIDE_SYSTEM = ['Kamu perancang konten visual Instagram.', 'Aturan:', ...SINGLE_SLIDE_RULES, JSON_ONLY].join('\n')
 
 const SCRIPT_SYSTEM = [
   'Kamu penulis skrip carousel Instagram untuk satu akun bisnis atau kreator di Indonesia: kamu mengembangkan satu ide singkat menjadi isi slide yang jelas, lengkap, dan siap ditulis di gambar.',
@@ -149,17 +167,17 @@ export function buildContentMessages(
   const carousel = slides > 1
   const attached = attachment ? ', "attachment": "…"' : ''
   return [
-    { role: 'system', content: CONTENT_SYSTEM },
+    { role: 'system', content: carousel ? CONTENT_SYSTEM : SINGLE_SYSTEM },
     {
       role: 'user',
       content: withImage(
         [
-          `${brand ? describeBrand(brand) : ''}Tugas: buat satu post Instagram tentang topik di bawah, berupa ${carousel ? `carousel ${slides} slide` : 'satu gambar'}.`,
+          `${brand ? describeBrand(brand) : ''}Tugas: buat satu post Instagram tentang topik di bawah, berupa ${carousel ? `carousel ${slides} slide` : 'satu gambar (single post)'}.`,
           pillarInstruction(brand, pillarId),
           '- title: judul singkat post untuk daftar konten, maksimal 8 kata.',
           `- caption: 2–4 paragraf pendek, sekitar 300–700 karakter sebelum hashtag: kalimat pembuka yang menarik, isi, lalu ajakan bertindak (CTA). Tutup dengan 3–8 hashtag relevan di baris terakhir.${carousel ? ' Ajak pembaca menggeser carousel kalau sesuai.' : ''}`,
           `- slides: tepat ${slides} slide, berurutan.${carousel ? ` Susunannya: ${carouselStructure(slides)}.` : ''}`,
-          `- ${densityRule(density, carousel ? 'carousel' : 'single')}`,
+          `- ${carousel ? densityRule(density) : singleDensityRule(density)}`,
           ...(carousel ? ['', carouselGuide(hook, density, slides), ''] : []),
           `Format JSON: {"title": "…", "caption": "…", "slides": [{"headline": "…", "scene": "…", "productGroupId": ${products.length > 0 ? '"uuid atau null"' : 'null'}${attached}}]}`,
           ...(products.length > 0 ? ['', describeProducts(products)] : []),
@@ -191,7 +209,7 @@ function buildScriptedContentMessages(
   const carousel = slides > 1
   const attached = attachment ? ', "attachment": "…"' : ''
   return [
-    { role: 'system', content: CONTENT_SYSTEM },
+    { role: 'system', content: carousel ? CONTENT_SYSTEM : SINGLE_SYSTEM },
     {
       role: 'user',
       content: withImage(
@@ -229,7 +247,7 @@ export interface ContentPlan {
   slides: PlannedSlide[]
 }
 
-function parseSlides(value: unknown, productIds: Set<string>, attached: boolean): PlannedSlide[] {
+function parseSlides(value: unknown, productIds: Set<string>, attached: boolean, single: boolean): PlannedSlide[] {
   const listed: unknown[] = Array.isArray(value) ? value : []
   return listed
     .filter(isObject)
@@ -238,8 +256,8 @@ function parseSlides(value: unknown, productIds: Set<string>, attached: boolean)
       const productGroupId = typeof chosen === 'string' && isUuid(chosen) && productIds.has(chosen) ? chosen : null
       if (chosen !== null && chosen !== undefined && productGroupId === null) throw new AiOutputError('productGroupId tidak valid')
       return {
-        headline: clip(text(slide.headline), HEADLINE_MAX_LENGTH),
-        scene: truncate(text(slide.scene), SCENE_MAX_LENGTH),
+        headline: clip(text(slide.headline), headlineLimit(single)),
+        scene: truncate(text(slide.scene), sceneLimit(single)),
         productGroupId,
         attachment: attached ? clip(text(slide.attachment), ATTACHMENT_NOTE_MAX_LENGTH) : '',
       }
@@ -261,7 +279,7 @@ export function parseContentPlan(
   script: ScriptSlide[] | null = null,
 ): ContentPlan {
   const json = readJson(content)
-  const parsed = parseSlides(json?.slides, new Set(products.map((product) => product.id)), attached).slice(0, count)
+  const parsed = parseSlides(json?.slides, new Set(products.map((product) => product.id)), attached, count === 1).slice(0, count)
   const caption = truncate(text(json?.caption), CAPTION_MAX_LENGTH)
   if (!json || !caption || parsed.length < count) throw new AiOutputError(snippetOf(content))
   const unused = attached && parsed.every((slide) => !slide.attachment)
@@ -526,9 +544,14 @@ export function editCaption(userId: string, caption: string, instruction: string
   })
 }
 
-export function buildSlideRevisionMessages(slide: Slide, instruction: string, attachment: string | null = null): ChatMessage[] {
+export function buildSlideRevisionMessages(
+  slide: Slide,
+  instruction: string,
+  attachment: string | null = null,
+  single = false,
+): ChatMessage[] {
   return [
-    { role: 'system', content: SLIDE_SYSTEM },
+    { role: 'system', content: single ? SINGLE_SLIDE_SYSTEM : SLIDE_SYSTEM },
     {
       role: 'user',
       content: withImage(
@@ -548,11 +571,11 @@ export function buildSlideRevisionMessages(slide: Slide, instruction: string, at
   ]
 }
 
-export function parseSlide(content: string): Slide {
+export function parseSlide(content: string, single = false): Slide {
   const json = readJson(content)
   const slide = json && {
-    headline: clip(text(json.headline), HEADLINE_MAX_LENGTH),
-    scene: truncate(text(json.scene), SCENE_MAX_LENGTH),
+    headline: clip(text(json.headline), headlineLimit(single)),
+    scene: truncate(text(json.scene), sceneLimit(single)),
   }
   if (!slide?.scene) throw new AiOutputError(snippetOf(content))
   return slide
@@ -560,8 +583,14 @@ export function parseSlide(content: string): Slide {
 
 /**
  * The slide's headline and scene with the owner's change, seeing the image they attached to it, if any. Runs inside
- * the slide_edit request that pays for it.
+ * the slide_edit request that pays for it. A single post's slide keeps the single post's limits.
  */
-export async function reviseSlide(slide: Slide, instruction: string, attachment: string | null = null, signal?: AbortSignal): Promise<Slide> {
-  return parseSlide(await chatCompletion(buildSlideRevisionMessages(slide, instruction, attachment), undefined, signal))
+export async function reviseSlide(
+  slide: Slide,
+  instruction: string,
+  attachment: string | null = null,
+  signal?: AbortSignal,
+  single = false,
+): Promise<Slide> {
+  return parseSlide(await chatCompletion(buildSlideRevisionMessages(slide, instruction, attachment, single), undefined, signal), single)
 }

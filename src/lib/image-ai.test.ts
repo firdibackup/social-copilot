@@ -75,6 +75,20 @@ describe('buildImagePrompt', () => {
     expect(prompt).toContain('Visual style: Foto realistis')
   })
 
+  it('lets a long single post follow its own design instead of the band and colour rules', () => {
+    const headline = Array.from({ length: 20 }, (_, index) => `${index + 1}. She works from home.`).join('\n')
+    const single = buildImagePrompt({ ...INPUT, headline, scene: 'Latar krem muda, dua kolom.', slide: null }, BRAND, [])
+
+    expect(single).toContain('text-led single post')
+    expect(single).toContain('Follow the layout, sections, columns, boxes, colours, fonts and emphasis described in the scene')
+    expect(single).not.toContain('full-width horizontal bands')
+    expect(single).not.toContain('At most two font weights')
+
+    const carousel = buildImagePrompt({ ...INPUT, headline: headline.slice(0, 300), slide: { index: 2, count: 3, role: 'isi' } }, BRAND, [])
+    expect(carousel).not.toContain('text-led single post')
+    expect(carousel).toContain('full-width horizontal bands')
+  })
+
   it('names every colour role and both fonts', () => {
     const brand: BrandVisual = {
       ...BRAND,

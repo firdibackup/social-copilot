@@ -193,6 +193,15 @@ describe('buildContentMessages', () => {
     expect(user.indexOf('Panduan carousel')).toBeLessThan(user.indexOf('Topik:'))
   })
 
+  it('asks a single post to copy the owner’s text and visual spec in full', () => {
+    const [system, user] = buildContentMessages('Judul: RUMUS SIMPLE PRESENT TENSE', 1, null)
+
+    expect(system.content).toContain('salin SEMUA teks itu persis dan urut')
+    expect(system.content).toContain('tulis ulang SEMUA arahan itu di scene')
+    expect(system.content).not.toContain('maksimal 300 karakter')
+    expect(user.content).toContain('berupa satu gambar (single post)')
+  })
+
   it('leaves the carousel guide out of a single image', () => {
     expect(buildContentMessages('Tips seduh', 1, null)[1].content).not.toContain('Panduan carousel')
   })
@@ -241,16 +250,18 @@ describe('parseContentPlan', () => {
     expect(parseContentPlan(answer, 1).slides).toEqual([{ headline: '', scene: 'Kafe', productGroupId: null, attachment: '' }])
   })
 
+  const CTA_SLIDE = { headline: 'Ayo', scene: 'Kafe' }
+
   it('cuts an overlong headline after its last full sentence, never inside a word', () => {
     const sentence = 'Kopi enak itu seimbang. '
-    const answer = JSON.stringify({ caption: 'Halo', slides: [{ headline: sentence.repeat(17), scene: 'Kafe' }] })
+    const answer = JSON.stringify({ caption: 'Halo', slides: [{ headline: sentence.repeat(17), scene: 'Kafe' }, CTA_SLIDE] })
 
-    expect(parseContentPlan(answer, 1).slides[0].headline).toBe(sentence.repeat(12).trim())
+    expect(parseContentPlan(answer, 2).slides[0].headline).toBe(sentence.repeat(12).trim())
   })
 
-  it('cuts a headline without spaces at 300, and keeps a full stop that ends right at the limit', () => {
+  it('cuts a carousel headline without spaces at 300, and keeps a full stop that ends right at the limit', () => {
     const headline = (value: string) =>
-      parseContentPlan(JSON.stringify({ caption: 'Halo', slides: [{ headline: value, scene: 'Kafe' }] }), 1).slides[0].headline
+      parseContentPlan(JSON.stringify({ caption: 'Halo', slides: [{ headline: value, scene: 'Kafe' }, CTA_SLIDE] }), 2).slides[0].headline
 
     expect(headline('a'.repeat(400))).toBe('a'.repeat(300))
     expect(headline(`${'b'.repeat(299)}. lanjutan kalimat`)).toBe(`${'b'.repeat(299)}.`)
@@ -258,9 +269,9 @@ describe('parseContentPlan', () => {
   })
 
   it('never cuts a web address at one of its dots', () => {
-    const answer = JSON.stringify({ caption: 'Halo', slides: [{ headline: `${'b'.repeat(292)} tokoku.co.id ada`, scene: 'Kafe' }] })
+    const answer = JSON.stringify({ caption: 'Halo', slides: [{ headline: `${'b'.repeat(292)} tokoku.co.id ada`, scene: 'Kafe' }, CTA_SLIDE] })
 
-    expect(parseContentPlan(answer, 1).slides[0].headline).toBe('b'.repeat(292))
+    expect(parseContentPlan(answer, 2).slides[0].headline).toBe('b'.repeat(292))
   })
 
   it('keeps each slide’s instruction for an attached image only when one was attached, cut to 300', () => {
@@ -315,15 +326,28 @@ describe('parseContentPlan', () => {
     const answer = JSON.stringify({
       title: '😀'.repeat(200),
       caption: '😀'.repeat(2300),
-      slides: [{ headline: '😀'.repeat(400), scene: '😀'.repeat(1100) }],
+      slides: [{ headline: '😀'.repeat(400), scene: '😀'.repeat(1100) }, CTA_SLIDE],
     })
 
-    const plan = parseContentPlan(answer, 1)
+    const plan = parseContentPlan(answer, 2)
 
     expect(Array.from(plan.title)).toHaveLength(120)
     expect(Array.from(plan.caption)).toHaveLength(2200)
     expect(Array.from(plan.slides[0].headline)).toHaveLength(300)
     expect(Array.from(plan.slides[0].scene)).toHaveLength(1000)
+  })
+
+  it('keeps a single post’s long text and visual spec, up to 5,000 and 3,000 code points', () => {
+    const examples = Array.from({ length: 20 }, (_, index) => `${index + 1}. She doesn’t eat meat.`).join('\n')
+    const keep = JSON.stringify({ caption: 'Halo', slides: [{ headline: examples, scene: 'Latar krem muda. '.repeat(60) }] })
+    const kept = parseContentPlan(keep, 1).slides[0]
+    expect(kept.headline).toBe(examples)
+    expect(kept.scene).toBe('Latar krem muda. '.repeat(60).trim())
+
+    const cut = JSON.stringify({ caption: 'Halo', slides: [{ headline: '😀'.repeat(6000), scene: '😀'.repeat(3100) }] })
+    const plan = parseContentPlan(cut, 1)
+    expect(Array.from(plan.slides[0].headline)).toHaveLength(5000)
+    expect(Array.from(plan.slides[0].scene)).toHaveLength(3000)
   })
 })
 
@@ -406,7 +430,7 @@ describe('buildContentMessages text density', () => {
     expect(carousel).toContain('tanpa kalimat penjelasan')
     expect(carousel).not.toContain('2–3 kalimat lengkap')
     expect(single).toContain('Kepadatan teks: padat')
-    expect(single).toContain('Berlaku untuk teks pada satu gambar ini')
+    expect(single).toContain('salin semuanya dan abaikan target panjang ini')
     expect(single).not.toContain('Berlaku hanya untuk slide isi')
   })
 })

@@ -179,7 +179,8 @@ export async function editSlideAction(input: unknown): Promise<ActionError> {
       { postId, assetId, instruction, attachment: attachment !== null },
       async () => {
         const [revised, bytes] = await Promise.all([
-          reviseSlide({ headline: source?.headline ?? '', scene: source?.scene ?? '' }, instruction, attachment?.dataUrl ?? null, watch!.signal),
+          reviseSlide({ headline: source?.headline ?? '', scene: source?.scene ?? '' }, instruction, attachment?.dataUrl ?? null,
+            watch!.signal, post.media.length === 1),
           loadAssetBytes(userId, assetId),
         ])
         if (!bytes) throw new SlideError('Foto slide ini tidak ditemukan.')

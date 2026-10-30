@@ -21,6 +21,16 @@ export const MAX_SLIDES = 10
 export const SCENE_MAX_LENGTH = 1000
 /** Room for an inner slide's subheading and two or three complete sentences. */
 export const HEADLINE_MAX_LENGTH = 300
+/**
+ * A single post (one image, no carousel) has no practical text limit: it can be a whole text-led design such as a
+ * cheat sheet of 20 examples, with the owner's own visual spec as its scene. Matches the topic limit.
+ */
+export const SINGLE_HEADLINE_MAX_LENGTH = 5000
+export const SINGLE_SCENE_MAX_LENGTH = 3000
+
+/** The text limit of a post's image: a single post's is far larger than a carousel slide's. */
+export const headlineLimit = (single: boolean) => (single ? SINGLE_HEADLINE_MAX_LENGTH : HEADLINE_MAX_LENGTH)
+export const sceneLimit = (single: boolean) => (single ? SINGLE_SCENE_MAX_LENGTH : SCENE_MAX_LENGTH)
 
 export interface Slide {
   /** Written into the image exactly; empty means no text at all. */

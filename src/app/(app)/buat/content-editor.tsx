@@ -519,7 +519,7 @@ export function ContentEditor({
     <>
       {read ? (
         <span className={CHIP} title="Jumlah slide mengikuti baris Slide di skrip">
-          Skrip <span className="font-medium text-ink">{script ? `${script.script.length} slide` : 'belum valid'}</span>
+          Skrip <span className="font-medium text-ink">{script ? (script.script.length === 1 ? 'Single post' : `Carousel ${script.script.length} slide`) : 'belum valid'}</span>
         </span>
       ) : (
         <label className={CHIP}>
@@ -527,7 +527,7 @@ export function ContentEditor({
           <select value={slideCount} onChange={(event) => setSlideCount(Number(event.target.value))} className={CHIP_SELECT}>
             {Array.from({ length: MAX_SLIDES }, (_, index) => index + 1).map((count) => (
               <option key={count} value={count}>
-                {count}
+                {count === 1 ? '1 · Single post' : `${count} · Carousel`}
               </option>
             ))}
           </select>

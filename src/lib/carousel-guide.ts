@@ -45,6 +45,10 @@ const DENSITY_RULE: Record<TextDensity, string> = {
 export const densityRule = (density: TextDensity, scope: 'carousel' | 'single' = 'carousel') =>
   `${scope === 'carousel' ? 'Berlaku hanya untuk slide isi; cover dan CTA mengikuti aturan perannya, bukan target panjang ini.' : 'Berlaku untuk teks pada satu gambar ini.'} ${DENSITY_RULE[density]}`
 
+/** A single post's density is only a default: text the owner already wrote for the image is never shortened. */
+export const singleDensityRule = (density: TextDensity) =>
+  `Kalau topik sudah memuat teks yang harus tampil di gambar, salin semuanya dan abaikan target panjang ini. Kalau belum, tulis teksnya sendiri: ${DENSITY_RULE[density]}`
+
 /** A useful narrative for every supported slide count; short carousels merge roles instead of adding filler. */
 export function carouselStructure(slides: number): string {
   if (slides <= 1) return ''

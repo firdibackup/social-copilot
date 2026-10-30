@@ -33,10 +33,18 @@ describe('parseScript', () => {
     expect(parseScript(value)).toEqual({ error })
   })
 
-  it('refuses image text over 300 code points', () => {
-    expect(parseScript([{ label: '', title: 'Judul', body: '😀'.repeat(294) }])).toEqual({ script: expect.any(Array) })
-    expect(parseScript([{ label: '', title: 'Judul', body: '😀'.repeat(295) }])).toEqual({
+  it('refuses carousel image text over 300 code points', () => {
+    const cta = { label: 'CTA', title: 'Ayo', body: '' }
+    expect(parseScript([{ label: '', title: 'Judul', body: '😀'.repeat(294) }, cta])).toEqual({ script: expect.any(Array) })
+    expect(parseScript([{ label: '', title: 'Judul', body: '😀'.repeat(295) }, cta])).toEqual({
       error: 'Teks slide 1 maksimal 300 karakter agar muat di gambar.',
+    })
+  })
+
+  it('lets a single post carry up to 5,000 code points', () => {
+    expect(parseScript([{ label: '', title: 'Judul', body: '😀'.repeat(4994) }])).toEqual({ script: expect.any(Array) })
+    expect(parseScript([{ label: '', title: 'Judul', body: '😀'.repeat(4995) }])).toEqual({
+      error: 'Teks single post maksimal 5.000 karakter.',
     })
   })
 })
@@ -76,9 +84,10 @@ describe('readScriptText', () => {
 
   it('refuses a slide line without text, and a slide over what fits on the image', () => {
     expect(readScriptText('Slide 1 — Hook\n\nSlide 2 — CTA\nAyo')).toEqual({ error: 'Slide 1 di skrip masih kosong.' })
-    expect(readScriptText(`Slide 1\nJudul\n${'a'.repeat(300)}`)).toEqual({
+    expect(readScriptText(`Slide 1\nJudul\n${'a'.repeat(300)}\n\nSlide 2\nAyo`)).toEqual({
       error: 'Teks slide 1 maksimal 300 karakter agar muat di gambar.',
     })
+    expect(readScriptText(`Slide 1\nJudul\n${'a'.repeat(300)}`)).toMatchObject({ script: expect.any(Array) })
   })
 })
 

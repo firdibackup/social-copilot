@@ -159,7 +159,7 @@ export function formatScript(text: string): ReactNode {
   const lines = scriptLines(text)
   return text.split('\n').map((line, index) => {
     const { kind, slide } = lines[index]
-    const failing = kind === 'slide' && slideProblem(split.slides[slide], slide + 1) !== null
+    const failing = kind === 'slide' && slideProblem(split.slides[slide], slide + 1, split.slides.length === 1) !== null
     const bullet = kind === 'body' ? BULLET.exec(line) : null
     return (
       <Fragment key={index}>
