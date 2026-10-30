@@ -353,6 +353,7 @@ describe('parseContentPlan', () => {
 
 describe('parseIdeas', () => {
   const script = [{ label: 'Hook', title: 'Mulai', body: '' }, { label: 'CTA', title: 'Ayo', body: '' }]
+  const fillFive = (ideas: object[]) => [...ideas, ...Array.from({ length: 5 - ideas.length }, (_, index) => ({ title: `Tambahan ${index}`, script }))]
 
   it('trims, drops duplicates and keeps at most five', () => {
     const ideas = [' Satu ', 'Satu', '', ...Array.from({ length: 12 }, (_, index) => `Ide ${index}`)]
@@ -368,26 +369,29 @@ describe('parseIdeas', () => {
   })
 
   it('cuts an idea to 200 code points', () => {
-    expect(Array.from(parseIdeas(JSON.stringify({ ideas: [{ title: '😀'.repeat(300), script }] }))[0].title)).toHaveLength(200)
+    const ideas = fillFive([{ title: '😀'.repeat(300), script }])
+    expect(Array.from(parseIdeas(JSON.stringify({ ideas }))[0].title)).toHaveLength(200)
   })
 
   it('keeps only valid pillar ids', () => {
-    const answer = JSON.stringify({
-      ideas: [
-        { title: 'Tips seduh', pillarId: 'edukasi', script },
-        { title: 'Promo akhir pekan', pillarId: 'tidak-ada', script },
-        { title: 'Cerita barista', script },
-      ],
-    })
+    const ideas = fillFive([
+      { title: 'Tips seduh', pillarId: 'edukasi', script },
+      { title: 'Promo akhir pekan', pillarId: 'tidak-ada', script },
+      { title: 'Cerita barista', script },
+    ])
 
-    expect(parseIdeas(answer, ['edukasi', 'cerita'])).toEqual([
+    expect(parseIdeas(JSON.stringify({ ideas }), ['edukasi', 'cerita']).slice(0, 3)).toEqual([
       { title: 'Tips seduh', pillarId: 'edukasi', script },
       { title: 'Promo akhir pekan', pillarId: null, script },
       { title: 'Cerita barista', pillarId: null, script },
     ])
   })
 
-  it.each([['no ideas', '{"ideas": []}'], ['a provider notice', 'Maaf, coba lagi.']])('throws an AiOutputError for %s', (_label, answer) => {
+  it.each([
+    ['no ideas', '{"ideas": []}'],
+    ['fewer than five complete ideas', JSON.stringify({ ideas: fillFive([]).slice(0, 4) })],
+    ['a provider notice', 'Maaf, coba lagi.'],
+  ])('throws an AiOutputError for %s', (_label, answer) => {
     expect(() => parseIdeas(answer)).toThrow(AiOutputError)
   })
 })
@@ -535,7 +539,7 @@ describe('buildIdeasMessages', () => {
   })
 
   it('leaves out the avoid list when there is nothing to avoid', () => {
-    expect(buildIdeasMessages(BRAND, [])[1].content).not.toContain('Jangan ulangi')
+    expect(buildIdeasMessages(BRAND, [])[1].content).not.toContain('Jangan ulangi ide atau post yang sudah ada:')
   })
 
   it('asks for exact per-pillar counts following their shares', () => {
@@ -795,19 +799,13 @@ describe('requests', () => {
   describe('suggestIdeas', () => {
     it('saves complete ideas with scripts inside one charged request', async () => {
       const script = [{ label: 'Hook', title: 'Mulai', body: 'Lihat alasannya.' }, { label: 'CTA', title: 'Simpan', body: '' }]
-      vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({ ideas: [
-        { title: 'Satu', script }, { title: 'Dua', script },
-      ] }))
+      const rawIdeas = Array.from({ length: 5 }, (_, index) => ({ title: `Ide ${index + 1}`, script }))
+      const expected = rawIdeas.map((idea) => ({ ...idea, pillarId: null }))
+      vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({ ideas: rawIdeas }))
       const save = vi.fn(async () => {})
 
-      await expect(suggestIdeas(USER, BRAND, ['Promo Senin'], save)).resolves.toEqual([
-        { title: 'Satu', pillarId: null, script },
-        { title: 'Dua', pillarId: null, script },
-      ])
-      expect(save).toHaveBeenCalledWith([
-        { title: 'Satu', pillarId: null, script },
-        { title: 'Dua', pillarId: null, script },
-      ])
+      await expect(suggestIdeas(USER, BRAND, ['Promo Senin'], save)).resolves.toEqual(expected)
+      expect(save).toHaveBeenCalledWith(expected)
       expect(String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)).toContain('5 ide')
       expect(String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)).toContain('"script"')
       expect(String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)).toContain('2 slide: slide 1 = Hook; slide 2 = Value + CTA')
@@ -823,7 +821,7 @@ describe('requests', () => {
 
     it('logs only how many titles were avoided', async () => {
       const script = [{ label: 'Hook', title: 'Mulai', body: '' }, { label: 'CTA', title: 'Ayo', body: '' }]
-      vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({ ideas: [{ title: 'Satu', script }] }))
+      vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({ ideas: Array.from({ length: 5 }, (_, index) => ({ title: `Ide ${index + 1}`, script })) }))
       const save = vi.fn(async () => {})
       await suggestIdeas(USER, BRAND, ['Promo Senin'], save)
       expect(save).toHaveBeenCalledOnce()
@@ -832,7 +830,7 @@ describe('requests', () => {
 
     it('costs nothing when the ideas cannot be stored', async () => {
       const script = [{ label: 'Hook', title: 'Mulai', body: '' }, { label: 'CTA', title: 'Ayo', body: '' }]
-      vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({ ideas: [{ title: 'Satu', script }] }))
+      vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({ ideas: Array.from({ length: 5 }, (_, index) => ({ title: `Ide ${index + 1}`, script })) }))
 
       await expect(suggestIdeas(USER, BRAND, [], async () => Promise.reject(new Error('Supabase: down')))).rejects.toThrow()
       expect(rows()).toEqual([expect.objectContaining({ status: 'failed', credits: 0 })])

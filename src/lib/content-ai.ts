@@ -371,8 +371,15 @@ export function buildIdeasMessages(brand: BrandContext, recent: string[]): ChatM
         `${describeBrand(brand)}Tugas: buat ${IDEAS_COUNT} ide post Instagram lengkap yang berbeda-beda untuk brand ini: ${mix}. Setiap ide memiliki title satu kalimat pendek maksimal 12 kata dan script carousel siap pakai.`,
         ...strategyGuide,
         `- Tentukan jumlah slide paling pas untuk tiap ide, 2–${MAX_SLIDES}. Susunan wajib mengikuti jumlahnya:\n${Array.from({ length: MAX_SLIDES - MIN_SCRIPT_SLIDES + 1 }, (_, index) => { const count = index + MIN_SCRIPT_SLIDES; return `  - ${count} slide: ${carouselStructure(count)}` }).join('\n')}`,
+        '- label: nama singkat peran atau isi slide untuk owner, 1–3 kata, misalnya "Hook", nama poinnya, atau "CTA" (boleh digabung seperti "AT + CTA").',
         `- Cover: ${COVER_RULE} title berisi hook; body berisi subheading opsional atau string kosong.`,
-        `- Slide isi mengikuti kepadatan ${DEFAULT_DENSITY}: ${SCRIPT_BODY[DEFAULT_DENSITY]} title dan body bersama maksimal ${HEADLINE_MAX_LENGTH} karakter.`,
+        '- title pada slide isi: poin utamanya, maksimal 12 kata. Batas ini bukan untuk hook.',
+        `- body slide isi: ${SCRIPT_BODY[DEFAULT_DENSITY]} title dan body bersama maksimal ${HEADLINE_MAX_LENGTH} karakter.`,
+        '- Pada carousel 3 slide atau lebih, slide CTA berisi satu ajakan singkat. Pada carousel 2 slide, slide terakhir tetap menjawab janji hook sebagai Value + CTA.',
+        `- ${densityRule(DEFAULT_DENSITY)}`,
+        '',
+        carouselGuide('auto', DEFAULT_DENSITY),
+        '',
         '- CTA meminta tepat satu tindakan. Jangan mengarang bukti, angka, pengalaman, harga, promo, atau klaim yang tidak tersedia.',
         `Format JSON: {"ideas": [{"title": "…", "pillarId": ${pillars.length > 0 ? '"…"' : 'null'}, "script": [{"label": "Hook", "title": "…", "body": "…"}]}]}`,
         ...avoid,
@@ -407,7 +414,7 @@ export function parseIdeas(content: string, validPillarIds: Iterable<string> = [
       if (ideas.length === IDEAS_COUNT) break
     }
   }
-  if (ideas.length === 0) throw new AiOutputError(snippetOf(content))
+  if (ideas.length !== IDEAS_COUNT) throw new AiOutputError(snippetOf(content))
   return ideas
 }
 
