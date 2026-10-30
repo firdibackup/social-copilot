@@ -1,10 +1,11 @@
 'use client'
 
-import { History, LoaderCircle, Sparkles } from 'lucide-react'
+import { History, LoaderCircle } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Notice } from '@/components/notice'
+import { SigapMascot } from '@/components/sigap-mascot'
 import {
   pdfPlaceholder,
   suggestionContext,
@@ -251,10 +252,8 @@ export function SigapChat({ sessionId, messages, products, defaultDensity }: Sig
 function EmptyState() {
   return (
     <div className="flex flex-col items-center py-10 text-center">
-      <span className="flex size-12 items-center justify-center rounded-2xl bg-accent-soft text-accent">
-        <Sparkles size={22} aria-hidden="true" />
-      </span>
-      <h1 className="mt-4 text-xl font-semibold tracking-tight text-ink">Halo, saya Sigap</h1>
+      <SigapMascot size={104} />
+      <h1 className="mt-2 text-xl font-semibold tracking-tight text-ink">Halo, saya Sigap</h1>
       <p className="mt-1 max-w-md text-sm text-ink-muted">
         Tanya soal tren, cek konten yang sudah ada, riset akun kompetitor dengan Intel Kompetitor, tulis skrip carousel,
         atau rapikan strategi dan Auto DM. Skrip langsung tersimpan sebagai ide di Buat.
@@ -296,12 +295,9 @@ function UserMessage({ content, parts }: { content: string; parts: ChatPart[] })
   )
 }
 
-function SigapMark() {
-  return (
-    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent" aria-hidden="true">
-      <Sparkles size={14} />
-    </span>
-  )
+/** Sigap beside a message: a still smile, or a live, thinking face while the answer is on its way. */
+function SigapMark({ live = false }: { live?: boolean }) {
+  return <SigapMascot size={28} still={!live} mood={live ? 'thinking' : 'smile'} className="mt-0.5 shrink-0" />
 }
 
 function AssistantMessage({ message, context }: { message: ChatMessageView; context: CardContext }) {
@@ -322,7 +318,7 @@ function AssistantMessage({ message, context }: { message: ChatMessageView; cont
 function ToolCallIndicator({ tool }: { tool: string | null }) {
   return (
     <div className="flex items-center gap-3" role="status">
-      <SigapMark />
+      <SigapMark live />
       <span className="inline-flex items-center gap-2 text-sm text-ink-muted">
         <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />
         {(tool && TOOL_LABELS[tool]) || THINKING_LABEL}

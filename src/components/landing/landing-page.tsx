@@ -14,6 +14,7 @@ import { AnimatePresence, MotionConfig, motion, useReducedMotion, useScroll, use
 import { ArrowDown, ArrowUpRight, CalendarDays, Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ImageIcon, Layers3, Menu, MessageCircle, MousePointer2, Paperclip, Pause, Play, Plus, Send, Settings2, Sparkles, WandSparkles, X } from 'lucide-react'
 import { CarouselyLogo } from '@/components/brand-mark'
 import { InstagramIcon } from '@/components/instagram-icon'
+import { SigapMascot } from '@/components/sigap-mascot'
 import styles from './landing.module.css'
 
 type Feature = 'sigap' | 'kalender' | 'balasan'
@@ -126,15 +127,16 @@ function Hero({ motionEnabled }: { motionEnabled: boolean }) {
 
 function SigapDemo() {
   const [topic, setTopic] = useState(0)
+  const [pulse, setPulse] = useState(0)
   const prompts = ['Ide konten tanaman', 'Ide konten kedai kopi']
   return <div className={styles.sigapDemo}>
-    <div className={styles.demoPanelHeader}><span className={styles.aiIcon}><Sparkles size={18} /></span><div><strong>Sigap</strong><small>Partner kreatif kamu</small></div><span className={styles.exampleTag}>Demo interaktif</span></div>
+    <div className={styles.demoPanelHeader}><SigapMascot size={36} pulse={pulse} className="shrink-0" /><div><strong>Sigap</strong><small>Partner kreatif kamu</small></div><span className={styles.exampleTag}>Demo interaktif</span></div>
     <div className={styles.chatArea}>
       <div className={styles.userBubble}>{topic === 0 ? 'Bantu bikin ide carousel tentang merawat tanaman untuk pemula, ya.' : 'Bikin ide konten kedai kopi yang hangat dan nggak terlalu jualan.'}</div>
-      <div className={styles.aiReply}><Sparkles size={18} /><div><strong>{topic === 0 ? 'Mulai dari hal kecil yang sering terlupa.' : 'Yuk, ceritakan momen di balik secangkir kopi.'}</strong><p>{topic === 0 ? 'Bagaimana kalau kita ajak audiens kenalan dengan kebutuhan tanamannya? Ini arah kontennya:' : 'Bukan cuma soal kopinya. Ajak audiens menikmati jeda kecil di tengah hari mereka.'}</p></div></div>
+      <div className={styles.aiReply}><SigapMascot size={20} still mood="smile" /><div><strong>{topic === 0 ? 'Mulai dari hal kecil yang sering terlupa.' : 'Yuk, ceritakan momen di balik secangkir kopi.'}</strong><p>{topic === 0 ? 'Bagaimana kalau kita ajak audiens kenalan dengan kebutuhan tanamannya? Ini arah kontennya:' : 'Bukan cuma soal kopinya. Ajak audiens menikmati jeda kecil di tengah hari mereka.'}</p></div></div>
       <AnimatePresence mode="wait" initial={false}><motion.div key={topic} className={styles.aiResult} initial={{ opacity: .7, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}><ContentArt variant={topic === 0 ? 'green' : 'peach'} compact /><div><span>Konsep carousel · 5 slide</span><strong>{topic === 0 ? 'Tanaman pertamamu, cerita barumu.' : 'Secangkir kopi. Sedikit waktu untuk diri sendiri.'}</strong><p>{topic === 0 ? 'Kenali cahaya, atur air, dan beri ruang untuk tumbuh.' : 'Dari aroma pertama sampai obrolan terakhir.'}</p><span className={styles.resultCheck}><Check size={13} /> Siap kamu kembangkan</span></div></motion.div></AnimatePresence>
     </div>
-    <div className={styles.promptOptions} role="group" aria-label="Pilih contoh percakapan">{prompts.map((prompt, index) => <button key={prompt} type="button" onClick={() => setTopic(index)} aria-pressed={topic === index}>{prompt}<ArrowUpRight size={13} /></button>)}</div>
+    <div className={styles.promptOptions} role="group" aria-label="Pilih contoh percakapan">{prompts.map((prompt, index) => <button key={prompt} type="button" onClick={() => { setTopic(index); setPulse((n) => n + 1) }} aria-pressed={topic === index}>{prompt}<ArrowUpRight size={13} /></button>)}</div>
     <div className={styles.demoComposer}><Paperclip size={17} /><span>Pilih contoh ide di atas untuk mencoba</span><span><ArrowUpRight size={17} /></span></div>
   </div>
 }
