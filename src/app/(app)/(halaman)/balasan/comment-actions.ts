@@ -108,7 +108,9 @@ export async function setCommentHiddenAction(commentId: unknown, hidden: unknown
     if (!comment) return NOT_FOUND
     if (comment.isFromOwner) return 'Komentar milikmu sendiri tidak bisa disembunyikan.'
     await setCommentHidden((await getPublishingAccount(userId)).accessToken, comment.commentId, hidden)
-    await setCommentHiddenRow(userId, comment.commentId, hidden)
+    await setCommentHiddenRow(userId, comment.commentId, hidden).catch((error: unknown) =>
+      console.error('[balasan] komentar diubah tapi status lokal gagal disimpan:', describeError(error)),
+    )
   } catch (error) {
     return instagramErrorMessage(userId, error, 'komentar gagal diubah')
   }
@@ -123,7 +125,9 @@ export async function deleteCommentAction(commentId: unknown): Promise<ActionErr
     const comment = id ? await getComment(userId, accountId, id) : null
     if (!comment) return NOT_FOUND
     await deleteComment((await getPublishingAccount(userId)).accessToken, comment.commentId)
-    await deleteCommentRows(userId, comment.commentId)
+    await deleteCommentRows(userId, comment.commentId).catch((error: unknown) =>
+      console.error('[balasan] komentar terhapus tapi data lokal gagal dibersihkan:', describeError(error)),
+    )
   } catch (error) {
     return instagramErrorMessage(userId, error, 'komentar gagal dihapus')
   }

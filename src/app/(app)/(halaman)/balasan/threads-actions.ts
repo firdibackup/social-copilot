@@ -149,7 +149,9 @@ export async function setThreadsHiddenAction(replyId: unknown, hidden: unknown):
     if (target.isFromOwner) return 'Balasan milikmu sendiri tidak bisa disembunyikan.'
     if (target.parentId) return 'Threads hanya bisa menyembunyikan balasan teratas; balasan di bawahnya ikut tersembunyi.'
     await setThreadsReplyHidden((await getThreadsAccount(userId, accountId)).accessToken, target.commentId, hidden)
-    await setThreadsReplyHiddenRow(userId, target.commentId, hidden)
+    await setThreadsReplyHiddenRow(userId, target.commentId, hidden).catch((error: unknown) =>
+      console.error('[balasan] balasan Threads diubah tapi status lokal gagal disimpan:', describeError(error)),
+    )
   } catch (error) {
     return threadsErrorMessage(userId, error, 'balasan Threads gagal diubah')
   }
