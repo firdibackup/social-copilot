@@ -74,6 +74,20 @@ describe('Sigap browser cache', () => {
     } finally { client.clear() }
   })
 
+  it('rolls back only its own session after concurrent deletes', async () => {
+    const client = new QueryClient()
+    try {
+      client.setQueryData(sigapKeys.sessions('u:ig'), [{ id: 'a' }, { id: 'b' }])
+      client.setQueryData(sigapKeys.conversation('u:ig', 'a'), { session: { id: 'a' }, messages: [] })
+      client.setQueryData(sigapKeys.conversation('u:ig', 'b'), { session: { id: 'b' }, messages: [] })
+      const failedA = await forgetConversation(client, 'u:ig', 'a')
+      await forgetConversation(client, 'u:ig', 'b')
+
+      restoreConversation(client, 'u:ig', 'a', failedA)
+      expect(client.getQueryData(sigapKeys.sessions('u:ig'))).toEqual([{ id: 'a' }])
+    } finally { client.clear() }
+  })
+
   it('does not restore deleted chats or repopulate the cache after logout', async () => {
     const client = new QueryClient()
     try {

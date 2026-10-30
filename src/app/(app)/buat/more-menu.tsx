@@ -84,6 +84,7 @@ export function MoreMenu({ post, onPlatforms }: MoreMenuProps) {
     setOpen(false)
     startDelete(async () => {
       const key = editorKeys.detail(scope, post.id)
+      await client.cancelQueries({ queryKey: key })
       const detail = client.getQueryData(key)
       const previousUrl = `${window.location.pathname}${window.location.search}`
       setPostVisible(post.id, false)
