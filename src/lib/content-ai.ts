@@ -447,9 +447,9 @@ export function buildScriptMessages(
         `- Tentukan sendiri jumlah slide yang paling pas dengan isi ide: ${MIN_SCRIPT_SLIDES}–${MAX_SLIDES} slide. Satu poin utama per slide isi; jangan menambah slide hanya supaya banyak, dan jangan memadatkan banyak poin ke satu slide.`,
         `- Susunan wajib mengikuti jumlah slide yang dipilih:\n${Array.from({ length: MAX_SLIDES - MIN_SCRIPT_SLIDES + 1 }, (_, index) => { const count = index + MIN_SCRIPT_SLIDES; return `  - ${count} slide: ${carouselStructure(count)}` }).join('\n')}\nGabungkan peran sesuai susunan di atas dan jangan menambah filler.`,
         '- label: nama singkat peran atau isi slide untuk owner, 1–3 kata, misalnya "Hook", nama poinnya, atau "CTA" (boleh digabung seperti "AT + CTA").',
-        `- Cover: ${COVER_RULE} title berisi hook tersebut; body wajib string kosong ("").`,
+        `- Cover: ${COVER_RULE} title berisi hook tersebut; body cover berisi subheading tersebut atau string kosong ("").`,
         '- title pada slide isi: poin utamanya, maksimal 12 kata, misalnya "IN = Di dalam atau periode waktu yang luas". Batas 12 kata ini bukan untuk hook.',
-        `- body hanya pada slide isi: sisa teks yang tertulis di gambar, baris dipisah \\n: ${SCRIPT_BODY[density]} title dan body bersama maksimal ${HEADLINE_MAX_LENGTH} karakter, jadi pilih contoh yang paling jelas.`,
+        `- body slide isi: sisa teks yang tertulis di gambar, baris dipisah \\n: ${SCRIPT_BODY[density]} title dan body bersama maksimal ${HEADLINE_MAX_LENGTH} karakter, jadi pilih contoh yang paling jelas.`,
         '- Pada carousel 3 slide atau lebih, title pada slide CTA khusus: satu ajakan singkat; body kosong atau satu kalimat pendukung bila diperlukan. Pada carousel 2 slide, slide terakhir tetap memakai aturan slide isi agar janji hook terjawab.',
         `- ${densityRule(density)}`,
         '',
@@ -471,7 +471,7 @@ export function buildScriptMessages(
   ]
 }
 
-/** AI scripts always start with a title-only hook. Owner-edited scripts use parseScript instead. */
+/** AI scripts start with a hook and may add one short open loop below it. */
 export function parseScriptAnswer(content: string): ScriptSlide[] {
   const slides = readJson(content)?.slides
   const listed: unknown[] = Array.isArray(slides) ? slides : []
@@ -482,7 +482,7 @@ export function parseScriptAnswer(content: string): ScriptSlide[] {
     .map(cleanScriptSlide)
     .filter((slide): slide is ScriptSlide => slide !== null)
     .slice(0, MAX_SLIDES - 1)
-  const script = [{ ...cover, label: 'Hook', body: '' }, ...inner]
+  const script = [{ ...cover, label: 'Hook' }, ...inner]
   if (script.length < MIN_SCRIPT_SLIDES) throw new AiOutputError(snippetOf(content))
   return script
 }

@@ -17,7 +17,7 @@ export const HOOK_ARCHETYPES = {
 export type HookArchetype = keyof typeof HOOK_ARCHETYPES | 'auto'
 
 export const COVER_RULE =
-  'Hook slide 1: satu hook 3–7 kata yang menyebut masalah, manfaat, atau pertanyaan spesifik dan memberi alasan untuk menggeser. Bukan sekadar judul topik. Cover hanya hook, tanpa paragraf penjelasan, bullet, contoh, tips, atau CTA. Aturan ini berlaku pada semua pilihan kepadatan teks.'
+  'Hook slide 1: satu hook 3–7 kata yang menyebut masalah, manfaat, atau pertanyaan spesifik dan memberi alasan untuk menggeser. Bukan sekadar judul topik. Tambahkan subheading opsional satu kalimat pendek (maksimal 12 kata) hanya jika memberi konteks atau membuka rasa penasaran yang mengarah alami ke slide 2; kosongkan jika hook sudah kuat. Subheading tidak boleh mengulang hook, membocorkan seluruh jawaban, menjadi CTA generik, atau membuat klaim baru. Tanpa paragraf penjelasan, bullet, contoh, tips, atau CTA. Aturan ini berlaku pada semua pilihan kepadatan teks.'
 
 const INNER_SLIDE: Record<TextDensity, string> = {
   padat:
@@ -81,6 +81,6 @@ export function carouselGuide(hook: HookArchetype = 'auto', density: TextDensity
     '- Hindari isi generik: kalau slide tetap masuk akal untuk topik lain, tulis ulang lebih spesifik. Jangan pakai frasa kosong seperti "game changer", "next level", "ubah segalanya", "solusi yang berhasil". Jangan ulangi pola kalimat yang sama di slide berbeda.',
     '- Pakai satu gaya sapaan secara konsisten, mengikuti gaya bahasa brand kalau ada.',
     '- Caption mendukung slide, bukan menyalin semua isinya.',
-    '- Sebelum menjawab, periksa: cover hanya hook 3–7 kata, spesifik dan sesuai suara brand; tidak ada penjelasan di cover; isi membayar janji hook dan mengikuti kepadatan; tidak ada klaim tanpa bukti. Tulis ulang bagian yang belum memenuhi, lalu keluarkan hanya JSON akhir tanpa hasil pemeriksaan.',
+    '- Sebelum menjawab, periksa: cover memakai hook 3–7 kata yang spesifik dan sesuai suara brand; subheading hanya ada bila membantu dan tetap pendek; isi membayar janji hook dan mengikuti kepadatan; tidak ada klaim tanpa bukti. Tulis ulang bagian yang belum memenuhi, lalu keluarkan hanya JSON akhir tanpa hasil pemeriksaan.',
   ].join('\n')
 }

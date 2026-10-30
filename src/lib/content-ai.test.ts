@@ -390,21 +390,22 @@ describe('parseIdeas', () => {
 })
 
 describe('buildContentMessages text density', () => {
-  it.each(['padat', 'ringkas', 'seimbang', 'lengkap'] as const)('keeps %s explanations off the cover in both writing paths', (density) => {
+  it.each(['padat', 'ringkas', 'seimbang', 'lengkap'] as const)('allows only an optional short open loop below the %s cover hook', (density) => {
     const direct = String(buildContentMessages('Bedanya IN, ON, AT', 5, BRAND, 'auto', [], null, null, null, density)[1].content)
     const script = String(buildScriptMessages('Bedanya IN, ON, AT', BRAND, 'auto', '', density)[1].content)
 
     for (const prompt of [direct, script]) {
       expect(prompt).toContain(`Kepadatan teks: ${density}`)
       expect(prompt).toContain('Berlaku hanya untuk slide isi')
-      expect(prompt).toContain('Cover hanya hook, tanpa paragraf penjelasan, bullet, contoh, tips, atau CTA')
+      expect(prompt).toContain('subheading opsional satu kalimat pendek')
+      expect(prompt).toContain('mengarah alami ke slide 2')
       expect(prompt).toContain('satu hook 3–7 kata')
       expect(prompt).toContain('Template hanya struktur, bukan gaya penulisan')
       expect(prompt).toContain('Gaya bahasa: Santai, pakai "kak"')
       expect(prompt).not.toContain('Teks di gambar setiap slide')
     }
-    expect(script).toContain('body wajib string kosong ("")')
-    expect(script).toContain('body hanya pada slide isi')
+    expect(script).toContain('body cover berisi subheading tersebut atau string kosong ("")')
+    expect(script).toContain('body slide isi')
   })
 
   it('writes balanced slides by default, between ringkas and lengkap', () => {
@@ -467,7 +468,7 @@ describe('parseScriptAnswer', () => {
     })
 
     expect(parseScriptAnswer(answer)).toEqual([
-      { label: 'Hook', title: 'Judul', body: '' },
+      { label: 'Hook', title: 'Judul', body: 'Isi\nbaris' },
       { label: '', title: 'CTA', body: '' },
     ])
   })
@@ -478,15 +479,15 @@ describe('parseScriptAnswer', () => {
     expect(Array.from(scriptHeadline(slide))).toHaveLength(300)
   })
 
-  it('removes AI cover explanations by position even when the label is wrong, keeping inner text intact', () => {
-    const inner = { label: 'IN', title: 'IN untuk di dalam', body: 'Gunakan untuk ruang.\n- In the room: di dalam kamar.' }
+  it('keeps an optional cover open loop so the image renders it below the hook', () => {
+    const inner = { label: 'Bridge', title: 'Penyok itu disengaja', body: 'Zona remuk menyerap energi benturan.' }
     const script = parseScriptAnswer(JSON.stringify({ slides: [
-      { label: 'Pembuka', title: 'Masih Tertukar IN, ON, dan AT?', body: 'Ketiganya berarti di.\n- IN untuk ruang\nTips: perhatikan konteks.' },
+      { label: 'Pembuka', title: 'Kenapa Mobil Sekarang Gampang Penyok?', body: 'Tunggu dulu, penyoknya punya alasan.' },
       inner,
     ] }))
 
-    expect(script[0]).toEqual({ label: 'Hook', title: 'Masih Tertukar IN, ON, dan AT?', body: '' })
-    expect(scriptHeadline(script[0])).toBe('Masih Tertukar IN, ON, dan AT?')
+    expect(script[0]).toEqual({ label: 'Hook', title: 'Kenapa Mobil Sekarang Gampang Penyok?', body: 'Tunggu dulu, penyoknya punya alasan.' })
+    expect(scriptHeadline(script[0])).toBe('Kenapa Mobil Sekarang Gampang Penyok?\nTunggu dulu, penyoknya punya alasan.')
     expect(script[1]).toEqual(inner)
   })
 
@@ -753,7 +754,7 @@ describe('requests', () => {
       vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({ slides: SCRIPT }))
       const save = vi.fn(async () => {})
 
-      const expected = [{ ...SCRIPT[0], body: '' }, SCRIPT[1]]
+      const expected = SCRIPT
       await expect(writeScript(USER, { id: 'idea-1', title: 'IN, ON, AT' }, save)).resolves.toEqual(expected)
       expect(save).toHaveBeenCalledWith(expected)
       expect(String(vi.mocked(chatCompletion).mock.calls[0][0][1].content)).toContain('Nama: Kopi Sinar')
