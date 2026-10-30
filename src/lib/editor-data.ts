@@ -4,7 +4,7 @@ import { getBillingCatalog } from './billing-catalog'
 import { remainingCredits } from './ai'
 import { listProductGroups } from './assets'
 import type { AccountScope } from './auth'
-import { getBrandKit } from './brand'
+import { getBrandKit, listReferenceOptions } from './brand'
 import { getConnection } from './connection'
 import { getContentJob } from './content-jobs'
 import { getDensityDefault } from './density'
@@ -17,21 +17,21 @@ import { listThreadItems } from './post-threads'
 import { getPost } from './posts'
 import { getScheduleSettings, listTakenTimes } from './schedule'
 import { nextEmptySlots, SLOT_LOOKAHEAD_DAYS } from './schedule-slots'
-import { listUnfinishedSlides } from './slides'
+import { getPostReferenceId, listUnfinishedSlides } from './slides'
 import { getThreadsConnection } from './threads-connection'
 
 const DAY_MS = 86_400_000
 
 /** Independent of the selected draft. The browser reuses this for five minutes. */
 export async function loadEditorSupport({ userId, accountId }: AccountScope) {
-  const [instagram, kit, products, balance, legacyPlan, threads, defaultDensity, billing] = await Promise.all([
-    getConnection(userId), getBrandKit(userId, accountId), listProductGroups(userId, accountId),
+  const [instagram, kit, products, references, balance, legacyPlan, threads, defaultDensity, billing] = await Promise.all([
+    getConnection(userId), getBrandKit(userId, accountId), listProductGroups(userId, accountId), listReferenceOptions(userId, accountId),
     remainingCredits(userId).catch(() => null), getPlan(),
     getThreadsConnection(userId, accountId).catch(logAndNull),
     getDensityDefault(userId, accountId).catch(() => DEFAULT_DENSITY),
     getBillingCatalog(),
   ])
-  return { instagram, kit: { logoUrl: kit.logoUrl }, products, credits: balance?.remaining ?? null,
+  return { instagram, kit: { logoUrl: kit.logoUrl }, products, references, credits: balance?.remaining ?? null,
     plan: balance?.period.plan ?? legacyPlan, rates: billing.catalog.rates, threads, defaultDensity }
 }
 
@@ -44,9 +44,10 @@ export async function loadEditorDetail({ userId, accountId }: AccountScope, para
   // Check account ownership before loading dependent records or signing their media.
   const post = postId ? await getPost(userId, postId, accountId) : null
   const jobPromise = post ? getContentJob(userId, post.id) : Promise.resolve(null)
-  const [job, slides, idea, threadItems, schedule, taken] = await Promise.all([
+  const [job, slides, referenceId, idea, threadItems, schedule, taken] = await Promise.all([
     jobPromise,
     post ? listUnfinishedSlides(userId, post.id) : [],
+    post ? getPostReferenceId(userId, post.id) : null,
     jobPromise.then((job) => job?.kind === 'script' && job.idea_id
       ? getAccountIdea(userId, accountId, job.idea_id)
       : !postId && isUuid(ideaParam) ? getAccountIdea(userId, accountId, ideaParam) : null),
@@ -55,7 +56,7 @@ export async function loadEditorDetail({ userId, accountId }: AccountScope, para
     listTakenTimes(userId, accountId, now, new Date(now.getTime() + SLOT_LOOKAHEAD_DAYS * DAY_MS)).catch(() => []),
   ])
   return {
-    post, job, idea, threadItems,
+    post, job, referenceId, idea, threadItems,
     slides: slides.map(({ id, position, format, status, error }) => ({
       id, position, format, status: status === 'ready' ? 'generating' as const : status, error,
     })),

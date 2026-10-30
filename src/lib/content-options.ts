@@ -42,7 +42,6 @@ export interface ProductOption {
 
 export interface ReferenceOption {
   id: string
-  url: string
   label: string
   /** Images in the group: a carousel lends each slide the matching one. */
   slideCount: number

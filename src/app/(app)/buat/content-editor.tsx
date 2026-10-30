@@ -19,6 +19,7 @@ import {
   DEFAULT_SLIDES,
   MAX_SLIDES,
   type ProductOption,
+  type ReferenceOption,
 } from '@/lib/content-options'
 import { DENSITY_ORDER, isTextDensity, TEXT_DENSITIES, type TextDensity } from '@/lib/density-options'
 import type { Slot } from '@/lib/format'
@@ -82,6 +83,9 @@ interface ContentEditorProps {
   /** The account's text density from Pengaturan, which a new post starts with. */
   defaultDensity: TextDensity
   products: ProductOption[]
+  references: ReferenceOption[]
+  /** Reference group persisted on this post's slides; displayed read-only after generation. */
+  usedReferenceId: string | null
   hasLogo: boolean
   /** Credits left in the period; null when they couldn't be read (the server still checks). */
   credits: number | null
@@ -127,6 +131,8 @@ export function ContentEditor({
   account,
   defaultDensity,
   products,
+  references,
+  usedReferenceId,
   hasLogo,
   credits,
   planCredits,
@@ -193,6 +199,7 @@ export function ContentEditor({
   const [slideCount, setSlideCount] = useState(DEFAULT_SLIDES)
   const [format, setFormat] = useState<ImageFormat>('4:5')
   const [productGroupId, setProductGroupId] = useState(AUTO_PRODUCT)
+  const [referenceId, setReferenceId] = useState(AUTO_REFERENCE)
   const [density, setDensity] = useState<TextDensity>(defaultDensity)
   const [includeLogo, setIncludeLogo] = useState(false)
   const pickerRef = useRef<HTMLDialogElement>(null)
@@ -419,7 +426,7 @@ export function ContentEditor({
           topic,
           slides: newSlides,
           format,
-          referenceId: AUTO_REFERENCE,
+          referenceId: referenceId || null,
           productGroupId: products.length > 0 ? productGroupId || null : null,
           // The planner picks the pillar itself; a post from an idea keeps the idea's.
           pillarId: idea?.pillarId ?? null,
@@ -515,6 +522,7 @@ export function ContentEditor({
     }
   }
 
+  const usedReference = usedReferenceId ? references.find((reference) => reference.id === usedReferenceId) : null
   const options = !post ? (
     <>
       {read ? (
@@ -547,6 +555,20 @@ export function ContentEditor({
           ))}
         </select>
       </label>
+      {references.length > 0 && (
+        <label className={CHIP} title="Otomatis memilih satu grup referensi utuh agar desain antar-slide konsisten">
+          Acuan
+          <select value={referenceId} onChange={(event) => setReferenceId(event.target.value)} className={`${CHIP_SELECT} max-w-48`}>
+            <option value={AUTO_REFERENCE}>Otomatis · satu grup</option>
+            <option value="">Tanpa referensi</option>
+            {references.map((reference) => (
+              <option key={reference.id} value={reference.id}>
+                {reference.label} ({reference.slideCount})
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {products.length > 0 && (
         <label className={CHIP}>
           Produk
@@ -615,16 +637,19 @@ export function ContentEditor({
       )}
     </>
   ) : editable ? (
-    <div className="flex items-center gap-1 text-xs text-ink-muted">
-      Ubah:
-      <TargetButton active={target === 'slide'} onClick={() => setTarget('slide')}>
-        {current ? `Slide ${activeIndex + 1}` : 'Slide'}
-      </TargetButton>
-      <TargetButton active={target === 'caption'} onClick={() => setTarget('caption')}>
-        Caption
-      </TargetButton>
+    <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+      {usedReference && <span className={CHIP}>Acuan: <span className="font-medium text-ink">{usedReference.label}</span></span>}
+      <span className="flex items-center gap-1">
+        Ubah:
+        <TargetButton active={target === 'slide'} onClick={() => setTarget('slide')}>
+          {current ? `Slide ${activeIndex + 1}` : 'Slide'}
+        </TargetButton>
+        <TargetButton active={target === 'caption'} onClick={() => setTarget('caption')}>
+          Caption
+        </TargetButton>
+      </span>
     </div>
-  ) : null
+  ) : usedReference ? <span className={CHIP}>Acuan: <span className="font-medium text-ink">{usedReference.label}</span></span> : null
 
   const counts = inspectCaption(caption)
   const composerCost = post ? (target === 'caption' ? TASK_CREDITS.caption_edit : TASK_CREDITS.slide_edit) : contentCost(newSlides)

@@ -6,6 +6,7 @@ import {
   deleteReference,
   getBrandKit,
   hasBrandKit,
+  listReferenceOptions,
   listReferencePool,
   listReferences,
   loadReferenceImage,
@@ -110,18 +111,36 @@ describe('listReferences', () => {
   })
 })
 
+describe('listReferenceOptions', () => {
+  it('lists lightweight group labels without signing images', async () => {
+    const { chains } = useDb([{ data: [
+      { id: 'ref-1', source_label: '@kopi', description: 'Minimal hangat', brand_reference_images: [{ id: 'img-1' }] },
+      { id: 'ref-2', source_label: '', description: '', brand_reference_images: [{ id: 'img-2' }, { id: 'img-3' }] },
+    ], error: null }])
+
+    await expect(listReferenceOptions('user-1', 'ig-1')).resolves.toEqual([
+      { id: 'ref-1', label: '@kopi · Minimal hangat', slideCount: 1 },
+      { id: 'ref-2', label: 'Referensi 2', slideCount: 2 },
+    ])
+    expect(chains[0][0]).toEqual(['from', 'brand_references'])
+  })
+})
+
 describe('listReferencePool', () => {
-  it('lists every image of the account’s groups with its label', async () => {
+  it('keeps automatic selection inside one reference group', async () => {
     const { chains } = useDb([
-      { data: [{ id: 'img-1', position: 0, label: 'cover', brand_references: { account_id: 'ig-1' } }], error: null },
+      { data: [
+        { id: 'a-cover', position: 0, label: 'cover', reference_id: 'ref-a', brand_references: { account_id: 'ig-1' } },
+        { id: 'a-inner', position: 1, label: 'isi', reference_id: 'ref-a', brand_references: { account_id: 'ig-1' } },
+        { id: 'b-cover', position: 0, label: 'cover', reference_id: 'ref-b', brand_references: { account_id: 'ig-1' } },
+      ], error: null },
     ])
 
-    await expect(listReferencePool('user-1', 'ig-1', null)).resolves.toEqual([{ id: 'img-1', position: 0, label: 'cover' }])
-
+    const pool = await listReferencePool('user-1', 'ig-1', null)
+    expect(new Set(pool.map((image) => image.id.startsWith('a-') ? 'a' : 'b')).size).toBe(1)
     expect(chains[0][0]).toEqual(['from', 'brand_reference_images'])
     expect(filtered(chains[0], 'user_id', 'user-1')).toBe(true)
     expect(filtered(chains[0], 'brand_references.account_id', 'ig-1')).toBe(true)
-    expect(chains[0].some((call) => call[1] === 'reference_id')).toBe(false)
   })
 
   it('keeps to the one group the owner picked', async () => {

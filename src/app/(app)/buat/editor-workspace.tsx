@@ -82,7 +82,7 @@ export function EditorWorkspace({ initial }: { initial: EditorInitial }) {
   if (!detail.data || !support.data) return <LoadingState variant="editor" className="h-full" label="Memuat konten…" />
   const data = detail.data
   const { post, slides, idea, threadItems } = data
-  const { instagram, kit, products, credits, plan, threads, defaultDensity } = support.data
+  const { instagram, kit, products, references, credits, plan, threads, defaultDensity } = support.data
   const density = data.job?.kind === 'script' ? data.job.payload.density ?? DEFAULT_DENSITY : defaultDensity
   const now = new Date()
   const queue = data.queue.filter((slot) => pickedSlot(slot.value, now))
@@ -152,6 +152,8 @@ export function EditorWorkspace({ initial }: { initial: EditorInitial }) {
             description: product.description,
             imageCount: product.imageCount,
           }))}
+          references={references}
+          usedReferenceId={data.referenceId}
           hasLogo={kit.logoUrl !== null}
           credits={credits}
           planCredits={plan.credits}

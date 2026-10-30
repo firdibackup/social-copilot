@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { queryMock } from '@/test/query-mock'
-import { replaceSlide, requeueSlide, retrySlide } from './slides'
+import { getPostReferenceId, replaceSlide, requeueSlide, retrySlide } from './slides'
 import { db } from './supabase'
 
 vi.mock('./supabase', async (importOriginal) => ({
@@ -9,6 +9,20 @@ vi.mock('./supabase', async (importOriginal) => ({
 }))
 
 beforeEach(() => vi.mocked(db).mockReset())
+
+describe('getPostReferenceId', () => {
+  it('reads the persisted reference group through an owner-scoped slide image', async () => {
+    const slide = queryMock({ data: [{ reference_image_id: null }, { reference_image_id: 'image-1' }], error: null })
+    const image = queryMock({ data: { reference_id: 'reference-1' }, error: null })
+    vi.mocked(db).mockReturnValueOnce(slide.query as never).mockReturnValueOnce(image.query as never)
+
+    await expect(getPostReferenceId('user-1', 'post-1')).resolves.toBe('reference-1')
+    expect(slide.calls).toContainEqual(['eq', 'user_id', 'user-1'])
+    expect(slide.calls).toContainEqual(['eq', 'post_id', 'post-1'])
+    expect(image.calls).toContainEqual(['eq', 'user_id', 'user-1'])
+    expect(image.calls).toContainEqual(['eq', 'id', 'image-1'])
+  })
+})
 
 describe('retrySlide', () => {
   it('requeues only the owner’s slide and reports whether it was failed', async () => {

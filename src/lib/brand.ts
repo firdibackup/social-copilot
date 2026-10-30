@@ -23,6 +23,7 @@ import {
 import { getConnectedAccountId } from './connection'
 import { readStoredStrategy, type ContentStrategy } from './strategy-options'
 import { describeError } from './errors'
+import type { ReferenceOption } from './content-options'
 import type { ImageType } from './image'
 import { toReferenceDataUrl } from './slide-image'
 import { db, unwrap } from './supabase'
@@ -343,6 +344,26 @@ export async function removeLogo(userId: string, accountId: string): Promise<voi
   await removeFile(previous)
 }
 
+/** Lightweight reference groups for Buat's selector; no image download or signed URL needed. */
+export async function listReferenceOptions(userId: string, accountId: string): Promise<ReferenceOption[]> {
+  const rows = unwrap(await db()
+    .from('brand_references')
+    .select('id, source_label, description, brand_reference_images(id)')
+    .eq('user_id', userId)
+    .eq('account_id', accountId)
+    .order('created_at', { ascending: false })) as {
+      id: string
+      source_label: string
+      description: string
+      brand_reference_images: { id: string }[]
+    }[]
+  return rows.map((row, index) => ({
+    id: row.id,
+    label: [row.source_label, row.description].filter(Boolean).join(' · ') || `Referensi ${index + 1}`,
+    slideCount: row.brand_reference_images.length,
+  }))
+}
+
 export async function listReferences(userId: string, accountId: string): Promise<BrandReference[]> {
   const rows: ReferenceRow[] = unwrap(
     await db()
@@ -521,18 +542,19 @@ export interface ReferenceImage {
 }
 
 /**
- * The reference images a new post can follow (see planReferenceImages): every image of the account's groups, or
- * of the one group the owner picked. Empty when that group is gone.
+ * The reference images a new post can follow (see planReferenceImages): one complete group chosen automatically,
+ * or the exact group the owner picked. Keeping one group prevents a carousel mixing unrelated design systems.
  */
 export async function listReferencePool(userId: string, accountId: string, referenceId: string | null): Promise<PoolImage[]> {
   let query = db()
     .from('brand_reference_images')
-    .select('id, position, label, brand_references!inner(account_id)')
+    .select('id, position, label, reference_id, brand_references!inner(account_id)')
     .eq('user_id', userId)
     .eq('brand_references.account_id', accountId)
   if (referenceId) query = query.eq('reference_id', referenceId)
-  const rows: PoolImage[] = unwrap(await query)
-  return rows.map(({ id, position, label }) => ({ id, position, label }))
+  const rows = unwrap(await query) as (PoolImage & { reference_id: string })[]
+  const selected = referenceId || rows[Math.floor(Math.random() * rows.length)]?.reference_id
+  return rows.filter((row) => !selected || row.reference_id === selected).map(({ id, position, label }) => ({ id, position, label }))
 }
 
 /** One reference image a slide follows, with its bytes and its group's note. Null when it no longer exists. */

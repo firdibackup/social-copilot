@@ -106,6 +106,17 @@ export async function listUnfinishedSlides(userId: string, postId: string): Prom
   return rows.map(toSlide)
 }
 
+/** The Brand reference group persisted on this post's slides; null for admin-template or reference-free posts. */
+export async function getPostReferenceId(userId: string, postId: string): Promise<string | null> {
+  const slides = unwrap(await db().from('post_slides').select('reference_image_id').eq('user_id', userId)
+    .eq('post_id', postId).order('position')) as { reference_image_id: string | null }[]
+  const referenceImageId = slides.find((slide) => slide.reference_image_id)?.reference_image_id
+  if (!referenceImageId) return null
+  const image = unwrap(await db().from('brand_reference_images').select('reference_id').eq('id', referenceImageId)
+    .eq('user_id', userId).maybeSingle()) as { reference_id: string } | null
+  return image?.reference_id ?? null
+}
+
 /** True while an image of the post is still to come, when saving the post's photos would race attach_slide. */
 export async function hasSlidesInProgress(userId: string, postId: string): Promise<boolean> {
   const { count, error } = await db()
