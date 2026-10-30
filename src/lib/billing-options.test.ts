@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { contentCost, formatCreditShare, formatRupiah, TASK_CREDITS, usedPercent } from './billing-options'
 
 describe('TASK_CREDITS', () => {
-  it('makes Sigap free: its chat, research and summary rows only count toward the daily limits', () => {
+  it('makes Mimo free: its chat, research and summary rows only count toward the daily limits', () => {
     expect(TASK_CREDITS.chat).toBe(0)
     expect(TASK_CREDITS.deep_search).toBe(0)
     expect(TASK_CREDITS.chat_summary).toBe(0)

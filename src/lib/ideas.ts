@@ -73,7 +73,7 @@ export async function addIdeas(userId: string, accountId: string, ideas: Suggest
   )
 }
 
-/** One idea, for Sigap, which writes its script next. Returns its id. */
+/** One idea, for Mimo, which writes its script next. Returns its id. */
 export async function addIdea(userId: string, accountId: string, idea: SuggestedIdea): Promise<string> {
   const row = unwrap(
     await db()
@@ -86,7 +86,7 @@ export async function addIdea(userId: string, accountId: string, idea: Suggested
 }
 
 /**
- * An idea with a known id, for Sigap's approved bulk plan: starting the plan again (a retry, a second click) finds the
+ * An idea with a known id, for Mimo's approved bulk plan: starting the plan again (a retry, a second click) finds the
  * same idea instead of adding another. Callers look for the plan item's job first, so an idea already used up by its
  * post is not made again.
  */
@@ -107,7 +107,7 @@ export async function saveIdeaScript(userId: string, id: string, script: ScriptS
   return rows.length > 0
 }
 
-/** Account-pinned form for Sigap's long-running new-script request. */
+/** Account-pinned form for Mimo's long-running new-script request. */
 export async function saveAccountIdeaScript(
   userId: string,
   accountId: string,
@@ -126,7 +126,7 @@ export async function saveAccountIdeaScript(
   return rows.length > 0
 }
 
-/** Sigap's revision, constrained to the Instagram account whose chat is open. */
+/** Mimo's revision, constrained to the Instagram account whose chat is open. */
 export async function reviseAccountIdea(
   userId: string,
   accountId: string,
@@ -150,7 +150,7 @@ export async function deleteIdea(userId: string, id: string): Promise<void> {
   unwrap(await db().from('content_ideas').delete().eq('id', id).eq('user_id', userId))
 }
 
-/** Account-pinned cleanup for a Sigap idea whose script failed. */
+/** Account-pinned cleanup for a Mimo idea whose script failed. */
 export async function deleteAccountIdea(userId: string, accountId: string, id: string): Promise<void> {
   unwrap(
     await db().from('content_ideas').delete().eq('id', id).eq('user_id', userId).eq('account_id', accountId),

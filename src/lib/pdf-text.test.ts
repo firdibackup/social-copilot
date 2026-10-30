@@ -26,8 +26,8 @@ function textPdf(text: string): Uint8Array {
 
 describe('readPdfText', () => {
   it('extracts text with a page marker', async () => {
-    await expect(readPdfText(textPdf('Halo Sigap brief brand'), 'brief.pdf')).resolves.toEqual({
-      text: 'Halo Sigap brief brand\n\n[Halaman 1]',
+    await expect(readPdfText(textPdf('Halo Mimo brief brand'), 'brief.pdf')).resolves.toEqual({
+      text: 'Halo Mimo brief brand\n\n[Halaman 1]',
       pages: 1,
       cut: false,
     })

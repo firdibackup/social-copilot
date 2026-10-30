@@ -76,7 +76,7 @@
     {
       "name": "Demo Panel", "kind": "card",
       "description": "AI/inbox panel frame; static surfaces have no hover affordance.",
-      "html": "<section class=\"ds-panel\"><header class=\"ds-panel-header\"><strong>Sigap</strong><span class=\"ds-tag\">Demo interaktif</span></header><p class=\"ds-panel-copy\">Partner kreatif kamu</p></section>",
+      "html": "<section class=\"ds-panel\"><header class=\"ds-panel-header\"><strong>Mimo</strong><span class=\"ds-tag\">Demo interaktif</span></header><p class=\"ds-panel-copy\">Partner kreatif kamu</p></section>",
       "css": ".ds-panel{font-family:var(--font-sans,system-ui);color:var(--color-text,#171827);border:1px solid #ded8ea;background:#fff;border-radius:12px;box-shadow:0 12px 30px -18px #34215133;overflow:hidden}.ds-panel-header{display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid #e6e4ef;font-size:12px;font-weight:650}.ds-tag{font-size:8px;font-weight:400;background:#f4f2f9;color:#746783;border-radius:4px;padding:3px 6px;margin-left:auto}.ds-panel-copy{padding:0 18px;font-size:12px;color:#656578}"
     }
   ],

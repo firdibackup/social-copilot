@@ -141,7 +141,7 @@ describe('buildSystemPrompt', () => {
     expect(prompt).not.toContain('Ringkasan percakapan sebelumnya')
   })
 
-  it('keeps Sigap on social media and marketing, declining the rest politely', () => {
+  it('keeps Mimo on social media and marketing, declining the rest politely', () => {
     const prompt = buildSystemPrompt(BRAND, false, '', now)
     expect(prompt).toContain('Topikmu: Instagram dan media sosial')
     expect(prompt).toContain('Di luar topik itu')

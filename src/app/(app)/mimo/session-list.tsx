@@ -7,8 +7,8 @@ import { formatListTime } from '@/lib/format'
 import type { ChatSessionView } from '@/lib/chat-options'
 import { DeleteSessionButton } from './session-buttons'
 import { ConversationLink as Link } from './conversation-link'
-import { useSigapScope } from './sigap-provider'
-import { conversationQuery, sigapKeys } from './sigap-query'
+import { useMimoScope } from './mimo-provider'
+import { conversationQuery, mimoKeys } from './mimo-query'
 
 /** Hover and focus reach past the text, like Buat's list. */
 const ITEM =
@@ -22,17 +22,17 @@ interface SessionListProps {
   className: string
 }
 
-/** Sigap's left column: Chat baru and the earlier conversations, most recently used first. */
+/** Mimo's left column: Chat baru and the earlier conversations, most recently used first. */
 export function SessionList({ sessions, activeId, now, className }: SessionListProps) {
   const client = useQueryClient()
-  const { scope } = useSigapScope()
+  const { scope } = useMimoScope()
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cancelPrefetch = () => { if (timer.current) clearTimeout(timer.current) }
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
   const prefetch = (id: string) => {
     cancelPrefetch()
     timer.current = setTimeout(() => {
-      if (client.isFetching({ queryKey: [...sigapKeys.all(scope), 'conversation'] }) < 2) {
+      if (client.isFetching({ queryKey: [...mimoKeys.all(scope), 'conversation'] }) < 2) {
         void client.prefetchQuery(conversationQuery(scope, id))
       }
     }, 100)
@@ -41,7 +41,7 @@ export function SessionList({ sessions, activeId, now, className }: SessionListP
     <aside aria-label="Riwayat chat" className={`${className} min-h-0 w-full flex-1 flex-col`}>
       <div className="px-4 pt-3 pb-2">
         <Link
-          href="/sigap"
+          href="/mimo"
           className="flex h-10 items-center justify-center gap-2 rounded-xl bg-accent text-sm font-semibold text-white transition-colors hover:bg-accent-deep"
         >
           <Plus size={16} aria-hidden="true" />
@@ -54,13 +54,13 @@ export function SessionList({ sessions, activeId, now, className }: SessionListP
           <span className="text-[11px] text-ink-muted">{sessions.length}</span>
         </div>
         {sessions.length === 0 ? (
-          <p className="py-3 text-sm text-ink-muted">Belum ada percakapan. Tanyakan apa saja ke Sigap di kanan.</p>
+          <p className="py-3 text-sm text-ink-muted">Belum ada percakapan. Tanyakan apa saja ke Mimo di kanan.</p>
         ) : (
           <ul className="pt-1">
             {sessions.map((session) => (
               <li key={session.id} className="group relative">
                 <Link
-                  href={`/sigap?sesi=${session.id}`}
+                  href={`/mimo?sesi=${session.id}`}
                   onMouseEnter={() => prefetch(session.id)}
                   onFocus={() => prefetch(session.id)}
                   onMouseLeave={cancelPrefetch}

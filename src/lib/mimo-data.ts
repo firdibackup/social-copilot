@@ -4,13 +4,13 @@ import { listProductGroups } from './assets'
 import { getSession, listMessages } from './chat'
 import { getDensityDefault } from './density'
 
-export async function loadSigapConversation({ userId, accountId }: AccountScope, id: string) {
+export async function loadMimoConversation({ userId, accountId }: AccountScope, id: string) {
   const session = await getSession(userId, accountId, id)
   // Check account ownership before reading messages, which are scoped by user and session.
   return { session: session ? { id: session.id } : null, messages: session ? await listMessages(userId, session.id) : [] }
 }
 
-export async function loadSigapSupport({ userId, accountId }: AccountScope) {
+export async function loadMimoSupport({ userId, accountId }: AccountScope) {
   const [products, defaultDensity] = await Promise.all([
     listProductGroups(userId, accountId),
     getDensityDefault(userId, accountId),

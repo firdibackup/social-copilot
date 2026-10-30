@@ -2,15 +2,15 @@
 
 import { QueryClient, queryOptions } from '@tanstack/react-query'
 import type { ChatEvent, ChatSessionView } from '@/lib/chat-options'
-import type { loadSigapConversation, loadSigapSupport } from '@/lib/sigap-data'
+import type { loadMimoConversation, loadMimoSupport } from '@/lib/mimo-data'
 
-export type Conversation = Awaited<ReturnType<typeof loadSigapConversation>>
-type Support = Awaited<ReturnType<typeof loadSigapSupport>>
-export const sigapKeys = {
-  all: (scope: string) => ['sigap', scope] as const,
-  sessions: (scope: string) => ['sigap', scope, 'sessions'] as const,
-  conversation: (scope: string, id: string) => ['sigap', scope, 'conversation', id] as const,
-  support: (scope: string) => ['sigap', scope, 'support'] as const,
+export type Conversation = Awaited<ReturnType<typeof loadMimoConversation>>
+type Support = Awaited<ReturnType<typeof loadMimoSupport>>
+export const mimoKeys = {
+  all: (scope: string) => ['mimo', scope] as const,
+  sessions: (scope: string) => ['mimo', scope, 'sessions'] as const,
+  conversation: (scope: string, id: string) => ['mimo', scope, 'conversation', id] as const,
+  support: (scope: string) => ['mimo', scope, 'support'] as const,
 }
 
 async function read<T>(scope: string, part: string, signal: AbortSignal, id?: string): Promise<T> {
@@ -21,12 +21,12 @@ async function read<T>(scope: string, part: string, signal: AbortSignal, id?: st
     window.location.reload()
     throw new Error('Sesi berubah. Memuat ulang…')
   }
-  if (!response.ok) throw new Error('Sigap belum bisa dimuat. Coba lagi.')
+  if (!response.ok) throw new Error('Mimo belum bisa dimuat. Coba lagi.')
   return response.json()
 }
 
 export const sessionsQuery = (scope: string) => queryOptions({
-  queryKey: sigapKeys.sessions(scope),
+  queryKey: mimoKeys.sessions(scope),
   queryFn: ({ signal }) => read<ChatSessionView[]>(scope, 'sessions', signal),
   staleTime: 30_000,
   gcTime: 5 * 60_000,
@@ -34,15 +34,15 @@ export const sessionsQuery = (scope: string) => queryOptions({
 })
 
 export const conversationQuery = (scope: string, id: string) => queryOptions({
-  queryKey: sigapKeys.conversation(scope, id),
+  queryKey: mimoKeys.conversation(scope, id),
   queryFn: ({ signal }) => read<Conversation>(scope, 'conversation', signal, id),
   staleTime: 30_000,
   gcTime: 5 * 60_000,
   retry: 1,
 })
 
-export const sigapSupportQuery = (scope: string) => queryOptions({
-  queryKey: sigapKeys.support(scope),
+export const mimoSupportQuery = (scope: string) => queryOptions({
+  queryKey: mimoKeys.support(scope),
   queryFn: ({ signal }) => read<Support>(scope, 'support', signal),
   staleTime: 5 * 60_000,
   gcTime: 10 * 60_000,
@@ -51,7 +51,7 @@ export const sigapSupportQuery = (scope: string) => queryOptions({
 
 /** Cancel older reads before inserting a saved answer; never resurrect a removed conversation. */
 export async function receiveAnswer(client: QueryClient, scope: string, event: Extract<ChatEvent, { type: 'done' }>, current: () => boolean) {
-  const queryKey = sigapKeys.conversation(scope, event.sessionId)
+  const queryKey = mimoKeys.conversation(scope, event.sessionId)
   await client.cancelQueries({ queryKey })
   if (!current()) return
   client.setQueryData<Conversation>(queryKey, (previous) => {
@@ -62,31 +62,31 @@ export async function receiveAnswer(client: QueryClient, scope: string, event: E
       messages: [...(previous?.messages ?? []).filter((message) => !added.has(message.id)), ...added.values()].slice(-300),
     }
   })
-  await client.invalidateQueries({ queryKey: sigapKeys.sessions(scope) })
+  await client.invalidateQueries({ queryKey: mimoKeys.sessions(scope) })
 }
 
 export type ForgottenConversation = { conversation: Conversation | undefined; session: ChatSessionView | undefined }
 
 export async function forgetConversation(client: QueryClient, scope: string, id: string): Promise<ForgottenConversation> {
   await Promise.all([
-    client.cancelQueries({ queryKey: sigapKeys.conversation(scope, id) }),
-    client.cancelQueries({ queryKey: sigapKeys.sessions(scope) }),
+    client.cancelQueries({ queryKey: mimoKeys.conversation(scope, id) }),
+    client.cancelQueries({ queryKey: mimoKeys.sessions(scope) }),
   ])
-  const sessions = client.getQueryData<ChatSessionView[]>(sigapKeys.sessions(scope))
+  const sessions = client.getQueryData<ChatSessionView[]>(mimoKeys.sessions(scope))
   const snapshot = {
-    conversation: client.getQueryData<Conversation>(sigapKeys.conversation(scope, id)),
+    conversation: client.getQueryData<Conversation>(mimoKeys.conversation(scope, id)),
     session: sessions?.find((item) => item.id === id),
   }
   // A tombstone also prevents a late answer from recreating deleted messages.
-  client.setQueryData<Conversation>(sigapKeys.conversation(scope, id), { session: null, messages: [] })
-  client.setQueryData<ChatSessionView[]>(sigapKeys.sessions(scope), (previous) => previous?.filter((session) => session.id !== id))
+  client.setQueryData<Conversation>(mimoKeys.conversation(scope, id), { session: null, messages: [] })
+  client.setQueryData<ChatSessionView[]>(mimoKeys.sessions(scope), (previous) => previous?.filter((session) => session.id !== id))
   return snapshot
 }
 
 export function restoreConversation(client: QueryClient, scope: string, id: string, snapshot: ForgottenConversation) {
-  client.setQueryData(sigapKeys.conversation(scope, id), snapshot.conversation)
+  client.setQueryData(mimoKeys.conversation(scope, id), snapshot.conversation)
   if (!snapshot.session) return
-  client.setQueryData<ChatSessionView[]>(sigapKeys.sessions(scope), (current) => {
+  client.setQueryData<ChatSessionView[]>(mimoKeys.sessions(scope), (current) => {
     if (!current || current.some((session) => session.id === id)) return current
     return [snapshot.session!, ...current]
   })

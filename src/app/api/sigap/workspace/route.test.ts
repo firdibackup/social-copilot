@@ -16,7 +16,7 @@ beforeEach(() => {
   vi.mocked(requireAccount).mockResolvedValue({ userId: 'u', accountId: 'ig' })
 })
 
-describe('Sigap workspace reads', () => {
+describe('Mimo workspace reads', () => {
   it('rejects changed account scope before reading any data', async () => {
     const response = await GET(request(`scope=u:other&part=conversation&id=${id}`))
     expect(response.status).toBe(409)

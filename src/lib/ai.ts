@@ -93,11 +93,11 @@ export type LoggedTask =
   | 'template_analysis'
   /** Brand › Referensi: the label and layout of designs cut from a grid picture, one batch per request. */
   | 'reference_labels'
-  /** One message to Sigap, the chat, however many tools it ran. */
+  /** One message to Mimo, the chat, however many tools it ran. */
   | 'chat'
-  /** One Intel Kompetitor run (Apify) inside a Sigap message. */
+  /** One Intel Kompetitor run (Apify) inside a Mimo message. */
   | 'deep_search'
-  /** The rolling summary of a Sigap conversation, written after the answer. */
+  /** The rolling summary of a Mimo conversation, written after the answer. */
   | 'chat_summary'
 
 interface GenerationLog {

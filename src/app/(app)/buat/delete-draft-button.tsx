@@ -1,16 +1,13 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { Trash2 } from 'lucide-react'
 import { deleteDraftAction } from './content-actions'
-import { editorKeys } from './editor-query'
 import { useEditorScope } from './editor-provider'
-import { setPostVisible } from './optimistic-events'
+import { removePostOptimistically } from './optimistic-events'
 
 export function DeleteDraftButton({ id, onError }: { id: string; onError: (message: string) => void }) {
-  const router = useRouter()
   const client = useQueryClient()
   const scope = useEditorScope()
   const lock = useRef(false)
@@ -20,24 +17,15 @@ export function DeleteDraftButton({ id, onError }: { id: string; onError: (messa
     if (lock.current || !window.confirm('Hapus konten ini? Draft akan dihapus permanen.')) return
     lock.current = true
     setPending(true)
-    const key = editorKeys.detail(scope, id)
-    await client.cancelQueries({ queryKey: key })
-    const detail = client.getQueryData(key)
-    const previousUrl = `${window.location.pathname}${window.location.search}`
-    setPostVisible(id, false)
-    window.history.replaceState(null, '', '/buat')
-    client.removeQueries({ queryKey: key })
+    const restore = await removePostOptimistically(client, scope, id)
     const error = await deleteDraftAction(id).catch(() => 'Gagal menghubungi server. Coba lagi.')
     if (error) {
-      setPostVisible(id, true)
-      if (detail) client.setQueryData(key, detail)
-      window.history.replaceState(null, '', previousUrl)
+      restore()
       lock.current = false
       setPending(false)
       onError(error)
-      return
     }
-    router.refresh()
+    // The action's refresh() already re-renders the list and editor; no second round trip.
   }
 
   return (

@@ -16,7 +16,7 @@ import { pillarOf, type ContentStrategy } from '@/lib/strategy-options'
 import { DeleteIdeaButton, FindIdeasButton, OpenIdeaButton } from './idea-buttons'
 import { ContentQueuePoll } from './content-queue-poll'
 import { Thumbnail } from './thumbnail'
-import { POST_VISIBILITY_EVENT } from './optimistic-events'
+import { useHiddenPosts } from './optimistic-events'
 
 /** Hover and focus reach past the text, which stays aligned with the section labels. */
 const ITEM =
@@ -52,23 +52,11 @@ export function ContentList({ posts, ideas, strategy }: ContentListProps) {
       if (client.isFetching({ queryKey: ['editor', scope, 'detail'] }) < 2) void client.prefetchQuery(detailQuery(scope, id))
     }, 120)
   }
-  const [hiddenPosts, setHiddenPosts] = useState<Set<string>>(() => new Set())
+  const hiddenPosts = useHiddenPosts()
   const [hiddenIdeas, setHiddenIdeas] = useState<Set<string>>(() => new Set())
-  useEffect(() => {
-    const update = (event: Event) => {
-      const { id, visible } = (event as CustomEvent<{ id: string; visible: boolean }>).detail
-      setHiddenPosts((current) => {
-        const next = new Set(current)
-        if (visible) next.delete(id)
-        else next.add(id)
-        return next
-      })
-    }
-    window.addEventListener(POST_VISIBILITY_EVENT, update)
-    return () => window.removeEventListener(POST_VISIBILITY_EVENT, update)
-  }, [])
   const params = useSearchParams()
-  const selectedId = params.get('id')
+  const rawSelectedId = params.get('id')
+  const selectedId = rawSelectedId && hiddenPosts.has(rawSelectedId) ? null : rawSelectedId
   const selectedIdeaId = params.get('ide')
   const editing = Boolean(selectedId || selectedIdeaId || params.get('baru') || params.get('tanggal') || params.get('slot'))
   const threads = params.get('platform') === 'threads'

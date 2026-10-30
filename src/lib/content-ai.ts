@@ -451,7 +451,7 @@ export function buildScriptMessages(
   idea: string,
   brand: BrandContext | null,
   hook: HookArchetype = 'auto',
-  /** Sigap's direction: what the owner asked to change, or what the competitors it studied do. */
+  /** Mimo's direction: what the owner asked to change, or what the competitors it studied do. */
   brief = '',
   density: TextDensity = DEFAULT_DENSITY,
 ): ChatMessage[] {
@@ -510,7 +510,7 @@ export function writeScript(
   idea: { id: string; title: string },
   save: (script: ScriptSlide[]) => Promise<void>,
   brief = '',
-  /** A long-running caller such as Sigap can pin the account's brand instead of resolving it again. */
+  /** A long-running caller such as Mimo can pin the account's brand instead of resolving it again. */
   brandContext?: BrandContext | null,
   signal?: AbortSignal,
   density: TextDensity = DEFAULT_DENSITY,

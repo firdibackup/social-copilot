@@ -73,14 +73,14 @@ export async function resolveConfirmAction(
     const result = await resolveConfirmation(userId, accountId, message.id, confirmId, card.kind, payload, accept)
     if (result === 'not_found') return NOT_FOUND
   } catch (error) {
-    console.error('[sigap] konfirmasi gagal:', describeError(error))
+    console.error('[mimo] konfirmasi gagal:', describeError(error))
     return FAILED
   }
   refresh()
   return null
 }
 
-/** Buang on a script Sigap saved: the idea leaves Buat, and the card says so. */
+/** Buang on a script Mimo saved: the idea leaves Buat, and the card says so. */
 export async function discardScriptAction(sessionId: string, messageId: string, ideaId: string): Promise<ActionError> {
   const { userId, accountId } = await requireAccount()
   try {
@@ -90,7 +90,7 @@ export async function discardScriptAction(sessionId: string, messageId: string, 
     const result = await discardScript(userId, accountId, message.id, ideaId)
     if (result === 'not_found') return NOT_FOUND
   } catch (error) {
-    console.error('[sigap] skrip gagal dibuang:', describeError(error))
+    console.error('[mimo] skrip gagal dibuang:', describeError(error))
     return 'Gagal membuang skrip. Coba lagi.'
   }
   refresh()
@@ -151,7 +151,7 @@ const queueErrorMessage = (error: unknown) => {
 }
 
 /**
- * Setuju on Sigap's bulk plan, with the owner's edits: the only step that spends quota. The whole plan's cost is
+ * Setuju on Mimo's bulk plan, with the owner's edits: the only step that spends quota. The whole plan's cost is
  * checked first, then every post is queued and its script, caption and images are made in the background without
  * asking again. Moving the card to `starting` first makes a double click or a second tab start nothing twice; a
  * card left in `starting` (the server stopped mid-way) is finished by the next click, safely, from its saved plan.
@@ -163,7 +163,7 @@ export async function startBulkAction(sessionId: string, messageId: string, bulk
     if (!found) return NOT_FOUND
     const { message, card } = found
     if (card.state === 'started') return null
-    if (card.state === 'cancelled') return 'Rencana ini sudah dibatalkan. Minta Sigap membuat rencana baru.'
+    if (card.state === 'cancelled') return 'Rencana ini sudah dibatalkan. Minta Mimo membuat rencana baru.'
 
     let plan = card.plan
     let settings = card.settings
@@ -205,7 +205,7 @@ export async function startBulkAction(sessionId: string, messageId: string, bulk
         const queued = await queueBulkItem(userId, accountId, item, settings)
         if (!items.some((other) => other.postId === queued.postId)) items.push(queued)
       } catch (error) {
-        console.error('[sigap] konten massal gagal diantrekan:', describeError(error))
+        console.error('[mimo] konten massal gagal diantrekan:', describeError(error))
         errors.push(`${item.title}: ${queueErrorMessage(error)}`)
       }
     }
@@ -220,12 +220,12 @@ export async function startBulkAction(sessionId: string, messageId: string, bulk
     refresh()
     return null
   } catch (error) {
-    console.error('[sigap] konten massal gagal dimulai:', describeError(error))
+    console.error('[mimo] konten massal gagal dimulai:', describeError(error))
     return aiErrorMessage(error)
   }
 }
 
-/** Batal on Sigap's bulk plan, before anything was made. */
+/** Batal on Mimo's bulk plan, before anything was made. */
 export async function cancelBulkAction(sessionId: string, messageId: string, bulkId: string): Promise<ActionError> {
   const { userId, accountId } = await requireAccount()
   try {
@@ -235,7 +235,7 @@ export async function cancelBulkAction(sessionId: string, messageId: string, bul
     const result = await updateBulkCard(userId, accountId, found.message.id, found.card.id, 'proposed', { state: 'cancelled' })
     if (result === 'not_found') return NOT_FOUND
   } catch (error) {
-    console.error('[sigap] rencana konten massal gagal dibatalkan:', describeError(error))
+    console.error('[mimo] rencana konten massal gagal dibatalkan:', describeError(error))
     return FAILED
   }
   refresh()
@@ -249,7 +249,7 @@ export async function deleteSessionAction(sessionId: string): Promise<ActionErro
   try {
     await deleteSession(userId, accountId, sessionId)
   } catch (error) {
-    console.error('[sigap] percakapan gagal dihapus:', describeError(error))
+    console.error('[mimo] percakapan gagal dihapus:', describeError(error))
     return 'Gagal menghapus percakapan. Coba lagi.'
   }
   refresh()

@@ -8,7 +8,7 @@ import { LandingPricing } from '@/components/landing/landing-pricing'
 
 export const metadata: Metadata = {
   title: 'Carousely — Ide jalan, konten tayang.',
-  description: 'Dari ide pertama sampai konten tayang. Buat konten bersama AI Sigap, atur kalender, dan kelola balasan Instagram dalam satu workspace Carousely.',
+  description: 'Dari ide pertama sampai konten tayang. Buat konten bersama AI Mimo, atur kalender, dan kelola balasan Instagram dalam satu workspace Carousely.',
   openGraph: {
     title: 'Carousely — Ide jalan, konten tayang.',
     description: 'Teman kerja untuk konten Instagram kamu. Bikin, jadwalkan, dan kelola dari satu tempat.',

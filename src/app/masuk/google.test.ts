@@ -15,12 +15,12 @@ describe('Google sign in', () => {
   it('starts OAuth with a PKCE callback and preserves the requested destination', async () => {
     oauth.mockResolvedValue({ data: { url: 'https://auth.example.com/authorize' }, error: null })
     const form = new FormData()
-    form.set('next', '/sigap')
+    form.set('next', '/mimo')
     await expect(signInWithGoogle({ error: null }, form)).rejects.toThrow('redirect:https://auth.example.com/authorize')
     expect(oauth).toHaveBeenCalledExactlyOnceWith({
       provider: 'google',
       options: {
-        redirectTo: 'https://app.example.com/auth/callback?next=%2Fsigap',
+        redirectTo: 'https://app.example.com/auth/callback?next=%2Fmimo',
         queryParams: { prompt: 'select_account' },
       },
     })

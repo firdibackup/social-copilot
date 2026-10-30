@@ -11,6 +11,8 @@ import {
   type AttachmentKind,
 } from '@/lib/chat-options'
 import { toReferenceJpeg } from '@/lib/image'
+import { MIMO_SENT_EVENT } from '@/lib/mascot-expression'
+import { MimoMascot } from '@/components/mimo-mascot'
 import { formatBytes } from './cards'
 
 const ICON_BUTTON =
@@ -95,6 +97,8 @@ export function ChatComposer({ busy, deepSearch, onToggleDeepSearch, onSend, dra
       return
     }
     setPreparing(false)
+    // Mimo cheers as the message leaves.
+    dispatchEvent(new Event(MIMO_SENT_EVENT))
     const sent = text
     const sentAttachments = attachments
     setText('')
@@ -115,7 +119,10 @@ export function ChatComposer({ busy, deepSearch, onToggleDeepSearch, onSend, dra
 
   return (
     <div className="space-y-2">
-      <div className="rounded-xl border border-hairline bg-paper focus-within:border-zinc-400">
+      <div className="flex items-end gap-2.5">
+      {/* Mimo listens beside the box: its face follows what is typed, and it cheers when the message goes. */}
+      <MimoMascot size={40} composer mood={busy ? 'thinking' : 'idle'} className="mb-1 shrink-0" />
+      <div className="min-w-0 flex-1 rounded-xl border border-hairline bg-paper focus-within:border-zinc-400">
         {attachments.length > 0 && (
           <ul className="flex flex-wrap gap-1.5 px-3 pt-3">
             {attachments.map((attachment, index) => (
@@ -134,8 +141,9 @@ export function ChatComposer({ busy, deepSearch, onToggleDeepSearch, onSend, dra
           onKeyDown={onKeyDown}
           rows={2}
           maxLength={MESSAGE_MAX_LENGTH}
-          placeholder="Tanya Sigap… (Enter untuk kirim, Shift + Enter untuk baris baru)"
-          aria-label="Pesan untuk Sigap"
+          placeholder="Tanya Mimo… (Enter untuk kirim, Shift + Enter untuk baris baru)"
+          aria-label="Pesan untuk Mimo"
+          data-mimo-field=""
           className="block max-h-48 min-h-[3.5rem] w-full resize-y bg-transparent px-3 pt-3 text-sm text-ink placeholder:text-ink-soft focus:outline-none"
         />
         <div className="flex items-center gap-2 px-2 pt-1 pb-2">
@@ -172,6 +180,7 @@ export function ChatComposer({ busy, deepSearch, onToggleDeepSearch, onSend, dra
             <Send size={16} aria-hidden="true" />
           </button>
         </div>
+      </div>
       </div>
       {problem && (
         <p role="alert" className="text-xs text-red-700">

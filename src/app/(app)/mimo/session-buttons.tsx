@@ -4,15 +4,15 @@ import { Trash2 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTransition } from 'react'
 import { deleteSessionAction } from './actions'
-import { useSigapScope } from './sigap-provider'
-import { forgetConversation, restoreConversation } from './sigap-query'
+import { useMimoScope } from './mimo-provider'
+import { forgetConversation, restoreConversation } from './mimo-query'
 
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
 
 /** Deletes a conversation; the open one leaves the page for an empty chat. */
 export function DeleteSessionButton({ id, title, active }: { id: string; title: string; active: boolean }) {
   const client = useQueryClient()
-  const { scope, isCurrent } = useSigapScope()
+  const { scope, isCurrent } = useMimoScope()
   const [pending, startTransition] = useTransition()
 
   return (
@@ -26,11 +26,11 @@ export function DeleteSessionButton({ id, title, active }: { id: string; title: 
           const previousUrl = `${window.location.pathname}${window.location.search}`
           const wasOpen = active && new URLSearchParams(window.location.search).get('sesi') === id
           const snapshot = await forgetConversation(client, scope, id)
-          if (wasOpen) window.history.replaceState(null, '', '/sigap')
+          if (wasOpen) window.history.replaceState(null, '', '/mimo')
           const error = await deleteSessionAction(id).catch(() => FAILED)
           if (error) {
             if (isCurrent()) restoreConversation(client, scope, id, snapshot)
-            if (wasOpen && window.location.pathname === '/sigap' && !window.location.search) window.history.replaceState(null, '', previousUrl)
+            if (wasOpen && window.location.pathname === '/mimo' && !window.location.search) window.history.replaceState(null, '', previousUrl)
             window.alert(error)
           }
         })

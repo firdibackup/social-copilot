@@ -771,7 +771,7 @@ describe('requests', () => {
       ])
     })
 
-    it("passes Sigap's direction as quoted, untrusted text and logs it", async () => {
+    it("passes Mimo's direction as quoted, untrusted text and logs it", async () => {
       vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({ slides: SCRIPT }))
 
       await writeScript(USER, { id: 'idea-1', title: 'IN, ON, AT' }, async () => {}, 'Hook pertanyaan seperti @kompetitor')

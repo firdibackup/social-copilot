@@ -3,11 +3,16 @@
 import { useEffect, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { saveBeforeNavigation } from './use-save-before-navigation'
+import { useHiddenPosts } from './optimistic-events'
 
 export function WorkspaceFrame({ list, children }: { list: ReactNode; children: ReactNode }) {
   const params = useSearchParams()
   const router = useRouter()
-  const editing = ['id', 'ide', 'baru', 'tanggal', 'slot'].some((key) => params.get(key))
+  const hidden = useHiddenPosts()
+  const editing = ['id', 'ide', 'baru', 'tanggal', 'slot'].some((key) => {
+    const value = params.get(key)
+    return value && !(key === 'id' && hidden.has(value))
+  })
   useEffect(() => {
     let navigating = false
     const onClick = (event: MouseEvent) => {

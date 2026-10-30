@@ -206,7 +206,7 @@ const SCHEDULE_CONTENT: ToolSchema = {
   type: 'function',
   function: {
     name: 'schedule_content',
-    description: 'Tampilkan kartu penjadwalan draft dari Buat atau hasil Sigap. Membaca status terbaru, menawarkan pembuatan gambar untuk skrip, dan slot kosong Kalender. Owner memilih waktu WIB dan menekan Jadwalkan yang siap. Konten yang diproses harus ditunggu; yang siap bisa dijadwalkan dahulu. Tidak langsung menjadwalkan atau membuat gambar.',
+    description: 'Tampilkan kartu penjadwalan draft dari Buat atau hasil Mimo. Membaca status terbaru, menawarkan pembuatan gambar untuk skrip, dan slot kosong Kalender. Owner memilih waktu WIB dan menekan Jadwalkan yang siap. Konten yang diproses harus ditunggu; yang siap bisa dijadwalkan dahulu. Tidak langsung menjadwalkan atau membuat gambar.',
     parameters: {
       type: 'object',
       properties: {
@@ -301,7 +301,7 @@ export function chatTools(deepSearch: boolean): ToolSchema[] {
 }
 
 const SYSTEM_RULES = [
-  'Kamu Sigap, asisten AI (copilot) di aplikasi pengelola Instagram ini, untuk pemilik bisnis dan kreator di Indonesia.',
+  'Kamu Mimo, asisten AI (copilot) di aplikasi pengelola Instagram ini, untuk pemilik bisnis dan kreator di Indonesia.',
   'Aturan:',
   '- Jawab dalam Bahasa Indonesia yang ramah, jelas, dan ringkas.',
   '- Topikmu: Instagram dan media sosial, konten, marketing, branding, copywriting, dan hal bisnis yang menyangkut pemasaran (harga, promo, diskon, target pasar). Hitungan kecil untuk keperluan itu boleh, mis. harga setelah diskon.',
@@ -322,7 +322,7 @@ const DEEP_SEARCH_ON =
 const DEEP_SEARCH_OFF =
   '- Intel Kompetitor (riset akun Instagram lain) sedang mati. Kalau owner minta riset akun kompetitor, minta dia menyalakan tombol Intel Kompetitor di kotak pesan.'
 
-/** Sigap's system prompt: the rules, the brand, today, and what came before the verbatim messages. */
+/** Mimo's system prompt: the rules, the brand, today, and what came before the verbatim messages. */
 export function buildSystemPrompt(brand: BrandContext | null, deepSearch: boolean, summary: string, now: Date): string {
   const today = wibDateKey(now)
   return [
@@ -431,7 +431,7 @@ interface ToolContext {
   userId: string
   accountId: string
   brand: BrandContext | null
-  /** The account's text density, which the scripts Sigap writes follow. */
+  /** The account's text density, which the scripts Mimo writes follow. */
   density: TextDensity
   deepSearch: boolean
   signal: AbortSignal
@@ -612,7 +612,7 @@ export function scriptRequests(value: unknown, strategy: ContentStrategy | null)
   })
 }
 
-/** One script: a new idea in Buat, or the revision of one Sigap wrote. A new idea whose script fails is removed. */
+/** One script: a new idea in Buat, or the revision of one Mimo wrote. A new idea whose script fails is removed. */
 async function draftScript(context: ToolContext, request: ScriptRequest): Promise<ScriptItem> {
   const { userId } = context
   if (request.ideaId) {
@@ -699,7 +699,7 @@ export function bulkRequests(value: unknown, strategy: ContentStrategy | null): 
 }
 
 /**
- * Sigap's bulk plan: a card with every post's title, angle, slides and outline, for the owner to edit and approve.
+ * Mimo's bulk plan: a card with every post's title, angle, slides and outline, for the owner to edit and approve.
  * Nothing is written, saved or charged here; startBulkAction does that once the owner says Setuju.
  */
 async function runBulkContent(context: ToolContext, args: Json): Promise<ToolOutcome> {
@@ -764,7 +764,7 @@ async function runAnalyzeAndDraft(context: ToolContext, args: Json): Promise<Too
       try {
         items.push(await draftScript(context, request))
       } catch (error) {
-        console.error('[sigap] skrip gagal:', describeError(error))
+        console.error('[mimo] skrip gagal:', describeError(error))
         errors.push(`${request.title}: ${ownerMessage(error)}`)
       }
     }
@@ -826,7 +826,7 @@ function runStrategy(context: ToolContext, args: Json): ToolOutcome {
   }
 }
 
-/** The rule the model proposed over the form's defaults, for every post: Sigap can't pick one post. */
+/** The rule the model proposed over the form's defaults, for every post: Mimo can't pick one post. */
 export function proposedRule(args: Json): unknown {
   const keys = Object.keys(EMPTY_RULE) as (keyof AutoDmRuleInput)[]
   const given = Object.fromEntries(keys.filter((key) => key in args).map((key) => [key, args[key]]))
@@ -900,7 +900,7 @@ async function runTool(context: ToolContext, call: ToolCall): Promise<ToolOutcom
         return [{ part: null, result: `Gagal: tool ${name} tidak tersedia.` }]
     }
   } catch (error) {
-    console.error(`[sigap] tool ${name} gagal:`, describeError(error))
+    console.error(`[mimo] tool ${name} gagal:`, describeError(error))
     return [failure(name, toolErrorMessage(error))]
   }
 }
@@ -918,12 +918,12 @@ export interface ChatRequest {
   history: ChatMessageView[]
   turn: UserTurn
   deepSearch: boolean
-  /** Called as each tool starts, for the page's "Sigap sedang …" line. */
+  /** Called as each tool starts, for the page's "Mimo sedang …" line. */
   onTool: (name: string) => void
 }
 
 /**
- * Sigap's answer to one message: the model and its tools, up to MAX_TOOL_TURNS rounds. Logged as one `chat` row,
+ * Mimo's answer to one message: the model and its tools, up to MAX_TOOL_TURNS rounds. Logged as one `chat` row,
  * which the daily limit counts (the route checks it first, before storing the message), free of credits; scripts it
  * writes cost content_script credits. Never throws: a failure becomes a `failed` part after whatever the tools
  * already showed (a saved script stays saved).
@@ -975,13 +975,13 @@ export async function answerChat(request: ChatRequest): Promise<ChatReply> {
     )
     return { content: truncate(content, ANSWER_MAX_LENGTH), parts }
   } catch (error) {
-    console.error('[sigap] jawaban gagal:', describeError(error))
+    console.error('[mimo] jawaban gagal:', describeError(error))
     return { content: '', parts: [...parts, { type: 'failed', message: aiErrorMessage(error) }] }
   }
 }
 
 const SUMMARY_SYSTEM = [
-  'Kamu merangkum percakapan antara owner akun Instagram dan Sigap, asisten AI-nya, supaya Sigap ingat konteksnya nanti.',
+  'Kamu merangkum percakapan antara owner akun Instagram dan Mimo, asisten AI-nya, supaya Mimo ingat konteksnya nanti.',
   'Aturan:',
   '- Tulis dalam Bahasa Indonesia, tanpa Markdown, maksimal 1.500 karakter.',
   '- Simpan: tujuan dan preferensi owner, keputusan yang diambil, akun kompetitor yang dibahas beserta polanya, ide dan skrip yang dibuat (dengan ideaId), dan hal yang belum selesai.',
@@ -997,7 +997,7 @@ export async function summarizeChat(userId: string, session: ChatSession): Promi
   const batch = await loadSummaryBatch(session, summaryBatch)
   if (!batch || batch.length === 0) return
   const lines = batch.map(
-    (message) => `${message.role === 'user' ? 'Owner' : 'Sigap'}: ${truncate(historyText(message), SUMMARY_LINE_LENGTH)}`,
+    (message) => `${message.role === 'user' ? 'Owner' : 'Mimo'}: ${truncate(historyText(message), SUMMARY_LINE_LENGTH)}`,
   )
   const summary = await runLogged(userId, 'chat_summary', { sessionId: session.id, messages: batch.length }, async () =>
     truncate(

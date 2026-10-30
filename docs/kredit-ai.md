@@ -27,11 +27,11 @@ Sisa kuota tidak terbawa ke periode berikutnya. Periode dimulai dan berakhir ber
 | `website_catalog` | 10 | 0,1% | Mengelompokkan satu batch gambar website (hingga 12) ke produk Aset, termasuk tag fotonya |
 | `asset_tags` | 1 per foto | 0,01% per foto | Tag AI untuk foto milik sendiri di Aset (`tagCost(foto)`); hasil AI tidak diberi tag. Tercatat sebagai "Tag foto" di Admin |
 | `reply_draft` | 1 | 0,01% | Tombol ✨ AI di kotak balasan Balasan (DM, balasan komentar, balas lewat DM): menulis draf atau merapikan draf owner |
-| `chat` | 0 | 0% | Satu pesan ke Sigap, termasuk semua tool yang dipanggil dalam pesan itu |
-| `deep_search` | 0 | 0% | Satu pemakaian Intel Kompetitor melalui Apify di dalam Sigap |
-| `chat_summary` | 0 | 0% | Memperbarui ringkasan bergulir percakapan Sigap |
+| `chat` | 0 | 0% | Satu pesan ke Mimo, termasuk semua tool yang dipanggil dalam pesan itu |
+| `deep_search` | 0 | 0% | Satu pemakaian Intel Kompetitor melalui Apify di dalam Mimo |
+| `chat_summary` | 0 | 0% | Memperbarui ringkasan bergulir percakapan Mimo |
 
-Sigap tidak memotong kredit untuk chat, Intel Kompetitor, atau ringkasan. Baris `ai_generations` untuk ketiganya tetap dibuat sebagai audit pemakaian; limit hariannya ditegakkan oleh counter atomik yang dijelaskan di bawah. Menulis atau merevisi skrip melalui Sigap tetap memakai tugas `content_script` dan memotong 3 kredit per skrip, sama seperti dari menu Buat.
+Mimo tidak memotong kredit untuk chat, Intel Kompetitor, atau ringkasan. Baris `ai_generations` untuk ketiganya tetap dibuat sebagai audit pemakaian; limit hariannya ditegakkan oleh counter atomik yang dijelaskan di bawah. Menulis atau merevisi skrip melalui Mimo tetap memakai tugas `content_script` dan memotong 3 kredit per skrip, sama seperti dari menu Buat.
 
 Satu gambar bernilai `IMAGE_CREDITS = 20`, karena gambar paling mahal di 9Router.
 
@@ -48,13 +48,13 @@ Konten baru dibayar sekali di awal: `contentCost(slides) = content + slides × I
 
 Gambar tiap slide kemudian dibuat satu per satu dan tidak dikenakan biaya lagi. Mencoba ulang slide yang gagal juga gratis.
 
-## Limit harian Sigap
+## Limit harian Mimo
 
-Limit Sigap terpisah dari kredit dan hanya tersedia ketika pengguna memiliki langganan aktif:
+Limit Mimo terpisah dari kredit dan hanya tersedia ketika pengguna memiliki langganan aktif:
 
 | Pemakaian | Limit per hari |
 |---|---:|
-| Pesan chat Sigap | 100 |
+| Pesan chat Mimo | 100 |
 | Intel Kompetitor (`deep_search`) | 10 |
 
 Hari berganti pada pukul 00.00 WIB. Slot dipreservasi secara atomik lewat `reserve_sigap_daily_usage` dan tabel `sigap_daily_usage`: tugas `chat` untuk pesan dan `deep_search` untuk Intel Kompetitor. Baris `ai_generations` tetap menjadi audit log, tetapi bukan sumber kebenaran limit agar kegagalan logging tidak membuat limit terbuka. Reservasi chat dilakukan setelah validasi form dasar dan sebelum pemrosesan lampiran, pembuatan sesi, atau penyimpanan pesan. Reservasi Intel Kompetitor dilakukan tepat sebelum Apify dijalankan. Nilai dan pesan limit berada di `src/lib/chat-options.ts`.

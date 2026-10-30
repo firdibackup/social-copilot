@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     const from = card.type === 'schedule' && card.from ? parseWibInput(card.from) : null
     return Response.json(await loadScheduleData(userId, accountId, refs, from ?? undefined), { headers })
   } catch (error) {
-    console.error('[sigap] jadwal gagal dimuat:', describeError(error))
+    console.error('[mimo] jadwal gagal dimuat:', describeError(error))
     return Response.json({ error: 'Jadwal belum bisa dimuat. Coba lagi.' }, { status: 500, headers })
   }
 }

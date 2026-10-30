@@ -2,7 +2,7 @@ import { requireAccount } from '@/lib/auth'
 import { listSessions } from '@/lib/chat'
 import { describeError } from '@/lib/errors'
 import { isUuid } from '@/lib/params'
-import { loadSigapConversation, loadSigapSupport } from '@/lib/sigap-data'
+import { loadMimoConversation, loadMimoSupport } from '@/lib/mimo-data'
 
 export async function GET(request: Request) {
   const scope = await requireAccount()
@@ -18,11 +18,11 @@ export async function GET(request: Request) {
   }
   try {
     const data = part === 'sessions' ? await listSessions(scope.userId, scope.accountId)
-      : part === 'support' ? await loadSigapSupport(scope)
-        : await loadSigapConversation(scope, id!)
+      : part === 'support' ? await loadMimoSupport(scope)
+        : await loadMimoConversation(scope, id!)
     return Response.json(data, { headers })
   } catch (error) {
-    console.error('[sigap] workspace gagal dimuat:', describeError(error))
-    return Response.json({ error: 'Sigap belum bisa dimuat. Coba lagi.' }, { status: 500, headers })
+    console.error('[mimo] workspace gagal dimuat:', describeError(error))
+    return Response.json({ error: 'Mimo belum bisa dimuat. Coba lagi.' }, { status: 500, headers })
   }
 }

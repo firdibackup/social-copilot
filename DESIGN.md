@@ -64,7 +64,7 @@ Carousely is ringkas, ramah, dan tepercaya: concise, friendly, and trustworthy. 
 - Quiet surfaces with selective color and soft corners.
 - Expressive landing illustrations around a recognizable workspace.
 
-Evidence: `PRODUCT.md`, `.impeccable.md`, `src/app/globals.css`, `src/components/landing/landing-page.tsx`, `src/components/landing/landing.module.css`; field example in `src/app/(app)/sigap/schedule-card.tsx`. This is a source scan, not a rendered accessibility audit. No new identity or metaphor is introduced.
+Evidence: `PRODUCT.md`, `.impeccable.md`, `src/app/globals.css`, `src/components/landing/landing-page.tsx`, `src/components/landing/landing.module.css`; field example in `src/app/(app)/mimo/schedule-card.tsx`. This is a source scan, not a rendered accessibility audit. No new identity or metaphor is introduced.
 
 ## Colors
 
@@ -103,7 +103,7 @@ Application buttons and fields use the shared control radius; cards use the card
 - **Fields:** white, hairline border, shared control radius. Focus shifts the border to primary and adds a 3px focus-color mix ring; borderless editors retain their own treatment. The landing composer is an illustration, not a text input.
 - **Navigation:** existing Carousely logo; desktop anchors plus sign-in/registration. Mobile menu supports Escape and returns focus. Feature tabs support arrow keys, Home/End, selected state, and associated panel.
 - **Chips/cards:** outlined prompt options gain tinted selected/hover states; white demo panels sit on muted feature-specific backdrops. Calendar controls expose disabled states and selection feedback.
-- **Demos:** AI Sigap changes sample concepts; calendar changes weeks and selects posts; inbox sends a local sample reply and resets. Keep illustrative-data labels and live feedback visible. FAQ uses native disclosure controls.
+- **Demos:** AI Mimo changes sample concepts; calendar changes weeks and selects posts; inbox sends a local sample reply and resets. Keep illustrative-data labels and live feedback visible. FAQ uses native disclosure controls.
 - **Focus:** landing links, buttons, and summaries use a primary outline (3px, 5px offset); retain the skip link and keyboard access.
 
 ## Do's and Don'ts

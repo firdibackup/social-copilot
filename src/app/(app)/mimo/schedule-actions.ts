@@ -6,7 +6,7 @@ import { getBillingCatalog } from '@/lib/billing-catalog'
 import { requireAccount } from '@/lib/auth'
 import { bulkContentRequest } from '@/lib/bulk-content'
 import { getMessage, getSession } from '@/lib/chat'
-import { commitSigapSchedule, readScheduleItem, scheduleIdeaJob } from '@/lib/chat-schedule'
+import { commitMimoSchedule, readScheduleItem, scheduleIdeaJob } from '@/lib/chat-schedule'
 import { MAX_SCHEDULE_ITEMS, type ScheduleRef, type ScheduleResult } from '@/lib/chat-schedule-options'
 import { enqueueContentJob, getContentJob } from '@/lib/content-jobs'
 import { getDensityDefault } from '@/lib/density'
@@ -31,7 +31,7 @@ async function scheduleCardRefs(sessionId: string, messageId: string, cardId: st
 }
 
 /** Each row has its own outcome: a processing or invalid row never prevents ready rows from being scheduled. */
-export async function scheduleFromSigapAction(sessionId: string, messageId: string, cardId: string, input: unknown): Promise<{ results: ScheduleResult[]; error?: string }> {
+export async function scheduleFromMimoAction(sessionId: string, messageId: string, cardId: string, input: unknown): Promise<{ results: ScheduleResult[]; error?: string }> {
   const { userId, accountId } = await requireAccount()
   if (!Array.isArray(input) || input.length === 0 || input.length > MAX_SCHEDULE_ITEMS) return { results: [], error: 'Pilih 1–20 konten untuk dijadwalkan.' }
   try {
@@ -75,17 +75,17 @@ export async function scheduleFromSigapAction(sessionId: string, messageId: stri
           results.push({ postId, error: 'Waktu ini sudah terisi. Pilih waktu lain.' })
           continue
         }
-        await commitSigapSchedule(userId, accountId, postId, at)
+        await commitMimoSchedule(userId, accountId, postId, at)
         results.push({ postId, error: null })
       } catch (error) {
-        console.error('[sigap] jadwal gagal:', describeError(error))
+        console.error('[mimo] jadwal gagal:', describeError(error))
         results.push({ postId, error: error instanceof PostLockedError ? error.message : 'Gagal menjadwalkan. Coba lagi.' })
       }
     }
     refresh()
     return { results }
   } catch (error) {
-    console.error('[sigap] kartu jadwal gagal:', describeError(error))
+    console.error('[mimo] kartu jadwal gagal:', describeError(error))
     return { results: [], error: 'Gagal memuat konten. Coba lagi.' }
   }
 }
@@ -112,7 +112,7 @@ export async function makeScheduleImagesAction(sessionId: string, messageId: str
     refresh()
     return null
   } catch (error) {
-    console.error('[sigap] gambar untuk jadwal gagal:', describeError(error))
+    console.error('[mimo] gambar untuk jadwal gagal:', describeError(error))
     return aiErrorMessage(error)
   }
 }

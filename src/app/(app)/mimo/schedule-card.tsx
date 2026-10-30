@@ -6,7 +6,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { formatCreditShare } from '@/lib/billing-options'
 import type { ScheduleData, ScheduleItem, ScheduleResult } from '@/lib/chat-schedule-options'
 import { formatDateTime } from '@/lib/format'
-import { makeScheduleImagesAction, scheduleFromSigapAction } from './schedule-actions'
+import { makeScheduleImagesAction, scheduleFromMimoAction } from './schedule-actions'
 
 const BUTTON = 'inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60'
 const PRIMARY = `${BUTTON} bg-accent text-white hover:bg-accent-deep`
@@ -74,7 +74,7 @@ export function ScheduleCard({ sessionId, messageId, cardId }: { sessionId: stri
     setResults([])
     startTransition(async () => {
       try {
-        const result = await scheduleFromSigapAction(sessionId, messageId, cardId,
+        const result = await scheduleFromMimoAction(sessionId, messageId, cardId,
           selected.map((item) => ({ postId: item.postId!, at: times[item.postId!] ?? '' })))
         setResults(result.results)
         setActionError(result.error ?? null)
@@ -107,9 +107,9 @@ export function ScheduleCard({ sessionId, messageId, cardId }: { sessionId: stri
         <CalendarClock size={14} aria-hidden="true" /> Jadwalkan konten
       </h3>
       <div className="space-y-3 px-4 py-3">
-        <p className="text-xs leading-relaxed text-ink-muted">Draft dari Buat dan Sigap. Waktu mengikuti WIB; saran jadwal memakai slot kosong Kalender.</p>
+        <p className="text-xs leading-relaxed text-ink-muted">Draft dari Buat dan Mimo. Waktu mengikuti WIB; saran jadwal memakai slot kosong Kalender.</p>
         {!data && !loadError && <p role="status" className="text-sm text-ink-muted">Memuat draft dan slot jadwal…</p>}
-        {data?.items.length === 0 && <p className="text-sm text-ink">Belum ada draft yang sesuai. Buat konten dahulu atau minta Sigap mencari judul lain.</p>}
+        {data?.items.length === 0 && <p className="text-sm text-ink">Belum ada draft yang sesuai. Buat konten dahulu atau minta Mimo mencari judul lain.</p>}
         <ul className="divide-y divide-hairline">
           {data?.items.map((item) => {
             const postId = item.postId

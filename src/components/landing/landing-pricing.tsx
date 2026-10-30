@@ -31,7 +31,7 @@ export function LandingPricing({ catalog, provisional = false }: { catalog: Bill
           const estimatedPosts = postsFor(plan.credits)
           const features = [
             `±${estimatedPosts.toLocaleString('id-ID')} post setiap bulan`,
-            'Sigap AI Chatbot',
+            'Mimo AI Chatbot',
             'Deep riset Instagram + Threads (segera untuk Threads)',
             'Ide, skrip, carousel, gambar, dan caption AI',
             'Kalender dan penjadwalan konten',

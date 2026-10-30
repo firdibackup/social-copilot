@@ -3,13 +3,11 @@
 import { Ellipsis } from 'lucide-react'
 import { PendingSubmit } from '@/components/pending-submit'
 import { useState, useTransition, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Post } from '@/lib/posts'
 import { cancelPostAction, deletePostNowAction, duplicatePostAction, publishThreadsNowAction, retryPostAction } from './actions'
-import { editorKeys } from './editor-query'
 import { useEditorScope } from './editor-provider'
-import { setPostVisible } from './optimistic-events'
+import { removePostOptimistically } from './optimistic-events'
 
 const ITEM = 'block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors'
 
@@ -74,7 +72,6 @@ interface MoreMenuProps {
 export function MoreMenu({ post, onPlatforms }: MoreMenuProps) {
   const [open, setOpen] = useState(false)
   const [deleting, startDelete] = useTransition()
-  const router = useRouter()
   const client = useQueryClient()
   const scope = useEditorScope()
   const canRetry = post.status === 'failed' || (post.status === 'cancelled' && post.isLocked)
@@ -83,20 +80,13 @@ export function MoreMenu({ post, onPlatforms }: MoreMenuProps) {
     if (deleting || !window.confirm(outOn ? `Hapus post dari aplikasi? Post di ${outOn} tidak ikut terhapus.` : 'Hapus post ini?')) return
     setOpen(false)
     startDelete(async () => {
-      const key = editorKeys.detail(scope, post.id)
-      await client.cancelQueries({ queryKey: key })
-      const detail = client.getQueryData(key)
-      const previousUrl = `${window.location.pathname}${window.location.search}`
-      setPostVisible(post.id, false)
-      window.history.replaceState(null, '', '/buat')
-      client.removeQueries({ queryKey: key })
+      const restore = await removePostOptimistically(client, scope, post.id)
+      // revalidatePath in the action re-renders the list; no second refresh round trip.
       const error = await deletePostNowAction(post.id).catch(() => 'Gagal menghubungi server. Coba lagi.')
       if (error) {
-        setPostVisible(post.id, true)
-        if (detail) client.setQueryData(key, detail)
-        window.history.replaceState(null, '', previousUrl)
+        restore()
         window.alert(error)
-      } else router.refresh()
+      }
     })
   }
   const outOn = publishedOn(post)

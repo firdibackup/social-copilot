@@ -16,7 +16,7 @@ import { nextEmptySlots, SLOT_LOOKAHEAD_DAYS } from './schedule-slots'
 import { listUnfinishedSlides } from './slides'
 import { db, unwrap } from './supabase'
 
-export async function commitSigapSchedule(userId: string, accountId: string, postId: string, at: Date): Promise<void> {
+export async function commitMimoSchedule(userId: string, accountId: string, postId: string, at: Date): Promise<void> {
   const { error } = await db().rpc('schedule_sigap_post', {
     p_user_id: userId, p_account_id: accountId, p_id: postId, p_scheduled_at: at.toISOString(),
   })

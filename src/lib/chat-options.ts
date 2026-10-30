@@ -1,4 +1,4 @@
-/** Sigap, the AI copilot chat: what the server and the page share. Pure, so tests and the browser can use it. */
+/** Mimo, the AI copilot chat: what the server and the page share. Pure, so tests and the browser can use it. */
 import type { ContentStrategy } from './strategy-options'
 import type { ScheduleRef } from './chat-schedule-options'
 import type { AutoDmRuleInput } from './auto-dm-rules'
@@ -12,7 +12,7 @@ import { isTextDensity, type TextDensity } from './density-options'
 import { isUuid } from './params'
 
 /**
- * Sigap costs no credits; these cap it per WIB day through the atomic `sigap_daily_usage` counter. A script it
+ * Mimo costs no credits; these cap it per WIB day through the atomic `sigap_daily_usage` counter. A script it
  * writes still costs `content_script` credits like one written in Buat.
  */
 export const DAILY_LIMITS = { chat: 100, deep_search: 10 } as const
@@ -223,7 +223,7 @@ export function applyBulkEdits(plan: BulkPlanItem[], edits: unknown): { plan: Bu
   return { plan: result }
 }
 
-/** Sigap's direction for one planned script: its angle, slide count and outline. Pure. */
+/** Mimo's direction for one planned script: its angle, slide count and outline. Pure. */
 export function bulkBrief(item: Pick<BulkPlanItem, 'angle' | 'slides' | 'points'>): string {
   return [
     item.angle && `Sudut konten: ${item.angle}`,
@@ -329,17 +329,17 @@ export type ChatEvent =
   | { type: 'error'; sessionId: string; message: string }
 
 export const TOOL_LABELS: Record<string, string> = {
-  web_search: 'Sigap sedang mencari di web…',
-  check_content_status: 'Sigap sedang mengecek konten yang sudah ada…',
-  intel_kompetitor: 'Sigap sedang mencari kompetitor…',
-  analyze_and_draft: 'Sigap sedang menyusun skrip…',
-  bulk_content: 'Sigap sedang menyusun rencana konten massal…',
-  schedule_content: 'Sigap sedang menyiapkan jadwal dari draft di Buat…',
-  update_content_strategy: 'Sigap sedang menyusun strategi…',
-  create_auto_dm_rule: 'Sigap sedang menyusun aturan Auto DM…',
+  web_search: 'Mimo sedang mencari di web…',
+  check_content_status: 'Mimo sedang mengecek konten yang sudah ada…',
+  intel_kompetitor: 'Mimo sedang mencari kompetitor…',
+  analyze_and_draft: 'Mimo sedang menyusun skrip…',
+  bulk_content: 'Mimo sedang menyusun rencana konten massal…',
+  schedule_content: 'Mimo sedang menyiapkan jadwal dari draft di Buat…',
+  update_content_strategy: 'Mimo sedang menyusun strategi…',
+  create_auto_dm_rule: 'Mimo sedang menyusun aturan Auto DM…',
 }
 
-export const THINKING_LABEL = 'Sigap sedang berpikir…'
+export const THINKING_LABEL = 'Mimo sedang berpikir…'
 
 export type SuggestionContext = 'empty' | 'after_deep_search' | 'after_script'
 
@@ -369,6 +369,6 @@ export function suggestionContext(messages: Pick<ChatMessageView, 'role' | 'part
   return null
 }
 
-/** Asks Sigap to analyze the picked accounts, from the competitor cards. */
+/** Asks Mimo to analyze the picked accounts, from the competitor cards. */
 export const analyzeRequest = (usernames: string[]) =>
   `Analisis pola konten ${usernames.map((name) => `@${name}`).join(', ')}: hook yang dipakai, frekuensi posting, dan pilar kontennya.`

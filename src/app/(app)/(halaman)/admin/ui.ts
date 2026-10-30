@@ -32,9 +32,9 @@ export const TASK_LABELS: Record<string, string> = {
   reply_draft: 'Draf balasan',
   template_analysis: 'Analisis template',
   reference_labels: 'Kategori referensi',
-  chat: 'Chat Sigap',
+  chat: 'Chat Mimo',
   deep_search: 'Intel Kompetitor',
-  chat_summary: 'Ringkasan chat Sigap',
+  chat_summary: 'Ringkasan chat Mimo',
 }
 
 export const ACTION_LABELS: Record<string, string> = {

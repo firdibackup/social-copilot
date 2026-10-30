@@ -36,7 +36,7 @@ Hasil yang diharapkan:
 - Halaman yang sering dikunjungi.
 - Detail item yang kemungkinan akan dibuka.
 
-**Contoh:** pengguna sedang membuka Kalender. Website sudah menyiapkan bagian awal halaman Buat dan SIGAP.
+**Contoh:** pengguna sedang membuka Kalender. Website sudah menyiapkan bagian awal halaman Buat dan MIMO.
 
 **Catatan penerapan:**
 
@@ -78,7 +78,7 @@ Jangan langsung menyalin konfigurasi ini ke semua versi Next.js. Periksa dokumen
 
 **Cocok untuk:** dashboard, aplikasi admin, aplikasi dengan banyak menu, serta workspace dengan daftar di kiri dan detail di kanan.
 
-**Contoh:** saat pindah dari Kalender ke SIGAP, sidebar tetap terlihat. Website tidak memuat ulang seluruh layar.
+**Contoh:** saat pindah dari Kalender ke MIMO, sidebar tetap terlihat. Website tidak memuat ulang seluruh layar.
 
 **Prinsip penerapan:**
 
@@ -240,16 +240,16 @@ Status berikut berdasarkan kode lokal yang diperiksa pada 23 Oktober 2026. Ini b
 | Partial Prefetching | Sudah aktif. |
 | Prefetch menu utama desktop dan HP | Sudah diterapkan. |
 | Layout aplikasi bersama | Sudah diterapkan. |
-| Loading bertahap | Sudah digunakan, termasuk di SIGAP. |
+| Loading bertahap | Sudah digunakan, termasuk di MIMO. |
 | TanStack Query untuk editor Buat | Sudah diterapkan. |
 | Persiapan detail draft saat hover/fokus | Sudah diterapkan. |
-| Cache data khusus riwayat dan pesan SIGAP | Sudah diterapkan menggunakan TanStack Query. |
+| Cache data khusus riwayat dan pesan MIMO | Sudah diterapkan menggunakan TanStack Query. |
 | Persiapan isi percakapan saat hover/fokus | Sudah diterapkan, dengan jeda singkat dan pembatasan pengambilan bersamaan. |
 | Endpoint `/api/version` dari usulan awal | Belum ditemukan pada kode yang diperiksa. |
 
-### Penjelasan khusus SIGAP
+### Penjelasan khusus MIMO
 
-SIGAP menggunakan cache terpisah untuk daftar percakapan, isi setiap percakapan, dan data pendukung seperti pilihan produk serta kepadatan teks.
+MIMO menggunakan cache terpisah untuk daftar percakapan, isi setiap percakapan, dan data pendukung seperti pilihan produk serta kepadatan teks.
 
 - Daftar dan isi percakapan dianggap segar selama **30 detik**, dengan masa simpan **5 menit setelah tidak digunakan**.
 - Data pendukung dianggap segar selama **5 menit**, dengan masa simpan **10 menit setelah tidak digunakan**.
@@ -260,7 +260,7 @@ SIGAP menggunakan cache terpisah untuk daftar percakapan, isi setiap percakapan,
 - Pembaruan halaman dari tindakan kartu juga menandai cache untuk diperbarui.
 - Cache dipisahkan berdasarkan pengguna dan akun aktif. Endpoint pembacaan tetap memeriksa akses pengguna dan tidak memakai cache HTTP publik.
 
-Verifikasi: pemeriksaan tipe, lint bagian SIGAP, 39 tes terkait SIGAP, dan build production berhasil. Pengujian browser hanya sampai halaman login karena tidak tersedia sesi akun; waktu perpindahan chat pada akun yang sudah login belum diukur.
+Verifikasi: pemeriksaan tipe, lint bagian MIMO, 39 tes terkait MIMO, dan build production berhasil. Pengujian browser hanya sampai halaman login karena tidak tersedia sesi akun; waktu perpindahan chat pada akun yang sudah login belum diukur.
 
 ### Perbedaan dengan catatan analisis Bleam
 
@@ -269,7 +269,7 @@ Dokumen `analisis-arsitektur-bleam.md` menjadi referensi awal, bukan daftar konf
 - Proyek ini memakai Cache Components dan Partial Prefetching.
 - Proyek ini tidak mengatur semua data agar segar selama 5 menit.
 - Cache detail draft dan data pendukung editor memiliki durasi berbeda.
-- Cache data khusus SIGAP ditambahkan setelah pemeriksaan awal.
+- Cache data khusus MIMO ditambahkan setelah pemeriksaan awal.
 - Pengamatan dari website lain tidak memastikan seluruh detail implementasi internalnya.
 
 ### File referensi implementasi
@@ -282,14 +282,14 @@ Dokumen `analisis-arsitektur-bleam.md` menjadi referensi awal, bukan daftar konf
 - `src/app/(app)/buat/editor-provider.tsx`
 - `src/app/(app)/buat/editor-query.ts`
 - `src/app/(app)/buat/content-list.tsx`
-- `src/app/(app)/sigap/page.tsx`
-- `src/app/(app)/sigap/layout.tsx`
-- `src/app/(app)/sigap/sigap-provider.tsx`
-- `src/app/(app)/sigap/sigap-query.ts`
-- `src/app/(app)/sigap/sigap-workspace.tsx`
-- `src/app/(app)/sigap/conversation-link.tsx`
+- `src/app/(app)/mimo/page.tsx`
+- `src/app/(app)/mimo/layout.tsx`
+- `src/app/(app)/mimo/mimo-provider.tsx`
+- `src/app/(app)/mimo/mimo-query.ts`
+- `src/app/(app)/mimo/mimo-workspace.tsx`
+- `src/app/(app)/mimo/conversation-link.tsx`
 - `src/app/api/sigap/workspace/route.ts`
-- `src/lib/sigap-data.ts`
+- `src/lib/mimo-data.ts`
 
 ## 6. Checklist keberhasilan
 

@@ -18,7 +18,7 @@ export interface ContentJob {
     request?: ContentRequest
     script?: ScriptSlide[] | null
     attachmentPath?: string | null
-    /** A script's direction from Sigap's approved bulk plan. */
+    /** A script's direction from Mimo's approved bulk plan. */
     brief?: string
     /** A script that goes straight on to its caption and images once written (finish_script_job), with this request. */
     auto?: { request: ContentRequest }

@@ -19,7 +19,7 @@ export class PdfError extends Error {
   override name = 'PdfError'
 }
 
-/** The text of a PDF's first pages, for one Sigap request only: it is never stored. */
+/** The text of a PDF's first pages, for one Mimo request only: it is never stored. */
 export async function readPdfText(bytes: Uint8Array, name: string): Promise<PdfText> {
   const parser = new PDFParse({ data: bytes })
   try {

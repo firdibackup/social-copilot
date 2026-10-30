@@ -5,12 +5,12 @@ import { describeError } from './errors'
 import { db, unwrap } from './supabase'
 
 /**
- * Apify, for Intel Kompetitor in Sigap only: public Instagram profiles found by username or keyword, through the
+ * Apify, for Intel Kompetitor in Mimo only: public Instagram profiles found by username or keyword, through the
  * `apify/instagram-scraper` actor (paid per result). The rest of the app reads Instagram only through Meta's APIs.
  * Profile pictures are signed CDN links: show them, never log them.
  */
 const ACTOR = 'apify~instagram-scraper'
-/** Leaves enough of Sigap's 300 s route budget for the model call before and after this actor. */
+/** Leaves enough of Mimo's 300 s route budget for the model call before and after this actor. */
 const RUN_TIMEOUT_MS = 90_000
 export const MAX_COMPETITORS = 5
 const MAX_RECENT_POSTS = 6

@@ -14,15 +14,15 @@ import { AnimatePresence, MotionConfig, motion, useReducedMotion, useScroll, use
 import { ArrowDown, ArrowUpRight, CalendarDays, Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ImageIcon, Layers3, Menu, MessageCircle, MousePointer2, Paperclip, Pause, Play, Plus, Send, Settings2, Sparkles, WandSparkles, X } from 'lucide-react'
 import { CarouselyLogo } from '@/components/brand-mark'
 import { InstagramIcon } from '@/components/instagram-icon'
-import { SigapMascot } from '@/components/sigap-mascot'
+import { MimoMascot } from '@/components/mimo-mascot'
 import styles from './landing.module.css'
 
-type Feature = 'sigap' | 'kalender' | 'balasan'
+type Feature = 'mimo' | 'kalender' | 'balasan'
 function Instagram({ size = 20 }: { size?: number }) {
   return <InstagramIcon width={size} height={size} />
 }
 const features = [
-  { id: 'sigap' as const, icon: Sparkles, label: 'AI Sigap' },
+  { id: 'mimo' as const, icon: Sparkles, label: 'AI Mimo' },
   { id: 'kalender' as const, icon: CalendarDays, label: 'Kalender konten' },
   { id: 'balasan' as const, icon: MessageCircle, label: 'Balasan DM' },
 ]
@@ -90,7 +90,7 @@ function DashboardPreview() {
       <aside className={styles.demoSidebar} aria-label="Ilustrasi navigasi aplikasi">
         <CarouselyLogo size={25} />
         <div className={styles.demoWorkspace}><span>A</span><div><strong>Akar Studio</strong><small>Workspace brand</small></div><ChevronDown size={12} /></div>
-        <div className={styles.demoNav}><span><Sparkles size={16} /> AI Sigap <i>AI</i></span><span className={styles.demoNavActive}><CalendarDays size={16} /> Kalender</span><span><Layers3 size={16} /> Buat konten</span><span><ImageIcon size={16} /> Aset</span><span><MessageCircle size={16} /> Balasan <b>3</b></span></div>
+        <div className={styles.demoNav}><span><Sparkles size={16} /> AI Mimo <i>AI</i></span><span className={styles.demoNavActive}><CalendarDays size={16} /> Kalender</span><span><Layers3 size={16} /> Buat konten</span><span><ImageIcon size={16} /> Aset</span><span><MessageCircle size={16} /> Balasan <b>3</b></span></div>
         <div className={styles.sidebarBottom}><Settings2 size={16} /> Pengaturan brand</div>
       </aside>
       <div className={styles.dashboardMain}><div className={styles.dashboardGreeting}><span>Selamat pagi, tim Akar <span aria-hidden="true">✺</span></span><span className={styles.newPost}><Plus size={13} /> Buat konten</span></div><CalendarDemo /></div>
@@ -118,22 +118,22 @@ function Hero({ motionEnabled }: { motionEnabled: boolean }) {
       <svg className={styles.orbitLine} viewBox="0 0 1400 650" fill="none" aria-hidden="true"><path d="M-80 480C120 650 210 90 660 130S1260 540 1480 100" stroke="currentColor" strokeWidth="1.5" strokeDasharray="7 9" /></svg>
       <motion.div className={styles.floatingPost} style={motionEnabled ? { y: floatY, rotate: floatRotate } : { rotate: -9 }}><div className={styles.floatingPostHeader}><span className={styles.miniAvatar}>a.</span><b>akar.studio</b><Instagram size={14} /></div><ContentArt /><div className={styles.floatingPostFooter}><Layers3 size={14} /> Dari satu ide, jadi cerita.</div></motion.div>
       <motion.div className={styles.dashboardWrap} style={motionEnabled ? { y: dashboardY } : undefined}><DashboardPreview /></motion.div>
-      <motion.div className={styles.floatingAi} style={motionEnabled ? { y: rightY, rotate: 6 } : { rotate: 6 }}><span className={styles.aiIcon}><Sparkles size={21} /></span><div><b>Sigap bantu mikirin.</b><span>Kamu tinggal pilih idenya.</span></div><div className={styles.ideaChips}><span>Tips ringan</span><span>Cerita brand</span><span>Behind the scenes</span></div></motion.div>
+      <motion.div className={styles.floatingAi} style={motionEnabled ? { y: rightY, rotate: 6 } : { rotate: 6 }}><span className={styles.aiIcon}><Sparkles size={21} /></span><div><b>Mimo bantu mikirin.</b><span>Kamu tinggal pilih idenya.</span></div><div className={styles.ideaChips}><span>Tips ringan</span><span>Cerita brand</span><span>Behind the scenes</span></div></motion.div>
       <motion.div className={styles.floatingStatus} style={motionEnabled ? { y: floatY } : undefined}><span><Check size={19} /></span><div><b>Konten sudah terjadwal</b><small>Jumat, 23 Oktober · 16.00 WIB</small></div></motion.div>
     </div>
     <div className={styles.heroBottom}><span>Lebih banyak berkarya. Lebih sedikit pindah tab.</span><a href="#fitur" aria-label="Jelajahi fitur"><ArrowDown size={19} /></a></div>
   </section>
 }
 
-function SigapDemo() {
+function MimoDemo() {
   const [topic, setTopic] = useState(0)
   const [pulse, setPulse] = useState(0)
   const prompts = ['Ide konten tanaman', 'Ide konten kedai kopi']
-  return <div className={styles.sigapDemo}>
-    <div className={styles.demoPanelHeader}><SigapMascot size={36} pulse={pulse} className="shrink-0" /><div><strong>Sigap</strong><small>Partner kreatif kamu</small></div><span className={styles.exampleTag}>Demo interaktif</span></div>
+  return <div className={styles.mimoDemo}>
+    <div className={styles.demoPanelHeader}><MimoMascot size={36} pulse={pulse} className="shrink-0" /><div><strong>Mimo</strong><small>Partner kreatif kamu</small></div><span className={styles.exampleTag}>Demo interaktif</span></div>
     <div className={styles.chatArea}>
       <div className={styles.userBubble}>{topic === 0 ? 'Bantu bikin ide carousel tentang merawat tanaman untuk pemula, ya.' : 'Bikin ide konten kedai kopi yang hangat dan nggak terlalu jualan.'}</div>
-      <div className={styles.aiReply}><SigapMascot size={20} still mood="smile" /><div><strong>{topic === 0 ? 'Mulai dari hal kecil yang sering terlupa.' : 'Yuk, ceritakan momen di balik secangkir kopi.'}</strong><p>{topic === 0 ? 'Bagaimana kalau kita ajak audiens kenalan dengan kebutuhan tanamannya? Ini arah kontennya:' : 'Bukan cuma soal kopinya. Ajak audiens menikmati jeda kecil di tengah hari mereka.'}</p></div></div>
+      <div className={styles.aiReply}><MimoMascot size={20} still mood="smile" /><div><strong>{topic === 0 ? 'Mulai dari hal kecil yang sering terlupa.' : 'Yuk, ceritakan momen di balik secangkir kopi.'}</strong><p>{topic === 0 ? 'Bagaimana kalau kita ajak audiens kenalan dengan kebutuhan tanamannya? Ini arah kontennya:' : 'Bukan cuma soal kopinya. Ajak audiens menikmati jeda kecil di tengah hari mereka.'}</p></div></div>
       <AnimatePresence mode="wait" initial={false}><motion.div key={topic} className={styles.aiResult} initial={{ opacity: .7, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}><ContentArt variant={topic === 0 ? 'green' : 'peach'} compact /><div><span>Konsep carousel · 5 slide</span><strong>{topic === 0 ? 'Tanaman pertamamu, cerita barumu.' : 'Secangkir kopi. Sedikit waktu untuk diri sendiri.'}</strong><p>{topic === 0 ? 'Kenali cahaya, atur air, dan beri ruang untuk tumbuh.' : 'Dari aroma pertama sampai obrolan terakhir.'}</p><span className={styles.resultCheck}><Check size={13} /> Siap kamu kembangkan</span></div></motion.div></AnimatePresence>
     </div>
     <div className={styles.promptOptions} role="group" aria-label="Pilih contoh percakapan">{prompts.map((prompt, index) => <button key={prompt} type="button" onClick={() => { setTopic(index); setPulse((n) => n + 1) }} aria-pressed={topic === index}>{prompt}<ArrowUpRight size={13} /></button>)}</div>
@@ -152,13 +152,13 @@ function InboxDemo() {
 }
 
 const featureCopy = {
-  sigap: { title: 'Buntu ide?\nPanggil Sigap.', body: 'Punya bahan mentah, tapi belum tahu mau dibikin apa? Ajak Sigap ngobrol. Ubah topik sederhana jadi ide, caption, dan konsep konten yang terasa seperti brand kamu.', points: ['Mulai dari percakapan, bukan halaman kosong', 'Kembangkan ide jadi draf yang bisa diedit', 'Kamu yang pegang keputusan akhirnya'], link: 'Kenalan dengan Sigap' },
+  mimo: { title: 'Buntu ide?\nPanggil Mimo.', body: 'Punya bahan mentah, tapi belum tahu mau dibikin apa? Ajak Mimo ngobrol. Ubah topik sederhana jadi ide, caption, dan konsep konten yang terasa seperti brand kamu.', points: ['Mulai dari percakapan, bukan halaman kosong', 'Kembangkan ide jadi draf yang bisa diedit', 'Kamu yang pegang keputusan akhirnya'], link: 'Kenalan dengan Mimo' },
   kalender: { title: 'Satu minggu.\nSudah ada rencana.', body: 'Lihat gambaran besar konten kamu dalam satu kalender. Atur tanggal, cek status, dan siapkan jadwal publikasi tanpa harus mengingat semuanya sendiri.', points: ['Semua jadwal terlihat dalam satu tempat', 'Atur waktu tayang sesuai kebutuhanmu', 'Pantau status setiap konten'], link: 'Mulai atur jadwal' },
   balasan: { title: 'Obrolan masuk.\nHubungan terjaga.', body: 'Konten yang baik membuka percakapan. Kelola DM Instagram dan minta bantuan AI untuk menyusun balasan, sambil tetap menjaga sentuhan personal kamu.', points: ['Baca percakapan dari satu inbox', 'Susun balasan dengan bantuan AI', 'Tinjau setiap jawaban sebelum dikirim'], link: 'Rapikan percakapan' },
 }
 
 function FeatureShowcase() {
-  const [active, setActive] = useState<Feature>('sigap')
+  const [active, setActive] = useState<Feature>('mimo')
   const tabPrefix = useId()
   const copy = featureCopy[active]
   return <section className={styles.features} id="fitur" aria-labelledby="features-title">
@@ -174,7 +174,7 @@ function FeatureShowcase() {
     }}><Icon size={17} />{label}{active === id && <motion.span layoutId="feature-underline" className={styles.tabUnderline} />}</button>)}</div>
     <div className={styles.featurePanel} role="tabpanel" id={`${tabPrefix}-panel`} aria-labelledby={`${tabPrefix}-${active}`} tabIndex={0}>
       <div className={styles.featureText}><h3>{copy.title}</h3><p>{copy.body}</p><ul>{copy.points.map((point) => <li key={point}><Check size={16} />{point}</li>)}</ul><Link href="/daftar" className={styles.textLink}>{copy.link}<ArrowUpRight size={17} /></Link></div>
-      <div className={`${styles.featureVisual} ${styles[`${active}Visual`]}`}><AnimatePresence mode="wait" initial={false}><motion.div key={active} initial={{ opacity: .65, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: .22 }}>{active === 'sigap' ? <SigapDemo /> : active === 'kalender' ? <CalendarDemo interactive /> : <InboxDemo />}</motion.div></AnimatePresence></div>
+      <div className={`${styles.featureVisual} ${styles[`${active}Visual`]}`}><AnimatePresence mode="wait" initial={false}><motion.div key={active} initial={{ opacity: .65, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: .22 }}>{active === 'mimo' ? <MimoDemo /> : active === 'kalender' ? <CalendarDemo interactive /> : <InboxDemo />}</motion.div></AnimatePresence></div>
     </div>
     <p className={styles.demoDisclaimer}>Semua isi preview adalah data ilustrasi. Coba tombol dan pilihan di dalam demo.</p>
   </section>
@@ -189,7 +189,7 @@ function Workflow({ motionEnabled }: { motionEnabled: boolean }) {
     <div className={styles.workflowIntro}><h2 id="workflow-title">Bukan ganti gayamu.<br />Bantu nemuin ritmemu.</h2><p>Carousely mengurus alurnya.<br />Ceritanya tetap punya kamu.</p><div className={styles.workflowDoodle} aria-hidden="true"><svg viewBox="0 0 160 80" fill="none"><path d="M9 12C62-5 100 15 92 41C84 67 40 58 59 37C78 16 139 30 149 68M129 56l22 14 1-25" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg></div></div>
     <div className={styles.workflowSteps}>
       <article><span className={styles.stepNumber}>1</span><div><h3>Kenalkan brand kamu</h3><p>Simpan karakter, gaya bahasa, dan bahan konten. Biar setiap ide punya arah yang sama.</p></div><span className={styles.brandSwatches} aria-hidden="true"><i /><i /><i /></span></article>
-      <article><span className={styles.stepNumber}>2</span><div><h3>Olah ide bareng Sigap</h3><p>Mulai dari topik atau aset yang sudah ada. Kembangkan, edit, dan buat jadi versimu.</p></div><motion.span className={styles.stepSpark} style={motionEnabled ? { rotate } : undefined} aria-hidden="true"><Sparkles size={31} /></motion.span></article>
+      <article><span className={styles.stepNumber}>2</span><div><h3>Olah ide bareng Mimo</h3><p>Mulai dari topik atau aset yang sudah ada. Kembangkan, edit, dan buat jadi versimu.</p></div><motion.span className={styles.stepSpark} style={motionEnabled ? { rotate } : undefined} aria-hidden="true"><Sparkles size={31} /></motion.span></article>
       <article><span className={styles.stepNumber}>3</span><div><h3>Atur jadwal. Lanjut berkarya.</h3><p>Tinjau konten, tentukan waktu tayang, dan ikuti percakapan yang datang setelahnya.</p></div><motion.span className={styles.stepSend} style={motionEnabled ? { x } : undefined} aria-hidden="true"><Send size={30} /></motion.span></article>
     </div>
   </section>

@@ -27,7 +27,7 @@ export function MobileNav() {
                 className={`flex h-full flex-col items-center justify-center gap-0.5 text-[10px] font-medium ${active ? 'text-accent' : 'text-ink-muted'}`}
               >
                 <Icon size={20} strokeWidth={active ? 2 : 1.75} aria-hidden="true" />
-                {item.label}
+                {item.shortLabel ?? item.label}
               </Link>
             </li>
           )

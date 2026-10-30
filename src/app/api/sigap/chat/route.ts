@@ -59,13 +59,13 @@ async function readUploads(files: File[], text: string): Promise<Upload> {
 }
 
 /**
- * One message to Sigap. A route rather than a server action: the answer streams a line per tool as it starts
+ * One message to Mimo. A route rather than a server action: the answer streams a line per tool as it starts
  * (NDJSON ChatEvents), and actions run one at a time per page, so the session list would wait behind it.
  */
 export async function POST(request: Request): Promise<Response> {
   const user = await currentUser()
   if (!user) return refuse(401, 'Sesi berakhir. Masuk lagi.')
-  if (!(await currentPeriod(user.id))) return refuse(403, 'Langganan tidak aktif. Aktifkan di halaman Langganan untuk memakai Sigap.')
+  if (!(await currentPeriod(user.id))) return refuse(403, 'Langganan tidak aktif. Aktifkan di halaman Langganan untuk memakai Mimo.')
   const accountId = await getConnectedAccountId(user.id)
   if (!accountId) return refuse(409, 'Hubungkan akun Instagram dulu di Pengaturan.')
   const userId = user.id
@@ -96,7 +96,7 @@ export async function POST(request: Request): Promise<Response> {
     if (error instanceof InputError || error instanceof PdfError) return refuse(400, error.message)
     if (error instanceof SlideImageError) return refuse(400, 'Gambar tidak bisa dibaca. Coba gambar lain.')
     if (error instanceof AiLimitError) return refuse(429, error.message)
-    console.error('[sigap] pesan gagal diterima:', describeError(error))
+    console.error('[mimo] pesan gagal diterima:', describeError(error))
     return refuse(500, aiErrorMessage(error))
   }
 
@@ -114,7 +114,7 @@ export async function POST(request: Request): Promise<Response> {
     history = await loadHistory(session)
     userMessage = await addMessage(userId, session.id, { role: 'user', content, parts: upload.parts })
   } catch (error) {
-    console.error('[sigap] pesan gagal disimpan:', describeError(error))
+    console.error('[mimo] pesan gagal disimpan:', describeError(error))
     return refuse(500, 'Pesan gagal disimpan. Periksa Supabase dan migrasi terbaru.')
   }
 
@@ -123,7 +123,7 @@ export async function POST(request: Request): Promise<Response> {
   const past = history
   // Runs once the stream has closed, so the new answer is counted.
   after(() =>
-    summarizeChat(userId, chat).catch((error: unknown) => console.error('[sigap] ringkasan gagal:', describeError(error))),
+    summarizeChat(userId, chat).catch((error: unknown) => console.error('[mimo] ringkasan gagal:', describeError(error))),
   )
 
   const encoder = new TextEncoder()
@@ -150,7 +150,7 @@ export async function POST(request: Request): Promise<Response> {
         // The live response may show signed avatars; the stored message deliberately does not.
         send({ type: 'done', sessionId: chat.id, created, user: firstUser, assistant: { ...assistant, parts: reply.parts } })
       } catch (error) {
-        console.error('[sigap] jawaban gagal disimpan:', describeError(error))
+        console.error('[mimo] jawaban gagal disimpan:', describeError(error))
         send({ type: 'error', sessionId: chat.id, message: 'Jawaban gagal disimpan. Muat ulang halaman lalu coba lagi.' })
       } finally {
         try {

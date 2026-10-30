@@ -55,11 +55,11 @@ const PRIMARY = `${SMALL_BUTTON} bg-accent text-white hover:bg-accent-deep`
 const SECONDARY = `${SMALL_BUTTON} border border-hairline bg-paper text-ink hover:bg-zinc-50`
 const GHOST = `${SMALL_BUTTON} text-ink-muted hover:bg-zinc-100 hover:text-ink`
 
-/** Where a card's buttons act, and how they ask Sigap something next. */
+/** Where a card's buttons act, and how they ask Mimo something next. */
 export interface CardContext {
   sessionId: string | null
   messageId: string
-  /** Sends a message to Sigap, e.g. from Analisis yang dipilih. Null while an answer is on its way. */
+  /** Sends a message to Mimo, e.g. from Analisis yang dipilih. Null while an answer is on its way. */
   ask: ((text: string) => void) | null
   products: Pick<ProductOption, 'id' | 'label' | 'imageCount'>[]
   defaultDensity: TextDensity
@@ -131,7 +131,7 @@ export function PartView({ part, context }: { part: ChatPart; context: CardConte
       return (
         <p role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           <CircleAlert size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
-          Sigap gagal menjawab: {part.message}
+          Mimo gagal menjawab: {part.message}
         </p>
       )
   }
@@ -493,7 +493,7 @@ const FIELD =
 const quotaShare = (cost: number, planCredits: number | undefined) =>
   planCredits && planCredits > 0 ? `≈ ${formatCreditShare(cost, planCredits)} kuota` : null
 
-/** Sigap's bulk card, by where it stands: a plan to edit, a start to finish, a cancelled plan, or posts on their way. */
+/** Mimo's bulk card, by where it stands: a plan to edit, a start to finish, a cancelled plan, or posts on their way. */
 function BulkCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk' }>; context: CardContext }) {
   switch (part.state) {
     case 'proposed':
@@ -800,7 +800,7 @@ function BulkContentCard({ items, errors, cardId, context }: { items: BulkItem[]
       </ul>
 
       <button type="button" onClick={() => setScheduling((value) => !value)} aria-expanded={scheduling} className={`${SECONDARY} mt-3`}>
-        {scheduling ? 'Tutup pengaturan jadwal' : 'Atur jadwal di Sigap'}
+        {scheduling ? 'Tutup pengaturan jadwal' : 'Atur jadwal di Mimo'}
       </button>
 
       {pollError && (
@@ -899,7 +899,7 @@ const CONFIRM_STATES = {
   cancelled: { text: 'Dibatalkan', className: 'bg-zinc-100 text-ink-muted' },
 } as const
 
-/** Sigap's proposal that writes to the account: nothing is saved until the owner picks Simpan. */
+/** Mimo's proposal that writes to the account: nothing is saved until the owner picks Simpan. */
 function ToolConfirmCard({ part, context }: { part: Extract<ChatPart, { type: 'confirm' }>; context: CardContext }) {
   const [pending, setPending] = useState<'accept' | 'cancel' | null>(null)
   const [, startTransition] = useTransition()

@@ -13,7 +13,7 @@ const RATE_LABELS: Record<string, string> = {
   brand_profile: 'Profil brand', brand_visual: 'Visual brand', brand_strategy: 'Strategi brand', website_catalog: 'Katalog website',
   asset_tags: 'Tag aset (per foto)', reply_draft: 'Draf balasan', template_analysis: 'Analisis template admin',
   reference_labels: 'Kategori referensi dari grid',
-  chat: 'Chat SIGAP (per pesan)', deep_search: 'Riset (di samping batas harian)', chat_summary: 'Ringkasan percakapan',
+  chat: 'Chat Mimo (per pesan)', deep_search: 'Riset (di samping batas harian)', chat_summary: 'Ringkasan percakapan',
 }
 
 export function BillingForm({ catalog, version }: { catalog: BillingCatalog; version: number }) {

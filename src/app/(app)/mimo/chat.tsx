@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Notice } from '@/components/notice'
-import { SigapMascot } from '@/components/sigap-mascot'
+import { MimoMascot } from '@/components/mimo-mascot'
 import {
   pdfPlaceholder,
   suggestionContext,
@@ -19,20 +19,20 @@ import {
 import { AttachmentBubble, PartView, type CardContext } from './cards'
 import { ChatComposer, type Draft } from './composer'
 import { ConversationLink as Link } from './conversation-link'
-import { useSigapScope } from './sigap-provider'
-import { receiveAnswer, sigapKeys } from './sigap-query'
+import { useMimoScope } from './mimo-provider'
+import { receiveAnswer, mimoKeys } from './mimo-query'
 
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
 const CUT_OFF = 'Koneksi terputus sebelum jawaban selesai. Muat ulang halaman untuk melihat jawabannya.'
 
-interface SigapChatProps {
+interface MimoChatProps {
   sessionId: string | null
   messages: ChatMessageView[]
   products: CardContext['products']
   defaultDensity: CardContext['defaultDensity']
 }
 
-/** The message on its way: shown at once, with what Sigap is doing, until the stored one comes back. */
+/** The message on its way: shown at once, with what Mimo is doing, until the stored one comes back. */
 interface Pending {
   text: string
   parts: ChatPart[]
@@ -56,13 +56,13 @@ async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<Cha
 }
 
 /**
- * The open conversation with Sigap. Sent messages show from the stream's `done` event until the page's own data has
+ * The open conversation with Mimo. Sent messages show from the stream's `done` event until the page's own data has
  * them; opening another conversation starts over, but keeps the Deep Search toggle.
  */
-export function SigapChat({ sessionId, messages, products, defaultDensity }: SigapChatProps) {
+export function MimoChat({ sessionId, messages, products, defaultDensity }: MimoChatProps) {
   const router = useRouter()
   const client = useQueryClient()
-  const { scope, isCurrent } = useSigapScope()
+  const { scope, isCurrent } = useMimoScope()
   const [received, setReceived] = useState<ChatMessageView[]>([])
   const [pending, setPending] = useState<Pending | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -107,7 +107,7 @@ export function SigapChat({ sessionId, messages, products, defaultDensity }: Sig
     sending.current.add(startedIn)
     const unlock = () => sending.current.delete(startedIn)
     /** Still on the conversation the message went to. */
-    const here = () => isCurrent() && live.current === startedIn && window.location.pathname === '/sigap' && (new URLSearchParams(window.location.search).get('sesi') || null) === startedIn
+    const here = () => isCurrent() && live.current === startedIn && window.location.pathname === '/mimo' && (new URLSearchParams(window.location.search).get('sesi') || null) === startedIn
     setError(null)
     const form = new FormData()
     form.set('text', text)
@@ -156,8 +156,8 @@ export function SigapChat({ sessionId, messages, products, defaultDensity }: Sig
           if (event.type === 'done') await receiveAnswer(client, scope, event, isCurrent)
           else if (isCurrent()) {
             await Promise.all([
-              client.invalidateQueries({ queryKey: sigapKeys.conversation(scope, event.sessionId) }),
-              client.invalidateQueries({ queryKey: sigapKeys.sessions(scope) }),
+              client.invalidateQueries({ queryKey: mimoKeys.conversation(scope, event.sessionId) }),
+              client.invalidateQueries({ queryKey: mimoKeys.sessions(scope) }),
             ])
           }
         }
@@ -168,13 +168,13 @@ export function SigapChat({ sessionId, messages, products, defaultDensity }: Sig
           finished = true
           setReceived((current) => [...current, event.user, event.assistant])
           setPending(null)
-          if (event.created) window.history.replaceState(null, '', `/sigap?sesi=${event.sessionId}`)
+          if (event.created) window.history.replaceState(null, '', `/mimo?sesi=${event.sessionId}`)
           router.refresh()
         } else {
           finished = true
           setPending(null)
           setError(event.message)
-          if (!sessionId) window.history.replaceState(null, '', `/sigap?sesi=${event.sessionId}`)
+          if (!sessionId) window.history.replaceState(null, '', `/mimo?sesi=${event.sessionId}`)
           router.refresh()
         }
       }
@@ -184,8 +184,8 @@ export function SigapChat({ sessionId, messages, products, defaultDensity }: Sig
     if (!finished && here()) {
       setPending(null)
       setError(CUT_OFF)
-      if (startedIn) void client.invalidateQueries({ queryKey: sigapKeys.conversation(scope, startedIn) })
-      void client.invalidateQueries({ queryKey: sigapKeys.sessions(scope) })
+      if (startedIn) void client.invalidateQueries({ queryKey: mimoKeys.conversation(scope, startedIn) })
+      void client.invalidateQueries({ queryKey: mimoKeys.sessions(scope) })
     }
     unlock()
     return true
@@ -197,12 +197,12 @@ export function SigapChat({ sessionId, messages, products, defaultDensity }: Sig
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-2 border-b border-hairline px-4 py-2 md:hidden">
-        <Link href="/sigap?riwayat=1" className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm text-ink-muted hover:bg-zinc-100">
+        <Link href="/mimo?riwayat=1" className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm text-ink-muted hover:bg-zinc-100">
           <History size={16} aria-hidden="true" />
           Riwayat
         </Link>
         {sessionId && (
-          <Link href="/sigap" className="ml-auto inline-flex h-8 items-center rounded-lg px-2 text-sm font-medium text-accent hover:bg-accent-soft">
+          <Link href="/mimo" className="ml-auto inline-flex h-8 items-center rounded-lg px-2 text-sm font-medium text-accent hover:bg-accent-soft">
             Chat baru
           </Link>
         )}
@@ -252,8 +252,8 @@ export function SigapChat({ sessionId, messages, products, defaultDensity }: Sig
 function EmptyState() {
   return (
     <div className="flex flex-col items-center py-10 text-center">
-      <SigapMascot size={104} />
-      <h1 className="mt-2 text-xl font-semibold tracking-tight text-ink">Halo, saya Sigap</h1>
+      <MimoMascot size={104} composer />
+      <h1 className="mt-2 text-xl font-semibold tracking-tight text-ink">Halo, saya Mimo</h1>
       <p className="mt-1 max-w-md text-sm text-ink-muted">
         Tanya soal tren, cek konten yang sudah ada, riset akun kompetitor dengan Intel Kompetitor, tulis skrip carousel,
         atau rapikan strategi dan Auto DM. Skrip langsung tersimpan sebagai ide di Buat.
@@ -295,15 +295,15 @@ function UserMessage({ content, parts }: { content: string; parts: ChatPart[] })
   )
 }
 
-/** Sigap beside a message: a still smile, or a live, thinking face while the answer is on its way. */
-function SigapMark({ live = false }: { live?: boolean }) {
-  return <SigapMascot size={28} still={!live} mood={live ? 'thinking' : 'smile'} className="mt-0.5 shrink-0" />
+/** Mimo beside a message: a still smile, or a live, thinking face while the answer is on its way. */
+function MimoMark({ live = false }: { live?: boolean }) {
+  return <MimoMascot size={28} still={!live} mood={live ? 'thinking' : 'smile'} className="mt-0.5 shrink-0" />
 }
 
 function AssistantMessage({ message, context }: { message: ChatMessageView; context: CardContext }) {
   return (
     <div className="flex gap-3">
-      <SigapMark />
+      <MimoMark />
       <div className="min-w-0 flex-1 space-y-3">
         {message.parts.map((part, index) => (
           <PartView key={index} part={part} context={context} />
@@ -314,11 +314,11 @@ function AssistantMessage({ message, context }: { message: ChatMessageView; cont
   )
 }
 
-/** What Sigap is doing while the answer is on its way. */
+/** What Mimo is doing while the answer is on its way. */
 function ToolCallIndicator({ tool }: { tool: string | null }) {
   return (
     <div className="flex items-center gap-3" role="status">
-      <SigapMark live />
+      <MimoMark live />
       <span className="inline-flex items-center gap-2 text-sm text-ink-muted">
         <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />
         {(tool && TOOL_LABELS[tool]) || THINKING_LABEL}

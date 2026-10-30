@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const plan = period?.plan ?? await getPlan()
     return Response.json({ items, planCredits: plan.credits, rates: billing.catalog.rates } satisfies BulkStatusResponse, { headers })
   } catch (error) {
-    console.error('[sigap] status konten massal gagal dimuat:', describeError(error))
+    console.error('[mimo] status konten massal gagal dimuat:', describeError(error))
     return Response.json({ error: 'Status belum bisa dimuat.' }, { status: 500, headers })
   }
 }

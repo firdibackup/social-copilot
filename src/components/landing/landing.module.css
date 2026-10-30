@@ -150,10 +150,10 @@
 .textLink:hover { text-decoration: underline; text-underline-offset: 5px; }
 .featureVisual { border-radius: 18px; padding: 28px; min-width: 0; min-height: 475px; display: flex; align-items: center; }
 .featureVisual > div { width: 100%; }
-.sigapVisual { background: #efebfb; }
+.mimoVisual { background: #efebfb; }
 .kalenderVisual { background: #e7efe8; }
 .balasanVisual { background: #edf0fb; }
-.sigapDemo, .inboxDemo { border: 1px solid #ded8ea; background: #fff; border-radius: 12px; box-shadow: 0 12px 30px -18px #34215133; overflow: hidden; }
+.mimoDemo, .inboxDemo { border: 1px solid #ded8ea; background: #fff; border-radius: 12px; box-shadow: 0 12px 30px -18px #34215133; overflow: hidden; }
 .demoPanelHeader { display: flex; align-items: center; gap: 10px; padding: 15px 18px; border-bottom: 1px solid var(--lp-line); }
 .demoPanelHeader > div { display: flex; flex-direction: column; line-height: 1.4; }
 .demoPanelHeader strong { font-size: 12px; font-weight: 650; }

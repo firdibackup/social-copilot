@@ -14,6 +14,7 @@ import { ContentEditor } from './content-editor'
 import { StatusNote } from './status-note'
 import { detailQuery, editorKeys, supportQuery, type EditorDetail, type EditorSupport } from './editor-query'
 import { useEditorScope } from './editor-provider'
+import { useHiddenPosts } from './optimistic-events'
 
 const OK_MESSAGES: Record<string, string> = {
   draft: 'Draft tersimpan.',
@@ -61,7 +62,10 @@ export function EditorWorkspace({ initial }: { initial: EditorInitial }) {
   const params = Object.fromEntries(useSearchParams())
   const scope = useEditorScope()
   const client = useQueryClient()
-  const id = firstValue(params.id)
+  const hidden = useHiddenPosts()
+  // A post deleted here is gone at once; the URL follows only after the delete action's re-render.
+  const rawId = firstValue(params.id)
+  const id = rawId && hidden.has(rawId) ? undefined : rawId
   const ideaParam = firstValue(params.ide)
   const postId = isUuid(id) ? id : null
   const ideaKey = !postId && isUuid(ideaParam) ? ideaParam : ''
