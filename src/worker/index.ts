@@ -15,7 +15,7 @@ import { processPost } from './publish'
 import { processStory } from './story-publish'
 import { processThreadsPost } from './threads-publish'
 
-const PUBLISH_IDLE_MS = 30_000
+const PUBLISH_IDLE_MS = 5_000
 const SLIDE_IDLE_MS = 3_000
 /** Threads tokens left alone for 60 days can't be refreshed any more; once a day keeps idle ones alive. */
 const TOKEN_REFRESH_MS = 24 * 60 * 60 * 1000
@@ -136,7 +136,7 @@ async function contentLoop(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  console.log(`[worker] berjalan: draft/skrip dicek setiap 3 detik, publish Instagram, Story, dan Threads setiap 30 detik, slide AI ${SLIDE_SLOTS} sekaligus`)
+  console.log(`[worker] berjalan: draft/skrip dicek setiap 3 detik, publish Instagram, Story, dan Threads setiap 5 detik, slide AI ${SLIDE_SLOTS} sekaligus`)
   await Promise.all([billingLoop(), contentLoop(), publishLoop(), storyLoop(), threadsLoop(), tokenLoop(), ...Array.from({ length: SLIDE_SLOTS }, slideLoop)])
   console.log('[worker] berhenti')
 }

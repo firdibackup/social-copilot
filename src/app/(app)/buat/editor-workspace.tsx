@@ -18,12 +18,12 @@ import { useEditorScope } from './editor-provider'
 const OK_MESSAGES: Record<string, string> = {
   draft: 'Draft tersimpan.',
   schedule: 'Post dijadwalkan.',
-  now: 'Post masuk antrean dan akan diterbitkan worker dalam 30 detik.',
+  now: 'Post masuk antrean dan akan diterbitkan worker dalam 5 detik.',
   cancel: 'Jadwal dibatalkan.',
   retry: 'Post dijadwalkan ulang untuk terbit sekarang.',
   duplicate: 'Salinan dibuat sebagai draft.',
-  threads: 'Versi Threads masuk antrean dan akan diterbitkan worker dalam 30 detik.',
-  story: 'Story masuk antrean dan akan dibagikan worker dalam 30 detik.',
+  threads: 'Versi Threads masuk antrean dan akan diterbitkan worker dalam 5 detik.',
+  story: 'Story masuk antrean dan akan dibagikan worker dalam 5 detik.',
 }
 
 const FAILED_MESSAGES: Record<string, string> = {
