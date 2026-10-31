@@ -3,6 +3,7 @@
 import { ChevronRight, MoreHorizontal, Pause, Pencil, Play, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
+import { confirmDialog } from '@/components/confirm-dialog'
 import { Notice } from '@/components/notice'
 import type { AutoDmRun } from '@/lib/auto-dm'
 import { RUN_STEP_LABELS, type AutoDmRule } from '@/lib/auto-dm-rules'
@@ -172,8 +173,13 @@ function RuleMenu({ rule, onError }: { rule: AutoDmRule; onError: (error: string
           <button
             type="button"
             role="menuitem"
-            onClick={() => {
-              if (window.confirm(`Hapus aturan "${rule.name}"?`)) void run(() => deleteAutoDmRuleAction(rule.id))
+            onClick={async () => {
+              if (await confirmDialog({
+                title: `Hapus aturan "${rule.name}"?`,
+                description: 'Aturan Auto DM ini akan dihapus.',
+                confirmLabel: 'Hapus',
+                tone: 'danger',
+              })) void run(() => deleteAutoDmRuleAction(rule.id))
             }}
             className={`${MENU_ITEM} text-red-600`}
           >

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { confirmDialog } from '@/components/confirm-dialog'
 import type { AssetActionState } from './actions'
 
 export const INITIAL_STATE: AssetActionState = { error: null, success: null }
@@ -22,8 +23,13 @@ export function Feedback({ state }: { state: AssetActionState }) {
   )
 }
 
-export function confirmDelete(count: number): boolean {
-  return window.confirm(count === 1 ? 'Hapus foto ini dari Aset?' : `Hapus ${count} foto dari Aset?`)
+export function confirmDelete(count: number): Promise<boolean> {
+  return confirmDialog({
+    title: count === 1 ? 'Hapus foto ini?' : `Hapus ${count} foto?`,
+    description: 'Foto akan dihapus dari Aset.',
+    confirmLabel: 'Hapus',
+    tone: 'danger',
+  })
 }
 
 type AssetAction = (previous: AssetActionState, formData: FormData) => Promise<AssetActionState>

@@ -2,6 +2,7 @@
 
 import { ImagePlus, Plus, Sparkles, X } from 'lucide-react'
 import { useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { confirmDialog } from '@/components/confirm-dialog'
 import { DesignStylePicker, FontPreview, FontSelect } from '@/components/design-style-picker'
 import { ExternalImage, MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
@@ -450,8 +451,13 @@ function LogoField({ logoUrl }: { logoUrl: string | null }) {
         {logoUrl && (
           <button
             type="button"
-            onClick={() => {
-              if (window.confirm('Hapus logo?')) void run(removeLogoAction)
+            onClick={async () => {
+              if (await confirmDialog({
+                title: 'Hapus logo?',
+                description: 'Logo akan dihapus dari brand kit.',
+                confirmLabel: 'Hapus',
+                tone: 'danger',
+              })) void run(removeLogoAction)
             }}
             disabled={pending}
             className={`${BUTTON} hover:text-red-600`}

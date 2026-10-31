@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from 'react'
 import { Notice } from '@/components/notice'
+import { confirmSubmit } from '@/lib/confirm-submit'
 import {
   calendarDays,
   firstOpenDay,
@@ -55,7 +56,11 @@ interface ScheduleButtonProps {
 }
 
 function confirmNow(event: MouseEvent<HTMLButtonElement>) {
-  if (!window.confirm('Terbitkan post ini sekarang?')) event.preventDefault()
+  void confirmSubmit(event, {
+    title: 'Terbitkan post ini sekarang?',
+    description: 'Post akan langsung dikirim ke platform yang dipilih.',
+    confirmLabel: 'Terbitkan',
+  })
 }
 
 /** Left: the Jadwalkan dialog. Right: the suggested slot in one click. */
@@ -88,7 +93,11 @@ export function ScheduleButton({ post, caption, assetIds, slot, queue, disabled 
   )
 
   function confirmSlot(event: FormEvent<HTMLFormElement>) {
-    if (!window.confirm(`Jadwalkan post ini ${slot.label.toLowerCase()} WIB?`)) event.preventDefault()
+    void confirmSubmit(event, {
+      title: `Jadwalkan post ini ${slot.label.toLowerCase()} WIB?`,
+      description: 'Post akan diterbitkan otomatis pada waktu tersebut.',
+      confirmLabel: 'Jadwalkan',
+    })
   }
 
   return (

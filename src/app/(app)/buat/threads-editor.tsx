@@ -3,6 +3,7 @@
 import { ImagePlus, Plus, Scissors, Trash2, X } from 'lucide-react'
 import { useEffect, useEffectEvent, useRef, useState, type KeyboardEvent } from 'react'
 import { Avatar } from '@/components/avatar'
+import { confirmDialog } from '@/components/confirm-dialog'
 import { MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
 import type { Asset } from '@/lib/assets'
@@ -208,7 +209,12 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
   }
 
   async function followAgain() {
-    if (!window.confirm('Ikuti caption Instagram lagi? Perubahan di versi Threads akan hilang.')) return
+    if (!(await confirmDialog({
+      title: 'Ikuti caption Instagram lagi?',
+      description: 'Perubahan di versi Threads akan hilang.',
+      confirmLabel: 'Ikuti lagi',
+      tone: 'danger',
+    }))) return
     const nextVersion = version + 1
     setVersion(nextVersion)
     setOwn(null)

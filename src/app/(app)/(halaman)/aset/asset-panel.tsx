@@ -158,8 +158,8 @@ export function AssetPanel({ asset, groups, onClose }: AssetPanelProps) {
           <button
             type="button"
             disabled={action.pending}
-            onClick={() => {
-              if (confirmDelete(1)) {
+            onClick={async () => {
+              if (await confirmDelete(1)) {
                 action.run(deleteAssetsAction, { id: asset.id }, (result) => {
                   if (!result.error) onClose()
                 })

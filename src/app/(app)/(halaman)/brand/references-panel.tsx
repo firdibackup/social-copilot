@@ -4,6 +4,7 @@ import { Check, ChevronLeft, ChevronRight, ExternalLink, Grid2x2, ImagePlus, Sea
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { confirmDialog } from '@/components/confirm-dialog'
 import { GridSplitter, type GridSelection, type GridTile } from '@/components/grid-splitter'
 import { LoadingState } from '@/components/loading-state'
 import { ExternalImage, MediaImage } from '@/components/media-image'
@@ -681,7 +682,12 @@ function ReferenceCard({ reference }: { reference: BrandReference }) {
 
   async function remove() {
     const slides = reference.images.length > 1 ? ` beserta ${reference.images.length} slide-nya` : ''
-    if (!window.confirm(`Hapus referensi ini${slides}?`)) return
+    if (!(await confirmDialog({
+      title: 'Hapus referensi ini?',
+      description: slides ? `Referensi beserta ${reference.images.length} slide-nya akan dihapus.` : 'Referensi akan dihapus.',
+      confirmLabel: 'Hapus',
+      tone: 'danger',
+    }))) return
     setPending(true)
     setError(await deleteReferenceAction(reference.id).catch(() => FAILED))
     setPending(false)

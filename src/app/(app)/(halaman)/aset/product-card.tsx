@@ -2,6 +2,7 @@
 
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useRef, useState, type FormEvent } from 'react'
+import { confirmDialog } from '@/components/confirm-dialog'
 import { MediaImage } from '@/components/media-image'
 import { ASSET_CATEGORIES } from '@/lib/asset-options'
 import type { AssetGroup } from '@/lib/assets'
@@ -31,8 +32,13 @@ export function ProductCard({ groups, covers, filter, onFilter }: ProductCardPro
     dialogRef.current?.showModal()
   }
 
-  function confirmRemove(group: AssetGroup) {
-    if (!window.confirm(`Hapus produk "${group.title}"? Fotonya tetap tersimpan di Aset.`)) return
+  async function confirmRemove(group: AssetGroup) {
+    if (!(await confirmDialog({
+      title: `Hapus produk "${group.title}"?`,
+      description: 'Fotonya tetap tersimpan di Aset.',
+      confirmLabel: 'Hapus',
+      tone: 'danger',
+    }))) return
     remove.run(deleteAssetGroupAction, { id: group.id }, (result) => {
       if (!result.error && filter === group.id) onFilter(null)
     })

@@ -380,8 +380,8 @@ function BulkBar({ tab, ids, groups, action, onClear }: BulkBarProps) {
         <button
           type="button"
           disabled={action.pending}
-          onClick={() => {
-            if (confirmDelete(ids.length)) action.run(deleteAssetsAction, { id: ids }, clearOnSuccess)
+          onClick={async () => {
+            if (await confirmDelete(ids.length)) action.run(deleteAssetsAction, { id: ids }, clearOnSuccess)
           }}
           className={`${DANGER_BUTTON} min-h-9`}
         >

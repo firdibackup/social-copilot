@@ -2,6 +2,7 @@
 
 import { ArrowDown, ArrowUp, Equal, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
+import { confirmDialog } from '@/components/confirm-dialog'
 import { Notice } from '@/components/notice'
 import {
   DEFAULT_POSTS_PER_WEEK,
@@ -87,9 +88,12 @@ function StrategyCardBody({ strategy, syncing }: StrategyCardProps) {
   }
 
   async function generate() {
-    if (draft && edited && !window.confirm('Susun ulang strategi dengan AI? Isian di kartu ini, termasuk perubahanmu, akan diganti.')) {
-      return
-    }
+    if (draft && edited && !(await confirmDialog({
+      title: 'Susun ulang strategi dengan AI?',
+      description: 'Isian di kartu ini, termasuk perubahanmu, akan diganti.',
+      confirmLabel: 'Susun ulang',
+      tone: 'danger',
+    }))) return
     setGenerating(true)
     setError(null)
     setWarnings([])

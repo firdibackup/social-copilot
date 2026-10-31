@@ -3,6 +3,7 @@
 import { Trash2 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTransition } from 'react'
+import { alertDialog, confirmDialog } from '@/components/confirm-dialog'
 import { deleteSessionAction } from './actions'
 import { useMimoScope } from './mimo-provider'
 import { forgetConversation, restoreConversation } from './mimo-query'
@@ -20,8 +21,13 @@ export function DeleteSessionButton({ id, title, active }: { id: string; title: 
       type="button"
       aria-label={`Hapus percakapan ${title}`}
       disabled={pending}
-      onClick={() => {
-        if (!window.confirm(`Hapus percakapan "${title}"? Skrip yang sudah tersimpan di Buat tetap ada.`)) return
+      onClick={async () => {
+        if (!(await confirmDialog({
+          title: `Hapus percakapan "${title}"?`,
+          description: 'Skrip yang sudah tersimpan di Buat tetap ada.',
+          confirmLabel: 'Hapus',
+          tone: 'danger',
+        }))) return
         startTransition(async () => {
           const previousUrl = `${window.location.pathname}${window.location.search}`
           const wasOpen = active && new URLSearchParams(window.location.search).get('sesi') === id
@@ -31,7 +37,7 @@ export function DeleteSessionButton({ id, title, active }: { id: string; title: 
           if (error) {
             if (isCurrent()) restoreConversation(client, scope, id, snapshot)
             if (wasOpen && window.location.pathname === '/mimo' && !window.location.search) window.history.replaceState(null, '', previousUrl)
-            window.alert(error)
+            await alertDialog({ title: 'Percakapan tidak dapat dihapus', description: error, tone: 'danger' })
           }
         })
       }}

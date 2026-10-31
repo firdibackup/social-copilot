@@ -6,6 +6,7 @@ import { useActionState, useMemo, useRef, useState, useTransition } from 'react'
 import { GridSplitter, type GridSelection } from '@/components/grid-splitter'
 import { MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
+import { confirmSubmit } from '@/lib/confirm-submit'
 import { REFERENCE_LABELS, type ReferenceLabel } from '@/lib/brand-options'
 import { DESIGN_STYLE_IDS, DESIGN_STYLES, type DesignStyleId } from '@/lib/design-styles'
 import { toReferenceJpeg } from '@/lib/image'
@@ -412,10 +413,12 @@ function TemplateCard({ template }: { template: DesignTemplate }) {
             className={DANGER_BUTTON}
             disabled={busy}
             aria-label="Hapus template"
-            onClick={(event) => {
-              if (!window.confirm('Hapus template ini? Slide yang belum dibuat tidak akan memakainya lagi.'))
-                event.preventDefault()
-            }}
+            onClick={(event) => void confirmSubmit(event, {
+              title: 'Hapus template ini?',
+              description: 'Slide yang belum dibuat tidak akan memakainya lagi.',
+              confirmLabel: 'Hapus',
+              tone: 'danger',
+            })}
           >
             <Trash2 aria-hidden="true" className="size-4" />
           </button>

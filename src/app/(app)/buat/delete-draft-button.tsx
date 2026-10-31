@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Trash2 } from 'lucide-react'
+import { confirmDialog } from '@/components/confirm-dialog'
 import { deleteDraftAction } from './content-actions'
 import { useEditorScope } from './editor-provider'
 import { removePostOptimistically } from './optimistic-events'
@@ -14,8 +15,18 @@ export function DeleteDraftButton({ id, onError }: { id: string; onError: (messa
   const [pending, setPending] = useState(false)
 
   async function remove() {
-    if (lock.current || !window.confirm('Hapus konten ini? Draft akan dihapus permanen.')) return
+    if (lock.current) return
     lock.current = true
+    const confirmed = await confirmDialog({
+      title: 'Hapus konten ini?',
+      description: 'Draft akan dihapus permanen.',
+      confirmLabel: 'Hapus',
+      tone: 'danger',
+    })
+    if (!confirmed) {
+      lock.current = false
+      return
+    }
     setPending(true)
     const restore = await removePostOptimistically(client, scope, id)
     const error = await deleteDraftAction(id).catch(() => 'Gagal menghubungi server. Coba lagi.')

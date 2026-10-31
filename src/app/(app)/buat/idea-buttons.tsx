@@ -3,6 +3,7 @@
 import { LoaderCircle, Sparkles, X } from 'lucide-react'
 import { useLayoutEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import { alertDialog } from '@/components/confirm-dialog'
 import { deleteIdeaAction, generateIdeasAction, generateScriptAction } from './content-actions'
 import { saveBeforeNavigation } from './use-save-before-navigation'
 
@@ -104,7 +105,7 @@ export function DeleteIdeaButton({ id, hide, restore }: { id: string; hide: () =
         const error = await deleteIdeaAction(id).catch(() => FAILED)
         if (error) {
           restore()
-          window.alert(error)
+          await alertDialog({ title: 'Ide tidak dapat dihapus', description: error, tone: 'danger' })
         }
       })}
       className="absolute top-1/2 right-0 -translate-y-1/2 rounded-md p-1.5 text-ink-soft opacity-0 transition-opacity group-hover:opacity-100 hover:bg-zinc-100 hover:text-ink focus-visible:opacity-100 disabled:opacity-40"

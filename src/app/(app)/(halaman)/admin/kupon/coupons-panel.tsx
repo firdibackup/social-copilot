@@ -3,6 +3,7 @@
 import { Pencil, Power, PowerOff, Ticket, Trash2, X } from 'lucide-react'
 import { Fragment, startTransition, useActionState, useEffect, useRef, useState } from 'react'
 import { Notice } from '@/components/notice'
+import { confirmSubmit } from '@/lib/confirm-submit'
 import { formatDateTime, formatShortDateTime, toWibInput } from '@/lib/format'
 import type { FormState } from '../actions'
 import { BUTTON, CARD, CARD_TITLE, DANGER_BUTTON, FIELD, HINT, LABEL, PRIMARY_BUTTON, TABLE, TD, TH } from '../ui'
@@ -219,9 +220,12 @@ function CouponTableRow({
               disabled={pending || locked}
               aria-label={locked ? 'Kupon sudah dipakai, tidak bisa dihapus' : `Hapus kupon ${coupon.code}`}
               title={locked ? 'Sudah dipakai — tidak bisa dihapus. Nonaktifkan saja.' : 'Hapus kupon'}
-              onClick={(event) => {
-                if (!window.confirm(`Hapus kupon ${coupon.code}? Kode ini tidak bisa dipakai lagi.`)) event.preventDefault()
-              }}
+              onClick={(event) => void confirmSubmit(event, {
+                title: `Hapus kupon ${coupon.code}?`,
+                description: 'Kode ini tidak bisa dipakai lagi.',
+                confirmLabel: 'Hapus',
+                tone: 'danger',
+              })}
             >
               <Trash2 aria-hidden="true" className="size-4" />
             </button>

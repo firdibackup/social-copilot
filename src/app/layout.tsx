@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque } from "next/font/google";
+import { DialogHost } from "@/components/confirm-dialog";
 import "./globals.css";
 
 /** The brand face, for headings only; body and UI text use the system (San Francisco) stack in globals.css. */
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="id" className={`${bricolage.variable} h-full antialiased`}>
       <body className="min-h-full bg-white font-sans text-ink" suppressHydrationWarning>
         {children}
+        <DialogHost />
       </body>
     </html>
   );

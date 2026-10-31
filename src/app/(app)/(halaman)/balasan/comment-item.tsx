@@ -2,6 +2,7 @@
 
 import { EyeOff } from 'lucide-react'
 import { useState } from 'react'
+import { confirmDialog } from '@/components/confirm-dialog'
 import { Notice } from '@/components/notice'
 import { COMMENT_MAX_LENGTH, REPLY_MAX_LENGTH } from '@/lib/inbox-rules'
 import { THREADS_TEXT_LIMIT } from '@/lib/thread-items'
@@ -120,7 +121,12 @@ function CommentBody({ comment, brand, platform, onRemoved, onRestore }: Comment
   }
 
   async function remove() {
-    if (!window.confirm('Hapus komentar ini dari Instagram? Balasan di bawahnya ikut terhapus.')) return
+    if (!(await confirmDialog({
+      title: 'Hapus komentar ini dari Instagram?',
+      description: 'Balasan di bawahnya ikut terhapus.',
+      confirmLabel: 'Hapus',
+      tone: 'danger',
+    }))) return
     onRemoved?.()
     const failure = await deleteCommentAction(comment.commentId).catch(() => FAILED)
     if (failure) onRestore?.(failure)

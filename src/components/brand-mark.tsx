@@ -26,13 +26,13 @@ export function CarouselyLogo({ size = 28, iconOnly = false, className = '' }: L
   )
 }
 
-/** Reserved for initial onboarding. Never delays ready content to finish a loop. */
-export function CarouselyLoader({ size = 56, label = 'Menyiapkan Carousely…' }: { size?: number; label?: string }) {
+/** The animated mark alone, decorative. Reduced motion shows the still mark instead. */
+export function CarouselyLoop({ size = 56 }: { size?: number }) {
   return (
-    <div role="status" className="flex flex-col items-center gap-3 text-sm text-ink-muted">
+    <>
       <span
         aria-hidden="true"
-        className="carousely-loop block motion-reduce:hidden"
+        className="carousely-loop block shrink-0 motion-reduce:hidden"
         style={{
           width: size,
           height: size,
@@ -44,7 +44,16 @@ export function CarouselyLoader({ size = 56, label = 'Menyiapkan Carousely…' }
         } as CSSProperties}
       />
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={MARK_SRC} alt="" width={size} height={size} className="motion-safe:hidden" />
+      <img src={MARK_SRC} alt="" aria-hidden="true" width={size} height={size} className="shrink-0 motion-safe:hidden" />
+    </>
+  )
+}
+
+/** Reserved for initial onboarding. Never delays ready content to finish a loop. */
+export function CarouselyLoader({ size = 56, label = 'Menyiapkan Carousely…' }: { size?: number; label?: string }) {
+  return (
+    <div role="status" className="flex flex-col items-center gap-3 text-sm text-ink-muted">
+      <CarouselyLoop size={size} />
       <span>{label}</span>
     </div>
   )

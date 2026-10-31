@@ -1,7 +1,9 @@
 'use client'
 
 import { Ellipsis } from 'lucide-react'
+import { alertDialog, confirmDialog } from '@/components/confirm-dialog'
 import { PendingSubmit } from '@/components/pending-submit'
+import { confirmSubmit } from '@/lib/confirm-submit'
 import { useState, useTransition, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Post } from '@/lib/posts'
@@ -21,7 +23,12 @@ interface MenuFormProps {
 
 function MenuForm({ action, id, label, confirmMessage, danger }: MenuFormProps) {
   function confirmFirst(event: FormEvent<HTMLFormElement>) {
-    if (confirmMessage && !window.confirm(confirmMessage)) event.preventDefault()
+    if (!confirmMessage) return
+    void confirmSubmit(event, {
+      title: confirmMessage.split('?')[0] + '?',
+      description: confirmMessage.split('?').slice(1).join('?').trim() || undefined,
+      confirmLabel: label,
+    })
   }
 
   return (
@@ -76,8 +83,13 @@ export function MoreMenu({ post, onPlatforms }: MoreMenuProps) {
   const scope = useEditorScope()
   const canRetry = post.status === 'failed' || (post.status === 'cancelled' && post.isLocked)
 
-  function remove() {
-    if (deleting || !window.confirm(outOn ? `Hapus post dari aplikasi? Post di ${outOn} tidak ikut terhapus.` : 'Hapus post ini?')) return
+  async function remove() {
+    if (deleting || !(await confirmDialog({
+      title: outOn ? 'Hapus post dari aplikasi?' : 'Hapus post ini?',
+      description: outOn ? `Post di ${outOn} tidak ikut terhapus.` : 'Post akan dihapus permanen.',
+      confirmLabel: 'Hapus',
+      tone: 'danger',
+    }))) return
     setOpen(false)
     startDelete(async () => {
       const restore = await removePostOptimistically(client, scope, post.id)
@@ -85,7 +97,7 @@ export function MoreMenu({ post, onPlatforms }: MoreMenuProps) {
       const error = await deletePostNowAction(post.id).catch(() => 'Gagal menghubungi server. Coba lagi.')
       if (error) {
         restore()
-        window.alert(error)
+        await alertDialog({ title: 'Post tidak dapat dihapus', description: error, tone: 'danger' })
       }
     })
   }

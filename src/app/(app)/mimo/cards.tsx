@@ -1,5 +1,6 @@
 'use client'
 
+import { confirmDialog } from '@/components/confirm-dialog'
 import {
   BadgeCheck,
   Check,
@@ -404,8 +405,13 @@ function ScriptPreviewCard({ item, context }: { item: ScriptItem; context: CardC
         <button
           type="button"
           disabled={pending || !sessionId}
-          onClick={() => {
-            if (!sessionId || !window.confirm(`Buang skrip "${item.title}"? Idenya ikut terhapus dari Buat.`)) return
+          onClick={async () => {
+            if (!sessionId || !(await confirmDialog({
+              title: `Buang skrip "${item.title}"?`,
+              description: 'Idenya ikut terhapus dari Buat.',
+              confirmLabel: 'Buang',
+              tone: 'danger',
+            }))) return
             startTransition(async () => {
               setError(await discardScriptAction(sessionId, messageId, item.ideaId).catch(() => FAILED))
             })

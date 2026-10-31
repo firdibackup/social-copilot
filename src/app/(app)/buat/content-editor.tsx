@@ -4,8 +4,10 @@ import { ArrowLeft, LoaderCircle, RefreshCw, SlidersHorizontal } from 'lucide-re
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
+import { confirmDialog } from '@/components/confirm-dialog'
 import { InstagramIcon } from '@/components/instagram-icon'
 import { CancelGenerationButton } from '@/components/cancel-generation-button'
+import { GenerationProgress } from './generation-progress'
 import { Notice, type NoticeTone } from '@/components/notice'
 import { PostStatusBadge } from '@/components/post-status-badge'
 import { ThreadsIcon } from '@/components/threads-icon'
@@ -603,8 +605,13 @@ export function ContentEditor({
           )}
           <button
             type="button"
-            onClick={() => {
-              if (!read || window.confirm('Susun ulang skrip? Teks di kotak, termasuk perubahan Anda, akan diganti.')) void draft.write()
+            onClick={async () => {
+              if (!read || await confirmDialog({
+                title: 'Susun ulang skrip?',
+                description: 'Teks di kotak, termasuk perubahan Anda, akan diganti.',
+                confirmLabel: 'Susun ulang',
+                tone: 'danger',
+              })) void draft.write()
             }}
             disabled={draft.writing || busy !== null || short(TASK_CREDITS.content_script)}
             title={
@@ -778,11 +785,25 @@ export function ContentEditor({
             onAdd={canAdd ? openPicker : undefined}
             maxSlides={MAX_MEDIA}
             empty={
-              job?.kind === 'content' && job.status !== 'ready' ? (
+              job?.kind === 'content' && jobPending ? (
+                <GenerationProgress phase="writing" footer="Boleh tutup halaman atau buat konten lain. Proses tetap berjalan." />
+              ) : !post && draft.writing ? (
+                <GenerationProgress
+                  phase="writing"
+                  footer={
+                    <span className="flex flex-col items-center gap-2">
+                      Boleh pindah halaman atau buat konten lain. Proses tetap berjalan.
+                      {busy === null && (
+                        <button type="button" onClick={openPicker} className="font-medium text-ink underline underline-offset-2 hover:text-accent">
+                          Pakai foto sendiri
+                        </button>
+                      )}
+                    </span>
+                  }
+                />
+              ) : job?.kind === 'content' && job.status !== 'ready' ? (
                 <span role="status" className="flex flex-col items-center gap-3">
-                  {jobPending && <LoaderCircle className="animate-spin" aria-hidden="true" />}
-                  {job.status === 'cancelled' ? 'Pembuatan konten dibatalkan. Draft tetap tersimpan.' : job.status === 'failed' ? job.error : 'Draft tersimpan. Caption dan rencana slide sedang disusun oleh worker.'}
-                  {jobPending && <span className="text-sm">Boleh tutup halaman atau buat konten lain. Proses tetap berjalan.</span>}
+                  {job.status === 'cancelled' ? 'Pembuatan konten dibatalkan. Draft tetap tersimpan.' : job.error}
                   {(job.status === 'failed' || job.status === 'cancelled') && (
                     <span className="flex flex-wrap items-center justify-center gap-3">
                     <button type="button" className="underline" onClick={async () => {

@@ -2,6 +2,7 @@
 
 import { useRef, type FormEvent } from 'react'
 import { PendingSubmit } from '@/components/pending-submit'
+import { confirmSubmit } from '@/lib/confirm-submit'
 import { disconnectFacebook, disconnectInstagram, disconnectThreads } from './actions'
 
 const BUTTON = 'rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50'
@@ -62,12 +63,14 @@ export function InstagramDisconnectButton({ username, scheduledCount }: Instagra
   )
 }
 
-const FACEBOOK_CONFIRM = 'Putuskan Facebook? Referensi dari akun lain tidak bisa dicari sampai Facebook dihubungkan lagi.'
-
 export function ThreadsDisconnectButton({ username }: { username: string }) {
   function confirmDisconnect(event: FormEvent<HTMLFormElement>) {
-    const message = `Putuskan @${username}? Post terjadwal yang ikut ke Threads akan gagal terbit di Threads sampai Threads dihubungkan lagi.`
-    if (!window.confirm(message)) event.preventDefault()
+    void confirmSubmit(event, {
+      title: `Putuskan @${username}?`,
+      description: 'Post terjadwal yang ikut ke Threads akan gagal terbit di Threads sampai Threads dihubungkan lagi.',
+      confirmLabel: 'Putuskan',
+      tone: 'danger',
+    })
   }
 
   return (
@@ -81,7 +84,12 @@ export function ThreadsDisconnectButton({ username }: { username: string }) {
 
 export function FacebookDisconnectButton() {
   function confirmDisconnect(event: FormEvent<HTMLFormElement>) {
-    if (!window.confirm(FACEBOOK_CONFIRM)) event.preventDefault()
+    void confirmSubmit(event, {
+      title: 'Putuskan Facebook?',
+      description: 'Referensi dari akun lain tidak bisa dicari sampai Facebook dihubungkan lagi.',
+      confirmLabel: 'Putuskan',
+      tone: 'danger',
+    })
   }
 
   return (

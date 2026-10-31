@@ -18,6 +18,7 @@ import type { ReactNode } from 'react'
 import { Avatar } from '@/components/avatar'
 import { CancelGenerationButton } from '@/components/cancel-generation-button'
 import { MediaImage } from '@/components/media-image'
+import { GenerationProgress } from './generation-progress'
 import type { ImageFormat } from '@/lib/image-options'
 import type { PostMedia } from '@/lib/posts'
 
@@ -125,7 +126,7 @@ export function PostMockup(props: PostMockupProps) {
   )
 }
 
-function Stage({ item, remaking, running, editable, onRemove, onRetry, onDropSlide, onCancelSlide, cancelling }: PostMockupProps & { item: SlideItem }) {
+function Stage({ item, items, remaking, running, editable, onRemove, onRetry, onDropSlide, onCancelSlide, cancelling }: PostMockupProps & { item: SlideItem }) {
   if (item.kind === 'image') {
     return (
       <>
@@ -178,14 +179,21 @@ function Stage({ item, remaking, running, editable, onRemove, onRetry, onDropSli
     )
   }
   const making = slide.id === running || slide.status === 'generating'
+  // Step 4 once this is the only AI slide left to make; step 3 while others still wait.
+  const left = items.filter(
+    (other) => other.kind === 'slide' && (other.slide.id === running || other.slide.status === 'pending' || other.slide.status === 'generating'),
+  ).length
+  const done = items.filter((other) => other.kind === 'image').length
   return (
-    <div className="shimmer absolute inset-0 flex flex-col items-center justify-center gap-3">
-      <Working
-        label={making ? `Membuat slide ${slide.position + 1}…` : slide.error ? 'Gagal sebentar, dicoba lagi otomatis…' : 'Menunggu giliran…'}
-        spinning={making}
-      />
-      <CancelGenerationButton label="Batal gambar ini" onClick={() => onCancelSlide(slide.id)} pending={cancelling} />
-    </div>
+    <GenerationProgress
+      phase={making && left === 1 ? 'render' : 'visual'}
+      done={done}
+      total={items.length}
+      roomy={items.length > 1}
+      note={making ? null : slide.error ? 'Gagal sebentar, dicoba lagi otomatis…' : 'Menunggu giliran…'}
+      corner={<CancelGenerationButton label="Batal gambar ini" onClick={() => onCancelSlide(slide.id)} pending={cancelling} />}
+      footer="Boleh tutup halaman atau buat konten lain. Proses tetap berjalan."
+    />
   )
 }
 
