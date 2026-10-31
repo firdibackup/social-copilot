@@ -1,0 +1,143 @@
+/* Centered carousel-cover orbit. One 18s cycle: full turn, centered
+   expansion, five 72deg steps with holds, contraction. Mobile/compact uses a
+   clipped panel above the copy and zooms 2x onto the upper arc. */
+@property --orbit-spin { syntax: '<angle>'; inherits: true; initial-value: 0deg; }
+
+.hero {
+  --ink: #302650;
+  --muted: #625b74;
+  --cw: clamp(76px, 10.5svh, 104px);
+  --ch: calc(var(--cw) * 1.25);
+  --r: var(--fit-r, calc(var(--cw) * 3.5));
+  position: relative;
+  height: clamp(600px, calc(100svh - 90px), 1000px);
+  overflow: hidden;
+  isolation: isolate;
+  background: radial-gradient(circle at 50% 50%, #fff 0, #fff 24%, #f6f4ff 62%, #f1eefc 100%);
+  border-bottom: 1px solid #ede9fb;
+  color: var(--ink);
+}
+
+.stage { position: absolute; inset: 0; overflow: hidden; }
+.camera { position: absolute; left: 50%; top: 50%; width: 0; height: 0; animation: orbit-camera 18s linear infinite; }
+.ring { position: absolute; inset: 0; animation: orbit-spin 18s infinite; }
+.stage[data-paused='true'] .camera, .stage[data-paused='true'] .ring { animation-play-state: paused; }
+
+.card {
+  --turn: calc(var(--a) + var(--orbit-spin));
+  position: absolute;
+  left: calc(var(--cw) / -2);
+  top: calc(var(--ch) / -2);
+  width: var(--cw);
+  height: var(--ch);
+  padding: 3px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px #2c1f5a14, 0 14px 28px -14px #2c1f5a59;
+  transform: rotate(var(--turn)) translateY(calc(var(--r) * -1)) rotate(calc(var(--turn) * -1));
+}
+.card img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 9px; user-select: none; }
+
+.copy {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  width: min(440px, calc(100% - 48px));
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+.copy h1 { margin: 0; font-size: clamp(36px, min(3.4vw, 5.4svh), 48px); line-height: 1.04; letter-spacing: -.045em; font-weight: 650; color: var(--ink); text-wrap: balance; }
+.copy h1 span { color: #6558f5; }
+.copy p { margin: 16px auto 0; max-width: 40ch; color: var(--muted); font-size: 15px; line-height: 1.65; text-wrap: pretty; }
+.actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 24px; }
+.primary, .secondary { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 12px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; transition: background .2s, border-color .2s, transform .2s; }
+.primary { background: #6558f5; color: #fff; box-shadow: 0 6px 16px -6px #6558f580; }
+.primary:hover { background: #5145d8; transform: translateY(-1px); }
+.secondary { background: #ffffffd9; color: #463b60; border: 1px solid #ddd7ee; }
+.secondary:hover { background: #fff; border-color: #6558f5; }
+.primary:focus-visible, .secondary:focus-visible, .toggle:focus-visible { outline: 2px solid #6558f5; outline-offset: 3px; }
+
+.toggle {
+  position: absolute;
+  z-index: 3;
+  right: 24px;
+  bottom: 24px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid #ddd7ee;
+  border-radius: 50%;
+  background: #ffffffe6;
+  color: #463b60;
+  box-shadow: 0 6px 16px -10px #2c1f5a66;
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  transition: color .2s, border-color .2s, transform .2s, opacity .2s;
+}
+.toggle:hover:not(:disabled) { color: #6558f5; border-color: #6558f5; }
+.toggle:active:not(:disabled) { transform: scale(.94); }
+.toggle:disabled { cursor: not-allowed; opacity: .55; box-shadow: none; }
+.primary:active { transform: translateY(0); background: #4a3fc9; }
+.secondary:active { background: #f6f4ff; }
+
+
+@keyframes orbit-spin {
+  0% { --orbit-spin: 0deg; animation-timing-function: cubic-bezier(.45, 0, .2, 1); }
+  20%, 30% { --orbit-spin: 360deg; animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
+  33.5%, 41% { --orbit-spin: 432deg; animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
+  44.5%, 52% { --orbit-spin: 504deg; animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
+  55.5%, 63% { --orbit-spin: 576deg; animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
+  66.5%, 74% { --orbit-spin: 648deg; animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
+  77.5%, 100% { --orbit-spin: 720deg; }
+}
+/* Desktop: uniform scale about the copy's center only moves cards outward. */
+@keyframes orbit-camera {
+  0%, 20% { transform: scale(1); animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
+  26%, 85% { transform: scale(1.15); animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
+  94%, 100% { transform: scale(1); }
+}
+@keyframes orbit-zoom {
+  0%, 20% { transform: translateY(0) scale(1); animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
+  26%, 85% { transform: translateY(calc(var(--r) * 2)) scale(2); animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
+  94%, 100% { transform: translateY(0) scale(1); }
+}
+
+/* Mobile and compact height: Bleam-style clipped panel above centered copy. */
+@media (max-width: 1023px), (max-height: 639px) {
+  .hero {
+    --ph: clamp(220px, 46svh, 400px);
+    --cw: min(48px, 11.5vw, calc(var(--ph) / 8.6));
+    --r: calc(var(--cw) * 3.6);
+    height: auto;
+    overflow: visible;
+    padding: 8px 16px 52px;
+    background: #fff;
+    border-bottom: 0;
+  }
+  .stage { position: relative; inset: auto; height: var(--ph); max-width: 720px; margin: 0 auto; border-radius: 24px; background: radial-gradient(ellipse at 50% 30%, #fbfaff 0, #f3f1fa 70%); box-shadow: inset 0 0 0 1px #ece8f6; }
+  .camera { animation-name: orbit-zoom; }
+  .card { padding: 2px; border-radius: 7px; box-shadow: 0 1px 1px #2c1f5a12, 0 8px 14px -8px #2c1f5a59; }
+  .card img { border-radius: 5px; }
+  .copy { position: relative; left: auto; top: auto; transform: none; width: auto; max-width: 520px; margin: 32px auto 0; }
+  .copy h1 { font-size: clamp(30px, 8.4vw, 44px); }
+  .copy p { font-size: 14px; margin-top: 14px; }
+  .actions { margin-top: 22px; }
+  .toggle { top: calc(8px + var(--ph) - 56px); bottom: auto; right: max(28px, calc(50% - 360px + 12px)); width: 44px; height: 44px; }
+}
+@media (max-width: 420px) {
+  .actions { flex-direction: column; align-items: stretch; }
+}
+@media (max-height: 639px) and (min-width: 600px) {
+  .copy { margin-top: 24px; }
+}
+
+/* Reduced motion: still, zoomed-out composition. The media query covers first
+   paint before hydration; the data attribute covers the JS-reported state. */
+@media (prefers-reduced-motion: reduce) {
+  .camera, .ring { animation: none; }
+  .primary, .secondary, .toggle { transition: none; }
+  .primary:hover, .toggle:active:not(:disabled) { transform: none; }
+}
+.stage[data-pause-reason='reduced'] .camera, .stage[data-pause-reason='reduced'] .ring { animation: none; }

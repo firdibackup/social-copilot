@@ -9,8 +9,9 @@ import { MotionConfig, motion, useScroll, useTransform } from 'framer-motion'
 import { ArrowUpRight, CircleHelp, Layers3, Menu, Pause, Play, Plus, Send, Sparkles, X } from 'lucide-react'
 import { CarouselyLogo } from '@/components/brand-mark'
 import styles from './landing.module.css'
-import { ContentShowcase, ProductJourney } from './homepage-story'
+import { ContentShowcase } from './homepage-story'
 import { OnboardingHero } from './onboarding-hero'
+import { OrbitHero } from './orbit-hero'
 
 function BotanicalArt({ light = false }: { light?: boolean }) {
   return (
@@ -83,7 +84,7 @@ export function LandingPage({ pricing }: { pricing: ReactNode }) {
     </header>
     <main id="main-content">
       <OnboardingHero motionEnabled={motionEnabled} crossfade={reduceMotion} />
-      <ProductJourney motionEnabled={motionEnabled} />
+      <OrbitHero paused={paused} reduceMotion={reduceMotion} onTogglePause={() => setPaused(value => !value)} />
       <section className={styles.partners} aria-labelledby="partners-title"><h2 id="partners-title">{t('partners.title')}</h2><p>{t('partners.subtitle')}</p><div>{partners.map(({ name, ...logo }) => <span key={name}><Image {...logo} alt={name} /></span>)}</div></section>
       <ContentShowcase motionEnabled={motionEnabled} />
       <Workflow motionEnabled={motionEnabled} />

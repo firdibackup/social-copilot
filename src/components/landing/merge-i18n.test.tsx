@@ -8,7 +8,7 @@ import enLanding from '../../../messages/en/landing.json'
 import { DESIGN_STYLE_IDS, DESIGN_STYLES } from '@/lib/design-styles'
 import { DesignStylePicker } from '@/components/design-style-picker'
 import { LandingPage } from './landing-page'
-import { ProductJourney } from './homepage-story'
+import { OrbitHero } from './orbit-hero'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => undefined }) }))
 vi.mock('@/i18n/actions', () => ({ setLocale: async () => undefined }))
@@ -49,9 +49,11 @@ describe('merge localization regressions', () => {
         </NextIntlClientProvider>,
       )
       expect(html).toContain(catalogs[locale].landing.story.opening.title1)
-      expect(html).toContain('data-opening-chat')
-      expect(html).toContain('data-mascot')
-      expect(html).not.toContain(locale === 'id' ? 'Jeda galeri' : 'Pause gallery')
+      expect(html).toContain('data-orbit-hero')
+      expect(html).toContain('data-orbit-toggle')
+      expect(html).toContain(`aria-label="${catalogs[locale].landing.footer.pauseMotion}"`)
+      expect(html).not.toContain('data-opening-chat')
+      expect(html).not.toContain('data-mascot')
       expect(html).toContain(`aria-label="${catalogs[locale].common.localeToggleLabel}"`)
       expect(html).toContain('>ID</button>')
       expect(html).toContain('>EN</button>')
@@ -61,16 +63,25 @@ describe('merge localization regressions', () => {
       expect(html).toContain('href="/daftar"')
     })
 
-    it(`retains non-animated story rendering in ${locale}`, () => {
+    it(`retains static reduced-motion orbit rendering in ${locale}`, () => {
       const html = renderToStaticMarkup(
         <NextIntlClientProvider locale={locale} messages={catalogs[locale]} timeZone="Asia/Jakarta" onError={failOnTranslationError}>
-          <ProductJourney motionEnabled={false} />
+          <OrbitHero paused={false} reduceMotion={true} onTogglePause={() => undefined} />
         </NextIntlClientProvider>,
       )
-      expect(html).toContain(catalogs[locale].landing.story.opening.done)
-      expect(html).not.toContain(catalogs[locale].landing.story.opening.replay)
-      expect(html).toContain('data-motion="false"')
-      expect(html).not.toContain(locale === 'id' ? 'Galeri tanpa animasi' : 'Gallery animation off')
+      const { opening, orbit } = catalogs[locale].landing.story
+      expect(html).toContain(opening.title1)
+      expect(html).toContain(opening.title2)
+      expect(html).toContain(opening.body)
+      expect(html).toContain(orbit.showcase)
+      expect(html).toContain('data-orbit-stage')
+      expect(html).toContain('data-paused="true"')
+      expect(html).toContain('data-pause-reason="reduced"')
+      const control = html.match(/<button\b[^>]*data-orbit-toggle[^>]*>/)?.[0] ?? ''
+      expect(control).toContain('disabled=""')
+      expect(control).toContain(`aria-label="${catalogs[locale].landing.footer.reducedMotion}"`)
+      expect(html).not.toContain('data-opening-chat')
+      expect(html).not.toContain('data-mascot')
     })
 
     it(`renders eight translated cover-only style previews in ${locale}`, () => {
