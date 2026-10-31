@@ -8,7 +8,7 @@ import enLanding from '../../../messages/en/landing.json'
 import { DESIGN_STYLE_IDS, DESIGN_STYLES } from '@/lib/design-styles'
 import { DesignStylePicker } from '@/components/design-style-picker'
 import { LandingPage } from './landing-page'
-import { GalleryHero, ProductJourney } from './homepage-story'
+import { ProductJourney } from './homepage-story'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => undefined }) }))
 vi.mock('@/i18n/actions', () => ({ setLocale: async () => undefined }))
@@ -48,28 +48,27 @@ describe('merge localization regressions', () => {
           <LandingPage pricing={null} />
         </NextIntlClientProvider>,
       )
-      expect(html).toContain(locale === 'id' ? 'Social media aktif.' : 'Your social media stays active.')
-      expect(html).toContain(locale === 'id' ? 'Kalender &amp; penjadwalan' : 'Calendar &amp; scheduling')
-      expect(html).toContain(locale === 'id' ? 'Uji Auto DM' : 'Test Auto DM')
+      expect(html).toContain(catalogs[locale].landing.story.opening.title1)
+      expect(html).toContain('data-opening-chat')
+      expect(html).toContain('data-mascot')
       expect(html).not.toContain(locale === 'id' ? 'Jeda galeri' : 'Pause gallery')
       expect(html).toContain(`aria-label="${catalogs[locale].common.localeToggleLabel}"`)
       expect(html).toContain('>ID</button>')
       expect(html).toContain('>EN</button>')
       const covers = new Set([...html.matchAll(/\/covers\/(\d\d-[a-z-]+)\.webp/g)].map(match => match[1]))
       expect(covers.size).toBe(20)
-      const sections = ['jadwal', 'asisten', 'desain', 'auto-dm'].map(id => html.indexOf(`id="${id}"`))
-      expect(sections.every((position, i) => position > 0 && (!i || position > sections[i - 1]))).toBe(true)
+      expect(html.indexOf('id="konten"')).toBeGreaterThan(html.indexOf('id="fitur"'))
       expect(html).toContain('href="/daftar"')
     })
 
     it(`retains non-animated story rendering in ${locale}`, () => {
       const html = renderToStaticMarkup(
         <NextIntlClientProvider locale={locale} messages={catalogs[locale]} timeZone="Asia/Jakarta" onError={failOnTranslationError}>
-          <GalleryHero motionEnabled={false} />
           <ProductJourney motionEnabled={false} />
         </NextIntlClientProvider>,
       )
-      expect(html).toContain('data-paused="true"')
+      expect(html).toContain(catalogs[locale].landing.story.opening.done)
+      expect(html).not.toContain(catalogs[locale].landing.story.opening.replay)
       expect(html).toContain('data-motion="false"')
       expect(html).not.toContain(locale === 'id' ? 'Galeri tanpa animasi' : 'Gallery animation off')
     })

@@ -9,7 +9,7 @@ import { MotionConfig, motion, useScroll, useTransform } from 'framer-motion'
 import { ArrowUpRight, CircleHelp, Layers3, Menu, Pause, Play, Plus, Send, Sparkles, X } from 'lucide-react'
 import { CarouselyLogo } from '@/components/brand-mark'
 import styles from './landing.module.css'
-import { ContentShowcase, GalleryHero, ProductJourney } from './homepage-story'
+import { ContentShowcase, ProductJourney } from './homepage-story'
 
 function BotanicalArt({ light = false }: { light?: boolean }) {
   return (
@@ -80,7 +80,7 @@ export function LandingPage({ pricing }: { pricing: ReactNode }) {
       <div className={styles.headerActions}><LocaleToggle variant="landing" className={styles.desktopLocaleToggle} /><Link href="/masuk" className={styles.loginLink}>{t('nav.login')}</Link><Link href="/daftar" className={styles.navCta}>{t('nav.start')} <ArrowUpRight size={16} /></Link><button type="button" className={styles.menuToggle} aria-label={menuOpen ? t('nav.close') : t('nav.open')} aria-expanded={menuOpen} aria-controls="landing-mobile-menu" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={22} /> : <Menu size={22} />}</button></div>
       {menuOpen && <nav id="landing-mobile-menu" className={styles.mobileMenu} aria-label={t('nav.mobile')} onKeyDown={(event) => { if (event.key === 'Escape') { setMenuOpen(false); document.querySelector<HTMLButtonElement>(`.${styles.menuToggle}`)?.focus() } }}><a href="#fitur" onClick={() => setMenuOpen(false)}>{t('nav.features')}</a><a href="#cara-kerja" onClick={() => setMenuOpen(false)}>{t('nav.workflow')}</a><a href="#harga" onClick={() => setMenuOpen(false)}>{t('nav.pricing')}</a><a href="#faq" onClick={() => setMenuOpen(false)}>{t('nav.faq')}</a><Link href="/masuk">{t('nav.accountLogin')}</Link><LocaleToggle variant="landing" className={styles.mobileLocaleToggle} /></nav>}
     </header>
-    <main id="main-content"><GalleryHero motionEnabled={motionEnabled} />
+    <main id="main-content">
       <ProductJourney motionEnabled={motionEnabled} />
       <section className={styles.partners} aria-labelledby="partners-title"><h2 id="partners-title">{t('partners.title')}</h2><p>{t('partners.subtitle')}</p><div>{partners.map(({ name, ...logo }) => <span key={name}><Image {...logo} alt={name} /></span>)}</div></section>
       <ContentShowcase motionEnabled={motionEnabled} />
