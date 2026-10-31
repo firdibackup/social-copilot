@@ -416,8 +416,9 @@
       "showcase": "See sample content"
     },
     "opening": {
-      "title1": "Content for your business,",
-      "title2": "just from a chat.",
+      "apiBadge": "Official API integration",
+      "title1": "Automate Your Own",
+      "title2": "Social Media",
       "body": "Tell Mimo your idea. Review the slides, then create a carousel ready for your review and schedule.",
       "prompt": "Create a promo carousel for studio.kamu café. Show our favourite coffee and cosy space, then invite people to visit.",
       "demo": "Simulation · not a live chat",

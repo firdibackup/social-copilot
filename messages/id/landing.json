@@ -416,8 +416,9 @@
       "showcase": "Lihat contoh konten"
     },
     "opening": {
-      "title1": "Konten untuk usahamu,",
-      "title2": "cukup dari chat.",
+      "apiBadge": "Integrasi API resmi",
+      "title1": "Otomasi Social Mediamu",
+      "title2": "Sendiri",
       "body": "Ceritakan idemu ke Mimo. Cek susunan slide, lalu buat carousel yang siap kamu review dan jadwalkan.",
       "prompt": "Bikinin carousel promo untuk kafe studio.kamu. Ceritakan kopi favorit dan suasana nyaman, lalu ajak orang mampir.",
       "demo": "Simulasi · bukan chat langsung",

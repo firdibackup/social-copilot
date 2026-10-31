@@ -1,13 +1,14 @@
-/* Centered carousel-cover orbit. One 18s cycle: full turn, centered
-   expansion, five 72deg steps with holds, contraction. Mobile/compact uses a
-   clipped panel above the copy and zooms 2x onto the upper arc. */
+/* Centered carousel-cover orbit: two concentric rings (outer staggered by half
+   a step) drifting very slowly, one turn per 160s. Mobile/compact shows a
+   static upper-arc framing in a clipped panel above the copy. */
 @property --orbit-spin { syntax: '<angle>'; inherits: true; initial-value: 0deg; }
 
 .hero {
   --ink: #302650;
   --muted: #625b74;
-  --cw: clamp(76px, 10.5svh, 104px);
+  --cw: clamp(117px, 16.1svh, 159px);
   --ch: calc(var(--cw) * 1.25);
+  --ring-gap: 22px;
   --r: var(--fit-r, calc(var(--cw) * 3.5));
   position: relative;
   height: clamp(600px, calc(100svh - 90px), 1000px);
@@ -19,9 +20,12 @@
 }
 
 .stage { position: absolute; inset: 0; overflow: hidden; }
-.camera { position: absolute; left: 50%; top: 50%; width: 0; height: 0; animation: orbit-camera 18s linear infinite; }
-.ring { position: absolute; inset: 0; animation: orbit-spin 18s infinite; }
-.stage[data-paused='true'] .camera, .stage[data-paused='true'] .ring { animation-play-state: paused; }
+/* One slow, constant drift turns both rings together, so the half-step offset
+   between them never changes. Linear only: no easing, steps or zoom. */
+.camera { position: absolute; left: 50%; top: 50%; width: 0; height: 0; animation: orbit-drift 160s linear infinite; }
+.ring { position: absolute; inset: 0; }
+.outer { --r: calc(var(--fit-r, calc(var(--cw) * 3.5)) + var(--ch) + var(--ring-gap)); }
+.stage[data-paused='true'] .camera { animation-play-state: paused; }
 
 .card {
   --turn: calc(var(--a) + var(--orbit-spin));
@@ -31,7 +35,7 @@
   width: var(--cw);
   height: var(--ch);
   padding: 3px;
-  border-radius: 12px;
+  border-radius: 13px;
   background: #fff;
   box-shadow: 0 1px 2px #2c1f5a14, 0 14px 28px -14px #2c1f5a59;
   transform: rotate(var(--turn)) translateY(calc(var(--r) * -1)) rotate(calc(var(--turn) * -1));
@@ -43,11 +47,19 @@
   z-index: 2;
   left: 50%;
   top: 50%;
-  width: min(440px, calc(100% - 48px));
+  width: min(540px, calc(100% - 48px));
   transform: translate(-50%, -50%);
   text-align: center;
 }
-.copy h1 { margin: 0; font-size: clamp(36px, min(3.4vw, 5.4svh), 48px); line-height: 1.04; letter-spacing: -.045em; font-weight: 650; color: var(--ink); text-wrap: balance; }
+/* Trust eyebrow: one quiet pill above the headline. Mint Ink carries the
+   shield (mint family, never white); brand marks stay monochrome. */
+.badge { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 18px; padding: 6px 12px 6px 10px; border: 1px solid #e4dff4; border-radius: 999px; background: #ffffffcc; box-shadow: 0 1px 2px #2c1f5a0d; backdrop-filter: blur(6px); color: #463b60; font-size: 13px; font-weight: 550; line-height: 1.2; white-space: nowrap; }
+.shield { flex: none; color: #0b5c3b; }
+.divider { flex: none; width: 1px; height: 14px; background: #ddd7ee; }
+.brands { display: inline-flex; align-items: center; gap: 9px; color: #514867; }
+.brand { display: inline-flex; }
+.srOnly { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.copy h1 { margin: 0; font-size: clamp(40px, min(3.74vw, 5.94svh), 53px); line-height: 1.04; letter-spacing: -.045em; font-weight: 650; color: var(--ink); text-wrap: balance; }
 .copy h1 span { color: #6558f5; }
 .copy p { margin: 16px auto 0; max-width: 40ch; color: var(--muted); font-size: 15px; line-height: 1.65; text-wrap: pretty; }
 .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 24px; }
@@ -83,33 +95,15 @@
 .secondary:active { background: #f6f4ff; }
 
 
-@keyframes orbit-spin {
-  0% { --orbit-spin: 0deg; animation-timing-function: cubic-bezier(.45, 0, .2, 1); }
-  20%, 30% { --orbit-spin: 360deg; animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
-  33.5%, 41% { --orbit-spin: 432deg; animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
-  44.5%, 52% { --orbit-spin: 504deg; animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
-  55.5%, 63% { --orbit-spin: 576deg; animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
-  66.5%, 74% { --orbit-spin: 648deg; animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
-  77.5%, 100% { --orbit-spin: 720deg; }
-}
-/* Desktop: uniform scale about the copy's center only moves cards outward. */
-@keyframes orbit-camera {
-  0%, 20% { transform: scale(1); animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
-  26%, 85% { transform: scale(1.15); animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
-  94%, 100% { transform: scale(1); }
-}
-@keyframes orbit-zoom {
-  0%, 20% { transform: translateY(0) scale(1); animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
-  26%, 85% { transform: translateY(calc(var(--r) * 2)) scale(2); animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
-  94%, 100% { transform: translateY(0) scale(1); }
-}
+@keyframes orbit-drift { to { --orbit-spin: 360deg; } }
 
 /* Mobile and compact height: Bleam-style clipped panel above centered copy. */
 @media (max-width: 1023px), (max-height: 639px) {
   .hero {
     --ph: clamp(220px, 46svh, 400px);
-    --cw: min(48px, 11.5vw, calc(var(--ph) / 8.6));
-    --r: calc(var(--cw) * 3.6);
+    --cw: min(73px, 17.5vw, calc(var(--ph) / 5.15));
+    --ring-gap: 10px;
+    --r: calc(var(--cw) * 2.5);
     height: auto;
     overflow: visible;
     padding: 8px 16px 52px;
@@ -117,11 +111,16 @@
     border-bottom: 0;
   }
   .stage { position: relative; inset: auto; height: var(--ph); max-width: 720px; margin: 0 auto; border-radius: 24px; background: radial-gradient(ellipse at 50% 30%, #fbfaff 0, #f3f1fa 70%); box-shadow: inset 0 0 0 1px #ece8f6; }
-  .camera { animation-name: orbit-zoom; }
-  .card { padding: 2px; border-radius: 7px; box-shadow: 0 1px 1px #2c1f5a12, 0 8px 14px -8px #2c1f5a59; }
+  /* Calm framing (no zoom): the outer ring's top card sits just inside the top
+     edge, so the panel shows the upper arcs of both rings with the sides and
+     bottom softly clipped. */
+  .outer { --r: calc(var(--cw) * 2.5 + var(--ch) + var(--ring-gap)); }
+  .camera { top: calc(var(--cw) * 2.5 + var(--ch) * 1.5 + var(--ring-gap) + 14px); }
+  .card { padding: 2px; border-radius: 8px; box-shadow: 0 1px 1px #2c1f5a12, 0 8px 14px -8px #2c1f5a59; }
   .card img { border-radius: 5px; }
   .copy { position: relative; left: auto; top: auto; transform: none; width: auto; max-width: 520px; margin: 32px auto 0; }
-  .copy h1 { font-size: clamp(30px, 8.4vw, 44px); }
+  .badge { margin-bottom: 14px; padding: 5px 11px 5px 9px; font-size: 12.5px; }
+  .copy h1 { font-size: clamp(33px, 9.24vw, 48px); }
   .copy p { font-size: 14px; margin-top: 14px; }
   .actions { margin-top: 22px; }
   .toggle { top: calc(8px + var(--ph) - 56px); bottom: auto; right: max(28px, calc(50% - 360px + 12px)); width: 44px; height: 44px; }
@@ -136,8 +135,8 @@
 /* Reduced motion: still, zoomed-out composition. The media query covers first
    paint before hydration; the data attribute covers the JS-reported state. */
 @media (prefers-reduced-motion: reduce) {
-  .camera, .ring { animation: none; }
+  .camera { animation: none; }
   .primary, .secondary, .toggle { transition: none; }
   .primary:hover, .toggle:active:not(:disabled) { transform: none; }
 }
-.stage[data-pause-reason='reduced'] .camera, .stage[data-pause-reason='reduced'] .ring { animation: none; }
+.stage[data-pause-reason='reduced'] .camera { animation: none; }
