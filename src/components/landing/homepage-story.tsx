@@ -5,7 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useId, useRef, useState } from 'react'
 import { motion, useMotionValueEvent, useScroll, useTransform, type MotionValue } from 'framer-motion'
-import { ArrowUpRight, Check, ChevronLeft, ChevronRight, Pause, Play, Send, Sparkles } from 'lucide-react'
+import { ArrowUpRight, Check, ChevronLeft, ChevronRight, Send, Sparkles } from 'lucide-react'
 import { InstagramFillIcon, MetaFillIcon, ThreadsFillIcon } from '@/components/brand-icons'
 import { InstagramIcon } from '@/components/instagram-icon'
 import { MimoMascot } from '@/components/mimo-mascot'
@@ -28,7 +28,6 @@ export function GalleryHero({ motionEnabled }: { motionEnabled: boolean }) {
   const instagramGradient = useId()
   const t = useTranslations('landing.story')
   const labels = useCoverLabels()
-  const [paused, setPaused] = useState(false)
   return <section className={styles.hero} aria-labelledby="hero-title">
     <div className={styles.heroCopy}>
       <span className={styles.eyebrow}>
@@ -40,10 +39,9 @@ export function GalleryHero({ motionEnabled }: { motionEnabled: boolean }) {
       <div className={styles.actions}><Link href="/daftar" className={styles.primary}>{t('start')} <ArrowUpRight size={18} /></Link><a href="#fitur" className={styles.secondary}>{t('hero.explore')} <span>↓</span></a></div>
       <span className={styles.smallNote}>{t('hero.note')}</span>
     </div>
-    <div className={styles.gallery} data-paused={paused || !motionEnabled} aria-label={t('hero.galleryLabel')}>
+    <div className={styles.gallery} data-paused={!motionEnabled} aria-label={t('hero.galleryLabel')}>
       {[0, 1].map(row => <div className={`${styles.galleryTrack} ${row ? styles.reverse : ''}`} key={row}>{[0, 1].map(copy => <div className={styles.galleryGroup} key={copy} aria-hidden={copy === 1 ? true : undefined}>{names.slice(row * 10, row * 10 + 10).map((name, i) => <figure key={name}><Cover index={row * 10 + i} priority={row === 0 && i < 6} /><figcaption>{labels[row * 10 + i]}</figcaption></figure>)}</div>)}</div>)}
     </div>
-    <div className={styles.galleryFoot}><span>{t('hero.footer')}</span><button type="button" aria-pressed={paused} onClick={() => setPaused(!paused)}>{paused || !motionEnabled ? <Play size={14} /> : <Pause size={14} />}{!motionEnabled ? t('hero.still') : paused ? t('hero.play') : t('hero.pause')}</button></div>
   </section>
 }
 

@@ -21,11 +21,11 @@ fs.mkdirSync(out, { recursive: true })
       assert.equal(await page.locator('[aria-label="Panduan Mimo"]').getAttribute('data-active'), '-1')
       const gallery = page.locator('[aria-label="Galeri 20 contoh carousel"]')
       assert.equal(await gallery.locator('img').evaluateAll(imgs => new Set(imgs.map(i => i.getAttribute('src'))).size), 20)
-      await page.getByRole('button', { name: 'Jeda galeri', exact: true }).click()
+      await page.getByRole('button', { name: 'Jeda animasi', exact: true }).click()
       assert.equal(await gallery.getAttribute('data-paused'), 'true')
       await page.evaluate(() => scrollTo(0, 0))
       await page.screenshot({ path: `${out}/${name}-hero.png` })
-      await page.getByRole('button', { name: 'Putar galeri', exact: true }).click()
+      await page.getByRole('button', { name: 'Aktifkan animasi', exact: true }).click()
       assert.equal(await gallery.getAttribute('data-paused'), 'false')
       let lastX
       for (const [i, id] of ['jadwal', 'asisten', 'desain', 'auto-dm'].entries()) {

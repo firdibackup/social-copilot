@@ -51,7 +51,7 @@ describe('merge localization regressions', () => {
       expect(html).toContain(locale === 'id' ? 'Social media aktif.' : 'Your social media stays active.')
       expect(html).toContain(locale === 'id' ? 'Kalender &amp; penjadwalan' : 'Calendar &amp; scheduling')
       expect(html).toContain(locale === 'id' ? 'Uji Auto DM' : 'Test Auto DM')
-      expect(html).toContain(locale === 'id' ? 'Jeda galeri' : 'Pause gallery')
+      expect(html).not.toContain(locale === 'id' ? 'Jeda galeri' : 'Pause gallery')
       expect(html).toContain(`aria-label="${catalogs[locale].common.localeToggleLabel}"`)
       expect(html).toContain('>ID</button>')
       expect(html).toContain('>EN</button>')
