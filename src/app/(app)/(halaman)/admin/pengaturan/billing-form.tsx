@@ -9,7 +9,7 @@ import { saveCatalogAction } from './billing-actions'
 
 const RATE_LABELS: Record<string, string> = {
   image: 'Gambar baru (per slide)', content: 'Susunan konten dan caption', content_slide: 'Slide yang sudah dibayar',
-  slide_edit: 'Edit gambar', caption_edit: 'Edit caption', content_ideas: 'Ide konten', content_script: 'Skrip',
+  slide_edit: 'Edit gambar', caption_edit: 'Edit caption', threads_write: 'Tulis Threads', threads_edit: 'Edit Threads', content_ideas: 'Ide konten', content_script: 'Skrip',
   brand_profile: 'Profil brand', brand_visual: 'Visual brand', brand_strategy: 'Strategi brand', website_catalog: 'Katalog website',
   asset_tags: 'Tag aset (per foto)', reply_draft: 'Draf balasan', template_analysis: 'Analisis template admin',
   reference_labels: 'Kategori referensi dari grid',

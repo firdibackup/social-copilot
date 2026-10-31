@@ -1,12 +1,14 @@
 'use client'
 
 import { ImagePlus, Plus, Scissors, Trash2, X } from 'lucide-react'
-import { useEffect, useEffectEvent, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useEffectEvent, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Avatar } from '@/components/avatar'
 import { confirmDialog } from '@/components/confirm-dialog'
 import { MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
 import type { Asset } from '@/lib/assets'
+import { formatCreditShare } from '@/lib/billing-options'
 import {
   itemsFromCaption,
   MAX_THREAD_ITEMS,
@@ -16,8 +18,9 @@ import {
   THREADS_TEXT_LIMIT,
   THREADS_TEXT_WARN,
 } from '@/lib/thread-items'
+import { Composer } from './composer'
 import { PhotoPicker } from './photo-picker'
-import { saveThreadItemsAction } from './threads-actions'
+import { saveThreadItemsAction, threadsAiAction } from './threads-actions'
 import { useSaveBeforeNavigation } from './use-save-before-navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { editorKeys, type EditorDetail } from './editor-query'
@@ -26,6 +29,8 @@ import { createSaveQueue } from './save-queue'
 
 const AUTOSAVE_MS = 1000
 const FAILED = 'Gagal menghubungi server. Coba lagi.'
+const LOCKED = 'Post ini tidak bisa diubah lagi.'
+const SHORT = 'Kuota AI tidak cukup. Perpanjang di halaman Langganan.'
 const ICON_TOOL =
   'inline-flex size-8 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-zinc-100 hover:text-ink disabled:opacity-40'
 
@@ -65,12 +70,26 @@ interface ThreadsEditorProps {
   onUploaded: (assets: Asset[]) => void
   editable: boolean
   onCreated: (postId: string) => void
+  composerSlot: HTMLElement | null
+  /** Credits left in the period; null when they couldn't be read (the server still checks). */
+  credits: number | null
+  planCredits: number
+  writeCost: number
+  editCost: number
 }
 
 let keyCount = 0
 const newKey = () => `item-${(keyCount += 1)}`
 
 const toEditorItem = (item: StoredItem): EditorItem => ({ key: newKey(), text: item.text, media: item.media })
+
+function sameItems(left: EditorItem[], right: EditorItem[]) {
+  return left.length === right.length && left.every((item, index) => {
+    const other = right[index]
+    return item.text === other.text && item.media.length === other.media.length &&
+      item.media.every((photo, at) => photo.assetId === other.media[at]?.assetId)
+  })
+}
 
 /** The caption split as the worker would publish it, every photo on the first item. */
 function followCaption(caption: string, media: ItemMedia[]): EditorItem[] {
@@ -92,8 +111,24 @@ function followCaption(caption: string, media: ItemMedia[]): EditorItem[] {
 export function ThreadsEditor(props: ThreadsEditorProps) {
   const client = useQueryClient()
   const scope = useEditorScope()
-  const { postId, storedItems, caption, media, canFollowCaption, username, avatarUrl, library, onUploaded, editable, onCreated } =
-    props
+  const {
+    postId,
+    storedItems,
+    caption,
+    media,
+    canFollowCaption,
+    username,
+    avatarUrl,
+    library,
+    onUploaded,
+    editable,
+    onCreated,
+    composerSlot,
+    credits,
+    planCredits,
+    writeCost,
+    editCost,
+  } = props
   const [own, setOwn] = useState<EditorItem[] | null>(() =>
     storedItems.length > 0 ? storedItems.map(toEditorItem) : postId === null ? [{ key: newKey(), text: '', media: [] }] : null,
   )
@@ -101,6 +136,10 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
   const [savedVersion, setSavedVersion] = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [aiBusy, setAiBusy] = useState(false)
+  const [selected, setSelected] = useState<number | null>(null)
+  const [target, setTarget] = useState<number | null>(null)
+  const [undo, setUndo] = useState<{ before: EditorItem[]; after: EditorItem[] } | null>(null)
   const [pickerIndex, setPickerIndex] = useState(0)
   const pickerRef = useRef<HTMLDialogElement>(null)
   const fields = useRef(new Map<string, HTMLTextAreaElement>())
@@ -110,12 +149,17 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
   const following = own === null
   const unsaved = version !== savedVersion
   const hasContent = items.some((item) => item.text.trim() !== '' || item.media.length > 0)
+  const hasText = items.some((item) => item.text.trim() !== '')
+  const aiCost = hasText ? editCost : writeCost
+  const short = credits !== null && aiCost > credits
   const storedKey = JSON.stringify(storedItems)
   const [seenStored, setSeenStored] = useState(storedKey)
   if (storedKey !== seenStored) {
     setSeenStored(storedKey)
     if (!unsaved) setOwn(storedItems.length ? storedItems.map(toEditorItem) : null)
   }
+  if (selected !== null && selected >= items.length) setSelected(null)
+  if (target !== null && target >= items.length) setTarget(null)
   const createdId = useRef<string | null>(null)
   const [enqueueSave] = useState(createSaveQueue)
 
@@ -224,9 +268,86 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>, index: number) {
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
       event.preventDefault()
-      addAfter(index)
+      if (!aiBusy) addAfter(index)
     }
   }
+
+  async function askAi(instruction: string) {
+    if (aiBusy) return false
+    const before = items
+    const requestTarget = target
+    setError(null)
+    setAiBusy(true)
+    const result = await threadsAiAction({
+      texts: items.map((item) => item.text),
+      instruction,
+      target: requestTarget,
+    }).catch(() => ({ error: FAILED }))
+    setAiBusy(false)
+    if ('error' in result) {
+      setError(result.error)
+      return false
+    }
+
+    const replacementCount = requestTarget === null ? 0 : result.texts.length - items.length + 1
+    const after = result.texts.map((text, index): EditorItem => {
+      let source: EditorItem | undefined
+      if (requestTarget === null) source = items[index]
+      else if (index <= requestTarget) source = items[index]
+      else if (index >= requestTarget + replacementCount) source = items[index - replacementCount + 1]
+      return {
+        key: source?.key ?? newKey(),
+        text,
+        media: source?.media ?? [],
+      }
+    })
+    if (requestTarget === null && after.length < items.length && after.length > 0) {
+      const last = after[after.length - 1]
+      const existing = new Set(last.media.map((photo) => photo.assetId))
+      const dropped = items.slice(after.length).flatMap((item) => item.media).filter((photo) => {
+        if (existing.has(photo.assetId)) return false
+        existing.add(photo.assetId)
+        return true
+      })
+      last.media = [...last.media, ...dropped].slice(0, MAX_THREAD_MEDIA)
+    }
+    setUndo({ before, after })
+    change(after)
+    return true
+  }
+
+  const composer = composerSlot ? createPortal(
+    <Composer
+      placeholder={!hasText
+        ? 'Tulis topik untuk thread…'
+        : target === null
+          ? 'Tulis perubahan untuk thread…'
+          : `Tulis perubahan untuk post #${target + 1}…`}
+      cost={`${hasText ? '' : '≈ '}${formatCreditShare(aiCost, planCredits)} kuota`}
+      blocked={!editable ? LOCKED : short ? SHORT : null}
+      busyLabel={aiBusy ? (hasText ? 'Mengubah thread…' : 'Menulis thread…') : null}
+      readOnly={aiBusy}
+      canAttach={false}
+      onSend={askAi}
+    >
+      {hasText && editable && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+          <span className="flex items-center gap-1">
+            Ubah:
+            <TargetButton active={target === null} disabled={aiBusy} onClick={() => setTarget(null)}>
+              Semua post
+            </TargetButton>
+            {selected !== null && (
+              <TargetButton active={target === selected} disabled={aiBusy} onClick={() => setTarget(selected)}>
+                Post #{selected + 1}
+              </TargetButton>
+            )}
+          </span>
+        </div>
+      )}
+    </Composer>,
+    composerSlot,
+  ) : null
 
   return (
     <div className="mx-auto w-full max-w-[520px] space-y-3">
@@ -237,7 +358,12 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
           <span className="flex items-center gap-2">
             Versi Threads sendiri.
             {canFollowCaption && editable && (
-              <button type="button" onClick={() => void followAgain()} className="font-medium text-ink underline">
+              <button
+                type="button"
+                onClick={() => void followAgain()}
+                disabled={aiBusy}
+                className="font-medium text-ink underline disabled:opacity-40"
+              >
                 Ikuti caption lagi
               </button>
             )}
@@ -271,8 +397,9 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
                     }}
                     value={item.text}
                     onChange={(event) => update(index, { text: event.target.value })}
+                    onFocus={() => setSelected(index)}
                     onKeyDown={(event) => onKeyDown(event, index)}
-                    readOnly={!editable}
+                    readOnly={!editable || aiBusy}
                     aria-label={`Teks post Threads #${index + 1}`}
                     placeholder={editable ? (index === 0 ? 'Mulai thread…' : 'Lanjutkan thread…') : ''}
                     className="mt-0.5 block w-full resize-none border-0 bg-transparent p-0 text-[14px] leading-relaxed text-ink [field-sizing:content] placeholder:text-ink-soft read-only:text-ink-muted focus:outline-none"
@@ -287,7 +414,8 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
                               type="button"
                               aria-label="Buang foto ini dari versi Threads"
                               onClick={() => update(index, { media: item.media.filter((other) => other.assetId !== photo.assetId) })}
-                              className="absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+                              disabled={aiBusy}
+                              className="absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 disabled:opacity-40"
                             >
                               <X size={14} aria-hidden="true" />
                             </button>
@@ -303,7 +431,8 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
                         <button
                           type="button"
                           onClick={() => split(index)}
-                          className="inline-flex h-8 items-center gap-1 rounded-full px-2.5 text-xs font-medium text-accent transition-colors hover:bg-accent-soft"
+                          disabled={aiBusy}
+                          className="inline-flex h-8 items-center gap-1 rounded-full px-2.5 text-xs font-medium text-accent transition-colors hover:bg-accent-soft disabled:opacity-40"
                         >
                           <Scissors size={14} aria-hidden="true" />
                           Pecah otomatis
@@ -312,7 +441,7 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
                       <button
                         type="button"
                         onClick={() => addAfter(index)}
-                        disabled={items.length >= MAX_THREAD_ITEMS}
+                        disabled={aiBusy || items.length >= MAX_THREAD_ITEMS}
                         aria-label="Tambah post di bawah"
                         title="Tambah post di bawah (⌘↵)"
                         className={ICON_TOOL}
@@ -326,6 +455,7 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
                           pickerRef.current?.showModal()
                           props.onLoadLibrary()
                         }}
+                        disabled={aiBusy}
                         aria-label="Tambah gambar"
                         title="Tambah gambar"
                         className={ICON_TOOL}
@@ -336,6 +466,7 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
                         <button
                           type="button"
                           onClick={() => change(items.filter((_, at) => at !== index))}
+                          disabled={aiBusy}
                           aria-label={`Hapus post #${index + 1}`}
                           title="Hapus post ini"
                           className={`${ICON_TOOL} hover:text-red-600`}
@@ -356,12 +487,31 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
         <button
           type="button"
           onClick={() => addAfter(items.length - 1)}
-          className="flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-hairline text-sm font-medium text-ink-muted transition-colors hover:border-accent hover:text-accent"
+          disabled={aiBusy}
+          className="flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-hairline text-sm font-medium text-ink-muted transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
         >
           <Plus size={16} aria-hidden="true" />
           Tambah post
         </button>
       )}
+
+      {undo && sameItems(items, undo.after) && editable && !aiBusy && (
+        <p className="text-xs text-ink-muted">
+          Thread diganti AI.{' '}
+          <button
+            type="button"
+            onClick={() => {
+              change(undo.before)
+              setUndo(null)
+            }}
+            className="font-medium text-ink underline"
+          >
+            Urungkan
+          </button>
+        </p>
+      )}
+
+      {composer}
 
       <PhotoPicker
         dialogRef={pickerRef}
@@ -392,6 +542,30 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
         onDone={() => {}}
       />
     </div>
+  )
+}
+
+function TargetButton({
+  active,
+  disabled,
+  onClick,
+  children,
+}: {
+  active: boolean
+  disabled: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      disabled={disabled}
+      className={`rounded-md px-2 py-0.5 font-medium transition-colors disabled:opacity-40 ${active ? 'bg-accent-soft text-accent' : 'text-ink-muted hover:bg-zinc-100'}`}
+    >
+      {children}
+    </button>
   )
 }
 

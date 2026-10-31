@@ -152,6 +152,7 @@ export function ContentEditor({
   const queryClient = useQueryClient()
   const scope = useEditorScope()
   const [requestKey, setRequestKey] = useState('')
+  const [threadsFooter, setThreadsFooter] = useState<HTMLElement | null>(null)
   /** A post keeps the day, slot and tab it was opened with. */
   const openPost = (id: string) => {
     const params = new URLSearchParams({ id })
@@ -757,6 +758,11 @@ export function ContentEditor({
                 onUploaded={(assets) => setLibrary((current) => [...assets, ...current])}
                 editable={threadsEditable}
                 onCreated={openPost}
+                composerSlot={threadsFooter}
+                credits={credits}
+                planCredits={planCredits}
+                writeCost={TASK_CREDITS.threads_write}
+                editCost={TASK_CREDITS.threads_edit}
               />
             </>
           ) : (
@@ -847,28 +853,32 @@ export function ContentEditor({
         </div>
       </div>
 
-      {/* The AI box edits the Instagram slides and caption; the Threads tab is edited in place. */}
-      {platform !== 'threads' && !(job?.kind === 'content' && job.status !== 'ready') && (
-      <div className="shrink-0 px-4 pt-2 pb-3 md:px-8 md:pb-4">
-        <div className="mx-auto max-w-[680px]">
-          <Composer
-            placeholder={composer.placeholder}
-            cost={`${post ? '' : '≈ '}${formatCreditShare(composerCost, planCredits)} kuota`}
-            blocked={composer.blocked}
-            busyLabel={busy ?? (draft.writing ? 'Menyusun skrip dari ide…' : null)}
-            onCancel={submitting || editOperation || jobPending ? cancelCurrent : undefined}
-            cancelling={cancelling}
-            text={post ? undefined : draft.text}
-            onTextChange={post ? undefined : draft.setText}
-            readOnly={draft.writing}
-            format={post ? undefined : formatScript}
-            canAttach={!post || target === 'slide'}
-            onSend={composer.send}
-          >
-            {options}
-          </Composer>
+      {/* Each platform keeps its AI box at the same fixed editor footer. */}
+      {platform === 'threads' ? (
+        <div className="shrink-0 px-4 pt-2 pb-3 md:px-8 md:pb-4">
+          <div ref={setThreadsFooter} className="mx-auto max-w-[680px]" />
         </div>
-      </div>
+      ) : !(job?.kind === 'content' && job.status !== 'ready') && (
+        <div className="shrink-0 px-4 pt-2 pb-3 md:px-8 md:pb-4">
+          <div className="mx-auto max-w-[680px]">
+            <Composer
+              placeholder={composer.placeholder}
+              cost={`${post ? '' : '≈ '}${formatCreditShare(composerCost, planCredits)} kuota`}
+              blocked={composer.blocked}
+              busyLabel={busy ?? (draft.writing ? 'Menyusun skrip dari ide…' : null)}
+              onCancel={submitting || editOperation || jobPending ? cancelCurrent : undefined}
+              cancelling={cancelling}
+              text={post ? undefined : draft.text}
+              onTextChange={post ? undefined : draft.setText}
+              readOnly={draft.writing}
+              format={post ? undefined : formatScript}
+              canAttach={!post || target === 'slide'}
+              onSend={composer.send}
+            >
+              {options}
+            </Composer>
+          </div>
+        </div>
       )}
 
       <PhotoPicker

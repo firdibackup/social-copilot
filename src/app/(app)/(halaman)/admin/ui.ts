@@ -22,6 +22,8 @@ export const TASK_LABELS: Record<string, string> = {
   content_slide: 'Slide konten',
   slide_edit: 'Edit slide',
   caption_edit: 'Edit caption',
+  threads_write: 'Tulis Threads',
+  threads_edit: 'Edit Threads',
   content_ideas: 'Ide konten',
   content_script: 'Skrip konten',
   brand_profile: 'Profil brand',

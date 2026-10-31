@@ -82,6 +82,10 @@ export type LoggedTask =
   | 'content_slide'
   | 'slide_edit'
   | 'caption_edit'
+  /** Write a new Threads chain from the owner's topic. */
+  | 'threads_write'
+  /** Rewrite a Threads chain or one post in it. */
+  | 'threads_edit'
   | 'content_ideas'
   | 'content_script'
   | 'brand_profile'

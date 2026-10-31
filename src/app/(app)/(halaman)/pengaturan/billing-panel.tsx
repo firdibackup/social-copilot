@@ -249,7 +249,7 @@ export function BillingPanel(props: Props) {
         <div className="mt-4 space-y-4 text-sm text-ink-muted">
           {period && usage && <p>Periode {date(period.start)}–{date(period.end)} · kuota {number(usage.credits)} kredit.</p>}
           <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-2">
-            {[['Ide konten', catalog.rates.content_ideas], ['Skrip konten', catalog.rates.content_script], ['Konten baru (di luar gambar)', catalog.rates.content], ['Gambar AI per gambar', catalog.rates.image], ['Edit gambar', catalog.rates.slide_edit], ['Edit caption', catalog.rates.caption_edit], ['Draf balasan', catalog.rates.reply_draft]].map(([label, cost]) => <div key={label} className="contents"><dt>{label}</dt><dd className="tabular-nums text-ink">{cost} kredit</dd></div>)}
+            {[['Ide konten', catalog.rates.content_ideas], ['Skrip konten', catalog.rates.content_script], ['Konten baru (di luar gambar)', catalog.rates.content], ['Gambar AI per gambar', catalog.rates.image], ['Edit gambar', catalog.rates.slide_edit], ['Edit caption', catalog.rates.caption_edit], ['Tulis Threads', catalog.rates.threads_write], ['Edit Threads', catalog.rates.threads_edit], ['Draf balasan', catalog.rates.reply_draft]].map(([label, cost]) => <div key={label} className="contents"><dt>{label}</dt><dd className="tabular-nums text-ink">{cost} kredit</dd></div>)}
           </dl>
         </div>
       </details>

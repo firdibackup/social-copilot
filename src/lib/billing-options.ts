@@ -26,6 +26,8 @@ export const TASK_CREDITS: Record<LoggedTask, number> = {
   content_slide: 0,
   slide_edit: IMAGE_CREDITS,
   caption_edit: 2,
+  threads_write: 3,
+  threads_edit: 2,
   content_ideas: 2,
   content_script: 3,
   brand_profile: 5,
