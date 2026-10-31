@@ -38,9 +38,7 @@ export interface DesignStyle {
   /** One line for the owner, in Indonesian. */
   summary: string
   /** Hardcoded copy used to demonstrate the three carousel roles in the picker. */
-  samples: readonly { role: SlideRole; label: string; title: string; copy: string }[]
-  /** A distinct CSS composition used by the hardcoded preview. */
-  motif: 'minimal' | 'blocks' | 'frame' | 'bubbles' | 'magazine' | 'data' | 'botanical' | 'grid'
+  samples: readonly { role: SlideRole; label: string; title: string; copy: string; image: string }[]
   /** Who it suits, in Indonesian. */
   suits: string
   headingFont: FontName
@@ -55,13 +53,12 @@ export interface DesignStyle {
 
 export const DESIGN_STYLES = {
   minimalis: {
-    motif: 'minimal',
     label: 'Minimalis Modern',
     summary: 'Bersih, banyak ruang kosong, tipografi jadi pusat perhatian.',
     samples: [
-      { role: 'cover', label: 'Panduan praktis', title: 'Konten Rapi, Pesan Lebih Sampai', copy: 'Mulai dari satu ide yang jelas.' },
-      { role: 'isi', label: '01 · Fokus', title: 'Satu slide, satu pesan', copy: 'Ruang kosong membantu pembaca menangkap inti.' },
-      { role: 'cta', label: 'Langkah berikutnya', title: 'Siap merapikan kontenmu?', copy: 'Simpan panduan ini →' },
+      { role: 'cover', label: 'Panduan praktis', title: 'Konten Rapi, Pesan Lebih Sampai', copy: 'Mulai dari satu ide yang jelas.', image: '/design-styles/minimalis-cover.webp' },
+      { role: 'isi', label: '01 · Fokus', title: 'Satu slide, satu pesan', copy: 'Ruang kosong membantu pembaca menangkap inti.', image: '/design-styles/minimalis-isi.webp' },
+      { role: 'cta', label: 'Langkah berikutnya', title: 'Siap merapikan kontenmu?', copy: 'Simpan panduan ini →', image: '/design-styles/minimalis-cta.webp' },
     ],
     suits: 'Edukasi, jasa profesional, produk premium yang tenang.',
     headingFont: 'Plus Jakarta Sans',
@@ -78,13 +75,12 @@ export const DESIGN_STYLES = {
     },
   },
   bold: {
-    motif: 'blocks',
     label: 'Bold Kreatif',
     summary: 'Warna berani, huruf besar, blok warna, kontras tinggi.',
     samples: [
-      { role: 'cover', label: 'Stop scroll', title: 'Ide Bagus Harus Terlihat!', copy: 'Geser buat lihat caranya →' },
-      { role: 'isi', label: '01', title: 'Buka dengan kejutan', copy: 'Pakai satu kalimat yang langsung menantang.' },
-      { role: 'cta', label: 'Giliran kamu', title: 'Bikin Kontenmu Menonjol', copy: 'Coba sekarang →' },
+      { role: 'cover', label: 'Stop scroll', title: 'Ide Bagus Harus Terlihat!', copy: 'Geser buat lihat caranya →', image: '/design-styles/bold-cover.webp' },
+      { role: 'isi', label: '01', title: 'Buka dengan kejutan', copy: 'Pakai satu kalimat yang langsung menantang.', image: '/design-styles/bold-isi.webp' },
+      { role: 'cta', label: 'Giliran kamu', title: 'Bikin Kontenmu Menonjol', copy: 'Coba sekarang →', image: '/design-styles/bold-cta.webp' },
     ],
     suits: 'Kreator, brand anak muda, promo dan konten viral.',
     headingFont: 'Poppins',
@@ -100,13 +96,12 @@ export const DESIGN_STYLES = {
     },
   },
   elegan: {
-    motif: 'frame',
     label: 'Elegan Premium',
     summary: 'Serif mewah, warna kalem, kesan eksklusif.',
     samples: [
-      { role: 'cover', label: 'THE EDIT', title: 'Detail Kecil, Kesan Berkelas', copy: 'Panduan membangun citra premium.' },
-      { role: 'isi', label: '01 · Detail', title: 'Kurasi, bukan dekorasi', copy: 'Pilih elemen yang punya alasan untuk hadir.' },
-      { role: 'cta', label: 'Discover more', title: 'Temukan gaya khas brand Anda', copy: 'Mulai eksplorasi' },
+      { role: 'cover', label: 'THE EDIT', title: 'Detail Kecil, Kesan Berkelas', copy: 'Panduan membangun citra premium.', image: '/design-styles/elegan-cover.webp' },
+      { role: 'isi', label: '01 · Detail', title: 'Kurasi, bukan dekorasi', copy: 'Pilih elemen yang punya alasan untuk hadir.', image: '/design-styles/elegan-isi.webp' },
+      { role: 'cta', label: 'Discover more', title: 'Temukan gaya khas brand Anda', copy: 'Mulai eksplorasi', image: '/design-styles/elegan-cta.webp' },
     ],
     suits: 'Fashion, kecantikan, perhiasan, hotel, kuliner fine dining.',
     headingFont: 'Playfair Display',
@@ -122,13 +117,12 @@ export const DESIGN_STYLES = {
     },
   },
   ceria: {
-    motif: 'bubbles',
     label: 'Ceria & Playful',
     summary: 'Warna pastel cerah, bentuk membulat, ilustrasi lucu.',
     samples: [
-      { role: 'cover', label: 'Yuk, belajar!', title: 'Bikin Ide Jadi Seru', copy: 'Geser untuk mulai ✦' },
-      { role: 'isi', label: '01', title: 'Mulai dari yang kamu suka', copy: 'Ide ringan lebih mudah dikembangkan.' },
-      { role: 'cta', label: 'Sampai sini!', title: 'Saatnya Coba Sendiri', copy: 'Ayo mulai →' },
+      { role: 'cover', label: 'Yuk, belajar!', title: 'Bikin Ide Jadi Seru', copy: 'Geser untuk mulai ✦', image: '/design-styles/ceria-cover.webp' },
+      { role: 'isi', label: '01', title: 'Mulai dari yang kamu suka', copy: 'Ide ringan lebih mudah dikembangkan.', image: '/design-styles/ceria-isi.webp' },
+      { role: 'cta', label: 'Sampai sini!', title: 'Saatnya Coba Sendiri', copy: 'Ayo mulai →', image: '/design-styles/ceria-cta.webp' },
     ],
     suits: 'Produk anak, makanan ringan, hobi, komunitas santai.',
     headingFont: 'Outfit',
@@ -144,13 +138,12 @@ export const DESIGN_STYLES = {
     },
   },
   editorial: {
-    motif: 'magazine',
     label: 'Editorial Majalah',
     summary: 'Seperti halaman majalah: foto kuat, grid rapi, judul besar.',
     samples: [
-      { role: 'cover', label: 'ISSUE 01 · INSIGHT', title: 'Cara Baru Melihat Kebiasaan Lama', copy: 'Catatan untuk hidup yang lebih sadar.' },
-      { role: 'isi', label: '01 · Perspektif', title: 'Yang luput dari perhatian', copy: 'Perubahan besar sering bermula dari observasi kecil.' },
-      { role: 'cta', label: 'End note', title: 'Apa yang ingin kamu ubah?', copy: 'Bagikan perspektifmu →' },
+      { role: 'cover', label: 'ISSUE 01 · INSIGHT', title: 'Cara Baru Melihat Kebiasaan Lama', copy: 'Catatan untuk hidup yang lebih sadar.', image: '/design-styles/editorial-cover.webp' },
+      { role: 'isi', label: '01 · Perspektif', title: 'Yang luput dari perhatian', copy: 'Perubahan besar sering bermula dari observasi kecil.', image: '/design-styles/editorial-isi.webp' },
+      { role: 'cta', label: 'End note', title: 'Apa yang ingin kamu ubah?', copy: 'Bagikan perspektifmu →', image: '/design-styles/editorial-cta.webp' },
     ],
     suits: 'Media, opini, lifestyle, personal brand.',
     headingFont: 'DM Serif Display',
@@ -166,13 +159,12 @@ export const DESIGN_STYLES = {
     },
   },
   profesional: {
-    motif: 'data',
     label: 'Profesional Korporat',
     summary: 'Rapi, terpercaya, warna biru/navy, data dan ikon.',
     samples: [
-      { role: 'cover', label: 'BUSINESS BRIEF', title: 'Keputusan Lebih Tepat dengan Data', copy: 'Tiga langkah membaca peluang.' },
-      { role: 'isi', label: '01 · Analisis', title: 'Mulai dari indikator utama', copy: 'Bandingkan tren, bukan satu angka terpisah.' },
-      { role: 'cta', label: 'Konsultasi', title: 'Siap menyusun langkah berikutnya?', copy: 'Hubungi tim kami →' },
+      { role: 'cover', label: 'BUSINESS BRIEF', title: 'Keputusan Lebih Tepat dengan Data', copy: 'Tiga langkah membaca peluang.', image: '/design-styles/profesional-cover.webp' },
+      { role: 'isi', label: '01 · Analisis', title: 'Mulai dari indikator utama', copy: 'Bandingkan tren, bukan satu angka terpisah.', image: '/design-styles/profesional-isi.webp' },
+      { role: 'cta', label: 'Konsultasi', title: 'Siap menyusun langkah berikutnya?', copy: 'Hubungi tim kami →', image: '/design-styles/profesional-cta.webp' },
     ],
     suits: 'B2B, keuangan, konsultan, kesehatan, pendidikan formal.',
     headingFont: 'Montserrat',
@@ -188,13 +180,12 @@ export const DESIGN_STYLES = {
     },
   },
   natural: {
-    motif: 'botanical',
     label: 'Natural & Organik',
     summary: 'Warna tanah, tekstur kertas, daun, nuansa hangat.',
     samples: [
-      { role: 'cover', label: 'SLOW LIVING NOTE', title: 'Kebiasaan Baik Tumbuh Perlahan', copy: 'Mulai dari hal kecil setiap hari.' },
-      { role: 'isi', label: '01 · Bertumbuh', title: 'Beri ruang untuk proses', copy: 'Konsistensi lebih penting dari kesempurnaan.' },
-      { role: 'cta', label: 'A gentle reminder', title: 'Mulai dengan satu langkah', copy: 'Simpan untuk nanti' },
+      { role: 'cover', label: 'SLOW LIVING NOTE', title: 'Kebiasaan Baik Tumbuh Perlahan', copy: 'Mulai dari hal kecil setiap hari.', image: '/design-styles/natural-cover.webp' },
+      { role: 'isi', label: '01 · Bertumbuh', title: 'Beri ruang untuk proses', copy: 'Konsistensi lebih penting dari kesempurnaan.', image: '/design-styles/natural-isi.webp' },
+      { role: 'cta', label: 'A gentle reminder', title: 'Mulai dengan satu langkah', copy: 'Simpan untuk nanti', image: '/design-styles/natural-cta.webp' },
     ],
     suits: 'Produk alami, kopi, kesehatan, wellness, F&B rumahan.',
     headingFont: 'Fraunces',
@@ -210,13 +201,12 @@ export const DESIGN_STYLES = {
     },
   },
   tech: {
-    motif: 'grid',
     label: 'Tech Modern',
     summary: 'Latar gelap, aksen neon, grid futuristis.',
     samples: [
-      { role: 'cover', label: 'SYSTEM UPDATE', title: 'Kerja Cepat Tanpa Alur Rumit', copy: 'Optimalkan proses digitalmu.' },
-      { role: 'isi', label: '01 · AUTOMATE', title: 'Hilangkan kerja berulang', copy: 'Biarkan sistem menangani tugas rutin.' },
-      { role: 'cta', label: 'READY TO START?', title: 'Upgrade Cara Kerjamu', copy: 'Mulai sekarang →' },
+      { role: 'cover', label: 'SYSTEM UPDATE', title: 'Kerja Cepat Tanpa Alur Rumit', copy: 'Optimalkan proses digitalmu.', image: '/design-styles/tech-cover.webp' },
+      { role: 'isi', label: '01 · AUTOMATE', title: 'Hilangkan kerja berulang', copy: 'Biarkan sistem menangani tugas rutin.', image: '/design-styles/tech-isi.webp' },
+      { role: 'cta', label: 'READY TO START?', title: 'Upgrade Cara Kerjamu', copy: 'Mulai sekarang →', image: '/design-styles/tech-cta.webp' },
     ],
     suits: 'Teknologi, aplikasi, gaming, crypto, digital marketing.',
     headingFont: 'Space Grotesk',

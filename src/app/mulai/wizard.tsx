@@ -74,7 +74,7 @@ const STEPS: Step[] = [
   {
     id: 'style',
     title: 'Gaya desain seperti apa yang kamu mau?',
-    hint: 'Ini yang paling menentukan tampilan carousel. Cover, isi, dan CTA akan punya layout sendiri dalam gaya yang sama.',
+    hint: 'Ini hanya acuan font dan layout awal. Jika kamu menambahkan referensi desain atau menghubungkan Instagram, referensi tersebut akan diprioritaskan.',
     required: (answers) => answers.designStyle !== '',
   },
   {

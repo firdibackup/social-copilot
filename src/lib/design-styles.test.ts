@@ -17,7 +17,10 @@ describe('style recipes', () => {
       expect(style.samples.map((sample) => sample.role)).toEqual(['cover', 'isi', 'cta'])
       expect(style.samples.every((sample) => sample.label && sample.title && sample.copy)).toBe(true)
     }
-    expect(new Set(STYLES.map((style) => style.motif)).size).toBe(STYLES.length)
+    const images = STYLES.flatMap((style) => style.samples.map((sample) => sample.image))
+    expect(images).toHaveLength(24)
+    expect(new Set(images).size).toBe(24)
+    expect(images.every((image) => image.startsWith('/design-styles/') && image.endsWith('.webp'))).toBe(true)
   })
 })
 

@@ -165,7 +165,7 @@ export function BrandForm({ kit, references, instagramUsername, visualLimit }: B
         <div className="space-y-2">
           <p className="text-sm font-medium text-zinc-900">{FIELD_LABELS.designStyle}</p>
           <p className="text-xs text-zinc-500">
-            Menentukan font, perlakuan teks, dan kesan desain. Referensi Instagram tetap jadi acuan susunan layout.
+            Hanya acuan font dan layout awal. Referensi desain yang Anda unggah atau referensi dari Instagram akan diprioritaskan.
           </p>
           <DesignStylePicker
             value={fields.designStyle}
