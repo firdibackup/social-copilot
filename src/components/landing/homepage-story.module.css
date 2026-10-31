@@ -22,35 +22,81 @@
 .galleryFoot { display: flex; justify-content: space-between; align-items: center; max-width: 1160px; margin: auto; padding: 17px 28px 25px; color: #746b80; font-size: 11px; }
 .galleryFoot button { display: flex; gap: 7px; align-items: center; background: white; padding: 10px 14px; min-height: 44px; border: 1px solid #e4deed; border-radius: 30px; font-size: 11px; }
 @keyframes galleryRun { to { transform: translateX(-50%); } }
-.journey { position: relative; background: #fff; }
-.journeyIntro { padding: 85px 24px 45px; text-align: center; }
-.journeyIntro h2 { margin-top: 22px !important; }
-.journeyIntro p { color: #756b80; margin-top: 22px; font-size: 14px; line-height: 1.8; }
-.tourArea { position: relative; }
-.guideRail { position: absolute; top: 0; bottom: 0; left: max(24px, calc((100% - 1110px) / 2)); right: max(24px, calc((100% - 1110px) / 2)); pointer-events: none; z-index: 5; }
-.guideRail .guide { width: 355px; margin-left: 0; transition: margin-left .8s cubic-bezier(.22,1,.36,1); }
-.guideRail[data-side="right"] .guide { margin-left: calc(100% - 355px); }
-.guideRail[data-motion="false"] .guide { transition: none; }
-.guide { position: sticky; top: 24px; display: flex; align-items: center; gap: 0; transform-origin: 45px 45px; padding-top: 10px; }
-.guide > svg { flex: none; filter: drop-shadow(0 8px 10px #6558f522); }
-.speech { position: relative; background: white; border: 1px solid #dcd5ef; border-radius: 15px; padding: 12px 15px; box-shadow: 0 8px 25px -15px #40345c55; }
-.speech::before { content: ''; position: absolute; left: -6px; top: 34px; width: 10px; height: 10px; background: white; border-left: 1px solid #dcd5ef; border-bottom: 1px solid #dcd5ef; transform: rotate(45deg); }
-.speech b { font-size: 10px; color: #6558cc; }
-.speech p { font-size: 12px; line-height: 1.5; margin: 4px 0 0; color: #4f455e; }
-.chapter { min-height: 760px; padding: 155px max(28px, calc((100% - 1110px) / 2)) 100px; display: grid; grid-template-columns: .85fr 1.15fr; align-items: center; gap: 75px; border-bottom: 1px solid #eeeaf3; background: #fafbf8; }
-.alternate { background: #f7f5fc; }
-.chapter:nth-of-type(3) { background: #fcf8f3; }
-.chapter:nth-of-type(4) { background: #f2f7f6; }
-.chapterCopy { min-width: 0; }
-.chapterLabel { display: flex; align-items: center; gap: 12px; font-size: 12px; color: #6d617f; }
-.chapterLabel b { font-size: 11px; border: 1px solid #d8cfe4; border-radius: 50%; width: 28px; height: 28px; display: grid; place-items: center; }
-.chapterCopy h2 { white-space: pre-line; margin: 24px 0 !important; font-size: clamp(32px, 3.3vw, 46px) !important; line-height: 1.12; }
-.chapterCopy > p { color: #746b80; line-height: 1.85; font-size: 14px; max-width: 38ch; }
-.tryHint { display: block; color: #71617f; font-size: 11px; margin-top: 24px; }
-.chapterCopy > a { display: inline-flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 600; color: #5a49cf; margin-top: 20px; }
-.progressTrack { height: 3px; margin: 0 18px 8px; background: #e9e3f2; overflow: hidden; border-radius: 3px; }
+.journey { --sp: 0; position: relative; height: 440vh; background: #faf9fe; }
+.tourPin { position: sticky; top: 0; height: 100vh; height: 100svh; display: flex; flex-direction: column; align-items: center; padding: 92px 24px 28px; gap: 22px; overflow: hidden; }
+.journeyIntro { text-align: center; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.journeyIntro h2 { font-size: clamp(32px, 4.4vw, 62px); margin: 0; max-width: 25ch; }
+.tourSteps { list-style: none; display: flex; justify-content: space-between; gap: 8px; width: min(560px, 100%); padding: 4px 0 14px; margin: 0; }
+.tourSteps li { flex: 1; color: #81758c; transition: color .4s; }
+.tourSteps button { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 44px; background: none; border: 0; padding: 0; color: inherit; font-size: 13px; }
+.tourSteps b { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; box-shadow: inset 0 0 0 1.5px #ded6e8; transition: background .4s, color .4s, box-shadow .4s; }
+.tourSteps [data-active='true'] { color: #252238; }
+.tourSteps [data-active='true'] b { background: #6558f5; color: white; box-shadow: 0 0 20px #6558f555; }
+.tourSteps [data-done='true'] b { background: #ede8fc; color: #6558f5; }
+.progressTrack { height: 2px; margin-top: -14px; width: min(560px, 100%); background: #e9e3f2; overflow: hidden; border-radius: 2px; }
 .progressTrack > div { height: 100%; background: #6558f5; transform-origin: left; }
-.simulation { min-width: 0; width: 100%; box-shadow: 0 28px 60px -30px #3c2d6540; border-radius: 18px; }
+.tourStage { position: relative; flex: 1; width: 100%; max-width: 1100px; min-height: 0; }
+.chapter { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 22px; opacity: calc(var(--in) - var(--out)); filter: blur(calc(var(--out) * 8px)); }
+.chapter[aria-hidden='true'] { pointer-events: none; }
+/* Exact pr-idea / pr-board / pr-review / pr-anim progress windows. */
+.chapter[data-chapter='0'] { --in: clamp(0, calc((var(--sp) - .01) * 9), 1); --out: clamp(0, calc((var(--sp) - .21) * 12), 1); transform: translateY(calc((1 - var(--in)) * 40px - var(--out) * 50px)) scale(calc(1 - var(--out) * .05)); }
+.chapter[data-chapter='1'] { --in: clamp(0, calc((var(--sp) - .26) * 10), 1); --out: clamp(0, calc((var(--sp) - .46) * 12), 1); transform: translateY(calc(var(--out) * -50px)) scale(calc(1 - var(--out) * .05)); }
+.chapter[data-chapter='2'] { --in: clamp(0, calc((var(--sp) - .51) * 10), 1); --out: clamp(0, calc((var(--sp) - .71) * 12), 1); transform: translateY(calc((1 - var(--in)) * 40px - var(--out) * 50px)); }
+.chapter[data-chapter='3'] { --in: clamp(0, calc((var(--sp) - .76) * 9), 1); --out: 0; transform: translateY(calc((1 - var(--in)) * 40px)); }
+.chapterCopy { min-width: 0; text-align: center; }
+.chapterLabel { color: #6d617f; font-size: 12px; }
+.chapterCopy h2 { white-space: pre-line; margin: 18px 0; font-size: clamp(28px, 3vw, 42px); line-height: 1.12; }
+.chapterCopy > p { margin-inline: auto; color: #746b80; line-height: 1.75; font-size: 14px; max-width: 38ch; }
+.tryHint { display: block; color: #71617f; font-size: 11px; margin-top: 16px; }
+.chapterCopy > a { display: inline-flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 600; color: #5a49cf; margin-top: 16px; }
+.simulation { flex: none; min-width: 0; width: 100%; max-width: 560px; justify-self: center; box-shadow: 0 28px 60px -30px #3c2d6540; border-radius: 18px; }
+.guide { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 8px; pointer-events: none; }
+.guide > svg { flex: none; }
+.guide p { color: #655c76; font-size: 12px; max-width: 45ch; margin: 0; }
+.journey .disclaimer { flex: none; padding: 0; max-width: 80ch; }
+.journey[data-motion='true'] .chapterLabel, .journey[data-motion='true'] .chapterCopy > p, .journey[data-motion='true'] .tryHint, .journey[data-motion='true'] .chapterCopy > a { display: none; }
+.journey[data-motion='true'] .chapterCopy h2 { font-size: 24px; white-space: normal; margin: 0; }
+.chapter[data-chapter='0'] .simulation { max-width: 660px; }
+.chapter[data-chapter='1'] .simulation { max-width: 900px; }
+.chapter[data-chapter='1'] .chatBody { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.chapter[data-chapter='1'] .userMessage { margin: 0; }
+.chapter[data-chapter='1'] .assistantMessage { margin: 0; flex-direction: column; }
+.chapter[data-chapter='1'] .toolSteps { flex-direction: column; gap: 12px; }
+.chapter[data-chapter='1'] .chatResult { flex-direction: column; }
+.chapter[data-chapter='1'] .chatResult img { width: 100%; max-width: 100px; }
+/* Review/output widen into two-part compositions; mobile stacks them below. */
+.chapter[data-chapter='2'] .simulation { max-width: 860px; }
+.chapter[data-chapter='2'] .design { display: grid; grid-template-columns: 1fr 1fr; }
+.chapter[data-chapter='2'] .panelBar { grid-column: 1 / -1; }
+.chapter[data-chapter='2'] .designCanvas { grid-column: 1; grid-row: 2 / 5; margin: 0; padding: 22px; min-height: 240px; }
+.chapter[data-chapter='2'] .designControls, .chapter[data-chapter='2'] .referenceLine, .chapter[data-chapter='2'] .designBottom { grid-column: 2; }
+.chapter[data-chapter='3'] .simulation { max-width: 980px; }
+.chapter[data-chapter='3'] .dm { display: grid; grid-template-columns: 1fr 1fr; }
+.chapter[data-chapter='3'] .panelBar { grid-column: 1 / -1; }
+.chapter[data-chapter='3'] .dmRule, .chapter[data-chapter='3'] .commentPreview, .chapter[data-chapter='3'] .runRule { grid-column: 1; }
+.chapter[data-chapter='3'] .dmResult { grid-column: 2; grid-row: 2 / 5; display: flex; flex-direction: column; justify-content: center; border-left: 1px solid #ede7f4; }
+
+/* Source's four storyboard cards: independent 60px rise and -4/-2/-3/-4 rotation. */
+.journey[data-motion='true'] .chapter[data-chapter='1'] .chatBody > * { --k: clamp(0, calc((var(--sp) - .27 - var(--i) * .025) * 14), 1); opacity: var(--k); transform: translateY(calc((1 - var(--k)) * 60px)) rotate(calc((1 - var(--k)) * var(--r) * 1deg)); }
+.chapter[data-chapter='1'] .chatBody > :nth-child(1) { --i: 0; --r: -4; }
+.chapter[data-chapter='1'] .chatBody > :nth-child(2) { --i: 1; --r: -2; }
+.chapter[data-chapter='1'] .chatBody > :nth-child(3) { --i: 2; --r: -3; }
+.chapter[data-chapter='1'] .chatBody > :nth-child(4) { --i: 3; --r: -4; }
+.journey[data-motion='true'] .chapter[data-chapter='0'] .days button { --k: clamp(0, calc((var(--sp) - .07 - var(--i) * .022) * 18), 1); opacity: var(--k); transform: translateY(calc((1 - var(--k)) * 16px)) scale(calc(.85 + var(--k) * .15)); }
+.days button:nth-child(1) { --i: 0; } .days button:nth-child(2) { --i: 1; } .days button:nth-child(3) { --i: 2; } .days button:nth-child(4) { --i: 3; } .days button:nth-child(5) { --i: 4; }
+.journey[data-motion='true'] .chapter[data-chapter='2'] .referenceCard { --k: clamp(0, calc((var(--sp) - .53) * 14), 1); opacity: var(--k); translate: 0 calc((1 - var(--k)) * 14px); }
+.journey[data-motion='true'] .chapter[data-chapter='2'] .resultCard { --k: clamp(0, calc((var(--sp) - .58) * 14), 1); opacity: var(--k); translate: 0 calc((1 - var(--k)) * 14px); }
+.journey[data-motion='true'] .chapter[data-chapter='2'] .designBottom { --k: clamp(0, calc((var(--sp) - .69) * 16), 1); opacity: calc(.4 + var(--k) * .6); }
+.journey[data-motion='true'] .chapter[data-chapter='3'] .dmResult { --k: clamp(0, calc((var(--sp) - .79) * 12), 1); opacity: var(--k); clip-path: inset(0 calc((1 - var(--k)) * 100%) 0 0); }
+
+/* Pause/reduced motion exposes every demo in document order, without pinning. */
+.journey[data-motion='false'] { height: auto; }
+.journey[data-motion='false'] .tourPin { position: relative; height: auto; overflow: visible; }
+.journey[data-motion='false'] .tourStage { flex: auto; }
+.journey[data-motion='false'] .chapter { position: relative; padding-block: 40px; opacity: 1; transform: none; filter: none; }
+.journey[data-motion='false'] .chapter[data-chapter='1'] .chatBody { display: block; }
+.journey[data-motion='false'] .chapter[data-chapter='1'] .chatBody > * { margin-block: 12px; }
+.journey[data-motion='false'] .tourSteps li, .journey[data-motion='false'] .tourSteps b, .journey[data-motion='false'] .referenceCard, .journey[data-motion='false'] .resultCard { transition: none; }
 .calendar, .chat, .design, .dm { background: #fff; border: 1px solid #e3deeb; border-radius: 16px; overflow: hidden; }
 .panelBar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 17px 22px; border-bottom: 1px solid #eeeaf4; font-size: 12px; font-weight: 600; }
 .panelBar > span { display: inline-flex; align-items: center; gap: 8px; }
@@ -168,12 +214,44 @@
  .hero { padding-top: 35px; } .hero h1 { font-size: clamp(37px, 8.7vw, 58px); margin-top: 22px; } .heroCopy p { font-size: 14px; } .eyebrow { font-size: 10px; } .desktopBreak { display: none; }
  .actions { flex-direction: column; align-items: center; gap: 9px; } .primary, .secondary { min-height: 46px; width: auto; font-size: 12px; } .actions > a { min-width: 245px; } .smallNote { font-size: 10px; margin-bottom: 22px; }
  .gallery figure { width: 142px; padding: 5px; } .galleryGroup { gap: 10px; padding-right: 10px; } .reverse { margin-top: 10px; } .gallery figcaption { font-size: 8px; } .galleryFoot { padding: 12px 18px 20px; font-size: 9px; gap: 15px; } .galleryFoot button { font-size: 10px; white-space: nowrap; }
- .journeyIntro { padding: 50px 22px 35px; } .journeyIntro h2 { font-size: 32px !important; } .journeyIntro p { font-size: 12px; }
- .guideRail { left: 12px; right: 12px; width: auto; } .guideRail .guide { width: calc(100% - 24px); max-width: 335px; } .guideRail[data-side="right"] .guide { margin-left: 24px; } .guide { top: 8px; padding: 0; } .guide > svg { width: 65px; height: 65px; } .speech { padding: 9px 12px; max-width: 270px; } .speech p { font-size: 11px; } .speech b { font-size: 9px; } .speech::before { top: 25px; }
- .chapter { min-height: auto; grid-template-columns: 1fr; padding: 125px 22px 60px; gap: 35px; } .chapterCopy h2 { font-size: 35px !important; margin: 18px 0 !important; } .chapterCopy > p { font-size: 13px; max-width: 45ch; } .chapterLabel { font-size: 11px; } .tryHint { margin-top: 17px; font-size: 10px; } .chapterCopy > a { margin-top: 13px; }
  .simulation { max-width: 520px; margin: auto; } .panelBar { padding: 15px; font-size: 11px; } .calendarTitle { padding: 20px 17px; } .calendarTitle h3 { font-size: 23px; } .days { padding: 0 15px 15px; } .schedulePost { margin: 0 15px 15px; padding: 10px; gap: 14px; } .schedulePost img { width: 95px; } .schedulePost h4 { font-size: 18px; } .schedulePost p { font-size: 9px; } .scheduleFooter { padding: 14px 15px; font-size: 10px; }
  .taskChoices, .designControls { padding: 14px 14px 0; gap: 5px; } .taskChoices button { padding: 8px; font-size: 9px; flex: 1; } .chatBody { padding: 17px 14px; } .userMessage { margin-left: 25px; font-size: 11px; } .chatResult strong { font-size: 12px; } .toolSteps > div { font-size: 7px; gap: 3px; } .composer { margin: 0 14px 14px; font-size: 9px; }
  .designCanvas { padding: 25px 22px; gap: 15px; } .designBottom { padding: 16px 14px; gap: 10px; } .designBottom p { font-size: 9px; } .designBottom button { font-size: 9px; padding: 8px 10px; } .designControls button { font-size: 9px; } .referenceLine { font-size: 9px; margin-inline: 14px; }
  .dmRule { padding: 18px 15px; gap: 8px; } .dmRule span { font-size: 7px; } .commentPreview { padding: 22px 15px 15px; } .dmResult { padding: 18px 15px; } .dmBubble { margin-left: 15px; font-size: 11px; } .disclaimer { font-size: 10px; }
+}
+@media(max-width: 900px) {
+ .tourPin { padding: 84px 22px 28px; gap: 14px; }
+ .journeyIntro { gap: 10px; }
+ .chapter[data-chapter='2'] .design, .chapter[data-chapter='3'] .dm { display: flex; flex-direction: column; }
+ .chapter[data-chapter='2'] .designCanvas { order: 1; min-height: 0; height: 22vh; flex: none; }
+ .chapter[data-chapter='2'] .designCanvas img { max-height: 15vh; width: auto; max-width: 100%; margin: auto; }
+ .chapter[data-chapter='2'] .designControls { order: 2; }
+ .chapter[data-chapter='2'] .referenceLine { order: 3; }
+ .chapter[data-chapter='2'] .designBottom { order: 4; }
+ .chapter[data-chapter='3'] .dmResult { min-height: 26vh; border-left: 0; }
+ .chapter[data-chapter='1'] .chatBody { gap: 6px; padding: 12px 8px; }
+ .chapter[data-chapter='1'] .chatBody > * { padding: 7px; overflow-wrap: anywhere; }
+ .chapter[data-chapter='1'] .assistantMessage p, .chapter[data-chapter='1'] .userMessage, .chapter[data-chapter='1'] .chatResult strong { font-size: 10px; }
+ .chapter[data-chapter='1'] .toolSteps > div { flex-direction: column; align-items: flex-start; }
+
+ .journeyIntro h2 { font-size: clamp(28px, 7.4vw, 40px); }
+ .tourSteps { gap: 6px; }
+ .tourSteps button { flex-direction: column; gap: 5px; font-size: 10px; line-height: 1.25; }
+ .tourSteps b { width: 24px; height: 24px; font-size: 12px; }
+ .chapter { justify-content: flex-start; gap: 14px; padding-top: 8px; overflow-y: auto; scrollbar-width: thin; }
+ .chapterCopy { text-align: center; }
+ .chapterLabel, .chapterCopy > p, .tryHint, .chapterCopy > a { display: none; }
+ .chapterCopy h2 { font-size: 24px; margin: 0; white-space: normal; }
+ .guide { gap: 4px; }
+ .guide > svg { width: 48px; height: 48px; }
+ .guide p { font-size: 11px; }
+ .journey .disclaimer { font-size: 9px; line-height: 1.4; }
+ .journey[data-motion='false'] .chapterCopy > p, .journey[data-motion='false'] .tryHint, .journey[data-motion='false'] .chapterCopy > a { display: block; margin-inline: auto; }
+}
+@media(min-width: 901px) and (max-height: 850px) {
+ .tourPin { padding-top: 28px; gap: 14px; }
+ .journeyIntro h2 { font-size: 32px; max-width: none; }
+ .chapter { overflow-y: auto; justify-content: flex-start; }
+ .guide > svg { width: 48px; height: 48px; }
 }
 @media(prefers-reduced-motion: reduce) { .galleryTrack { animation: none; } .gallery { overflow-x: auto; mask-image: none; } .galleryTrack .galleryGroup:nth-child(2) { display: none; } .referenceCard, .resultCard { transition: none; } }

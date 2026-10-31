@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { AnimatePresence, LayoutGroup, motion, useMotionValueEvent, useScroll, useTransform, type MotionValue } from 'framer-motion'
+import { AnimatePresence, LayoutGroup, motion, useMotionValueEvent, useScroll, type MotionStyle, type MotionValue } from 'framer-motion'
 import { ArrowUpRight, Check, ChevronLeft, ChevronRight, Send, Sparkles } from 'lucide-react'
 import { InstagramFillIcon, MetaFillIcon, ThreadsFillIcon } from '@/components/brand-icons'
 import { InstagramIcon } from '@/components/instagram-icon'
@@ -162,7 +162,7 @@ function ChatSimulation({ progress, motionEnabled }: { progress: MotionValue<num
   const [task, setTask] = useState(0)
   const manual = useRef(false)
   useMotionValueEvent(progress, 'change', value => {
-    if (motionEnabled && !manual.current) setTask(value < .42 ? 0 : value < .62 ? 1 : 2)
+    if (motionEnabled && !manual.current && value >= .25 && value < .5) setTask(value < .34 ? 0 : value < .41 ? 1 : 2)
   })
   const prompts = [t('chat.prompts0'), t('chat.prompts1'), t('chat.prompts2')]
   const replies = [t('chat.replies0'), t('chat.replies1'), t('chat.replies2')]
@@ -203,50 +203,48 @@ function DmSimulation() {
   </div>
 }
 
-function Chapter({ index, motionEnabled }: { index: number; motionEnabled: boolean }) {
-  const t = useTranslations('landing.story')
-  const chapters = useChapters()
-  const ref = useRef<HTMLElement>(null)
-  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] })
-  const y = useTransform(scrollYProgress, [0, .5, 1], [65, 0, -45])
-  const rotate = useTransform(scrollYProgress, [0, .5, 1], [2, 0, -1])
-  const chapter = chapters[index]
-  return <section ref={ref} id={chapter.id} data-chapter={index} className={`${styles.chapter} ${index % 2 ? styles.alternate : ''}`} aria-labelledby={`${chapter.id}-title`}>
-    <div className={styles.chapterCopy}><span className={styles.chapterLabel}><b>0{index + 1}</b>{chapter.label}</span><h2 id={`${chapter.id}-title`}>{chapter.title}</h2><p>{chapter.description}</p><span className={styles.tryHint}>↗ {chapter.detail}</span><Link href="/daftar">{t('start')} <ArrowUpRight size={17} /></Link></div>
-    <motion.div className={styles.simulation} style={motionEnabled ? { y, rotate } : undefined}><div className={styles.progressTrack} aria-hidden="true"><motion.div style={{ scaleX: motionEnabled ? scrollYProgress : 1 }} /></div>{index === 0 ? <CalendarSimulation /> : index === 1 ? <ChatSimulation progress={scrollYProgress} motionEnabled={motionEnabled} /> : index === 2 ? <DesignSimulation /> : <DmSimulation />}</motion.div>
-  </section>
-}
-
+// Mosio's live process tour: 440vh pin, quarter steps and continuous CSS layers.
 export function ProductJourney({ motionEnabled }: { motionEnabled: boolean }) {
   const t = useTranslations('landing.story')
   const chapters = useChapters()
   const ref = useRef<HTMLDivElement>(null)
-  const [active, setActive] = useState(-1)
-  useEffect(() => {
+  const stepButtons = useRef<(HTMLButtonElement | null)[]>([])
+  const [active, setActive] = useState(0)
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end end'] })
+  useMotionValueEvent(scrollYProgress, 'change', value => {
+    const next = value < .25 ? 0 : value < .5 ? 1 : value < .75 ? 2 : 3
+    // Do not leave keyboard focus inside a layer that just became inert.
+    const focused = document.activeElement
+    if (motionEnabled && focused instanceof HTMLElement) {
+      const layer = focused.closest<HTMLElement>('[data-chapter]')
+      if (layer && ref.current?.contains(layer) && Number(layer.dataset.chapter) !== next) stepButtons.current[next]?.focus({ preventScroll: true })
+    }
+    setActive(next)
+  })
+  const select = (index: number) => {
     const root = ref.current
     if (!root) return
-    const sections = Array.from(root.querySelectorAll<HTMLElement>('[data-chapter]'))
-    let frame = 0
-    const update = () => {
-      frame = 0
-      const line = innerHeight * .55
-      setActive(sections.findIndex(section => {
-        const box = section.getBoundingClientRect()
-        return box.top <= line && box.bottom > line
-      }))
+    if (!motionEnabled) {
+      root.querySelector<HTMLElement>(`[data-chapter="${index}"]`)?.scrollIntoView({ block: 'start' })
+      return
     }
-    const onScroll = () => { if (!frame) frame = requestAnimationFrame(update) }
-    update()
-    addEventListener('scroll', onScroll, { passive: true })
-    addEventListener('resize', onScroll)
-    return () => { removeEventListener('scroll', onScroll); removeEventListener('resize', onScroll); cancelAnimationFrame(frame) }
-  }, [])
-  return <div ref={ref} id="fitur" className={styles.journey}>
-    <div className={styles.journeyIntro}><span className={styles.eyebrow}>{t('journey.eyebrow')}</span><h2>{t('journey.title1')}<br />{t('journey.title2')}</h2><p>{t('journey.body1')}<br />{t('journey.body2')}</p></div>
-    <div className={styles.tourArea}>
-      <div className={styles.guideRail} data-side={active % 2 === 1 ? "right" : "left"} data-motion={motionEnabled}><motion.aside aria-label={t('journey.guide')} className={styles.guide} data-active={active} initial={false} animate={{ opacity: active < 0 ? 0 : 1, scale: active < 0 ? .3 : 1, y: motionEnabled && active % 2 === 1 ? 10 : 0 }} transition={motionEnabled ? { type: 'spring', stiffness: 240, damping: 15 } : { duration: 0 }}><MimoMascot size={86} still={!motionEnabled} mood="smile" pulse={active + 1} /><div className={styles.speech}><b>{t('journey.partner')}</b><p>{chapters[Math.max(0, active)].note}</p></div></motion.aside></div>
-      {chapters.map((chapter, index) => <Chapter key={chapter.id} index={index} motionEnabled={motionEnabled} />)}
+    // Land on a fully revealed pose, not on the invisible quarter boundary.
+    window.scrollTo({ top: root.getBoundingClientRect().top + window.scrollY + (index * .25 + .14) * Math.max(1, root.offsetHeight - window.innerHeight), behavior: 'smooth' })
+  }
+  return <motion.div ref={ref} id="fitur" className={styles.journey} data-motion={motionEnabled} style={{ '--sp': scrollYProgress } as MotionStyle}>
+    <div className={styles.tourPin}>
+      <div className={styles.journeyIntro}><span className={styles.eyebrow}>{t('journey.eyebrow')}</span><h2>{t('journey.title1')} {t('journey.title2')}</h2>
+        <ol className={styles.tourSteps} aria-label={t('journey.guide')}>{chapters.map((chapter, index) => <li key={chapter.id} data-active={active === index} data-done={active > index}><button ref={node => { stepButtons.current[index] = node }} type="button" aria-current={active === index ? 'step' : undefined} aria-controls={chapter.id} onClick={() => select(index)}><b>{index + 1}</b><span>{chapter.label}</span></button></li>)}</ol>
+        <div className={styles.progressTrack} aria-hidden="true"><motion.div style={{ scaleX: scrollYProgress }} /></div>
+      </div>
+      <div className={styles.tourStage}>
+        {chapters.map((chapter, index) => <section key={chapter.id} id={chapter.id} data-chapter={index} className={styles.chapter} aria-labelledby={`${chapter.id}-title`} aria-hidden={motionEnabled && active !== index} inert={motionEnabled && active !== index}>
+          <div className={styles.chapterCopy}><span className={styles.chapterLabel}>{chapter.label}</span><h2 id={`${chapter.id}-title`}>{chapter.title}</h2><p>{chapter.description}</p><span className={styles.tryHint}>↗ {chapter.detail}</span><Link href="/daftar">{t('start')} <ArrowUpRight size={17} /></Link></div>
+          <div className={styles.simulation}>{index === 0 ? <CalendarSimulation /> : index === 1 ? <ChatSimulation progress={scrollYProgress} motionEnabled={motionEnabled} /> : index === 2 ? <DesignSimulation /> : <DmSimulation />}</div>
+          <aside aria-label={t('journey.guide')} className={styles.guide}><MimoMascot size={74} still={!motionEnabled || active !== index} mood="smile" pulse={active === index ? active + 1 : 0} /><p>{chapter.note}</p></aside>
+        </section>)}
+      </div>
+      <p className={styles.disclaimer}>{t('journey.disclaimer')}</p>
     </div>
-    <p className={styles.disclaimer}>{t('journey.disclaimer')}</p>
-  </div>
+  </motion.div>
 }
