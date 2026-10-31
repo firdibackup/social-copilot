@@ -27,9 +27,9 @@ describe('homepage story', () => {
   it.each(['id', 'en'] as const)('shows four sample folders separately from real partners in %s', locale => {
     const html = renderLanding(locale)
     const showcase = html.match(/<section[^>]*id="konten"[\s\S]*?<\/section>/)?.[0] ?? ''
-    expect(showcase.match(/<details\b/g)).toHaveLength(4)
-    expect(showcase.match(/<summary\b/g)).toHaveLength(4)
-    const covers = [...showcase.matchAll(/<figure[^>]*>[\s\S]*?src="(\/covers\/[^" ]+)"/g)].map(match => match[1])
+    expect(showcase).not.toContain('<details')
+    expect(showcase.match(/aria-expanded="false"/g)).toHaveLength(4)
+    const covers = [...showcase.matchAll(/src="(\/covers\/[^" ]+)"/g)].map(match => match[1])
     expect(covers).toHaveLength(20)
     expect(new Set(covers).size).toBe(20)
     expect(showcase).toContain(catalogs[locale].landing.story.showcase.disclaimer)
