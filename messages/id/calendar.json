@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "Kalender",
+    "loading": "Memuat kalender…",
+    "loadingPeriod": "Memuat kalender",
+    "target": "Target {count} post/minggu · ",
+    "brand": "Atur di Brand",
+    "setTarget": "Atur target frekuensi di Brand",
+    "view": "Tampilan",
+    "month": "Bulan",
+    "week": "Minggu",
+    "list": "Daftar",
+    "newPost": "Post baru",
+    "deleted": "Post dihapus dari aplikasi. Post yang sudah terbit tetap ada di Instagram."
+  },
+  "monthView": { "previous": "Bulan sebelumnya", "next": "Bulan berikutnya" },
+  "weekView": { "previous": "Minggu sebelumnya", "next": "Minggu berikutnya", "label": "Minggu {period}", "empty": "Kosong" },
+  "day": {
+    "today": "Hari ini",
+    "weeklyPosts": "post minggu ini",
+    "weeklyTarget": "{count} dari target {target} post minggu ini",
+    "newPost": "Post baru {day}"
+  },
+  "weekdays": { "1": "Sen", "2": "Sel", "3": "Rab", "4": "Kam", "5": "Jum", "6": "Sab", "7": "Min" },
+  "targetStatus": { "pending": "menunggu", "publishing": "sedang terbit", "published": "terbit", "failed": "gagal" },
+  "story": { "title": "Story: {status}", "label": "Story {status}", "badge": "+Story", "compactBadge": "+S" },
+  "list": {
+    "filter": "Filter status",
+    "all": "Semua",
+    "clearDay": "Hapus filter tanggal",
+    "empty": "Belum ada post di sini.",
+    "create": "Buat post",
+    "unscheduled": "Belum dijadwalkan",
+    "photos": " · {count, plural, other {# foto}}"
+  },
+  "slots": {
+    "unreachable": "Gagal menghubungi server. Coba lagi.",
+    "emptyLabel": "Slot kosong {day} {time}",
+    "time": "Slot {time}",
+    "create": "Buat",
+    "choose": "Pilih",
+    "description": "Pilih post jadi untuk slot {time} WIB.",
+    "close": "Tutup",
+    "empty": "Belum ada post jadi yang belum terjadwal.",
+    "createForSlot": "Buat post untuk slot ini",
+    "scheduling": "Menjadwalkan…",
+    "slides": "{count, plural, other {# slide}} · {time}",
+    "title": "Slot posting"
+  },
+  "errors": {
+    "invalidSlot": "Slot tidak valid.",
+    "pastSlot": "Slot ini sudah lewat. Pilih slot lain.",
+    "missingPost": "Post tidak ditemukan. Mungkin sudah dihapus.",
+    "takenSlot": "Slot ini sudah terisi. Pilih slot lain.",
+    "slidesPending": "Tunggu semua slide post ini selesai dibuat.",
+    "fixCaption": "{errors} Perbaiki di Buat dulu.",
+    "scheduleFailed": "Post gagal dijadwalkan. Coba lagi.",
+    "maxTimes": "Maksimal {count} jam per hari.",
+    "duplicateTime": "Jam {time} muncul dua kali.",
+    "configuration": "Konfigurasi belum lengkap: {message}.",
+    "database": "Database tidak bisa diakses. Periksa konfigurasi Supabase di .env.local."
+  }
+}

@@ -63,7 +63,7 @@ describe('durable content worker', () => {
 
     expect(getAccountIdea).toHaveBeenCalledWith('owner', 'instagram', 'idea')
     expect(loadAccountBrandContext).toHaveBeenCalledWith('owner', 'instagram')
-    expect(writeScript).toHaveBeenCalledWith('owner', expect.anything(), expect.any(Function), '', null, expect.any(AbortSignal), 'lengkap')
+    expect(writeScript).toHaveBeenCalledWith('owner', expect.anything(), expect.any(Function), '', null, expect.any(AbortSignal), 'lengkap', 'id')
     expect(rpc).toHaveBeenCalledWith('finish_script_job', { p_post_id: 'draft', p_lease: 'worker-lease', p_script: [] })
     expect(failContentJob).not.toHaveBeenCalled()
   })
@@ -74,7 +74,21 @@ describe('durable content worker', () => {
 
     await processContentJob({ ...job, payload: { density: 'lengkap', brief: 'Tulis tepat 4 slide.' } })
 
-    expect(writeScript).toHaveBeenCalledWith('owner', expect.anything(), expect.any(Function), 'Tulis tepat 4 slide.', null, expect.any(AbortSignal), 'lengkap')
+    expect(writeScript).toHaveBeenCalledWith('owner', expect.anything(), expect.any(Function), 'Tulis tepat 4 slide.', null, expect.any(AbortSignal), 'lengkap', 'id')
+  })
+
+  it('passes a queued English locale to script generation without request cookies', async () => {
+    vi.mocked(getAccountIdea).mockResolvedValue({ id: 'idea', title: 'Coffee', script: null, pillarId: null })
+    await processContentJob({ ...job, payload: { ...job.payload, language: 'en' } })
+    expect(vi.mocked(writeScript).mock.calls[0].at(-1)).toBe('en')
+  })
+
+  it('recovers English after the SQL auto-script transition rebuilds the payload', async () => {
+    const request = { topic: 'Coffee', slides: 2, format: '4:5' as const, referenceId: null, productGroupId: null,
+      pillarId: null, includeLogo: false, density: 'seimbang' as const, ideaId: 'idea', language: 'en' as const }
+    await processContentJob({ ...job, kind: 'content', payload: { request, script: [] } })
+    expect(vi.mocked(planContent).mock.calls[0].at(-1)).toBe('en')
+    expect(failContentJob).not.toHaveBeenCalled()
   })
 
   it('does not spend on AI for an account that was switched after enqueue', async () => {

@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { Pause, Play, Sparkles, Trash2, X } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { MediaImage } from '@/components/media-image'
@@ -23,6 +25,7 @@ interface AssetPanelProps {
 
 /** One photo up close: its product, status and tags. AI results can only be deleted. */
 export function AssetPanel({ asset, groups, onClose }: AssetPanelProps) {
+  const t = useTranslations('assets')
   const own = asset.origin !== 'ai'
   const action = useAssetAction()
   const [tags, setTags] = useState(asset.tags.join(', '))
@@ -50,17 +53,17 @@ export function AssetPanel({ asset, groups, onClose }: AssetPanelProps) {
         <div className="flex items-start justify-between gap-2">
           <div>
             <h2 id="panel-judul" className="text-lg font-semibold text-ink">
-              {own ? 'Ubah foto' : 'Gambar hasil AI'}
+              {own ? t('assetPanel.text1') : t('assetPanel.text2')}
             </h2>
             <p className="text-xs text-ink-muted">
               {asset.width}×{asset.height}
-              {asset.origin === 'website' && ' · dari website'}
+              {asset.origin === 'website' && t('assetPanel.text3')}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Tutup"
+            aria-label={t('assetPanel.text4')}
             className="rounded-md p-1.5 text-ink-soft hover:bg-zinc-100 hover:text-ink"
           >
             <X size={18} aria-hidden="true" />
@@ -71,8 +74,7 @@ export function AssetPanel({ asset, groups, onClose }: AssetPanelProps) {
           <>
             <div className="space-y-1">
               <label htmlFor="panel-produk" className="text-sm font-medium text-ink">
-                Produk
-              </label>
+                {t('assetPanel.text5')}</label>
               <div className="flex gap-2">
                 <select
                   id="panel-produk"
@@ -80,7 +82,7 @@ export function AssetPanel({ asset, groups, onClose }: AssetPanelProps) {
                   onChange={(event) => setGroupId(event.target.value)}
                   className={FIELD}
                 >
-                  <option value="">Tanpa produk</option>
+                  <option value="">{t('assetPanel.text6')}</option>
                   {groups.map((group) => (
                     <option key={group.id} value={group.id}>
                       {group.title}
@@ -93,13 +95,12 @@ export function AssetPanel({ asset, groups, onClose }: AssetPanelProps) {
                   onClick={() => action.run(moveAssetsAction, { id: asset.id, groupId })}
                   className={SECONDARY_BUTTON}
                 >
-                  Pindahkan
-                </button>
+                  {t('assetPanel.text7')}</button>
               </div>
             </div>
 
             <div className="space-y-1">
-              <p className="text-sm font-medium text-ink">Status</p>
+              <p className="text-sm font-medium text-ink">{t('assetPanel.text8')}</p>
               <button
                 type="button"
                 disabled={action.pending}
@@ -109,32 +110,29 @@ export function AssetPanel({ asset, groups, onClose }: AssetPanelProps) {
                 }`}
               >
                 {asset.isActive ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
-                {asset.isActive ? 'Aktif · Jeda' : 'Dijeda · Aktifkan'}
+                {asset.isActive ? t('assetPanel.text9') : t('assetPanel.text10')}
               </button>
               <p className="text-xs text-ink-muted">
-                {asset.isActive ? 'AI boleh memakai foto ini.' : 'AI tidak memakai foto ini; tetap bisa dipilih manual untuk post.'}
+                {asset.isActive ? t('assetPanel.text11') : t('assetPanel.text12')}
               </p>
             </div>
 
             <form onSubmit={saveTags} className="space-y-1">
               <label htmlFor="panel-tag" className="text-sm font-medium text-ink">
-                Tag
-              </label>
+                {t('assetPanel.text13')}</label>
               <textarea
                 id="panel-tag"
                 value={tags}
                 onChange={(event) => setTags(event.target.value)}
                 rows={3}
-                placeholder="kopi susu, gelas plastik, es"
+                placeholder={t('assetPanel.text14')}
                 className={`${FIELD} py-2`}
               />
               <p className="text-xs text-ink-muted">
-                Pisahkan dengan koma. Maksimal {MAX_ASSET_TAGS} tag, masing-masing {TAG_MAX_LENGTH} karakter.
-              </p>
+                {t('assetPanel.tagHint', { count: MAX_ASSET_TAGS, limit: TAG_MAX_LENGTH })}</p>
               <div className="flex flex-wrap gap-2 pt-1">
                 <button type="submit" disabled={action.pending || tags === savedTags} className={PRIMARY_BUTTON}>
-                  Simpan tag
-                </button>
+                  {t('assetPanel.text18')}</button>
                 <button
                   type="button"
                   disabled={action.pending}
@@ -142,8 +140,7 @@ export function AssetPanel({ asset, groups, onClose }: AssetPanelProps) {
                   className={SECONDARY_BUTTON}
                 >
                   <Sparkles size={14} aria-hidden="true" />
-                  Buat dengan AI
-                  <span className="text-xs text-ink-muted">({tagCost(1)} kredit)</span>
+                  {t('assetPanel.text19')}<span className="text-xs text-ink-muted">{t('shared.credits', { count: tagCost(1) })}</span>
                 </button>
               </div>
             </form>
@@ -151,7 +148,7 @@ export function AssetPanel({ asset, groups, onClose }: AssetPanelProps) {
         )}
 
         <div aria-live="polite">
-          {action.pending ? <p className="text-xs text-ink-muted">Memproses…</p> : <Feedback state={action.state} />}
+          {action.pending ? <p className="text-xs text-ink-muted">{t('assetPanel.text20')}</p> : <Feedback state={action.state} />}
         </div>
 
         <div className="mt-auto border-t border-hairline pt-4">
@@ -159,7 +156,7 @@ export function AssetPanel({ asset, groups, onClose }: AssetPanelProps) {
             type="button"
             disabled={action.pending}
             onClick={async () => {
-              if (await confirmDelete(1)) {
+              if (await confirmDelete(1, t)) {
                 action.run(deleteAssetsAction, { id: asset.id }, (result) => {
                   if (!result.error) onClose()
                 })
@@ -168,8 +165,7 @@ export function AssetPanel({ asset, groups, onClose }: AssetPanelProps) {
             className={DANGER_BUTTON}
           >
             <Trash2 size={14} aria-hidden="true" />
-            Hapus foto
-          </button>
+            {t('assetPanel.text21')}</button>
         </div>
       </div>
     </div>

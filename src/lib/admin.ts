@@ -1,3 +1,5 @@
+
+import { getTranslations } from 'next-intl/server'
 import 'server-only'
 import type { User } from '@supabase/supabase-js'
 import type { SessionUser } from './auth'
@@ -135,8 +137,10 @@ async function allAuthUsers(): Promise<User[]> {
 }
 
 async function authUser(userId: string): Promise<User> {
+  const t = await getTranslations('admin')
+
   const { data, error } = await db().auth.admin.getUserById(userId)
-  if (error || !data.user) throw new AdminError('Pengguna tidak ditemukan.')
+  if (error || !data.user) throw new AdminError(t('admin.userNotFound'))
   return data.user
 }
 
@@ -231,6 +235,8 @@ export async function getAdminUser(userId: string, now = new Date()): Promise<Ad
 }
 
 export async function getAdminOverview(now = new Date()): Promise<AdminOverview> {
+  const t = await getTranslations('admin')
+
   const since = new Date(now.getTime() - USAGE_DAYS * DAY_MS)
   const [users, overview, usage, failures, log] = await Promise.all([
     allAuthUsers(),
@@ -261,7 +267,7 @@ export async function getAdminOverview(now = new Date()): Promise<AdminOverview>
       task: row.task,
       model: row.model,
       error: row.error,
-      email: emails.get(row.user_id) ?? '(dihapus)',
+      email: emails.get(row.user_id) ?? t('admin.deleted'),
     })),
     log: (
       unwrap(log) as {
@@ -273,7 +279,7 @@ export async function getAdminOverview(now = new Date()): Promise<AdminOverview>
       }[]
     ).map((row) => ({
       createdAt: new Date(row.created_at),
-      adminEmail: (row.admin_id && emails.get(row.admin_id)) || '(dihapus)',
+      adminEmail: (row.admin_id && emails.get(row.admin_id)) || t('admin.deleted'),
       targetEmail: row.target_email,
       action: row.action,
       detail: row.detail,
@@ -357,10 +363,12 @@ export async function listUnfinishedPayments(now = new Date()): Promise<Unfinish
 
 /** Records that an admin opened a WhatsApp follow-up for a payment. */
 export async function markPaymentReminded(admin: SessionUser, paymentId: string): Promise<number> {
+  const t = await getTranslations('admin')
+
   const [row] = unwrap(await db().from('payments').select('user_id, amount').eq('id', paymentId).limit(1)) as { user_id: string; amount: number }[]
-  if (!row) throw new AdminError('Pembayaran tidak ditemukan.')
+  if (!row) throw new AdminError(t('admin.paymentNotFound'))
   const count: unknown = unwrap(await db().rpc('mark_payment_reminded', { p_id: paymentId }))
-  if (typeof count !== 'number') throw new AdminError('Pembayaran ini sudah lunas.')
+  if (typeof count !== 'number') throw new AdminError(t('admin.thisPaymentIsAlreadyPaid'))
   const user = await authUser(row.user_id).catch(() => null)
   await logAdminAction(admin, 'remind_payment', user ? targetOf(user) : null, { paymentId, reminder: count })
   return count
@@ -421,10 +429,12 @@ export async function grantDays(admin: SessionUser, userId: string, days: number
 
 /** Ends the current period now and cancels periods paid ahead. */
 export async function endSubscription(admin: SessionUser, userId: string): Promise<void> {
-  refuseSelf(admin, userId, 'Tidak bisa menghentikan langganan sendiri.')
+  const t = await getTranslations('admin')
+
+  refuseSelf(admin, userId, t('admin.youCanTEndYourOwnSubscription'))
   const user = await authUser(userId)
   const changed: unknown = unwrap(await db().rpc('admin_end_subscription', { p_user_id: userId }))
-  if (changed === 0) throw new AdminError('Pengguna ini tidak punya langganan aktif.')
+  if (changed === 0) throw new AdminError(t('admin.thisUserHasNoActiveSubscription'))
   await logAdminAction(admin, 'end_subscription', targetOf(user), { periods: changed })
 }
 
@@ -433,9 +443,11 @@ export async function endSubscription(admin: SessionUser, userId: string): Promi
  * adjust: credits_used() counts from the start of the next period, so the row would never count.
  */
 export async function adjustCredits(admin: SessionUser, userId: string, amount: number, note: string | null): Promise<void> {
+  const t = await getTranslations('admin')
+
   const user = await authUser(userId)
   if (!(await overviewRows(userId)).get(userId)?.period_start) {
-    throw new AdminError('Pengguna ini tidak punya periode aktif, jadi kreditnya tidak bisa diubah.')
+    throw new AdminError(t('admin.thisUserHasNoActivePeriodSo'))
   }
   unwrap(await db().from('credit_adjustments').insert({ user_id: userId, amount, note, created_by: admin.id }))
   await logAdminAction(admin, 'adjust_credits', targetOf(user), { amount, note })
@@ -443,11 +455,13 @@ export async function adjustCredits(admin: SessionUser, userId: string, amount: 
 
 /** Gives back everything spent in the current period, so the user starts it again at 0%. */
 export async function resetCredits(admin: SessionUser, userId: string): Promise<void> {
+  const t = await getTranslations('admin')
+
   const user = await authUser(userId)
   const overview = (await overviewRows(userId)).get(userId)
-  if (!overview?.period_start) throw new AdminError('Pengguna ini tidak punya periode aktif.')
+  if (!overview?.period_start) throw new AdminError(t('admin.thisUserHasNoActivePeriod'))
   const used = overview.credits_used ?? 0
-  if (used <= 0) throw new AdminError('Kredit periode ini belum terpakai.')
+  if (used <= 0) throw new AdminError(t('admin.noCreditsHaveBeenUsedThisPeriod'))
   unwrap(
     await db()
       .from('credit_adjustments')
@@ -458,10 +472,12 @@ export async function resetCredits(admin: SessionUser, userId: string): Promise<
 
 /** There is no SMTP, so a forgotten password is reset here and handed over by the admin. */
 export async function setPassword(admin: SessionUser, userId: string, password: string): Promise<void> {
+  const t = await getTranslations('admin')
+
   const user = await authUser(userId)
   const { error } = await db().auth.admin.updateUserById(userId, { password })
   if (error) {
-    if (error.code === 'weak_password') throw new AdminError('Password terlalu lemah. Pakai kombinasi huruf dan angka.')
+    if (error.code === 'weak_password') throw new AdminError(t('admin.passwordIsTooWeakUseACombination'))
     throw new Error(`Supabase Auth: ${error.message}`)
   }
   await logAdminAction(admin, 'set_password', targetOf(user))
@@ -472,7 +488,9 @@ export async function setPassword(admin: SessionUser, userId: string, password: 
  * out while the subscription is active, so end that too to stop them.
  */
 export async function setBanned(admin: SessionUser, userId: string, banned: boolean): Promise<void> {
-  if (banned) refuseSelf(admin, userId, 'Tidak bisa memblokir akun sendiri.')
+  const t = await getTranslations('admin')
+
+  if (banned) refuseSelf(admin, userId, t('admin.youCanTBlockYourOwnAccount'))
   const user = await authUser(userId)
   const { error } = await db().auth.admin.updateUserById(userId, { ban_duration: banned ? BAN_DURATION : 'none' })
   if (error) throw new Error(`Supabase Auth: ${error.message}`)
@@ -498,10 +516,12 @@ async function listObjects(bucket: string, prefix: string): Promise<string[]> {
  * what matters, and files left over are only storage. `confirmEmail` must match, so a slip of the hand can't do it.
  */
 export async function deleteUser(admin: SessionUser, userId: string, confirmEmail: string): Promise<void> {
-  refuseSelf(admin, userId, 'Tidak bisa menghapus akun sendiri.')
+  const t = await getTranslations('admin')
+
+  refuseSelf(admin, userId, t('admin.youCanTDeleteYourOwnAccount'))
   const user = await authUser(userId)
   if (!user.email || confirmEmail.trim().toLowerCase() !== user.email.toLowerCase()) {
-    throw new AdminError('Ketik email pengguna persis untuk mengonfirmasi.')
+    throw new AdminError(t('admin.typeTheUserSExactEmailTo'))
   }
   const { error } = await db().auth.admin.deleteUser(userId)
   if (error) throw new Error(`Supabase Auth: ${error.message}`)

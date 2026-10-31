@@ -1,3 +1,5 @@
+
+import { getTranslations } from 'next-intl/server'
 import { getBillingCatalog } from '@/lib/billing-catalog'
 import { currentUser } from '@/lib/auth'
 import { getCheckoutContact, getUsage, listPayments, paymentsEnabled, type Period } from '@/lib/billing'
@@ -9,6 +11,8 @@ import { BillingPanel } from './billing-panel'
 export async function BillingSettings({ userId, period, params, onboarded, syncError }: {
   userId: string; period: Period | null; params: SearchParams; onboarded: boolean; syncError: boolean
 }) {
+  const t = await getTranslations('settings')
+
   let data
   try {
     const email = (await currentUser())?.email ?? ''
@@ -23,8 +27,8 @@ export async function BillingSettings({ userId, period, params, onboarded, syncE
     data = { billing, usage, payments, contact }
   } catch (error) {
     console.error('[pengaturan] billing gagal dimuat:', describeError(error))
-    return <section id="paket"><h2 className="mb-3 text-lg font-semibold">Paket & Kredit</h2>
-      <Notice tone="warning">Detail paket belum bisa dimuat. Muat ulang halaman untuk mencoba lagi.</Notice></section>
+    return <section id="paket"><h2 className="mb-3 text-lg font-semibold">{t('billing_settings.planCredits')}</h2>
+      <Notice tone="warning">{t('billing_settings.couldnTLoadPlanDetailsReloadThe')}</Notice></section>
   }
   const { billing, usage, payments, contact } = data
   return <BillingPanel {...billing} enabled={paymentsEnabled()} usage={usage} contact={contact}

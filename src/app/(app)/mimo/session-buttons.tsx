@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { Trash2 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTransition } from 'react'
@@ -8,10 +10,10 @@ import { deleteSessionAction } from './actions'
 import { useMimoScope } from './mimo-provider'
 import { forgetConversation, restoreConversation } from './mimo-query'
 
-const FAILED = 'Gagal menghubungi server. Coba lagi.'
 
 /** Deletes a conversation; the open one leaves the page for an empty chat. */
 export function DeleteSessionButton({ id, title, active }: { id: string; title: string; active: boolean }) {
+  const t = useTranslations('mimo.sessionButtons')
   const client = useQueryClient()
   const { scope, isCurrent } = useMimoScope()
   const [pending, startTransition] = useTransition()
@@ -19,13 +21,13 @@ export function DeleteSessionButton({ id, title, active }: { id: string; title: 
   return (
     <button
       type="button"
-      aria-label={`Hapus percakapan ${title}`}
+      aria-label={t('label', { title })}
       disabled={pending}
       onClick={async () => {
         if (!(await confirmDialog({
-          title: `Hapus percakapan "${title}"?`,
-          description: 'Skrip yang sudah tersimpan di Buat tetap ada.',
-          confirmLabel: 'Hapus',
+          title: t('confirm', { title }),
+          description: t('description'),
+          confirmLabel: t('delete'),
           tone: 'danger',
         }))) return
         startTransition(async () => {
@@ -33,11 +35,11 @@ export function DeleteSessionButton({ id, title, active }: { id: string; title: 
           const wasOpen = active && new URLSearchParams(window.location.search).get('sesi') === id
           const snapshot = await forgetConversation(client, scope, id)
           if (wasOpen) window.history.replaceState(null, '', '/mimo')
-          const error = await deleteSessionAction(id).catch(() => FAILED)
+          const error = await deleteSessionAction(id).catch(() => t('failed'))
           if (error) {
             if (isCurrent()) restoreConversation(client, scope, id, snapshot)
             if (wasOpen && window.location.pathname === '/mimo' && !window.location.search) window.history.replaceState(null, '', previousUrl)
-            await alertDialog({ title: 'Percakapan tidak dapat dihapus', description: error, tone: 'danger' })
+            await alertDialog({ title: t('errorTitle'), description: error, tone: 'danger' })
           }
         })
       }}

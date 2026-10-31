@@ -1,7 +1,8 @@
-const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/
-const DAY_MS = 24 * 60 * 60 * 1000
+import type { Locale } from '@/i18n/locale-config'
+import { dateFormat } from './format'
 
-const monthFormat = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+const MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/
+const DAY_MS = 24 * 60 * 60 * 1000
 
 const toKey = (date: Date) => date.toISOString().slice(0, 10)
 
@@ -12,7 +13,7 @@ function monthStart(month: string): Date {
 
 /** A `YYYY-MM` value from the URL, or null. */
 export function parseMonth(value: string | undefined): string | null {
-  return value && MONTH.test(value) ? value : null
+  return value && MONTH_KEY.test(value) ? value : null
 }
 
 export function shiftMonth(month: string, delta: number): string {
@@ -21,8 +22,8 @@ export function shiftMonth(month: string, delta: number): string {
 }
 
 /** e.g. "Oktober 2026" */
-export function formatMonth(month: string): string {
-  return monthFormat.format(monthStart(month))
+export function formatMonth(month: string, locale: Locale = 'id'): string {
+  return dateFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(monthStart(month))
 }
 
 /** `YYYY-MM-DD` keys covering the month in whole weeks, Monday first. */
@@ -53,16 +54,12 @@ export function addDays(day: string, count: number): string {
   return toKey(new Date(new Date(`${day}T00:00:00Z`).getTime() + count * DAY_MS))
 }
 
-const shortDayFormat = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', timeZone: 'UTC' })
-
 /** e.g. "22 Okt" for a `YYYY-MM-DD` key. */
-export function formatShortDay(day: string): string {
-  return shortDayFormat.format(new Date(`${day}T00:00:00Z`))
+export function formatShortDay(day: string, locale: Locale = 'id'): string {
+  return dateFormat(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${day}T00:00:00Z`))
 }
 
-const dayFormat = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
-
 /** e.g. "14 Oktober 2026" for a `YYYY-MM-DD` key. */
-export function formatDay(day: string): string {
-  return dayFormat.format(new Date(`${day}T00:00:00Z`))
+export function formatDay(day: string, locale: Locale = 'id'): string {
+  return dateFormat(locale, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${day}T00:00:00Z`))
 }

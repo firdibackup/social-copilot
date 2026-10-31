@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { Plus, X } from 'lucide-react'
 import { useState, useTransition } from 'react'
 import {
@@ -8,7 +9,6 @@ import {
   MAX_POSTS_PER_WEEK,
   MAX_SLOT_TIMES,
   MIN_POSTS_PER_WEEK,
-  WEEKDAY_SHORT,
   type PostingSlot,
 } from '@/lib/schedule-slots'
 import { Notice } from './notice'
@@ -22,7 +22,6 @@ const QUARTERS = Array.from(
 /** A new row takes the first of these the table doesn't have yet. */
 const NEW_ROW_TIMES = ['19:00', '12:00', '08:00', '21:00']
 const PRESETS = Array.from({ length: MAX_POSTS_PER_WEEK - MIN_POSTS_PER_WEEK + 1 }, (_, index) => index + MIN_POSTS_PER_WEEK)
-const FAILED = 'Gagal menghubungi server. Coba lagi.'
 const SELECT =
   'rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm tabular-nums text-zinc-900 focus:border-zinc-400 focus:outline-none'
 
@@ -42,6 +41,8 @@ interface SlotEditorProps {
  * scheduled keep their times.
  */
 export function SlotEditor({ initialSlots, isDefault, withPreset = false }: SlotEditorProps) {
+  const t = useTranslations('common')
+  const weekdays = (['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const).map((day) => t(`slots.weekdays.${day}`))
   const [slots, setSlots] = useState(initialSlots)
   const [changed, setChanged] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -54,7 +55,7 @@ export function SlotEditor({ initialSlots, isDefault, withPreset = false }: Slot
     setChanged(true)
     setError(null)
     startSaving(async () => {
-      const result = await saveSlotsAction(sorted).catch(() => ({ error: FAILED }))
+      const result = await saveSlotsAction(sorted).catch(() => ({ error: t('slots.failed') }))
       if ('error' in result) setError(result.error)
     })
   }
@@ -76,7 +77,7 @@ export function SlotEditor({ initialSlots, isDefault, withPreset = false }: Slot
 
   function changeTime(row: number, time: string) {
     if (slots.some((slot, index) => index !== row && slot.time === time)) {
-      setError(`Jam ${dotted(time)} sudah ada di tabel.`)
+      setError(t('slots.exists', { time: dotted(time) }))
       return
     }
     save(slots.map((slot, index) => (index === row ? { ...slot, time } : slot)))
@@ -92,11 +93,11 @@ export function SlotEditor({ initialSlots, isDefault, withPreset = false }: Slot
     <div className="space-y-4">
       <div className="space-y-1">
         <p className="text-sm font-medium text-zinc-900">
-          <span className="tabular-nums">{count}</span> slot posting per minggu.
+          {t.rich('slots.count', { count, n: (chunks) => <span className="tabular-nums">{chunks}</span> })}
         </p>
         <p className="text-xs text-zinc-500">
-          Mengubah jadwal di sini tidak memengaruhi post yang sudah terjadwal.
-          {isDefault && !changed && ' Sekarang mengikuti target frekuensi di Brand.'}
+          {t('slots.scheduleHint')}
+          {isDefault && !changed && t('slots.defaultHint')}
         </p>
       </div>
 
@@ -105,15 +106,15 @@ export function SlotEditor({ initialSlots, isDefault, withPreset = false }: Slot
           <thead>
             <tr className="text-[11px] font-medium tracking-wide text-zinc-500 uppercase">
               <th scope="col" className="w-24 pb-1 text-left font-medium">
-                Jam
+                {t('slots.time')}
               </th>
-              {WEEKDAY_SHORT.map((day) => (
+              {weekdays.map((day) => (
                 <th key={day} scope="col" className="pb-1 font-medium">
                   {day}
                 </th>
               ))}
               <th scope="col" className="w-8">
-                <span className="sr-only">Hapus</span>
+                <span className="sr-only">{t('delete')}</span>
               </th>
             </tr>
           </thead>
@@ -122,7 +123,7 @@ export function SlotEditor({ initialSlots, isDefault, withPreset = false }: Slot
               <tr key={slot.time}>
                 <td className="text-left">
                   <select
-                    aria-label={`Jam baris ${row + 1}`}
+                    aria-label={t('slots.row', { row: row + 1 })}
                     value={slot.time}
                     onChange={(event) => changeTime(row, event.target.value)}
                     className={SELECT}
@@ -134,7 +135,7 @@ export function SlotEditor({ initialSlots, isDefault, withPreset = false }: Slot
                     ))}
                   </select>
                 </td>
-                {WEEKDAY_SHORT.map((day, index) => (
+                {weekdays.map((day, index) => (
                   <td key={day}>
                     <input
                       type="checkbox"
@@ -149,7 +150,7 @@ export function SlotEditor({ initialSlots, isDefault, withPreset = false }: Slot
                   <button
                     type="button"
                     onClick={() => save(slots.filter((_, index) => index !== row))}
-                    aria-label={`Hapus jam ${dotted(slot.time)}`}
+                    aria-label={t('slots.remove', { time: dotted(slot.time) })}
                     className="rounded-md p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
                   >
                     <X size={14} aria-hidden="true" />
@@ -168,16 +169,16 @@ export function SlotEditor({ initialSlots, isDefault, withPreset = false }: Slot
           className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-zinc-300 text-sm text-zinc-500 transition-colors hover:border-accent hover:text-accent"
         >
           <Plus size={16} aria-hidden="true" />
-          Tambah jam
+          {t('slots.add')}
         </button>
       )}
 
       {withPreset && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 pt-4">
           <label htmlFor="posting-per-minggu" className="min-w-0 flex-1">
-            <span className="block text-sm font-medium text-zinc-900">Posting per minggu</span>
+            <span className="block text-sm font-medium text-zinc-900">{t('slots.perWeek')}</span>
             <span className="block text-xs text-zinc-500">
-              Menyusun ulang slot secara merata. Ini mengatur kalender, bukan jumlah konten yang dibuat AI.
+              {t('slots.presetHint')}
             </span>
           </label>
           <select
@@ -192,7 +193,7 @@ export function SlotEditor({ initialSlots, isDefault, withPreset = false }: Slot
             {count === 0 && <option value="">—</option>}
             {PRESETS.map((value) => (
               <option key={value} value={value}>
-                {value} post
+                {t('slots.posts', { count: value })}
               </option>
             ))}
           </select>
@@ -200,7 +201,7 @@ export function SlotEditor({ initialSlots, isDefault, withPreset = false }: Slot
       )}
 
       <p role="status" className="min-h-4 text-xs text-zinc-500">
-        {saving ? 'Menyimpan…' : changed && !error ? 'Tersimpan' : ''}
+        {saving ? t('slots.saving') : changed && !error ? t('slots.saved') : ''}
       </p>
       {error && <Notice tone="error">{error}</Notice>}
     </div>

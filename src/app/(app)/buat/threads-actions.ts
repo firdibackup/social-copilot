@@ -1,5 +1,9 @@
 'use server'
 
+import { getLocale } from 'next-intl/server'
+
+import { getTranslations } from 'next-intl/server'
+
 import { AiOutputError, aiErrorMessage } from '@/lib/ai'
 import { requireAccount } from '@/lib/auth'
 import { parseInstruction } from '@/lib/content-options'
@@ -26,25 +30,28 @@ function fitThreadAnswer(texts: string[]): string[] {
 
 /** Write a new Threads chain, rewrite the whole chain, or rewrite only one post. */
 export async function threadsAiAction(input: unknown): Promise<ThreadsAiResult> {
+  const t = await getTranslations('editor.threadsActions')
+  const locale = await getLocale()
+
   const { userId } = await requireAccount()
   const fields = fieldsOf(input)
   if (!Array.isArray(fields.texts) || fields.texts.length > MAX_THREAD_ITEMS
     || !fields.texts.every((text) => typeof text === 'string')) {
-    return { error: 'Rantai Threads tidak valid.' }
+    return { error: t('message1') }
   }
   const texts = (fields.texts as string[]).map((text) => text.replace(/\r\n/g, '\n'))
-  const instruction = parseInstruction(fields.instruction)
+  const instruction = parseInstruction(fields.instruction, locale)
   if (typeof instruction !== 'string') return instruction
   const target = fields.target
   if (target !== null && (typeof target !== 'number' || !Number.isInteger(target) || target < 0 || target >= texts.length)) {
-    return { error: 'Post Threads tidak ditemukan.' }
+    return { error: t('message2') }
   }
 
   try {
     const blank = texts.every((text) => !text.trim())
-    if (blank) return { texts: fitThreadAnswer(await writeThread(userId, instruction)) }
-    if (target === null) return { texts: fitThreadAnswer(await editThread(userId, texts, instruction, null)) }
-    const answer = fitThreadAnswer(await editThread(userId, texts, instruction, target))
+    if (blank) return { texts: fitThreadAnswer(await writeThread(userId, instruction, locale)) }
+    if (target === null) return { texts: fitThreadAnswer(await editThread(userId, texts, instruction, null, locale)) }
+    const answer = fitThreadAnswer(await editThread(userId, texts, instruction, target, locale))
     const revised = [...texts.slice(0, target), ...answer, ...texts.slice(target + 1)]
     if (revised.length > MAX_THREAD_ITEMS
       || revised.some((text) => !text.trim() || threadsLength(text) > THREADS_TEXT_LIMIT)) {
@@ -62,18 +69,20 @@ export async function threadsAiAction(input: unknown): Promise<ThreadsAiResult> 
  * save starts a new post for Threads only.
  */
 export async function saveThreadItemsAction(input: unknown): Promise<ThreadItemsResult> {
+  const t = await getTranslations('editor.threadsActions')
+
   const { userId } = await requireAccount()
   const fields = (typeof input === 'object' && input !== null ? input : {}) as Record<string, unknown>
   const postId = fields.postId === null ? null : isUuid(fields.postId) ? fields.postId : undefined
-  if (postId === undefined) return { error: 'Post tidak ditemukan.' }
+  if (postId === undefined) return { error: t('message3') }
   const parsed = parseThreadItems(fields.items)
   if ('error' in parsed) return parsed
-  if (postId === null && parsed.items.length === 0) return { error: 'Tulis post Threads dulu.' }
+  if (postId === null && parsed.items.length === 0) return { error: t('message4') }
   try {
     return { postId: await saveThreadItems(userId, postId, parsed.items) }
   } catch (error) {
     if (error instanceof PlatformError) return { error: error.message }
     console.error('[buat] rantai Threads gagal disimpan:', describeError(error))
-    return { error: 'Post Threads gagal disimpan. Coba lagi.' }
+    return { error: t('message5') }
   }
 }

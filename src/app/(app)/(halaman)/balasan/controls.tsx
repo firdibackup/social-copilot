@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
@@ -12,22 +14,21 @@ import { markThreadsPostSeenAction, syncThreadsRepliesAction } from './threads-a
 const BUTTON =
   'inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:opacity-50'
 
-const UNREACHABLE: SyncState = { status: 'error', message: 'Gagal menghubungi server. Coba lagi.' }
-
-const PULLS = {
-  dm: { run: syncDmsAction, pendingText: 'Menarik DM dari Instagram…' },
-  komentar: { run: syncCommentsAction, pendingText: 'Menarik komentar dari Instagram…' },
-  threads: { run: syncThreadsRepliesAction, pendingText: 'Menarik balasan dari Threads…' },
-} as const
-
 /** What the tab pulls from Instagram; null when the connection can't. */
-export type Pull = keyof typeof PULLS | null
+export type Pull = 'dm' | 'komentar' | 'threads' | null
 
 /**
  * New DMs arrive through the webhook while the page is open; this fetches them. It also pulls the tab's DMs or
  * comments from Instagram (at most every 10 minutes), and does so once as the tab opens.
  */
 export function RefreshButton({ pull }: { pull: Pull }) {
+  const t = useTranslations('inbox.controls')
+  const PULLS = {
+  dm: { run: syncDmsAction, pendingText: t('fetchingDmsFromInstagram') },
+  komentar: { run: syncCommentsAction, pendingText: t('fetchingCommentsFromInstagram') },
+  threads: { run: syncThreadsRepliesAction, pendingText: t('fetchingRepliesFromThreads') },
+} as const
+  const UNREACHABLE: SyncState = { status: 'error', message: t('couldnTReachTheServerTryAgain') }
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [result, setResult] = useState<SyncState | null>(null)
@@ -58,8 +59,8 @@ export function RefreshButton({ pull }: { pull: Pull }) {
     <div className="flex flex-col items-end gap-1">
       <button type="button" onClick={() => reload(false)} disabled={pending} className={BUTTON}>
         <RefreshCw size={16} aria-hidden="true" className={pending ? 'animate-spin' : undefined} />
-        Muat ulang
-      </button>
+        {t('refresh')}
+        </button>
       {pending && pull ? (
         <p role="status" className="text-xs text-zinc-500">
           {PULLS[pull].pendingText}
@@ -78,9 +79,7 @@ export function RefreshButton({ pull }: { pull: Pull }) {
   )
 }
 
-const FILTER_LABELS = { belum: 'Belum dibales', semua: 'Semua', otomatis: 'Otomatis' } as const
-
-type FilterValue = keyof typeof FILTER_LABELS
+type FilterValue = 'belum' | 'semua' | 'otomatis'
 
 interface FilterSelectProps {
   value: FilterValue
@@ -92,6 +91,8 @@ interface FilterSelectProps {
 }
 
 export function FilterSelect({ value, hrefs }: FilterSelectProps) {
+  const t = useTranslations('inbox.controls')
+  const FILTER_LABELS = { belum: t('unanswered'), semua: t('all'), otomatis: t('automatic') } as const
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const choices = Object.entries(hrefs) as [FilterValue, string][]
@@ -115,7 +116,7 @@ export function FilterSelect({ value, hrefs }: FilterSelectProps) {
           </option>
         ))}
       </select>
-      {pending && <span className="sr-only" role="status">Memuat balasan</span>}
+      {pending && <span className="sr-only" role="status">{t('loadingReplies')}</span>}
     </label>
   )
 }

@@ -1,5 +1,7 @@
 'use server'
 
+import { getTranslations } from 'next-intl/server'
+import { getUserLocale, type Locale } from '@/i18n/locale'
 import { refresh } from 'next/cache'
 import { aiErrorMessage, remainingCredits } from '@/lib/ai'
 import { getPlan } from '@/lib/app-settings'
@@ -28,12 +30,12 @@ import { deleteAccountIdea, ensureIdea, getAccountIdea } from '@/lib/ideas'
 import { isUuid } from '@/lib/params'
 import { ContentError } from '@/lib/posts'
 import { parseStrategy } from '@/lib/strategy-options'
+import { hasStorageRoom, StorageFullError } from '@/lib/storage-quota'
+import { storageFullMessage } from '@/lib/storage-quota-options'
 
 /** An error to show, or null when it went through. */
 type ActionError = string | null
 
-const NOT_FOUND = 'Pesan tidak ditemukan. Muat ulang halaman.'
-const FAILED = 'Gagal menyimpan. Coba lagi.'
 
 /** The message a card belongs to, checked to be the owner's, in a conversation of the connected account. */
 async function loadMessage(userId: string, accountId: string, sessionId: unknown, messageId: unknown) {
@@ -52,29 +54,31 @@ export async function resolveConfirmAction(
   confirmId: string,
   accept: boolean,
 ): Promise<ActionError> {
+  const t = await getTranslations('mimo.actions')
   const { userId, accountId } = await requireAccount()
-  if (!isUuid(confirmId)) return NOT_FOUND
+  const locale = await getUserLocale()
+  if (!isUuid(confirmId)) return t('notFound')
   try {
     const message = await loadMessage(userId, accountId, sessionId, messageId)
     const card = message?.parts.find((part) => part.type === 'confirm' && part.id === confirmId)
-    if (!message || card?.type !== 'confirm') return NOT_FOUND
+    if (!message || card?.type !== 'confirm') return t('notFound')
     if (card.state !== 'pending') return null
 
     let payload: unknown
     if (card.kind === 'strategy') {
-      const parsed = parseStrategy(card.payload)
+      const parsed = parseStrategy(card.payload, locale)
       if ('error' in parsed) return parsed.error
       payload = card.payload
     } else {
-      const parsed = parseRuleInput(card.payload)
+      const parsed = parseRuleInput(card.payload, locale)
       if ('error' in parsed) return parsed.error
       payload = card.payload
     }
     const result = await resolveConfirmation(userId, accountId, message.id, confirmId, card.kind, payload, accept)
-    if (result === 'not_found') return NOT_FOUND
+    if (result === 'not_found') return t('notFound')
   } catch (error) {
     console.error('[mimo] konfirmasi gagal:', describeError(error))
-    return FAILED
+    return t('failed')
   }
   refresh()
   return null
@@ -82,16 +86,17 @@ export async function resolveConfirmAction(
 
 /** Buang on a script Mimo saved: the idea leaves Buat, and the card says so. */
 export async function discardScriptAction(sessionId: string, messageId: string, ideaId: string): Promise<ActionError> {
+  const t = await getTranslations('mimo.actions')
   const { userId, accountId } = await requireAccount()
   try {
     const message = await loadMessage(userId, accountId, sessionId, messageId)
     const owns = message?.parts.some((part) => part.type === 'scripts' && part.items.some((item) => item.ideaId === ideaId))
-    if (!message || !owns || !isUuid(ideaId)) return NOT_FOUND
+    if (!message || !owns || !isUuid(ideaId)) return t('notFound')
     const result = await discardScript(userId, accountId, message.id, ideaId)
-    if (result === 'not_found') return NOT_FOUND
+    if (result === 'not_found') return t('notFound')
   } catch (error) {
     console.error('[mimo] skrip gagal dibuang:', describeError(error))
-    return 'Gagal membuang skrip. Coba lagi.'
+    return t('discardFailed')
   }
   refresh()
   return null
@@ -112,17 +117,18 @@ async function loadBulkCard(userId: string, accountId: string, sessionId: unknow
  * id), so a second run finds the post the first one made. A new topic gets its script written from the plan's
  * angle and outline, then goes straight on to its images; a saved script is drawn as it is.
  */
-async function queueBulkItem(userId: string, accountId: string, item: BulkPlanItem, settings: BulkSettings): Promise<BulkItem> {
+async function queueBulkItem(userId: string, accountId: string, item: BulkPlanItem, settings: BulkSettings, locale: Locale): Promise<BulkItem> {
+  const t = await getTranslations('mimo.actions')
   const { density, productGroupId } = settings
   const existing = await getContentJobByKey(userId, accountId, item.key)
   if (existing) return { postId: existing.post_id, ideaId: existing.idea_id ?? item.key, title: item.title }
 
   if (item.scripted && item.ideaId) {
     const idea = await getAccountIdea(userId, accountId, item.ideaId)
-    if (!idea) throw new ContentError('Ide sudah dihapus atau sudah jadi post.')
-    if (!idea.script) throw new ContentError('Skripnya belum valid. Perbaiki di Buat.')
+    if (!idea) throw new ContentError(t('ideaMissing'))
+    if (!idea.script) throw new ContentError(t('invalidScript'))
     const request = { ...bulkContentRequest(item, idea.id, density, productGroupId), slides: idea.script.length }
-    const postId = await enqueueContentJob(userId, accountId, item.key, idea.id, 'content', { request, script: idea.script, attachmentPath: null })
+    const postId = await enqueueContentJob(userId, accountId, item.key, idea.id, 'content', { request, script: idea.script, attachmentPath: null }, locale)
     return { postId, ideaId: idea.id, title: idea.title }
   }
 
@@ -133,7 +139,7 @@ async function queueBulkItem(userId: string, accountId: string, item: BulkPlanIt
       density,
       brief: bulkBrief(item),
       auto: { request: bulkContentRequest(item, ideaId, density, productGroupId) },
-    })
+    }, locale)
     return { postId, ideaId, title: item.title }
   } catch (error) {
     if (!item.ideaId) await deleteAccountIdea(userId, accountId, ideaId).catch(() => undefined)
@@ -141,13 +147,13 @@ async function queueBulkItem(userId: string, accountId: string, item: BulkPlanIt
   }
 }
 
-const queueErrorMessage = (error: unknown) => {
+const queueErrorMessage = (error: unknown, t: Awaited<ReturnType<typeof getTranslations<'mimo.actions'>>>) => {
   if (error instanceof ContentError) return error.message
   const text = describeError(error)
-  if (text.includes('idea_not_found')) return 'Ide sudah dihapus atau sudah jadi post.'
-  if (text.includes('wrong_account')) return 'Akun Instagram berubah. Muat ulang halaman.'
-  if (text.includes('script_not_ready')) return 'Skripnya masih ditulis di Buat. Coba lagi sebentar lagi.'
-  return 'Gagal diantrekan. Coba lagi.'
+  if (text.includes('idea_not_found')) return t('ideaMissing')
+  if (text.includes('wrong_account')) return t('accountChanged')
+  if (text.includes('script_not_ready')) return t('scriptWriting')
+  return t('queueFailed')
 }
 
 /**
@@ -157,30 +163,33 @@ const queueErrorMessage = (error: unknown) => {
  * card left in `starting` (the server stopped mid-way) is finished by the next click, safely, from its saved plan.
  */
 export async function startBulkAction(sessionId: string, messageId: string, bulkId: string, edits: unknown, inputSettings?: unknown): Promise<ActionError> {
+  const t = await getTranslations('mimo.actions')
   const { userId, accountId } = await requireAccount()
+  const locale = await getUserLocale()
+  if (!(await hasStorageRoom(userId))) return storageFullMessage(await getUserLocale())
   try {
     const found = await loadBulkCard(userId, accountId, sessionId, messageId, bulkId)
-    if (!found) return NOT_FOUND
+    if (!found) return t('notFound')
     const { message, card } = found
     if (card.state === 'started') return null
-    if (card.state === 'cancelled') return 'Rencana ini sudah dibatalkan. Minta Mimo membuat rencana baru.'
+    if (card.state === 'cancelled') return t('cancelled')
 
     let plan = card.plan
     let settings = card.settings
     if (card.state === 'proposed') {
-      const edited = applyBulkEdits(card.plan, edits)
+      const edited = applyBulkEdits(card.plan, edits, locale)
       if ('error' in edited) return edited.error
       plan = edited.plan
 
       const parsed = parseBulkSettings(inputSettings === undefined
         ? settings ?? { density: await getDensityDefault(userId, accountId), productGroupId: AUTO_PRODUCT }
-        : inputSettings)
+        : inputSettings, locale)
       if ('error' in parsed) return parsed.error
       settings = parsed.settings
       if (settings.productGroupId !== null && settings.productGroupId !== AUTO_PRODUCT) {
         const products = await listProductGroups(userId, accountId)
         if (!products.some((product) => product.id === settings!.productGroupId)) {
-          return 'Produk tidak ditemukan atau tidak memiliki foto aktif. Pilih ulang produk.'
+          return t('productMissing')
         }
       }
 
@@ -188,10 +197,10 @@ export async function startBulkAction(sessionId: string, messageId: string, bulk
       const { credits } = period?.plan ?? await getPlan()
       const total = plan.reduce((sum, item) => sum + bulkItemCost(item, billing.catalog.rates), 0)
       if (total > remaining) {
-        return `Kuota AI tidak cukup: rencana ini butuh ≈ ${formatCreditShare(total, credits)} kuota, sisa ≈ ${formatCreditShare(remaining, credits)}. Kurangi jumlah konten atau perpanjang di halaman Langganan.`
+        return t('quota', { needed: formatCreditShare(total, credits, locale), remaining: formatCreditShare(remaining, credits, locale) })
       }
       const moved = await updateBulkCard(userId, accountId, message.id, card.id, 'proposed', { state: 'starting', plan, settings })
-      if (moved === 'not_found') return NOT_FOUND
+      if (moved === 'not_found') return t('notFound')
       // Another click or tab is starting it.
       if (moved === 'already') return null
     }
@@ -202,11 +211,11 @@ export async function startBulkAction(sessionId: string, messageId: string, bulk
     const errors: string[] = []
     for (const item of plan) {
       try {
-        const queued = await queueBulkItem(userId, accountId, item, settings)
+        const queued = await queueBulkItem(userId, accountId, item, settings, locale)
         if (!items.some((other) => other.postId === queued.postId)) items.push(queued)
       } catch (error) {
         console.error('[mimo] konten massal gagal diantrekan:', describeError(error))
-        errors.push(`${item.title}: ${queueErrorMessage(error)}`)
+        errors.push(`${item.title}: ${queueErrorMessage(error, t)}`)
       }
     }
 
@@ -214,12 +223,13 @@ export async function startBulkAction(sessionId: string, messageId: string, bulk
       // Nothing was queued, so nothing was spent: the plan stays to try again.
       await updateBulkCard(userId, accountId, message.id, card.id, 'starting', { state: 'proposed', errors })
       refresh()
-      return errors.join(' ') || FAILED
+      return errors.join(' ') || t('failed')
     }
     await updateBulkCard(userId, accountId, message.id, card.id, 'starting', { state: 'started', items, errors })
     refresh()
     return null
   } catch (error) {
+    if (error instanceof StorageFullError) return storageFullMessage(await getUserLocale())
     console.error('[mimo] konten massal gagal dimulai:', describeError(error))
     return aiErrorMessage(error)
   }
@@ -227,16 +237,17 @@ export async function startBulkAction(sessionId: string, messageId: string, bulk
 
 /** Batal on Mimo's bulk plan, before anything was made. */
 export async function cancelBulkAction(sessionId: string, messageId: string, bulkId: string): Promise<ActionError> {
+  const t = await getTranslations('mimo.actions')
   const { userId, accountId } = await requireAccount()
   try {
     const found = await loadBulkCard(userId, accountId, sessionId, messageId, bulkId)
-    if (!found) return NOT_FOUND
+    if (!found) return t('notFound')
     if (found.card.state !== 'proposed') return null
     const result = await updateBulkCard(userId, accountId, found.message.id, found.card.id, 'proposed', { state: 'cancelled' })
-    if (result === 'not_found') return NOT_FOUND
+    if (result === 'not_found') return t('notFound')
   } catch (error) {
     console.error('[mimo] rencana konten massal gagal dibatalkan:', describeError(error))
-    return FAILED
+    return t('failed')
   }
   refresh()
   return null
@@ -244,13 +255,14 @@ export async function cancelBulkAction(sessionId: string, messageId: string, bul
 
 /** Removes a conversation and its messages. Scripts it saved stay in Buat. */
 export async function deleteSessionAction(sessionId: string): Promise<ActionError> {
+  const t = await getTranslations('mimo.actions')
   const { userId, accountId } = await requireAccount()
-  if (!isUuid(sessionId)) return 'Percakapan tidak ditemukan.'
+  if (!isUuid(sessionId)) return t('conversationMissing')
   try {
     await deleteSession(userId, accountId, sessionId)
   } catch (error) {
     console.error('[mimo] percakapan gagal dihapus:', describeError(error))
-    return 'Gagal menghapus percakapan. Coba lagi.'
+    return t('deleteFailed')
   }
   refresh()
   return null

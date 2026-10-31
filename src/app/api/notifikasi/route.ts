@@ -1,3 +1,4 @@
+import { getLocale } from 'next-intl/server'
 import { after } from 'next/server'
 import { currentUser } from '@/lib/auth'
 import { describeError } from '@/lib/errors'
@@ -18,7 +19,7 @@ export async function GET(): Promise<Response> {
   if (!user) return new Response(null, { status: 401 })
   after(() => ensureWebhookSubscription(user.id))
   try {
-    return Response.json(await getNotificationFeed(user.id), { headers: NO_STORE })
+    return Response.json(await getNotificationFeed(user.id, await getLocale()), { headers: NO_STORE })
   } catch (error) {
     console.error('[notifikasi] gagal dimuat:', describeError(error))
     return Response.json(OFF, { status: 500, headers: NO_STORE })

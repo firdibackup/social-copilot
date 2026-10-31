@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl'
 import type { ReactNode } from 'react'
 
 /** Decorative placeholders; the enclosing loading region supplies the accessible status. */
@@ -130,10 +131,11 @@ function LoadingContent({ variant }: { variant: LoadingVariant }): ReactNode {
 }
 
 /** Match the incoming layout, and disappear immediately when its data is ready. */
-export function LoadingState({ label = 'Memuat…', className = '', variant = 'list' }: LoadingStateProps) {
+export function LoadingState({ label, className = '', variant = 'list' }: LoadingStateProps) {
+  const t = useTranslations('common')
   return (
-    <div role="status" aria-label={label} className={`min-w-0 ${className}`}>
-      <span className="sr-only">{label}</span>
+    <div role="status" aria-label={label ?? t('loading')} className={`min-w-0 ${className}`}>
+      <span className="sr-only">{label ?? t('loading')}</span>
       <div aria-hidden="true" className={variant === 'editor' || variant === 'chat' ? 'h-full' : undefined}>
         <LoadingContent variant={variant} />
       </div>

@@ -1,0 +1,134 @@
+{
+  "steps": {
+    "kind": {
+      "title": "What is this Instagram account for?",
+      "hint": "So your tone and content ideas feel right."
+    },
+    "name": {
+      "title": "What is your brand name and business category?",
+      "hint": "The name that appears in your content, and what you do in a few words."
+    },
+    "description": {
+      "title": "Tell us a little about your business.",
+      "hint": "What you sell or offer, and what makes you different. 2–3 sentences is plenty."
+    },
+    "audience": {
+      "title": "Who do you want to reach?",
+      "hint": "For example: moms aged 25–35 around Jakarta who enjoy easy home cooking."
+    },
+    "posts": {
+      "title": "How often do you want to post each week?",
+      "hint": "This sets your content schedule and calendar. You can change it anytime on the Brand page."
+    },
+    "style": {
+      "title": "What design style do you want?",
+      "hint": "This is just a starting point for fonts and layouts. If you add design references or connect Instagram, those references will take priority."
+    },
+    "fonts": {
+      "title": "Choose your design fonts.",
+      "hint": "We’ve suggested fonts to match your style. Change them if your brand has its own."
+    },
+    "referral": {
+      "title": "How did you hear about Carousely?",
+      "hint": "One last question, so we know how to reach more people like you."
+    },
+    "done": {
+      "title": "All set! Here’s your brand style.",
+      "hint": "You can change everything anytime on the Brand page."
+    }
+  },
+  "wizard": {
+    "failed": "Could not reach the server. Try again.",
+    "progress": "Progress",
+    "back": "Back",
+    "skip": "Skip",
+    "saving": "Saving…",
+    "saveConnect": "Save & connect Instagram",
+    "next": "Next",
+    "kind": "Account type",
+    "name": "Brand name",
+    "namePlaceholder": "e.g. Kopi Sinar",
+    "category": "Business category",
+    "categoryPlaceholder": "e.g. Coffee shop, local skincare, English courses",
+    "description": "Business description",
+    "descriptionPlaceholder": "e.g. A palm sugar latte shop in Bandung. Beans from Garut farmers, student-friendly prices, open late.",
+    "audience": "Target audience",
+    "audiencePlaceholder": "e.g. Students and young professionals aged 18–30 in Bandung.",
+    "headingFont": "Heading font",
+    "bodyFont": "Body font",
+    "weekly": "Posts per week",
+    "brand": "Brand",
+    "style": "Design style",
+    "font": "Fonts",
+    "posting": "Posting",
+    "source": "Source",
+    "where": "Where from?",
+    "sourcePlaceholder": "e.g. a podcast, webinar, ad…",
+    "shortcut": "Ctrl/⌘ + Enter to continue",
+    "selected": "Selected: {style}",
+    "posts": "{count, plural, one {# post / week} other {# posts / week}}",
+    "summary": "Next, connect Instagram. We’ll use your logo and a few posts as layout examples. The <style>{name}</style> style still sets the fonts and overall feel, while your posts guide the layout.",
+    "other": "Other"
+  },
+  "sources": {
+    "Instagram": "Instagram",
+    "TikTok": "TikTok",
+    "YouTube": "YouTube",
+    "Google": "Google",
+    "Teman atau rekan": "Friend or colleague",
+    "Komunitas atau grup": "Community or group"
+  },
+  "styles": {
+    "minimalis": "Modern Minimalist",
+    "bold": "Bold & Creative",
+    "elegan": "Premium Elegance",
+    "ceria": "Cheerful & Playful",
+    "editorial": "Magazine Editorial",
+    "profesional": "Corporate Professional",
+    "natural": "Natural & Organic",
+    "tech": "Modern Tech"
+  },
+  "kinds": {
+    "bisnis": {
+      "label": "Business / shop",
+      "hint": "Sell products online or offline."
+    },
+    "jasa": {
+      "label": "Services / professional",
+      "hint": "Consultants, clinics, agencies, freelancers."
+    },
+    "kreator": {
+      "label": "Creator / personal brand",
+      "hint": "Content, opinions, personal expertise."
+    },
+    "edukasi": {
+      "label": "Education / community",
+      "hint": "Courses, tips, organizations, communities."
+    }
+  },
+  "page": {
+    "title": "Let’s get to know you",
+    "preparing": "Preparing your brand space…",
+    "loading": "Loading your setup…",
+    "saveFailed": "Could not save your answers. Try again.",
+    "configurationError": "Configuration is incomplete: {message}.",
+    "databaseError": "The database is unavailable. Check the Supabase configuration in .env.local."
+  },
+  "errors": {
+    "invalid": "Invalid answer.",
+    "kind": "Unknown account type.",
+    "style": "Unknown design style.",
+    "colors": "Invalid colors.",
+    "posts": "Choose one of the available weekly posting frequencies.",
+    "referral": "Your “how did you hear about us” answer must be at most {count} characters.",
+    "length": "{field} must be at most {count} characters."
+  },
+  "fields": {
+    "name": "Brand name",
+    "category": "Category",
+    "description": "Description",
+    "audience": "Audience",
+    "headingFont": "Heading font",
+    "bodyFont": "Body font"
+  }
+}

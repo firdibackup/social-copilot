@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import {
   AlertTriangle,
   ArrowDown,
@@ -14,10 +16,12 @@ import {
   Send,
   Trash2,
 } from 'lucide-react'
+import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { Avatar } from '@/components/avatar'
 import { CancelGenerationButton } from '@/components/cancel-generation-button'
 import { MediaImage } from '@/components/media-image'
+import { isStorageFull, STORAGE_CLEANUP_HREF } from '@/components/storage-full'
 import { GenerationProgress } from './generation-progress'
 import type { ImageFormat } from '@/lib/image-options'
 import type { PostMedia } from '@/lib/posts'
@@ -72,6 +76,8 @@ const ROUND_BUTTON =
  * after the last one is a card that opens the picker, as Instagram's own composer has.
  */
 export function PostMockup(props: PostMockupProps) {
+  const t = useTranslations('editor.postMockup')
+
   const { username, avatarUrl, items, active, onSelect, ratio, caption, empty, onAdd, maxSlides } = props
   const current = items[active]
   const slots = items.length + (onAdd ? 1 : 0)
@@ -82,7 +88,7 @@ export function PostMockup(props: PostMockupProps) {
         <SlideStrip {...props} className="hidden max-h-[560px] w-14 shrink-0 flex-col gap-2 overflow-y-auto md:flex" />
       )}
       <div className="w-full max-w-[340px] space-y-2">
-        <article aria-label="Pratinjau post" className="overflow-hidden rounded-xl border border-hairline bg-white">
+        <article aria-label={t('message1')} className="overflow-hidden rounded-xl border border-hairline bg-white">
           <header className="flex items-center gap-2 px-3 py-2.5">
             <Avatar src={avatarUrl} name={username} className="size-8" />
             <span className="truncate text-[13px] font-semibold text-ink">{username}</span>
@@ -101,12 +107,12 @@ export function PostMockup(props: PostMockupProps) {
               </span>
             )}
             {active > 0 && (
-              <button type="button" aria-label="Slide sebelumnya" onClick={() => onSelect(active - 1)} className={`${ROUND_BUTTON} absolute top-1/2 left-2 -translate-y-1/2`}>
+              <button type="button" aria-label={t('message2')} onClick={() => onSelect(active - 1)} className={`${ROUND_BUTTON} absolute top-1/2 left-2 -translate-y-1/2`}>
                 <ChevronLeft size={18} aria-hidden="true" />
               </button>
             )}
             {active < slots - 1 && (
-              <button type="button" aria-label="Slide berikutnya" onClick={() => onSelect(active + 1)} className={`${ROUND_BUTTON} absolute top-1/2 right-2 -translate-y-1/2`}>
+              <button type="button" aria-label={t('message3')} onClick={() => onSelect(active + 1)} className={`${ROUND_BUTTON} absolute top-1/2 right-2 -translate-y-1/2`}>
                 <ChevronRight size={18} aria-hidden="true" />
               </button>
             )}
@@ -127,19 +133,21 @@ export function PostMockup(props: PostMockupProps) {
 }
 
 function Stage({ item, items, remaking, running, editable, onRemove, onRetry, onDropSlide, onCancelSlide, cancelling }: PostMockupProps & { item: SlideItem }) {
+  const t = useTranslations('editor.postMockup')
+
   if (item.kind === 'image') {
     return (
       <>
         <MediaImage src={item.media.url} className="absolute inset-0 size-full object-cover" />
         {remaking && (
           <div className="shimmer absolute inset-0 flex items-center justify-center opacity-90">
-            <Working label="Membuat ulang slide…" />
+            <Working label={t('message4')} />
           </div>
         )}
         {editable && !remaking && (
           <button
             type="button"
-            aria-label="Lepas foto ini dari post"
+            aria-label={t('message5')}
             onClick={() => onRemove(item.media.assetId)}
             className={`${ROUND_BUTTON} absolute top-2.5 right-2.5`}
           >
@@ -154,10 +162,10 @@ function Stage({ item, items, remaking, running, editable, onRemove, onRetry, on
   if (slide.status === 'cancelled' && slide.id !== running) {
     return (
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-50 p-6 text-center">
-        <p role="status" className="text-sm text-ink-muted">Pembuatan gambar dibatalkan.</p>
+        <p role="status" className="text-sm text-ink-muted">{t('message6')}</p>
         <div className="flex flex-wrap justify-center gap-2">
-          <button type="button" onClick={() => onRetry(slide.id)} className="min-h-9 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-white hover:bg-accent-deep">Buat lagi (gratis)</button>
-          <button type="button" onClick={() => onDropSlide(slide.id)} className="min-h-9 rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-ink hover:bg-zinc-100">Hapus slide</button>
+          <button type="button" onClick={() => onRetry(slide.id)} className="min-h-9 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-white hover:bg-accent-deep">{t('message7')}</button>
+          <button type="button" onClick={() => onDropSlide(slide.id)} className="min-h-9 rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-ink hover:bg-zinc-100">{t('message8')}</button>
         </div>
       </div>
     )
@@ -166,14 +174,16 @@ function Stage({ item, items, remaking, running, editable, onRemove, onRetry, on
     return (
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-red-50 p-6 text-center">
         <AlertTriangle size={22} className="text-red-600" aria-hidden="true" />
-        <p className="text-sm text-red-800">{slide.error ?? 'Slide gagal dibuat.'}</p>
+        <p className="text-sm text-red-800">{slide.error ?? t('message9')}</p>
+        {isStorageFull(slide.error) && (
+          <Link href={STORAGE_CLEANUP_HREF} className="text-sm font-medium text-red-800 underline underline-offset-2 hover:text-red-950">
+             {t('message10')} </Link>
+        )}
         <div className="flex gap-2">
           <button type="button" onClick={() => onRetry(slide.id)} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-white hover:bg-accent-deep">
-            Coba lagi (gratis)
-          </button>
+             {t('message11')} </button>
           <button type="button" onClick={() => onDropSlide(slide.id)} className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm text-red-700 hover:bg-red-100">
-            Hapus slide
-          </button>
+             {t('message8')} </button>
         </div>
       </div>
     )
@@ -190,14 +200,16 @@ function Stage({ item, items, remaking, running, editable, onRemove, onRetry, on
       done={done}
       total={items.length}
       roomy={items.length > 1}
-      note={making ? null : slide.error ? 'Gagal sebentar, dicoba lagi otomatis…' : 'Menunggu giliran…'}
-      corner={<CancelGenerationButton label="Batal gambar ini" onClick={() => onCancelSlide(slide.id)} pending={cancelling} />}
-      footer="Boleh tutup halaman atau buat konten lain. Proses tetap berjalan."
+      note={making ? null : slide.error ? t('message12') : t('message13')}
+      corner={<CancelGenerationButton label={t('message14')} onClick={() => onCancelSlide(slide.id)} pending={cancelling} />}
+      footer={t('message15')}
     />
   )
 }
 
 function AddCard({ count, max, onAdd }: { count: number; max: number; onAdd: () => void }) {
+  const t = useTranslations('editor.postMockup')
+
   return (
     <button
       type="button"
@@ -207,7 +219,7 @@ function AddCard({ count, max, onAdd }: { count: number; max: number; onAdd: () 
       <span className="flex size-14 items-center justify-center rounded-full bg-white text-ink shadow-[0_1px_3px_-1px_rgba(0,0,0,0.3)]">
         <ImagePlus size={24} strokeWidth={1.75} aria-hidden="true" />
       </span>
-      <span className="text-sm font-semibold text-ink">Tambah foto</span>
+      <span className="text-sm font-semibold text-ink">{t('message16')}</span>
       <span className="text-xs text-ink-muted">
         {count}/{max} slide
       </span>
@@ -225,6 +237,8 @@ function Working({ label, spinning = true }: { label: string; spinning?: boolean
 }
 
 function SlideStrip({ items, active, onSelect, running, editable, onMove, onAdd, className }: PostMockupProps & { className: string }) {
+  const t = useTranslations('editor.postMockup')
+
   const current = items[active]
   const images = items.filter((item) => item.kind === 'image').length
   return (
@@ -242,7 +256,7 @@ function SlideStrip({ items, active, onSelect, running, editable, onMove, onAdd,
               {item.kind === 'image' ? (
                 <MediaImage src={item.media.url} className="size-full object-cover" />
               ) : item.slide.status === 'cancelled' && item.slide.id !== running ? (
-                <span className="flex size-full items-center justify-center bg-zinc-100 text-xs text-ink-muted">Batal</span>
+                <span className="flex size-full items-center justify-center bg-zinc-100 text-xs text-ink-muted">{t('message17')}</span>
               ) : item.slide.status === 'failed' && item.slide.id !== running ? (
                 <span className="flex size-full items-center justify-center bg-red-50 text-red-600">
                   <AlertTriangle size={16} aria-hidden="true" />
@@ -257,8 +271,8 @@ function SlideStrip({ items, active, onSelect, running, editable, onMove, onAdd,
           <li className="shrink-0">
             <button
               type="button"
-              aria-label="Tambah foto"
-              title="Tambah foto"
+              aria-label={t('message16')}
+              title={t('message16')}
               onClick={onAdd}
               className="flex size-14 items-center justify-center rounded-lg border-2 border-dashed border-hairline text-ink-muted transition-colors hover:border-accent hover:text-accent"
             >
@@ -269,10 +283,10 @@ function SlideStrip({ items, active, onSelect, running, editable, onMove, onAdd,
       </ol>
       {editable && current?.kind === 'image' && images > 1 && (
         <div className="flex shrink-0 justify-center gap-1 md:flex-col">
-          <button type="button" aria-label="Geser slide ke depan" disabled={active === 0} onClick={() => onMove(active, -1)} className="rounded p-1 text-ink-muted hover:bg-zinc-100 disabled:opacity-30">
+          <button type="button" aria-label={t('message18')} disabled={active === 0} onClick={() => onMove(active, -1)} className="rounded p-1 text-ink-muted hover:bg-zinc-100 disabled:opacity-30">
             <ArrowUp size={16} aria-hidden="true" />
           </button>
-          <button type="button" aria-label="Geser slide ke belakang" disabled={active >= images - 1} onClick={() => onMove(active, 1)} className="rounded p-1 text-ink-muted hover:bg-zinc-100 disabled:opacity-30">
+          <button type="button" aria-label={t('message19')} disabled={active >= images - 1} onClick={() => onMove(active, 1)} className="rounded p-1 text-ink-muted hover:bg-zinc-100 disabled:opacity-30">
             <ArrowDown size={16} aria-hidden="true" />
           </button>
         </div>

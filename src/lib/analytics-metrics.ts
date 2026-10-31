@@ -1,3 +1,5 @@
+import { intlLocale, type Locale } from '@/i18n/locale-config'
+
 /**
  * The insights Analitik reads per post. All of them exist for both FEED and REELS media under Instagram Login
  * (Graph API v25, checked 2026-10-18); `impressions` is gone for media after July 2024 and `views` replaces it.
@@ -89,8 +91,16 @@ export function isSyncStale(lastStartedAt: Date | null, now: Date): boolean {
   return lastStartedAt === null || now.getTime() - lastStartedAt.getTime() > STALE_AFTER_MS
 }
 
-const countFormat = new Intl.NumberFormat('id-ID')
-const rateFormat = new Intl.NumberFormat('id-ID', { style: 'percent', maximumFractionDigits: 1 })
+const countFormats = {
+  id: new Intl.NumberFormat(intlLocale('id')),
+  en: new Intl.NumberFormat(intlLocale('en')),
+}
+const rateFormats = {
+  id: new Intl.NumberFormat(intlLocale('id'), { style: 'percent', maximumFractionDigits: 1 }),
+  en: new Intl.NumberFormat(intlLocale('en'), { style: 'percent', maximumFractionDigits: 1 }),
+}
 
-export const formatCount = (value: number | null) => (value === null ? '—' : countFormat.format(value))
-export const formatRate = (value: number | null) => (value === null ? '—' : rateFormat.format(value))
+export const formatCount = (value: number | null, locale: Locale = 'id') =>
+  value === null ? '—' : countFormats[locale].format(value)
+export const formatRate = (value: number | null, locale: Locale = 'id') =>
+  value === null ? '—' : rateFormats[locale].format(value)

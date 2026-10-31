@@ -1,4 +1,5 @@
 import 'server-only'
+import type { Locale } from './ai-language'
 import {
   addReference,
   getAccountStrategy,
@@ -30,7 +31,7 @@ const IMPORTED = 3
  * Brand can say so. Never throws: it runs after the callback's redirect, where nobody would see an error.
  * `postsPerWeek`, answered in the onboarding, wins over the drafted strategy's rhythm.
  */
-export async function syncNewAccount(userId: string, accountId: string, postsPerWeek?: number): Promise<void> {
+export async function syncNewAccount(userId: string, accountId: string, postsPerWeek?: number, language: Locale = 'id'): Promise<void> {
   let failed = false
   async function step<T>(name: string, run: () => Promise<T>): Promise<T | null> {
     try {
@@ -61,7 +62,7 @@ export async function syncNewAccount(userId: string, accountId: string, postsPer
       // Named fields only: the sources are logged, and the picture URL is signed.
       const { username, name, biography } = profile
       const instagram = { username, name, biography, captions }
-      const draft = await analyzeProfile(userId, { website: null, instagram }, { cost: 0 })
+      const draft = await analyzeProfile(userId, { website: null, instagram }, { cost: 0, ...(language === 'en' ? { language } : {}) })
       const fields = PROFILE_FIELDS.filter((field) => draft[field] && isEmpty(field))
       if (fields.length > 0) {
         await updateBrandKit(userId, accountId, Object.fromEntries(fields.map((field) => [field, draft[field]])))
@@ -73,7 +74,7 @@ export async function syncNewAccount(userId: string, accountId: string, postsPer
     if (profileText) {
       await step('strategi', async () => {
         if (await getAccountStrategy(userId, accountId)) return
-        const strategy = await analyzeStrategy(userId, { brand: profileText, recent: captions }, { cost: 0 })
+        const strategy = await analyzeStrategy(userId, { brand: profileText, recent: captions }, { cost: 0, ...(language === 'en' ? { language } : {}) })
         await saveStrategy(userId, accountId, postsPerWeek ? { ...strategy, postsPerWeek } : strategy)
       })
     }
@@ -99,7 +100,7 @@ export async function syncNewAccount(userId: string, accountId: string, postsPer
     await step('gaya visual', async () => {
       const { references } = await loadVisualReferences(userId, accountId)
       if (references.length === 0) return
-      const analysis = await analyzeVisual(userId, references, { cost: 0 })
+      const analysis = await analyzeVisual(userId, references, { cost: 0, ...(language === 'en' ? { language } : {}) })
       if (isEmpty('visualStyle')) await updateBrandKit(userId, accountId, { visualStyle: analysis.visualStyle })
       const described = new Set<string>()
       for (const [index, reference] of references.entries()) {

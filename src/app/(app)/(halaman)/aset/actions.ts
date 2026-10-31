@@ -1,9 +1,13 @@
 'use server'
 
+import { getUserLocale } from '@/i18n/locale'
+import { getTranslations } from 'next-intl/server'
+
+import { localizeLibraryMessage } from '../brand/localized-errors'
 import { refresh } from 'next/cache'
 import { aiErrorMessage } from '@/lib/ai'
 import { tagAssets } from '@/lib/asset-ai'
-import { isAssetCategory, parseTagInput } from '@/lib/asset-options'
+import { isAssetCategory, parseTagInput, MAX_ASSET_TAGS, TAG_MAX_LENGTH } from '@/lib/asset-options'
 import { requireAccount } from '@/lib/auth'
 import {
   AssetInUseError,
@@ -12,6 +16,7 @@ import {
   deleteAsset,
   deleteAssetGroup,
   InvalidImageError,
+  loadAssetsByIds,
   moveAssetToGroup,
   setAssetsActive,
   setAssetTags,
@@ -20,6 +25,8 @@ import {
 } from '@/lib/assets'
 import { describeError } from '@/lib/errors'
 import { isUuid } from '@/lib/params'
+import { FileTooLargeError, listCleanupCandidates, StorageFullError } from '@/lib/storage-quota'
+import { storageFullMessage, fileTooLargeMessage } from '@/lib/storage-quota-options'
 import { RemoteFetchError } from '@/lib/web-fetch'
 import { catalogWebsiteAssets } from '@/lib/website-ai'
 import { importWebsiteAssets } from '@/lib/website-import'
@@ -34,7 +41,6 @@ export type WebsiteImportState = AssetActionState & {
 }
 
 const EMPTY_STATE: AssetActionState = { error: null, success: null }
-const NOTHING_SELECTED: AssetActionState = { error: 'Pilih foto dulu.', success: null }
 /** One library's worth (LIBRARY_LIMIT in src/lib/assets.ts). */
 const MAX_SELECTED = 100
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? '').trim()
@@ -43,17 +49,20 @@ const selectedIds = (formData: FormData) => [...new Set(formData.getAll('id').fi
 
 /** Receives a JPEG already cropped and resized in the browser (see toInstagramJpeg), and files it under `groupId`. */
 export async function uploadAsset(formData: FormData): Promise<UploadResult> {
+  const t = await getTranslations('assets')
   const { userId, accountId } = await requireAccount()
   const file = formData.get('file')
-  if (!(file instanceof Blob)) return { error: 'File tidak ditemukan.' }
+  if (!(file instanceof Blob)) return { error: t('actions.text1') }
 
   let asset: Asset
   try {
-    asset = await createAsset(userId, file, Number(formData.get('width')), Number(formData.get('height')), { accountId })
+    asset = await createAsset(userId, file, Number(formData.get('width')), Number(formData.get('height')), { accountId, locale: await getUserLocale() })
   } catch (error) {
-    if (error instanceof InvalidImageError) return { error: error.message }
+    if (error instanceof StorageFullError) return { error: storageFullMessage(await getUserLocale()) }
+    if (error instanceof FileTooLargeError) return { error: fileTooLargeMessage(await getUserLocale()) }
+    if (error instanceof InvalidImageError) return { error: localizeLibraryMessage(error.message, await getUserLocale()) }
     console.error('[aset] unggah gagal:', describeError(error))
-    return { error: 'Foto gagal disimpan. Periksa koneksi Supabase.' }
+    return { error: t('actions.text2') }
   }
 
   const groupId = formData.get('groupId')
@@ -67,10 +76,26 @@ export async function uploadAsset(formData: FormData): Promise<UploadResult> {
   return { asset }
 }
 
+/**
+ * AI images no post, thread or slide uses, oldest first, loaded here because the library only holds the newest ones.
+ * Across all the user's accounts: the quota is per user.
+ */
+export async function storageCleanupAction(): Promise<{ assets: Asset[] } | { error: string }> {
+  const t = await getTranslations('assets')
+  const { userId } = await requireAccount()
+  try {
+    return { assets: await loadAssetsByIds(userId, await listCleanupCandidates(userId)) }
+  } catch (error) {
+    console.error('[aset] saran pembersihan gagal:', describeError(error))
+    return { error: t('actions.text3') }
+  }
+}
+
 export async function deleteAssetsAction(_previous: AssetActionState, formData: FormData): Promise<AssetActionState> {
+  const t = await getTranslations('assets')
   const { userId } = await requireAccount()
   const ids = selectedIds(formData)
-  if (ids.length === 0) return NOTHING_SELECTED
+  if (ids.length === 0) return { error: t('actions.nothingSelected'), success: null }
 
   let deleted = 0
   let inUse = 0
@@ -90,51 +115,51 @@ export async function deleteAssetsAction(_previous: AssetActionState, formData: 
     }
   }
   if (deleted > 0) refresh()
-  const done = deleted > 0 ? `${deleted} foto dihapus. ` : ''
-  if (failed) return { ...EMPTY_STATE, error: `${done}Foto lainnya gagal dihapus. Coba lagi.` }
-  if (inUse > 0) return { ...EMPTY_STATE, error: `${done}${inUse} foto masih dipakai di post dan tidak dihapus.` }
-  return { error: null, success: `${deleted} foto dihapus.` }
+  const done = deleted > 0 ? t('actions.text4', { v0: deleted }) : ''
+  if (failed) return { ...EMPTY_STATE, error: t('actions.text5', { v0: done }) }
+  if (inUse > 0) return { ...EMPTY_STATE, error: t('actions.text6', { v0: done, v1: inUse }) }
+  return { error: null, success: t('actions.text7', { v0: deleted }) }
 }
 
 export async function importWebsiteAction(
   _previous: WebsiteImportState,
   formData: FormData,
 ): Promise<WebsiteImportState> {
+  const t = await getTranslations('assets')
   const { userId, accountId } = await requireAccount()
   const url = field(formData, 'url')
-  if (!url) return { error: 'Isi alamat website dulu.', success: null, pages: 0, imported: 0, duplicates: 0, warnings: [] }
+  if (!url) return { error: t('actions.text8'), success: null, pages: 0, imported: 0, duplicates: 0, warnings: [] }
 
   let imported
   try {
     imported = await importWebsiteAssets(userId, accountId, url)
   } catch (error) {
     if (error instanceof RemoteFetchError) {
-      return { error: error.message, success: null, pages: 0, imported: 0, duplicates: 0, warnings: [] }
+      return { error: localizeLibraryMessage(error.message, await getUserLocale()), success: null, pages: 0, imported: 0, duplicates: 0, warnings: [] }
     }
     console.error('[aset] website gagal diimpor:', describeError(error))
-    return { error: 'Website tidak bisa diimpor.', success: null, pages: 0, imported: 0, duplicates: 0, warnings: [] }
+    return { error: t('actions.text9'), success: null, pages: 0, imported: 0, duplicates: 0, warnings: [] }
   }
 
   let catalogError: string | null = null
   if (imported.assets.length > 0) {
     try {
-      await catalogWebsiteAssets(userId, accountId, imported.assets, imported.website.url)
+      await catalogWebsiteAssets(userId, accountId, imported.assets, imported.website.url, await getUserLocale())
     } catch (error) {
       console.error('[aset] katalog website gagal dibuat:', describeError(error))
-      catalogError = aiErrorMessage(error)
+      catalogError = localizeLibraryMessage(aiErrorMessage(error), await getUserLocale())
     }
   }
   refresh()
-  const summary = `${imported.website.pages.length} halaman dibaca, ${imported.imported} gambar baru disimpan${
-    imported.duplicates > 0 ? `, ${imported.duplicates} duplikat dilewati` : ''
-  }.`
+  const locale = await getUserLocale()
+  const summary = t('actions.text10', { v0: imported.website.pages.length, v1: imported.imported, v2: imported.duplicates > 0 ? t('actions.duplicates', { count: imported.duplicates }) : '' })
   return {
     error: catalogError,
     success: summary,
     pages: imported.website.pages.length,
     imported: imported.imported,
     duplicates: imported.duplicates,
-    warnings: imported.warnings,
+    warnings: imported.warnings.map((message) => localizeLibraryMessage(message, locale)),
   }
 }
 
@@ -142,9 +167,10 @@ export async function createAssetGroupAction(
   _previous: AssetActionState,
   formData: FormData,
 ): Promise<AssetActionState> {
+  const t = await getTranslations('assets')
   const { userId, accountId } = await requireAccount()
   const category = formData.get('category')
-  if (!isAssetCategory(category)) return { ...EMPTY_STATE, error: 'Pilih jenis produk.' }
+  if (!isAssetCategory(category)) return { ...EMPTY_STATE, error: t('actions.text11') }
 
   try {
     await createAssetGroup(userId, accountId, {
@@ -153,65 +179,68 @@ export async function createAssetGroupAction(
       description: field(formData, 'description'),
       origin: 'upload',
       assetIds: [],
-    })
+    }, await getUserLocale())
   } catch (error) {
     console.error('[aset] produk gagal dibuat:', describeError(error))
-    return { ...EMPTY_STATE, error: error instanceof Error ? error.message : 'Produk gagal ditambahkan.' }
+    return { ...EMPTY_STATE, error: error instanceof Error ? localizeLibraryMessage(error.message, await getUserLocale()) : t('actions.text12') }
   }
   refresh()
-  return { error: null, success: 'Produk ditambahkan.' }
+  return { error: null, success: t('actions.text13') }
 }
 
 export async function updateAssetGroupAction(
   _previous: AssetActionState,
   formData: FormData,
 ): Promise<AssetActionState> {
+  const t = await getTranslations('assets')
   const { userId } = await requireAccount()
   const id = formData.get('id')
   const category = formData.get('category')
-  if (!isUuid(id)) return { ...EMPTY_STATE, error: 'Produk tidak ditemukan.' }
-  if (!isAssetCategory(category)) return { ...EMPTY_STATE, error: 'Pilih jenis produk.' }
+  if (!isUuid(id)) return { ...EMPTY_STATE, error: t('actions.text14') }
+  if (!isAssetCategory(category)) return { ...EMPTY_STATE, error: t('actions.text11') }
 
   try {
     const updated = await updateAssetGroup(userId, id, {
       category,
       title: field(formData, 'title'),
       description: field(formData, 'description'),
-    })
-    if (!updated) return { ...EMPTY_STATE, error: 'Produk tidak ditemukan.' }
+    }, await getUserLocale())
+    if (!updated) return { ...EMPTY_STATE, error: t('actions.text14') }
   } catch (error) {
     console.error('[aset] produk gagal diubah:', describeError(error))
-    return { ...EMPTY_STATE, error: error instanceof Error ? error.message : 'Produk gagal diubah.' }
+    return { ...EMPTY_STATE, error: error instanceof Error ? localizeLibraryMessage(error.message, await getUserLocale()) : t('actions.text15') }
   }
   refresh()
-  return { error: null, success: 'Perubahan disimpan.' }
+  return { error: null, success: t('actions.text16') }
 }
 
 export async function deleteAssetGroupAction(
   _previous: AssetActionState,
   formData: FormData,
 ): Promise<AssetActionState> {
+  const t = await getTranslations('assets')
   const { userId } = await requireAccount()
   const id = formData.get('id')
-  if (!isUuid(id)) return { ...EMPTY_STATE, error: 'Produk tidak ditemukan.' }
+  if (!isUuid(id)) return { ...EMPTY_STATE, error: t('actions.text14') }
   try {
-    if (!(await deleteAssetGroup(userId, id))) return { ...EMPTY_STATE, error: 'Produk tidak ditemukan.' }
+    if (!(await deleteAssetGroup(userId, id))) return { ...EMPTY_STATE, error: t('actions.text14') }
   } catch (error) {
     console.error('[aset] produk gagal dihapus:', describeError(error))
-    return { ...EMPTY_STATE, error: 'Produk gagal dihapus.' }
+    return { ...EMPTY_STATE, error: t('actions.text17') }
   }
   refresh()
-  return { error: null, success: 'Produk dihapus. Fotonya tetap tersimpan.' }
+  return { error: null, success: t('actions.text18') }
 }
 
 /** Files the selected photos under `groupId`, or outside every product when it is empty. */
 export async function moveAssetsAction(_previous: AssetActionState, formData: FormData): Promise<AssetActionState> {
+  const t = await getTranslations('assets')
   const { userId, accountId } = await requireAccount()
   const ids = selectedIds(formData)
   const rawGroupId = formData.get('groupId')
-  if (ids.length === 0) return NOTHING_SELECTED
+  if (ids.length === 0) return { error: t('actions.nothingSelected'), success: null }
   if (typeof rawGroupId !== 'string' || (rawGroupId !== '' && !isUuid(rawGroupId))) {
-    return { ...EMPTY_STATE, error: 'Produk tidak ditemukan.' }
+    return { ...EMPTY_STATE, error: t('actions.text14') }
   }
   const groupId = rawGroupId === '' ? null : rawGroupId
 
@@ -225,65 +254,68 @@ export async function moveAssetsAction(_previous: AssetActionState, formData: Fo
     failed = true
   }
   if (moved > 0) refresh()
-  if (failed) return { ...EMPTY_STATE, error: moved > 0 ? `${moved} foto dipindahkan, sisanya gagal.` : 'Foto gagal dipindahkan.' }
-  if (moved === 0) return { ...EMPTY_STATE, error: 'Foto atau produk tidak ditemukan.' }
-  return { error: null, success: groupId ? `${moved} foto dimasukkan ke produk.` : `${moved} foto dikeluarkan dari produk.` }
+  if (failed) return { ...EMPTY_STATE, error: moved > 0 ? t('actions.text19', { v0: moved }) : t('actions.text20') }
+  if (moved === 0) return { ...EMPTY_STATE, error: t('actions.text21') }
+  return { error: null, success: groupId ? t('actions.text22', { v0: moved }) : t('actions.text23', { v0: moved }) }
 }
 
 export async function setAssetActiveAction(
   _previous: AssetActionState,
   formData: FormData,
 ): Promise<AssetActionState> {
+  const t = await getTranslations('assets')
   const { userId } = await requireAccount()
   const ids = selectedIds(formData)
-  if (ids.length === 0) return NOTHING_SELECTED
+  if (ids.length === 0) return { error: t('actions.nothingSelected'), success: null }
   const active = formData.get('active') === 'true'
 
   try {
-    if ((await setAssetsActive(userId, ids, active)) === 0) return { ...EMPTY_STATE, error: 'Foto tidak ditemukan.' }
+    if ((await setAssetsActive(userId, ids, active)) === 0) return { ...EMPTY_STATE, error: t('actions.text24') }
   } catch (error) {
     console.error('[aset] status foto gagal diubah:', describeError(error))
-    return { ...EMPTY_STATE, error: 'Status foto gagal diubah.' }
+    return { ...EMPTY_STATE, error: t('actions.text25') }
   }
   refresh()
-  return { error: null, success: active ? 'Foto diaktifkan.' : 'Foto dijeda.' }
+  return { error: null, success: active ? t('actions.text26') : t('actions.text27') }
 }
 
 export async function updateAssetTagsAction(
   _previous: AssetActionState,
   formData: FormData,
 ): Promise<AssetActionState> {
+  const t = await getTranslations('assets')
   const { userId } = await requireAccount()
   const id = formData.get('id')
-  if (!isUuid(id)) return { ...EMPTY_STATE, error: 'Foto tidak ditemukan.' }
+  if (!isUuid(id)) return { ...EMPTY_STATE, error: t('actions.text24') }
   const parsed = parseTagInput(field(formData, 'tags'))
-  if ('error' in parsed) return { ...EMPTY_STATE, error: parsed.error }
+  if ('error' in parsed) return { ...EMPTY_STATE, error: parsed.error.startsWith('Satu tag') ? t('actions.tagLength', { limit: TAG_MAX_LENGTH }) : t('actions.tagCount', { limit: MAX_ASSET_TAGS }) }
 
   try {
-    if (!(await setAssetTags(userId, id, parsed.tags))) return { ...EMPTY_STATE, error: 'Foto tidak ditemukan.' }
+    if (!(await setAssetTags(userId, id, parsed.tags))) return { ...EMPTY_STATE, error: t('actions.text24') }
   } catch (error) {
     console.error('[aset] tag gagal disimpan:', describeError(error))
-    return { ...EMPTY_STATE, error: 'Tag gagal disimpan.' }
+    return { ...EMPTY_STATE, error: t('actions.text28') }
   }
   refresh()
-  return { error: null, success: 'Tag disimpan.' }
+  return { error: null, success: t('actions.text29') }
 }
 
 /** AI tags for the selected photos, charged per photo; the earlier batches stay saved when a later one fails. */
 export async function tagAssetsAction(_previous: AssetActionState, formData: FormData): Promise<AssetActionState> {
+  const t = await getTranslations('assets')
   const { userId, accountId } = await requireAccount()
   const ids = selectedIds(formData)
-  if (ids.length === 0) return NOTHING_SELECTED
+  if (ids.length === 0) return { error: t('actions.nothingSelected'), success: null }
 
   let tagged: number
   try {
-    tagged = await tagAssets(userId, accountId, ids)
+    tagged = await tagAssets(userId, accountId, ids, await getUserLocale())
   } catch (error) {
     console.error('[aset] tag AI gagal:', describeError(error))
     refresh()
-    return { ...EMPTY_STATE, error: aiErrorMessage(error) }
+    return { ...EMPTY_STATE, error: localizeLibraryMessage(aiErrorMessage(error), await getUserLocale()) }
   }
   refresh()
-  if (tagged === 0) return { ...EMPTY_STATE, error: 'Foto tidak ditemukan. Hasil AI tidak diberi tag.' }
-  return { error: null, success: `Tag dibuat untuk ${tagged} foto.` }
+  if (tagged === 0) return { ...EMPTY_STATE, error: t('actions.text30') }
+  return { error: null, success: t('actions.text31', { v0: tagged }) }
 }

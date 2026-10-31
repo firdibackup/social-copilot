@@ -1,5 +1,7 @@
 'use server'
 
+import { getLocale, getTranslations } from 'next-intl/server'
+
 import { refresh } from 'next/cache'
 import { redirect } from 'next/navigation'
 import {
@@ -36,18 +38,20 @@ const failed = (error: string): FormState => ({ error, success: null })
 const done = (success: string): FormState => ({ error: null, success })
 
 export async function saveSettingsAction(_previous: FormState, formData: FormData): Promise<FormState> {
+  const t = await getTranslations('admin')
+
   const admin = await requireAdmin()
-  const parsed = parseSettings(fieldsOf(formData))
+  const parsed = parseSettings(fieldsOf(formData), await getLocale())
   if ('error' in parsed) return failed(parsed.error)
   try {
     await saveAppSettings(admin.id, parsed.settings)
   } catch (error) {
     console.error('[admin] pengaturan gagal disimpan:', describeError(error))
-    return failed('Pengaturan gagal disimpan. Sudah menjalankan migrasi admin?')
+    return failed(t('actions.couldnTSaveSettingsHaveYouRun'))
   }
   await logAdminAction(admin, 'save_settings', null, { ...parsed.settings })
   refresh()
-  return done('Pengaturan disimpan. Berlaku untuk permintaan AI berikutnya.')
+  return done(t('actions.settingsSavedTheyLlApplyToThe'))
 }
 
 export type ModelTestResult =
@@ -60,25 +64,27 @@ const TEST_IMAGE_SIZE = '1024x1024'
 
 /** One live request to `model`. Not charged to anyone; the admin sees the provider's own error text. */
 export async function testModelAction(kind: 'text' | 'image', model: string): Promise<ModelTestResult> {
+  const t = await getTranslations('admin')
+
   await requireAdmin()
   const id = model.trim()
   const startedAt = Date.now()
   const ms = () => Date.now() - startedAt
-  if (!id) return { ok: false, message: 'Isi id model dulu.', ms: 0 }
+  if (!id) return { ok: false, message: t('actions.enterAModelIdFirst'), ms: 0 }
   try {
     if (kind === 'text') {
       const answer = await chatCompletion([{ role: 'user', content: TEST_PROMPT }], id)
-      return { ok: true, message: `Jawaban: "${answer.trim().slice(0, 120)}"`, preview: null, ms: ms() }
+      return { ok: true, message: t('actions.response', { v0: answer.trim().slice(0, 120) }), preview: null, ms: ms() }
     }
     const b64 = await generateImage({ prompt: TEST_IMAGE_PROMPT, size: TEST_IMAGE_SIZE, images: [] }, id)
     const preview = await toReferenceDataUrl(new Uint8Array(Buffer.from(b64, 'base64')))
-    return { ok: true, message: 'Gambar berhasil dibuat.', preview, ms: ms() }
+    return { ok: true, message: t('actions.imageCreatedSuccessfully'), preview, ms: ms() }
   } catch (error) {
     if (error instanceof RouterApiError) {
       return { ok: false, message: `${error.status ? `HTTP ${error.status}: ` : ''}${error.message}`, ms: ms() }
     }
     console.error('[admin] tes model gagal:', describeError(error))
-    return { ok: false, message: 'Tes gagal dijalankan. Periksa ROUTER_API_BASE_URL dan ROUTER_API_KEY.', ms: ms() }
+    return { ok: false, message: t('actions.couldnTRunTheTestCheckRouter'), ms: ms() }
   }
 }
 
@@ -86,59 +92,61 @@ export type UserIntent = 'grant' | 'end' | 'adjust' | 'reset' | 'password' | 'ba
 
 /** Every action on one user, picked by the form's `intent`. */
 export async function userAction(_previous: FormState, formData: FormData): Promise<FormState> {
+  const t = await getTranslations('admin')
+
   const admin = await requireAdmin()
   const fields = fieldsOf(formData)
   const userId = fields.userId
-  if (!isUuid(userId)) return failed('Pengguna tidak ditemukan.')
+  if (!isUuid(userId)) return failed(t('actions.userNotFound'))
 
   let message: string
   try {
     switch (fields.intent as UserIntent) {
       case 'grant': {
-        const days = parseGrantDays(fields.days)
+        const days = parseGrantDays(fields.days, await getLocale())
         if (typeof days === 'object') return failed(days.error)
         await grantDays(admin, userId, days)
-        message = `${days} hari langganan ditambahkan.`
+        message = t('actions.addedSubscriptionDays', { v0: days })
         break
       }
       case 'end':
         await endSubscription(admin, userId)
-        message = 'Langganan dihentikan.'
+        message = t('actions.subscriptionEnded')
         break
       case 'adjust': {
-        const adjustment = parseAdjustment(fields)
+        const adjustment = parseAdjustment(fields, await getLocale())
         if ('error' in adjustment) return failed(adjustment.error)
         await adjustCredits(admin, userId, adjustment.amount, adjustment.note)
-        message = adjustment.amount > 0 ? 'Kredit ditambahkan.' : 'Kredit dikurangi.'
+        message = adjustment.amount > 0 ? t('actions.creditsAdded') : t('actions.creditsRemoved')
         break
       }
       case 'reset':
         await resetCredits(admin, userId)
-        message = 'Pemakaian kredit periode ini direset ke 0.'
+        message = t('actions.creditUsageForThisPeriodResetTo')
         break
       case 'password': {
-        const password = parsePassword(fields.password)
+        const password = parsePassword(fields.password, await getLocale())
         if (typeof password === 'object') return failed(password.error)
         await setPassword(admin, userId, password)
-        message = 'Password diganti. Berikan password baru ke pengguna.'
+        message = t('actions.passwordChangedGiveTheUserTheirNew')
         break
       }
       case 'ban':
       case 'unban':
         await setBanned(admin, userId, fields.intent === 'ban')
-        message = fields.intent === 'ban' ? 'Akun diblokir.' : 'Blokir dibuka.'
+        message = fields.intent === 'ban' ? t('actions.accountBlocked') : t('actions.accountUnblocked')
         break
       case 'delete':
         await deleteUser(admin, userId, typeof fields.confirmEmail === 'string' ? fields.confirmEmail : '')
         message = ''
         break
       default:
-        return failed('Aksi tidak dikenal.')
+        return failed(t('actions.unknownAction'))
     }
   } catch (error) {
     if (error instanceof AdminError) return failed(error.message)
     console.error('[admin] aksi pengguna gagal:', describeError(error))
-    return failed('Aksi gagal. Coba lagi, atau periksa Supabase dan migrasi admin.')
+    return failed(t('actions.actionFailedTryAgainOrCheckSupabase'))
   }
   // Outside the try: redirect() throws.
   if (fields.intent === 'delete') redirect('/admin/pengguna?dihapus=1')
@@ -146,86 +154,102 @@ export async function userAction(_previous: FormState, formData: FormData): Prom
   return done(message)
 }
 
-const TEMPLATE_DATABASE = 'Periksa Supabase dan migrasi template desain.'
+
 
 /** One template image from the admin's browser, already a JPEG. Returns an error message, or null. */
 export async function uploadTemplateAction(formData: FormData): Promise<string | null> {
+  const t = await getTranslations('admin')
+
+  const TEMPLATE_DATABASE = t('actions.checkSupabaseAndTheDesignTemplateMigration')
+
   const admin = await requireAdmin()
   const file = formData.get('file')
-  if (!(file instanceof Blob)) return 'File tidak ditemukan.'
-  if (file.size === 0 || file.size > MAX_IMAGE_BYTES) return 'Ukuran gambar harus di bawah 8 MB.'
+  if (!(file instanceof Blob)) return t('actions.fileNotFound')
+  if (file.size === 0 || file.size > MAX_IMAGE_BYTES) return t('actions.imageSizeMustBeUnder8Mb')
   const bytes = new Uint8Array(await file.arrayBuffer())
-  if (!isJpeg(bytes)) return 'File bukan JPEG.'
+  if (!isJpeg(bytes)) return t('actions.theFileIsnTAJpeg')
   try {
     const id = await addTemplate(admin.id, bytes)
     await logAdminAction(admin, 'upload_template', null, { templateId: id })
   } catch (error) {
     console.error('[admin] template gagal disimpan:', describeError(error))
-    return `Gambar gagal disimpan. ${TEMPLATE_DATABASE}`
+    return t('actions.couldnTSaveTheImage', { v0: TEMPLATE_DATABASE })
   }
   refresh()
   return null
 }
 
 export async function importTemplatesAction(): Promise<FormState> {
+  const t = await getTranslations('admin')
+
+  const TEMPLATE_DATABASE = t('actions.checkSupabaseAndTheDesignTemplateMigration')
+
   const admin = await requireAdmin()
   let added: number
   try {
     added = await importLegacyTemplates(admin.id)
   } catch (error) {
-    if (error instanceof TemplateError) return failed(error.message)
+    if (error instanceof TemplateError) return failed(error.message === 'Folder assets/contoh-desain tidak ditemukan di server.' ? t('actions.templateFolderMissing') : error.message)
     console.error('[admin] impor template gagal:', describeError(error))
-    return failed(`Impor gagal. ${TEMPLATE_DATABASE}`)
+    return failed(t('actions.importFailed', { v0: TEMPLATE_DATABASE }))
   }
-  if (added === 0) return done('Semua contoh desain sudah diimpor.')
+  if (added === 0) return done(t('actions.allSampleDesignsHaveAlreadyBeenImported'))
   await logAdminAction(admin, 'import_templates', null, { added })
   refresh()
-  return done(`${added} contoh desain diimpor. Klik Analisis dengan AI untuk mengelompokkannya.`)
+  return done(t('actions.importedSampleDesignsClickAnalyzeWithAi', { v0: added }))
 }
 
 /** Every pending template, or the one given (Analisis ulang). Not charged to anyone. */
 export async function analyzeTemplatesAction(templateId: string | null): Promise<FormState> {
+  const t = await getTranslations('admin')
+
+  const TEMPLATE_DATABASE = t('actions.checkSupabaseAndTheDesignTemplateMigration')
+
   const admin = await requireAdmin()
-  if (templateId !== null && !isUuid(templateId)) return failed('Template tidak ditemukan.')
+  if (templateId !== null && !isUuid(templateId)) return failed(t('actions.templateNotFound'))
   let result: { analyzed: number; failed: number }
   try {
-    result = await analyzeTemplates(admin.id, templateId ? [templateId] : null)
+    result = await analyzeTemplates(admin.id, templateId ? [templateId] : null, await getLocale())
   } catch (error) {
     console.error('[admin] analisis template gagal:', describeError(error))
-    return failed(`Analisis gagal dijalankan. ${TEMPLATE_DATABASE}`)
+    return failed(t('actions.couldnTRunTheAnalysis', { v0: TEMPLATE_DATABASE }))
   }
   const total = result.analyzed + result.failed
-  if (total === 0) return done('Tidak ada template yang menunggu analisis.')
+  if (total === 0) return done(t('actions.noTemplatesAreWaitingForAnalysis'))
   await logAdminAction(admin, 'analyze_templates', null, {
     ...result,
     templateId,
   })
   refresh()
-  if (result.failed === 0) return done(`${result.analyzed} template dianalisis.`)
-  return failed(`${result.analyzed} dari ${total} template dianalisis; sisanya gagal. Atur manual atau analisis ulang.`)
+  if (result.failed === 0) return done(t('actions.analyzedTemplates', { v0: result.analyzed }))
+  return failed(t('actions.analyzedOfTemplatesTheRestFailedSet', { v0: result.analyzed, v1: total }))
 }
 
 export type TemplateIntent = 'update' | 'activate' | 'deactivate' | 'delete'
 
 /** Every change to one template, picked by the form's `intent`. */
 export async function templateAction(_previous: FormState, formData: FormData): Promise<FormState> {
+  const t = await getTranslations('admin')
+
+  const TEMPLATE_DATABASE = t('actions.checkSupabaseAndTheDesignTemplateMigration')
+
   const admin = await requireAdmin()
   const fields = fieldsOf(formData)
   const templateId = fields.templateId
-  if (!isUuid(templateId)) return failed('Template tidak ditemukan.')
+  if (!isUuid(templateId)) return failed(t('actions.templateNotFound'))
 
   let message: string
   try {
     switch (fields.intent as TemplateIntent) {
       case 'update': {
-        const edit = parseTemplateEdit(fields, formData.getAll('styles'))
+        const edit = parseTemplateEdit(fields, formData.getAll('styles'), await getLocale())
         if ('error' in edit) return failed(edit.error)
         await updateTemplate(templateId, edit)
         await logAdminAction(admin, 'update_template', null, {
           templateId,
           ...edit,
         })
-        message = 'Template disimpan.'
+        message = t('actions.templateSaved')
         break
       }
       case 'activate':
@@ -236,20 +260,20 @@ export async function templateAction(_previous: FormState, formData: FormData): 
           templateId,
           active,
         })
-        message = active ? 'Template diaktifkan.' : 'Template dinonaktifkan.'
+        message = active ? t('actions.templateActivated') : t('actions.templateDeactivated')
         break
       }
       case 'delete':
         await deleteTemplate(templateId)
         await logAdminAction(admin, 'delete_template', null, { templateId })
-        message = 'Template dihapus.'
+        message = t('actions.templateDeleted')
         break
       default:
-        return failed('Aksi tidak dikenal.')
+        return failed(t('actions.unknownAction'))
     }
   } catch (error) {
     console.error('[admin] aksi template gagal:', describeError(error))
-    return failed(`Aksi gagal. ${TEMPLATE_DATABASE}`)
+    return failed(t('actions.actionFailed', { v0: TEMPLATE_DATABASE }))
   }
   refresh()
   return done(message)
@@ -257,14 +281,16 @@ export async function templateAction(_previous: FormState, formData: FormData): 
 
 /** Called as the admin opens the WhatsApp chat, so the list shows who was already reminded. */
 export async function markRemindedAction(paymentId: string): Promise<{ error: string | null }> {
+  const t = await getTranslations('admin')
+
   const admin = await requireAdmin()
-  if (!isUuid(paymentId)) return { error: 'Pembayaran tidak ditemukan.' }
+  if (!isUuid(paymentId)) return { error: t('actions.paymentNotFound') }
   try {
     await markPaymentReminded(admin, paymentId)
   } catch (error) {
     if (error instanceof AdminError) return { error: error.message }
     console.error('[admin] pengingat pembayaran gagal dicatat:', describeError(error))
-    return { error: 'Pengingat gagal dicatat. Sudah menjalankan migrasi kontak pembayaran?' }
+    return { error: t('actions.couldnTRecordTheReminderHaveYou') }
   }
   refresh()
   return { error: null }

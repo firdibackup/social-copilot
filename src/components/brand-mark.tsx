@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl'
 import type { CSSProperties } from 'react'
 
 /** The official mark from assets/logo assets, cropped to the icon and served from public/brand. */
@@ -50,11 +51,12 @@ export function CarouselyLoop({ size = 56 }: { size?: number }) {
 }
 
 /** Reserved for initial onboarding. Never delays ready content to finish a loop. */
-export function CarouselyLoader({ size = 56, label = 'Menyiapkan Carousely…' }: { size?: number; label?: string }) {
+export function CarouselyLoader({ size = 56, label }: { size?: number; label?: string }) {
+  const t = useTranslations('common')
   return (
     <div role="status" className="flex flex-col items-center gap-3 text-sm text-ink-muted">
       <CarouselyLoop size={size} />
-      <span>{label}</span>
+      <span>{label ?? t('preparingCarousely')}</span>
     </div>
   )
 }

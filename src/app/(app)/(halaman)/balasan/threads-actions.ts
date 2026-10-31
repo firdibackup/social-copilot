@@ -1,7 +1,8 @@
 'use server'
 
+import { getTranslations } from 'next-intl/server'
+
 import { refresh } from 'next/cache'
-import { aiErrorMessage } from '@/lib/ai'
 import { requireAccount } from '@/lib/auth'
 import { describeError } from '@/lib/errors'
 import { InstagramApiError } from '@/lib/instagram'
@@ -18,12 +19,10 @@ import {
   setThreadsReplyHiddenRow,
 } from '@/lib/threads-inbox'
 import { MissingThreadsRepliesPermissionError, syncThreadsReplies } from '@/lib/threads-sync'
-import { text, type ActionError, type DraftResult, type SyncState } from './action-utils'
+import { inboxAiError, text, type ActionError, type DraftResult, type SyncState } from './action-utils'
 
 const NUMERIC_ID = /^\d+$/
-const NOT_FOUND = 'Balasan tidak ditemukan.'
-const RECONNECT = 'Threads belum terhubung atau tokennya kedaluwarsa. Hubungkan ulang di Pengaturan.'
-const MISSING_PERMISSION = 'Komentar Threads butuh izin membaca balasan. Hubungkan ulang Threads sekali.'
+
 /** A text reply's container is usually ready at once. */
 const READY_CHECKS = 5
 const READY_DELAY_MS = 1_000
@@ -32,6 +31,8 @@ const idOf = (value: unknown) => (typeof value === 'string' && NUMERIC_ID.test(v
 
 /** Owner-facing text for a Threads call that failed. */
 async function threadsErrorMessage(userId: string, error: unknown, context: string): Promise<string> {
+  const t = await getTranslations('inbox.threadsActions')
+  const RECONNECT = t('threadsIsnTConnectedOrItsTokenExpiredReconnect')
   if (error instanceof ThreadsReconnectError) return RECONNECT
   if (error instanceof InstagramApiError && error.isInvalidToken) {
     await markThreadsNeedsReconnect(userId)
@@ -39,17 +40,18 @@ async function threadsErrorMessage(userId: string, error: unknown, context: stri
   }
   console.error(`[balasan] ${context}:`, describeError(error))
   return error instanceof InstagramApiError
-    ? `Threads menolak: ${error.message}`
-    : 'Threads atau database tidak bisa dihubungi. Coba lagi.'
+    ? t('rejected', { message: error.message })
+    : t('couldnTReachThreadsOrTheDatabaseTryAgain')
 }
 
 /** Whether a reply's container can be published yet; one Threads couldn't process is refused. */
 async function isReady(accessToken: string, containerId: string): Promise<boolean> {
+  const t = await getTranslations('inbox.threadsActions')
   for (let check = 1; check <= READY_CHECKS; check++) {
     const { status, errorMessage } = await getThreadsContainer(accessToken, containerId)
     if (status === 'FINISHED') return true
     if (status === 'ERROR' || status === 'EXPIRED') {
-      throw new InstagramApiError(`balasan gagal diproses (${errorMessage ?? status})`, null, 400)
+      throw new InstagramApiError(t('processingFailed', { message: errorMessage ?? status }), null, 400)
     }
     if (check < READY_CHECKS) await new Promise((resolve) => setTimeout(resolve, READY_DELAY_MS))
   }
@@ -58,17 +60,19 @@ async function isReady(accessToken: string, containerId: string): Promise<boolea
 
 /** Opening the Threads view of Komentar and Muat ulang: pulls replies of the last 30 days, at most every 10 minutes. */
 export async function syncThreadsRepliesAction(): Promise<SyncState> {
+  const t = await getTranslations('inbox.threadsActions')
+  const MISSING_PERMISSION = t('threadsCommentsNeedPermissionToReadRepliesReconnectThreads')
   const { userId, accountId } = await requireAccount()
   let result: SyncState
   try {
     const synced = await syncThreadsReplies(userId, accountId)
-    if (synced === 'cooldown') return { status: 'cooldown', message: 'Balasan Threads baru saja ditarik.' }
+    if (synced === 'cooldown') return { status: 'cooldown', message: t('threadsRepliesWereJustFetched') }
     result = {
       status: 'done',
       message:
         synced.failed > 0
-          ? `Balasan dari ${synced.posts} post Threads ditarik; ${synced.failed} post gagal dibaca.`
-          : `Balasan dari ${synced.posts} post Threads ditarik.`,
+          ? t('syncPartial', { posts: synced.posts, failed: synced.failed })
+          : t('synced', { posts: synced.posts }),
     }
   } catch (error) {
     result = {
@@ -97,11 +101,13 @@ export async function markThreadsPostSeenAction(mediaId: unknown): Promise<void>
 
 /** A public reply on Threads, under the reply the owner answers. */
 export async function replyToThreadsAction(replyId: unknown, reply: unknown): Promise<ActionError> {
+  const t = await getTranslations('inbox.threadsActions')
+  const NOT_FOUND = t('replyNotFound')
   const { userId, accountId } = await requireAccount()
   const id = idOf(replyId)
   const message = text(reply)
-  if (!message) return 'Tulis balasan dulu.'
-  if (threadsLength(message) > THREADS_TEXT_LIMIT) return `Balasan Threads maksimal ${THREADS_TEXT_LIMIT} karakter.`
+  if (!message) return t('writeAReplyFirst')
+  if (threadsLength(message) > THREADS_TEXT_LIMIT) return t('replyLimit', { max: THREADS_TEXT_LIMIT })
 
   let target
   let account
@@ -115,7 +121,7 @@ export async function replyToThreadsAction(replyId: unknown, reply: unknown): Pr
       text: message,
       reply_to_id: target.commentId,
     })
-    if (!(await isReady(account.accessToken, containerId))) return 'Threads masih memproses balasan ini. Kirim lagi sebentar.'
+    if (!(await isReady(account.accessToken, containerId))) return t('threadsIsStillProcessingThisReplyTrySendingIt')
     sentId = await publishThreadsContainer(account.accessToken, account.threadsUserId, containerId)
   } catch (error) {
     return threadsErrorMessage(userId, error, 'balasan Threads gagal dikirim')
@@ -140,14 +146,16 @@ export async function replyToThreadsAction(replyId: unknown, reply: unknown): Pr
 
 /** Hides a top-level reply (with its branch) from everyone but its author, or shows it again. */
 export async function setThreadsHiddenAction(replyId: unknown, hidden: unknown): Promise<ActionError> {
+  const t = await getTranslations('inbox.threadsActions')
+  const NOT_FOUND = t('replyNotFound')
   const { userId, accountId } = await requireAccount()
   const id = idOf(replyId)
   if (typeof hidden !== 'boolean') return NOT_FOUND
   try {
     const target = id ? await getThreadsReply(userId, accountId, id) : null
     if (!target) return NOT_FOUND
-    if (target.isFromOwner) return 'Balasan milikmu sendiri tidak bisa disembunyikan.'
-    if (target.parentId) return 'Threads hanya bisa menyembunyikan balasan teratas; balasan di bawahnya ikut tersembunyi.'
+    if (target.isFromOwner) return t('youCanTHideYourOwnReplies')
+    if (target.parentId) return t('threadsCanOnlyHideTopLevelRepliesRepliesBelow')
     await setThreadsReplyHidden((await getThreadsAccount(userId, accountId)).accessToken, target.commentId, hidden)
     await setThreadsReplyHiddenRow(userId, target.commentId, hidden).catch((error: unknown) =>
       console.error('[balasan] balasan Threads diubah tapi status lokal gagal disimpan:', describeError(error)),
@@ -161,6 +169,8 @@ export async function setThreadsHiddenAction(replyId: unknown, hidden: unknown):
 
 /** ✨ AI under a Threads reply: a draft from its branch and the post, or the owner's text tidied. Sends nothing. */
 export async function draftThreadsReply(replyId: unknown, draft: unknown): Promise<DraftResult> {
+  const t = await getTranslations('inbox.threadsActions')
+  const NOT_FOUND = t('replyNotFound')
   const { userId, accountId } = await requireAccount()
   const id = idOf(replyId)
   const ownerDraft = typeof draft === 'string' ? draft.slice(0, THREADS_TEXT_LIMIT) : ''
@@ -185,6 +195,6 @@ export async function draftThreadsReply(replyId: unknown, draft: unknown): Promi
     return { draft: reply }
   } catch (error) {
     console.error('[balasan] draf AI Threads gagal:', describeError(error))
-    return { error: aiErrorMessage(error) }
+    return { error: await inboxAiError(error) }
   }
 }

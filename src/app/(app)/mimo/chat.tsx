@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations, useLocale } from 'next-intl'
+
 import { History, LoaderCircle } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
@@ -10,7 +12,6 @@ import {
   pdfPlaceholder,
   suggestionContext,
   suggestionsFor,
-  THINKING_LABEL,
   TOOL_LABELS,
   type ChatEvent,
   type ChatMessageView,
@@ -22,8 +23,6 @@ import { ConversationLink as Link } from './conversation-link'
 import { useMimoScope } from './mimo-provider'
 import { receiveAnswer, mimoKeys } from './mimo-query'
 
-const FAILED = 'Gagal menghubungi server. Coba lagi.'
-const CUT_OFF = 'Koneksi terputus sebelum jawaban selesai. Muat ulang halaman untuk melihat jawabannya.'
 
 interface MimoChatProps {
   sessionId: string | null
@@ -60,6 +59,8 @@ async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<Cha
  * them; opening another conversation starts over, but keeps the Deep Search toggle.
  */
 export function MimoChat({ sessionId, messages, products, defaultDensity }: MimoChatProps) {
+  const t = useTranslations('mimo.chat')
+  const locale = useLocale()
   const router = useRouter()
   const client = useQueryClient()
   const { scope, isCurrent } = useMimoScope()
@@ -128,7 +129,7 @@ export function MimoChat({ sessionId, messages, products, defaultDensity }: Mimo
     } catch {
       if (here()) {
         setPending(null)
-        setError(FAILED)
+        setError(t('failed'))
         unlock()
         return false
       }
@@ -139,7 +140,7 @@ export function MimoChat({ sessionId, messages, products, defaultDensity }: Mimo
       const body = (await response.json().catch(() => null)) as { error?: string } | null
       if (here()) {
         setPending(null)
-        setError(body?.error ?? FAILED)
+        setError(body?.error ?? t('failed'))
         unlock()
         return false
       }
@@ -183,7 +184,7 @@ export function MimoChat({ sessionId, messages, products, defaultDensity }: Mimo
     }
     if (!finished && here()) {
       setPending(null)
-      setError(CUT_OFF)
+      setError(t('cutOff'))
       if (startedIn) void client.invalidateQueries({ queryKey: mimoKeys.conversation(scope, startedIn) })
       void client.invalidateQueries({ queryKey: mimoKeys.sessions(scope) })
     }
@@ -199,11 +200,11 @@ export function MimoChat({ sessionId, messages, products, defaultDensity }: Mimo
       <div className="flex items-center gap-2 border-b border-hairline px-4 py-2 md:hidden">
         <Link href="/mimo?riwayat=1" className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm text-ink-muted hover:bg-zinc-100">
           <History size={16} aria-hidden="true" />
-          Riwayat
+          {t('history')}
         </Link>
         {sessionId && (
           <Link href="/mimo" className="ml-auto inline-flex h-8 items-center rounded-lg px-2 text-sm font-medium text-accent hover:bg-accent-soft">
-            Chat baru
+            {t('newChat')}
           </Link>
         )}
       </div>
@@ -231,7 +232,7 @@ export function MimoChat({ sessionId, messages, products, defaultDensity }: Mimo
         <div className="mx-auto w-full max-w-3xl space-y-2 px-4 pt-3 pb-4">
           {context && (
             <SuggestedPrompts
-              suggestions={suggestionsFor(context)}
+              suggestions={suggestionsFor(context, locale)}
               onPick={(text) => setDraft({ text, at: Date.now() })}
             />
           )}
@@ -250,13 +251,13 @@ export function MimoChat({ sessionId, messages, products, defaultDensity }: Mimo
 }
 
 function EmptyState() {
+  const t = useTranslations('mimo.chat')
   return (
     <div className="flex flex-col items-center py-10 text-center">
       <MimoMascot size={104} composer />
-      <h1 className="mt-2 text-xl font-semibold tracking-tight text-ink">Halo, saya Mimo</h1>
+      <h1 className="mt-2 text-xl font-semibold tracking-tight text-ink">{t('hello')}</h1>
       <p className="mt-1 max-w-md text-sm text-ink-muted">
-        Tanya soal tren, cek konten yang sudah ada, riset akun kompetitor dengan Intel Kompetitor, tulis skrip carousel,
-        atau rapikan strategi dan Auto DM. Skrip langsung tersimpan sebagai ide di Buat.
+        {t('intro')}
       </p>
     </div>
   )
@@ -316,20 +317,22 @@ function AssistantMessage({ message, context }: { message: ChatMessageView; cont
 
 /** What Mimo is doing while the answer is on its way. */
 function ToolCallIndicator({ tool }: { tool: string | null }) {
+  const labels = useTranslations('mimo.options')
   return (
     <div className="flex items-center gap-3" role="status">
       <MimoMark live />
       <span className="inline-flex items-center gap-2 text-sm text-ink-muted">
         <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />
-        {(tool && TOOL_LABELS[tool]) || THINKING_LABEL}
+        {tool && Object.hasOwn(TOOL_LABELS, tool) ? labels(`tools.${tool as keyof typeof TOOL_LABELS}`) : labels('thinking')}
       </span>
     </div>
   )
 }
 
 function SuggestedPrompts({ suggestions, onPick }: { suggestions: string[]; onPick: (text: string) => void }) {
+  const t = useTranslations('mimo.chat')
   return (
-    <div className="flex flex-wrap gap-1.5" aria-label="Saran pesan">
+    <div className="flex flex-wrap gap-1.5" aria-label={t('suggestions')}>
       {suggestions.map((suggestion) => (
         <button
           key={suggestion}

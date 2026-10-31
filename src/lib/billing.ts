@@ -1,3 +1,7 @@
+import { createTranslator } from 'next-intl'
+import type { Locale } from '@/i18n/locale-config'
+import idMessages from '../../messages/id/billing.json'
+import enMessages from '../../messages/en/billing.json'
 import 'server-only'
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import { getPlan } from './app-settings'
@@ -149,14 +153,15 @@ export interface CheckoutChoice {
  * The purchase for this choice, with the coupon taken off when one is given. Throws a CouponError the user can read
  * when the coupon can't be used; the database checks it again, under a lock, when the payment is reserved.
  */
-export async function quoteCheckout(userId: string, choice: CheckoutChoice, now = new Date()): Promise<PurchaseSnapshot> {
+export async function quoteCheckout(userId: string, choice: CheckoutChoice, now = new Date(), locale: Locale = 'id'): Promise<PurchaseSnapshot> {
+  const t = createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'checkoutErrors' })
   const { catalog, version } = await getBillingCatalog()
-  if (choice.version && choice.version !== version) throw new Error('Harga diperbarui. Muat ulang ringkasan pembayaran.')
-  const purchase = quotePurchase(catalog, version, choice.planId, choice.months)
+  if (choice.version && choice.version !== version) throw new Error(t('message1'))
+  const purchase = quotePurchase(catalog, version, choice.planId, choice.months, locale)
   const code = normalizeCouponCode(choice.couponCode)
   if (!code) return purchase
   const { coupon, usage } = await findCoupon(userId, code)
-  return withCoupon(purchase, coupon, usage, now)
+  return withCoupon(purchase, coupon, usage, now, locale)
 }
 
 /**
@@ -165,20 +170,22 @@ export async function quoteCheckout(userId: string, choice: CheckoutChoice, now 
  * A 100% coupon leaves nothing to pay: the database starts the period at once and no Mayar link is made, so it works
  * even while payments are off. Returns where to send the user.
  */
-export async function startCheckout(userId: string, email: string, contact: CustomerContact, now = new Date(), choice: CheckoutChoice = { planId: 'pro', months: 1, version: 0 }): Promise<string> {
-  const snapshot = await quoteCheckout(userId, choice, now)
-  if (snapshot.total > 0 && !paymentsEnabled()) throw new Error('Pembayaran belum diaktifkan.')
+export async function startCheckout(userId: string, email: string, contact: CustomerContact, now = new Date(), choice: CheckoutChoice = { planId: 'pro', months: 1, version: 0 }, locale: Locale = 'id'): Promise<string> {
+  const t = createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'checkoutErrors' })
+  const snapshot = await quoteCheckout(userId, choice, now, locale)
+  if (snapshot.total > 0 && !paymentsEnabled()) throw new Error(t('message2'))
   const key = `${userId}:${snapshot.version}:${snapshot.plan.id}:${snapshot.months}:${snapshot.coupon?.code ?? ''}`
-  return createCheckout(userId, email, contact, snapshot, key, now)
+  return createCheckout(userId, email, contact, snapshot, key, now, locale)
 }
 
-export async function getUpgradeQuote(userId: string, planId: string, now = new Date()) {
+export async function getUpgradeQuote(userId: string, planId: string, now = new Date(), locale: Locale = 'id') {
+  const t = createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'checkoutErrors' })
   const { catalog, version } = await getBillingCatalog()
   const target = catalog.plans.find((plan) => plan.id === planId && plan.active)
-  if (!target) throw new Error('Paket tidak tersedia.')
+  if (!target) throw new Error(t('message3'))
   const terms = unwrap(await db().from('payments').select('id, period_start, period_end, snapshot, entitlement_plan')
     .eq('user_id', userId).eq('status', 'paid').gt('period_end', now.toISOString()).order('period_start')) as PaidTerm[]
-  const quote = quoteUpgrade(terms, target, version, now)
+  const quote = quoteUpgrade(terms, target, version, now, locale)
   const payload = Buffer.from(JSON.stringify({ userId, quote })).toString('base64url')
   return { quote, token: `${payload}.${signQuote(payload)}` }
 }
@@ -187,26 +194,28 @@ function signQuote(payload: string) {
   return createHmac('sha256', env('SUPABASE_SERVICE_ROLE_KEY')).update(payload).digest('base64url')
 }
 
-export async function startUpgradeCheckout(userId: string, email: string, contact: CustomerContact, token: string, now = new Date()) {
-  if (token.length > 100_000) throw new Error('Ringkasan upgrade tidak valid.')
+export async function startUpgradeCheckout(userId: string, email: string, contact: CustomerContact, token: string, now = new Date(), locale: Locale = 'id') {
+  const t = createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'checkoutErrors' })
+  if (token.length > 100_000) throw new Error(t('message4'))
   const [payload, signature = ''] = token.split('.')
   const expected = signQuote(payload)
   if (signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
-    throw new Error('Ringkasan upgrade tidak valid. Hitung ulang biaya.')
+    throw new Error(t('message5'))
   }
   const signed = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { userId: string; quote: UpgradeSnapshot }
   if (signed.userId !== userId || now.getTime() - new Date(signed.quote.quotedAt).getTime() > REUSE_MARGIN_MS) {
-    throw new Error('Ringkasan upgrade kedaluwarsa. Hitung ulang biaya.')
+    throw new Error(t('message6'))
   }
-  return createCheckout(userId, email, contact, signed.quote, `${userId}:upgrade:${createHash('sha256').update(payload).digest('hex')}`, now)
+  return createCheckout(userId, email, contact, signed.quote, `${userId}:upgrade:${createHash('sha256').update(payload).digest('hex')}`, now, locale)
 }
 
-async function createCheckout(userId: string, email: string, contact: CustomerContact, snapshot: PurchaseSnapshot | UpgradeSnapshot, key: string, now: Date) {
+async function createCheckout(userId: string, email: string, contact: CustomerContact, snapshot: PurchaseSnapshot | UpgradeSnapshot, key: string, now: Date, locale: Locale = 'id') {
+  const t = createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'checkoutErrors' })
   const plan = snapshot.plan
   const upgrade = 'kind' in snapshot
   const expiresAt = new Date(Math.min(now.getTime() + (upgrade ? HOUR_MS : LINK_TTL_MS),
     upgrade ? new Date(snapshot.activeUntil).getTime() : Infinity))
-  if (expiresAt.getTime() - now.getTime() < 60_000) throw new Error('Masa aktif hampir berakhir. Aktifkan paket kembali setelah periode ini.')
+  if (expiresAt.getTime() - now.getTime() < 60_000) throw new Error(t('message7'))
   const row = unwrap(await db().rpc('prepare_billing_checkout', {
     p_user: userId, p_snapshot: snapshot, p_key: key, p_expires: expiresAt.toISOString(),
   })) as { id: string; link: string | null; status: PaymentStatus }
@@ -218,7 +227,7 @@ async function createCheckout(userId: string, email: string, contact: CustomerCo
   const { id } = row
   const claimed = unwrap(await db().from('payments').update({ last_checked_at: now.toISOString() })
     .eq('id', id).is('last_checked_at', null).select('id')) as { id: string }[]
-  if (!claimed.length) throw new Error('Pembayaran sedang disiapkan. Tunggu sebentar lalu cek status.')
+  if (!claimed.length) throw new Error(t('message8'))
 
   try {
     const created = await createPaymentRequest({
@@ -226,8 +235,8 @@ async function createCheckout(userId: string, email: string, contact: CustomerCo
       amount: snapshot.total,
       email,
       mobile: mayarMobile(contact.whatsapp),
-      description: upgrade ? `Upgrade Carousely ${plan.name} · pesanan ${id}`
-        : `Carousely ${plan.name} ${snapshot.months} bulan${snapshot.coupon ? ` · kupon ${snapshot.coupon.code}` : ''} · pesanan ${id}`,
+      description: upgrade ? t('upgradeDescription', { name: plan.name, id })
+        : t('description', { name: plan.name, months: snapshot.months, coupon: snapshot.coupon ? t('coupon', { code: snapshot.coupon.code }) : '', id }),
       redirectUrl: appUrl('/langganan', { bayar: 'selesai', pesanan: id }),
       expiredAt: expiresAt,
     })

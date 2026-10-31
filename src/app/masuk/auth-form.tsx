@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+import { LocaleToggle } from '@/components/locale-toggle'
 import Link from 'next/link'
 import { useActionState, type ReactNode } from 'react'
 import { CarouselyLogo } from '@/components/brand-mark'
@@ -12,25 +14,13 @@ const FIELD =
 const PRIMARY_BUTTON =
   'flex w-full justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-50'
 
-const MODES = {
-  masuk: {
-    action: signIn,
-    submit: 'Masuk',
-    question: 'Belum punya akun?',
-    other: { href: '/daftar', label: 'Daftar' },
-  },
-  daftar: {
-    action: signUp,
-    submit: 'Daftar',
-    question: 'Sudah punya akun?',
-    other: { href: '/masuk', label: 'Masuk' },
-  },
-} as const
+
 
 export function AuthCard({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-bg px-4 py-10">
       <div className="w-full max-w-sm space-y-6">
+        <div className="flex justify-end"><LocaleToggle variant="landing" /></div>
         <header className="space-y-2 text-center">
           <CarouselyLogo size={36} className="justify-center" />
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">{title}</h1>
@@ -42,7 +32,22 @@ export function AuthCard({ title, description, children }: { title: string; desc
   )
 }
 
-export function AuthForm({ mode, next, oauthError }: { mode: keyof typeof MODES; next?: string; oauthError?: string }) {
+export function AuthForm({ mode, next, oauthError }: { mode: 'masuk' | 'daftar'; next?: string; oauthError?: string }) {
+  const t = useTranslations('auth.form')
+  const MODES = {
+    masuk: {
+      action: signIn,
+      submit: t('login'),
+      question: t('noAccount'),
+      other: { href: '/daftar', label: t('signup') },
+    },
+    daftar: {
+      action: signUp,
+      submit: t('signup'),
+      question: t('haveAccount'),
+      other: { href: '/masuk', label: t('login') },
+    },
+  } as const
   const { action, submit, question, other } = MODES[mode]
   const [state, formAction, pending] = useActionState(action, { error: null })
   const [googleState, googleAction, googlePending] = useActionState(signInWithGoogle, { error: null })
@@ -61,23 +66,23 @@ export function AuthForm({ mode, next, oauthError }: { mode: keyof typeof MODES;
             <path fill="#FBBC05" d="M10.53 28.59A14.4 14.4 0 0 1 9.75 24c0-1.59.27-3.13.76-4.59l-7.98-6.19A23.9 23.9 0 0 0 0 24c0 3.87.93 7.53 2.56 10.78l7.97-6.19Z" />
             <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.91-5.8l-7.73-6c-2.15 1.45-4.92 2.3-8.18 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48Z" />
           </svg>
-          {googlePending ? 'Menghubungkan ke Google…' : isSignUp ? 'Daftar dengan Google' : 'Masuk dengan Google'}
+          {googlePending ? t('googleConnecting') : isSignUp ? t('googleSignup') : t('googleLogin')}
         </button>
       </form>
       <div className="flex items-center gap-3 text-xs text-zinc-500">
         <span className="h-px flex-1 bg-hairline" />
-        <span>atau dengan email</span>
+        <span>{t('emailAlternative')}</span>
         <span className="h-px flex-1 bg-hairline" />
       </div>
     <form action={formAction} className="space-y-4">
       {next && <input type="hidden" name="next" value={next} />}
       {state.error && <Notice tone="error">{state.error}</Notice>}
       <label className={LABEL}>
-        <span>Email</span>
+        <span>{t('email')}</span>
         <input name="email" type="email" required autoComplete="email" defaultValue={state.email} className={FIELD} />
       </label>
       <label className={LABEL}>
-        <span>Password</span>
+        <span>{t('password')}</span>
         <input
           name="password"
           type="password"
@@ -89,12 +94,12 @@ export function AuthForm({ mode, next, oauthError }: { mode: keyof typeof MODES;
       </label>
       {isSignUp && (
         <label className={LABEL}>
-          <span>Ulangi password</span>
+          <span>{t('confirm')}</span>
           <input name="confirm" type="password" required minLength={8} autoComplete="new-password" className={FIELD} />
         </label>
       )}
       <button type="submit" disabled={pending || googlePending} className={PRIMARY_BUTTON}>
-        {pending ? 'Memproses…' : submit}
+        {pending ? t('processing') : submit}
       </button>
       <p className="text-center text-sm text-zinc-600">
         {question}{' '}

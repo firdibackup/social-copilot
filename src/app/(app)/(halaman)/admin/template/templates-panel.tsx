@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { FolderInput, Grid2x2, ImagePlus, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useActionState, useMemo, useRef, useState, useTransition } from 'react'
@@ -8,9 +10,9 @@ import { MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
 import { confirmSubmit } from '@/lib/confirm-submit'
 import { REFERENCE_LABELS, type ReferenceLabel } from '@/lib/brand-options'
-import { DESIGN_STYLE_IDS, DESIGN_STYLES, type DesignStyleId } from '@/lib/design-styles'
+import { DESIGN_STYLE_IDS, type DesignStyleId } from '@/lib/design-styles'
 import { toReferenceJpeg } from '@/lib/image'
-import { TEMPLATE_STATUS_LABELS, type DesignTemplate, type TemplateStatus } from '@/lib/template-options'
+import { type DesignTemplate, type TemplateStatus } from '@/lib/template-options'
 import { analyzeTemplatesAction, importTemplatesAction, templateAction, uploadTemplateAction, type FormState } from '../actions'
 import { BUTTON, CARD, CARD_TITLE, DANGER_BUTTON, FIELD, HINT, PRIMARY_BUTTON } from '../ui'
 
@@ -26,6 +28,8 @@ const STATUS_CLASS: Record<TemplateStatus, string> = {
 type Filter = 'all' | DesignStyleId | 'unsorted'
 
 export function TemplatesPanel({ templates }: { templates: DesignTemplate[] }) {
+  const t = useTranslations('admin')
+
   const [filter, setFilter] = useState<Filter>('all')
   const pending = templates.filter((template) => template.status === 'pending').length
   const shown = useMemo(
@@ -43,18 +47,18 @@ export function TemplatesPanel({ templates }: { templates: DesignTemplate[] }) {
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className={CARD_TITLE}>Semua template ({templates.length})</h2>
+          <h2 className={CARD_TITLE}>{t('template_templates_panel.allTemplates')}{templates.length})</h2>
           <select
-            aria-label="Saring menurut gaya"
+            aria-label={t('template_templates_panel.filterByStyle')}
             value={filter}
             onChange={(event) => setFilter(event.target.value as Filter)}
             className={`${FIELD} ml-auto w-auto`}
           >
-            <option value="all">Semua gaya</option>
-            <option value="unsorted">Belum siap</option>
+            <option value="all">{t('template_templates_panel.allStyles')}</option>
+            <option value="unsorted">{t('template_templates_panel.notReady')}</option>
             {DESIGN_STYLE_IDS.map((id) => (
               <option key={id} value={id}>
-                {DESIGN_STYLES[id].label}
+                {t(`designStyles.${id}`)}
               </option>
             ))}
           </select>
@@ -62,8 +66,8 @@ export function TemplatesPanel({ templates }: { templates: DesignTemplate[] }) {
         {shown.length === 0 ? (
           <p className="rounded-xl border border-dashed border-zinc-300 bg-white p-6 text-center text-sm text-zinc-500">
             {templates.length === 0
-              ? 'Belum ada template. Unggah gambar atau impor contoh desain bawaan.'
-              : 'Tidak ada template di saringan ini.'}
+              ? t('template_templates_panel.noTemplatesYetUploadImagesOrImport')
+              : t('template_templates_panel.noTemplatesMatchThisFilter')}
           </p>
         ) : (
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -78,6 +82,8 @@ export function TemplatesPanel({ templates }: { templates: DesignTemplate[] }) {
 }
 
 function Toolbar({ pending }: { pending: number }) {
+  const t = useTranslations('admin')
+
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
   const gridRef = useRef<HTMLInputElement>(null)
@@ -91,15 +97,15 @@ function Toolbar({ pending }: { pending: number }) {
     const failures: string[] = []
     let uploaded = 0
     for (const [index, file] of files.entries()) {
-      setProgress(`Mengunggah ${index + 1} dari ${files.length}…`)
+      setProgress(t('template_templates_panel.uploadingOf', { v0: index + 1, v1: files.length }))
       let failure: string | null
       try {
         const prepared = await toReferenceJpeg(file)
         const formData = new FormData()
         formData.set('file', prepared.blob, 'template.jpg')
-        failure = await uploadTemplateAction(formData).catch(() => 'Unggahan terputus. Coba lagi.')
+        failure = await uploadTemplateAction(formData).catch(() => t('template_templates_panel.uploadInterruptedTryAgain'))
       } catch {
-        failure = 'Format tidak bisa dibaca browser. Ubah ke JPG atau PNG dulu.'
+        failure = t('template_templates_panel.yourBrowserCanTReadThisFormat')
       }
       if (failure) failures.push(`${file.name}: ${failure}`)
       else uploaded += 1
@@ -109,7 +115,7 @@ function Toolbar({ pending }: { pending: number }) {
     if (uploaded > 0) {
       setResult({
         error: null,
-        success: `${uploaded} template diunggah. Klik Analisis dengan AI untuk mengelompokkannya.`,
+        success: t('template_templates_panel.uploadedTemplatesClickAnalyzeWithAiTo', { v0: uploaded }),
       })
       router.refresh()
     }
@@ -121,17 +127,17 @@ function Toolbar({ pending }: { pending: number }) {
     const failures: string[] = []
     const done: typeof tiles = []
     for (const [position, tile] of tiles.entries()) {
-      setProgress(`Menambahkan ${position + 1} dari ${tiles.length}…`)
+      setProgress(t('template_templates_panel.addingOf', { v0: position + 1, v1: tiles.length }))
       let failure: string | null
       try {
         const prepared = await crop(tile)
         const formData = new FormData()
         formData.set('file', prepared.blob, `potongan-${tile.index + 1}.jpg`)
-        failure = await uploadTemplateAction(formData).catch(() => 'Unggahan terputus. Coba lagi.')
+        failure = await uploadTemplateAction(formData).catch(() => t('template_templates_panel.uploadInterruptedTryAgain'))
       } catch {
-        failure = 'Potongan gagal dibuat di browser. Coba lagi.'
+        failure = t('template_templates_panel.couldnTCreateTheCropInYour')
       }
-      if (failure) failures.push(`Potongan ${tile.index + 1}: ${failure}`)
+      if (failure) failures.push(t('template_templates_panel.crop', { v0: tile.index + 1, v1: failure }))
       else done.push(tile)
     }
     setProgress(null)
@@ -140,7 +146,7 @@ function Toolbar({ pending }: { pending: number }) {
       markAdded(done)
       setResult({
         error: null,
-        success: `${done.length} template dari grid ditambahkan. Klik Analisis dengan AI untuk mengelompokkannya.`,
+        success: t('template_templates_panel.addedTemplatesFromTheGridClickAnalyze', { v0: done.length }),
       })
       router.refresh()
     }
@@ -152,7 +158,7 @@ function Toolbar({ pending }: { pending: number }) {
       setErrors([])
       setResult(
         await action().catch(() => ({
-          error: 'Permintaan terputus. Coba lagi.',
+          error: t('template_templates_panel.requestInterruptedTryAgain'),
           success: null,
         })),
       )
@@ -163,11 +169,9 @@ function Toolbar({ pending }: { pending: number }) {
   return (
     <section className={CARD}>
       <div className="space-y-1">
-        <h2 className={CARD_TITLE}>Template desain</h2>
+        <h2 className={CARD_TITLE}>{t('template_templates_panel.designTemplates')}</h2>
         <p className={HINT}>
-          Contoh slide yang diikuti AI saat membuat konten untuk akun yang belum punya referensi desain. AI mengelompokkan tiap
-          gambar ke gaya desain (boleh lebih dari satu) dan label slide. Gaya tanpa template memakai deskripsi gayanya saja.
-        </p>
+          {t('template_templates_panel.sampleSlidesTheAiFollowsWhenCreating')}</p>
       </div>
       <div className="flex flex-wrap gap-2">
         <input
@@ -186,8 +190,7 @@ function Toolbar({ pending }: { pending: number }) {
         />
         <button type="button" className={BUTTON} disabled={working} onClick={() => inputRef.current?.click()}>
           <ImagePlus aria-hidden="true" className="size-4" />
-          Unggah gambar
-        </button>
+          {t('template_templates_panel.uploadImages')}</button>
         <input
           ref={gridRef}
           type="file"
@@ -207,12 +210,10 @@ function Toolbar({ pending }: { pending: number }) {
         />
         <button type="button" className={BUTTON} disabled={working} onClick={() => gridRef.current?.click()}>
           <Grid2x2 aria-hidden="true" className="size-4" />
-          Dari grid
-        </button>
+          {t('template_templates_panel.fromGrid')}</button>
         <button type="button" className={BUTTON} disabled={working} onClick={() => run(importTemplatesAction)}>
           <FolderInput aria-hidden="true" className="size-4" />
-          Impor contoh desain bawaan
-        </button>
+          {t('template_templates_panel.importBuiltInSampleDesigns')}</button>
         <button
           type="button"
           className={PRIMARY_BUTTON}
@@ -220,7 +221,7 @@ function Toolbar({ pending }: { pending: number }) {
           onClick={() => run(() => analyzeTemplatesAction(null))}
         >
           <Sparkles aria-hidden="true" className="size-4" />
-          {busy ? 'Memproses…' : `Analisis dengan AI${pending > 0 ? ` (${pending})` : ''}`}
+          {busy ? t('template_templates_panel.processing') : t('template_templates_panel.analyzeWithAi', { v0: pending > 0 ? ` (${pending})` : '' })}
         </button>
       </div>
       {gridFile && (
@@ -238,7 +239,7 @@ function Toolbar({ pending }: { pending: number }) {
                 disabled={working || selection.tiles.length === 0}
                 onClick={() => void uploadTiles(selection)}
               >
-                {progress ?? `Tambahkan ${selection.tiles.length} template`}
+                {progress ?? t('template_templates_panel.addTemplates', { v0: selection.tiles.length })}
               </button>
             )}
           </GridSplitter>
@@ -262,20 +263,22 @@ function Toolbar({ pending }: { pending: number }) {
 
 /** How many ready, active templates each style has per label, so gaps show. */
 function Coverage({ templates }: { templates: DesignTemplate[] }) {
+  const t = useTranslations('admin')
+
   const usable = templates.filter((template) => template.status === 'ready' && template.active)
   const count = (style: DesignStyleId, label: ReferenceLabel) =>
     usable.filter((template) => template.label === label && template.styles.includes(style)).length
 
   return (
     <section className={`${CARD} overflow-x-auto`}>
-      <h2 className={CARD_TITLE}>Template siap per gaya</h2>
+      <h2 className={CARD_TITLE}>{t('template_templates_panel.readyTemplatesByStyle')}</h2>
       <table className="w-full text-left text-sm">
         <thead>
           <tr className="text-xs text-zinc-500">
-            <th className="py-1 pr-4 font-medium">Gaya</th>
-            {LABELS.map(([label, name]) => (
+            <th className="py-1 pr-4 font-medium">{t('template_templates_panel.style')}</th>
+            {LABELS.map(([label]) => (
               <th key={label} className="px-2 py-1 text-center font-medium">
-                {name}
+                {t(`referenceLabels.${label}`)}
               </th>
             ))}
           </tr>
@@ -283,7 +286,7 @@ function Coverage({ templates }: { templates: DesignTemplate[] }) {
         <tbody>
           {DESIGN_STYLE_IDS.map((style) => (
             <tr key={style} className="border-t border-zinc-100">
-              <td className="py-1.5 pr-4 text-zinc-900">{DESIGN_STYLES[style].label}</td>
+              <td className="py-1.5 pr-4 text-zinc-900">{t(`designStyles.${style}`)}</td>
               {LABELS.map(([label]) => {
                 const n = count(style, label)
                 return (
@@ -304,6 +307,8 @@ function Coverage({ templates }: { templates: DesignTemplate[] }) {
 }
 
 function TemplateCard({ template }: { template: DesignTemplate }) {
+  const t = useTranslations('admin')
+
   const [state, action, saving] = useActionState(templateAction, INITIAL)
   const [analysis, setAnalysis] = useState<FormState>(INITIAL)
   const [analyzing, startAnalysis] = useTransition()
@@ -314,15 +319,14 @@ function TemplateCard({ template }: { template: DesignTemplate }) {
     <li className={`overflow-hidden rounded-xl border border-zinc-200 bg-white ${template.active ? '' : 'opacity-60'}`}>
       <div className="relative aspect-[4/5] bg-zinc-100">
         {template.url && (
-          <MediaImage src={template.url} alt={template.note || 'Template desain'} className="size-full object-cover" />
+          <MediaImage src={template.url} alt={template.note || t('template_templates_panel.designTemplates')} className="size-full object-cover" />
         )}
         <span className={`absolute top-2 left-2 rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CLASS[template.status]}`}>
-          {TEMPLATE_STATUS_LABELS[template.status]}
+          {t(`templateStatus.${template.status}`)}
         </span>
         {!template.active && (
           <span className="absolute top-2 right-2 rounded-full bg-zinc-900 px-2 py-0.5 text-xs font-medium text-white">
-            Nonaktif
-          </span>
+            {t('template_templates_panel.inactive')}</span>
         )}
       </div>
 
@@ -330,12 +334,12 @@ function TemplateCard({ template }: { template: DesignTemplate }) {
         <input type="hidden" name="templateId" value={template.id} />
         {template.error && <p className="text-xs text-red-700">{template.error}</p>}
         {template.note && <p className="text-xs text-zinc-600">{template.note}</p>}
-        {template.sourceKey && <p className="text-xs text-zinc-400">Bawaan: {template.sourceKey}</p>}
+        {template.sourceKey && <p className="text-xs text-zinc-400">{t('template_templates_panel.builtIn')} {template.sourceKey}</p>}
 
         {/* Keyed so a new analysis shows its styles and label: the fields are uncontrolled. */}
         <div key={`${template.styles.join()}:${template.label}`} className="space-y-3">
           <fieldset className="space-y-1.5">
-            <legend className="text-xs font-medium text-zinc-500">Gaya</legend>
+            <legend className="text-xs font-medium text-zinc-500">{t('template_templates_panel.style')}</legend>
             <div className="flex flex-wrap gap-1.5">
               {DESIGN_STYLE_IDS.map((id) => (
                 <label
@@ -349,7 +353,7 @@ function TemplateCard({ template }: { template: DesignTemplate }) {
                     defaultChecked={template.styles.includes(id)}
                     className="sr-only"
                   />
-                  {DESIGN_STYLES[id].label}
+                  {t(`designStyles.${id}`)}
                 </label>
               ))}
             </div>
@@ -359,11 +363,10 @@ function TemplateCard({ template }: { template: DesignTemplate }) {
             Label
             <select name="label" defaultValue={template.label ?? ''} className={FIELD}>
               <option value="" disabled>
-                Pilih label
-              </option>
-              {LABELS.map(([label, name]) => (
+                {t('template_templates_panel.chooseALabel')}</option>
+              {LABELS.map(([label]) => (
                 <option key={label} value={label}>
-                  {name}
+                  {t(`referenceLabels.${label}`)}
                 </option>
               ))}
             </select>
@@ -376,8 +379,7 @@ function TemplateCard({ template }: { template: DesignTemplate }) {
 
         <div className="flex flex-wrap gap-2">
           <button type="submit" name="intent" value="update" className={PRIMARY_BUTTON} disabled={busy}>
-            Simpan
-          </button>
+            {t('template_templates_panel.save')}</button>
           <button
             type="button"
             className={BUTTON}
@@ -386,7 +388,7 @@ function TemplateCard({ template }: { template: DesignTemplate }) {
               startAnalysis(async () =>
                 setAnalysis(
                   await analyzeTemplatesAction(template.id).catch(() => ({
-                    error: 'Permintaan terputus. Coba lagi.',
+                    error: t('template_templates_panel.requestInterruptedTryAgain'),
                     success: null,
                   })),
                 ),
@@ -394,8 +396,7 @@ function TemplateCard({ template }: { template: DesignTemplate }) {
             }
           >
             <RefreshCw aria-hidden="true" className={`size-4 ${analyzing ? 'animate-spin' : ''}`} />
-            Analisis ulang
-          </button>
+            {t('template_templates_panel.analyzeAgain')}</button>
           <button
             type="submit"
             name="intent"
@@ -404,7 +405,7 @@ function TemplateCard({ template }: { template: DesignTemplate }) {
             disabled={busy}
             formNoValidate
           >
-            {template.active ? 'Nonaktifkan' : 'Aktifkan'}
+            {template.active ? t('template_templates_panel.deactivate') : t('template_templates_panel.activate')}
           </button>
           <button
             type="submit"
@@ -412,11 +413,11 @@ function TemplateCard({ template }: { template: DesignTemplate }) {
             value="delete"
             className={DANGER_BUTTON}
             disabled={busy}
-            aria-label="Hapus template"
+            aria-label={t('template_templates_panel.deleteTemplate')}
             onClick={(event) => void confirmSubmit(event, {
-              title: 'Hapus template ini?',
-              description: 'Slide yang belum dibuat tidak akan memakainya lagi.',
-              confirmLabel: 'Hapus',
+              title: t('template_templates_panel.deleteThisTemplate'),
+              description: t('template_templates_panel.slidesThatHavenTBeenCreatedYet'),
+              confirmLabel: t('template_templates_panel.delete'),
               tone: 'danger',
             })}
           >

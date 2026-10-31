@@ -1,5 +1,9 @@
 'use server'
 
+import { getUserLocale } from '@/i18n/locale'
+import { getTranslations } from 'next-intl/server'
+
+import { localizeLibraryMessage } from './localized-errors'
 import { refresh } from 'next/cache'
 import { aiErrorMessage } from '@/lib/ai'
 import { listActiveWebsiteAssets } from '@/lib/assets'
@@ -25,7 +29,6 @@ import { analyzeProfile, analyzeStrategy, analyzeVisual, type ProfileDraft, type
 import {
   DESCRIPTION_MAX_LENGTH,
   lengthOf,
-  MAX_LOGO_BYTES,
   MAX_GROUP_IMAGES,
   NOTE_MAX_LENGTH,
   parseBrandFields,
@@ -36,11 +39,11 @@ import {
 } from '@/lib/brand-options'
 import { getValidAccessToken, markNeedsReconnect, NeedsReconnectError } from '@/lib/connection'
 import { describeError } from '@/lib/errors'
-import { discoverAccount, parseInstagramUsername } from '@/lib/facebook'
-import { FacebookReconnectError, getDiscoveryAccount, markFacebookNeedsReconnect } from '@/lib/facebook-connection'
 import { imageType, isJpeg, MAX_IMAGE_BYTES } from '@/lib/image'
 import { paletteFromBytes } from '@/lib/image-palette'
 import { toReferenceDataUrl } from '@/lib/slide-image'
+import { FileTooLargeError, StorageFullError } from '@/lib/storage-quota'
+import { storageFullMessage, fileTooLargeMessage } from '@/lib/storage-quota-options'
 import { classifyDesigns } from '@/lib/template-ai'
 import { fetchOwnProfile, fetchRecentMedia, InstagramApiError, type InstagramPost } from '@/lib/instagram'
 import { isUuid } from '@/lib/params'
@@ -57,9 +60,6 @@ const MAX_IMPORT = 12
 const URL_MAX_LENGTH = 2000
 const LABEL_MAX_LENGTH = 200
 
-const DATABASE = 'Periksa koneksi Supabase dan migrasi terbaru.'
-const IG_RECONNECT = 'Token Instagram kedaluwarsa atau dicabut. Hubungkan ulang di Pengaturan.'
-const FB_RECONNECT = 'Business Discovery butuh Facebook. Hubungkan (atau hubungkan ulang) Facebook di Pengaturan.'
 
 type Json = Record<string, unknown>
 
@@ -68,26 +68,28 @@ const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
 
 /** Owner-facing text for a failed call on the connected account. */
 async function instagramErrorMessage(userId: string, error: unknown, context: string): Promise<string> {
-  if (error instanceof NeedsReconnectError) return IG_RECONNECT
+  const t = await getTranslations('brand')
+  if (error instanceof NeedsReconnectError) return t('shared.reconnect')
   if (error instanceof InstagramApiError && error.isInvalidToken) {
     await markNeedsReconnect(userId)
-    return IG_RECONNECT
+    return t('shared.reconnect')
   }
   console.error(`[brand] ${context}:`, describeError(error))
   return error instanceof InstagramApiError
-    ? `Instagram menolak: ${error.message}`
-    : 'Instagram atau database tidak bisa dihubungi. Coba lagi.'
+    ? t('actions.text1', { v0: localizeLibraryMessage(error.message, await getUserLocale()) })
+    : t('actions.text2')
 }
 
 export async function saveBrandAction(input: unknown): Promise<ActionError> {
+  const t = await getTranslations('brand')
   const { userId, accountId } = await requireAccount()
-  const parsed = parseBrandFields(input)
+  const parsed = parseBrandFields(input, await getUserLocale())
   if ('error' in parsed) return parsed.error
   try {
     await saveBrandKit(userId, accountId, parsed.fields)
   } catch (error) {
     console.error('[brand] brand kit gagal disimpan:', describeError(error))
-    return `Brand kit gagal disimpan. ${DATABASE}`
+    return t('actions.text3', { v0: t('shared.database') })
   }
   refresh()
   return null
@@ -95,14 +97,15 @@ export async function saveBrandAction(input: unknown): Promise<ActionError> {
 
 /** The strategy card's save, apart from the brand form. */
 export async function saveStrategyAction(input: unknown): Promise<ActionError> {
+  const t = await getTranslations('brand')
   const { userId, accountId } = await requireAccount()
-  const parsed = parseStrategy(input)
+  const parsed = parseStrategy(input, await getUserLocale())
   if ('error' in parsed) return parsed.error
   try {
     await saveStrategy(userId, accountId, parsed.strategy)
   } catch (error) {
     console.error('[brand] strategi gagal disimpan:', describeError(error))
-    return `Strategi gagal disimpan. ${DATABASE}`
+    return t('actions.text4', { v0: t('shared.database') })
   }
   refresh()
   return null
@@ -112,19 +115,20 @@ export type StrategyResult = { strategy: ContentStrategy; warnings: string[] } |
 
 /** A strategy draft from the saved brand profile and the account's newest captions. Nothing is saved. */
 export async function generateStrategyAction(): Promise<StrategyResult> {
+  const t = await getTranslations('brand')
   const { userId } = await requireAccount()
   try {
     const brand = await getBrandContext(userId)
     if (!brand || !(brand.name || brand.description)) {
-      return { error: 'Isi dan simpan dulu nama atau deskripsi brand di bawah, supaya strateginya sesuai bisnismu.' }
+      return { error: t('actions.text5') }
     }
     const instagram = await readInstagram(userId)
     const recent = 'value' in instagram ? instagram.value.captions : []
     const warnings = 'warning' in instagram ? [instagram.warning] : []
-    return { strategy: await analyzeStrategy(userId, { brand, recent }), warnings }
+    return { strategy: await analyzeStrategy(userId, { brand, recent }, { language: await getUserLocale() }), warnings }
   } catch (error) {
     console.error('[brand] strategi gagal disusun:', describeError(error))
-    return { error: aiErrorMessage(error) }
+    return { error: localizeLibraryMessage(aiErrorMessage(error), await getUserLocale()) }
   }
 }
 
@@ -142,12 +146,13 @@ export type ProfileResult = { draft: ProfileDraft; website: WebsiteSuggestions |
 type Read<T> = { value: T } | { warning: string }
 
 async function readSite(url: string): Promise<Read<Awaited<ReturnType<typeof readWebsite>>>> {
+  const t = await getTranslations('brand')
   try {
     return { value: await readWebsite(url) }
   } catch (error) {
-    if (error instanceof RemoteFetchError) return { warning: `Website tidak terbaca: ${error.message}` }
+    if (error instanceof RemoteFetchError) return { warning: t('actions.text6', { v0: localizeLibraryMessage(error.message, await getUserLocale()) }) }
     console.error('[brand] website gagal dibaca:', describeError(error))
-    return { warning: 'Website tidak terbaca.' }
+    return { warning: t('actions.text7') }
   }
 }
 
@@ -165,14 +170,16 @@ async function readInstagram(userId: string): Promise<Read<NonNullable<ProfileSo
 
 /** Reads the sources and asks the AI for a profile draft. Nothing is saved: the form shows the draft. */
 export async function analyzeProfileAction(websiteUrl: unknown, includeInstagram: unknown): Promise<ProfileResult> {
+  const t = await getTranslations('brand')
   const { userId } = await requireAccount()
   const url = text(websiteUrl)
-  if (!url && includeInstagram !== true) return { error: 'Isi alamat website atau centang akun Instagram dulu.' }
+  if (!url && includeInstagram !== true) return { error: t('actions.text8') }
 
   const [site, instagram] = await Promise.all([url ? readSite(url) : null, includeInstagram === true ? readInstagram(userId) : null])
   const warnings = [site, instagram].flatMap((read) => (read && 'warning' in read ? [read.warning] : []))
   const website = site && 'value' in site ? site.value : null
-  if (website) warnings.push(...website.warnings)
+  const locale = await getUserLocale()
+  if (website) warnings.push(...website.warnings.map((message) => localizeLibraryMessage(message, locale)))
   const sources: ProfileSources = {
     website: website && { url: website.url, pages: website.pages },
     instagram: instagram && 'value' in instagram ? instagram.value : null,
@@ -180,7 +187,7 @@ export async function analyzeProfileAction(websiteUrl: unknown, includeInstagram
   if (!sources.website && !sources.instagram) return { error: warnings.join(' ') }
 
   try {
-    const draft = await analyzeProfile(userId, sources)
+    const draft = await analyzeProfile(userId, sources, { language: locale })
     const suggestions = website && {
       url: website.url,
       colors: website.colors,
@@ -191,7 +198,7 @@ export async function analyzeProfileAction(websiteUrl: unknown, includeInstagram
     return { draft, website: suggestions, warnings }
   } catch (error) {
     console.error('[brand] analisis profil gagal:', describeError(error))
-    return { error: aiErrorMessage(error) }
+    return { error: localizeLibraryMessage(aiErrorMessage(error), await getUserLocale()) }
   }
 }
 
@@ -201,16 +208,17 @@ export async function analyzeProfileAction(websiteUrl: unknown, includeInstagram
  * classifyGridTilesAction gave them.
  */
 export async function uploadReferenceAction(formData: FormData): Promise<ActionError> {
+  const t = await getTranslations('brand')
   const { userId, accountId } = await requireAccount()
   const files = formData.getAll('file')
-  if (files.length === 0) return 'File tidak ditemukan.'
-  if (files.length > MAX_GROUP_IMAGES) return `Maksimal ${MAX_GROUP_IMAGES} gambar untuk satu referensi.`
+  if (files.length === 0) return t('actions.text9')
+  if (files.length > MAX_GROUP_IMAGES) return t('actions.text10', { v0: MAX_GROUP_IMAGES })
   const images: { bytes: Uint8Array; type: 'image/jpeg' }[] = []
   for (const file of files) {
-    if (!(file instanceof Blob)) return 'File tidak ditemukan.'
-    if (file.size === 0 || file.size > MAX_IMAGE_BYTES) return 'Ukuran gambar harus di bawah 8 MB.'
+    if (!(file instanceof Blob)) return t('actions.text9')
+    if (file.size === 0 || file.size > MAX_IMAGE_BYTES) return t('actions.text11')
     const bytes = new Uint8Array(await file.arrayBuffer())
-    if (!isJpeg(bytes)) return 'File bukan JPEG.'
+    if (!isJpeg(bytes)) return t('actions.text12')
     images.push({ bytes, type: 'image/jpeg' })
   }
   let palette: string[] = []
@@ -220,9 +228,9 @@ export async function uploadReferenceAction(formData: FormData): Promise<ActionE
     // A missing palette is filled in by the page later.
   }
   const labels = formData.getAll('label')
-  if (!labels.every((label) => typeof label === 'string' && LABELS.has(label))) return 'Label tidak valid.'
+  if (!labels.every((label) => typeof label === 'string' && LABELS.has(label))) return t('actions.text13')
   const description = text(formData.get('description'))
-  if (lengthOf(description) > DESCRIPTION_MAX_LENGTH) return `Deskripsi maksimal ${DESCRIPTION_MAX_LENGTH} karakter.`
+  if (lengthOf(description) > DESCRIPTION_MAX_LENGTH) return t('actions.text14', { v0: DESCRIPTION_MAX_LENGTH })
   const fromGrid = formData.get('source') === 'grid'
 
   try {
@@ -241,9 +249,11 @@ export async function uploadReferenceAction(formData: FormData): Promise<ActionE
       )
     }
   } catch (error) {
-    if (error instanceof ReferenceLimitError) return error.message
+    if (error instanceof StorageFullError) return storageFullMessage(await getUserLocale())
+    if (error instanceof FileTooLargeError) return fileTooLargeMessage(await getUserLocale())
+    if (error instanceof ReferenceLimitError) return localizeLibraryMessage(error.message, await getUserLocale())
     console.error('[brand] referensi gagal disimpan:', describeError(error))
-    return `Gambar gagal disimpan. ${DATABASE}`
+    return t('actions.text15', { v0: t('shared.database') })
   }
   refresh()
   return null
@@ -261,19 +271,20 @@ export type GridTileLabels =
  * as `tile` files; null for one the AI could not read. Nothing is saved: the owner checks them first.
  */
 export async function classifyGridTilesAction(formData: FormData): Promise<GridTileLabels> {
+  const t = await getTranslations('brand')
   const { userId } = await requireAccount()
   const files = formData.getAll('tile')
-  if (files.length === 0) return { error: 'Pilih minimal satu potongan.' }
-  if (files.length > MAX_GRID_TILES) return { error: `Maksimal ${MAX_GRID_TILES} potongan sekali deteksi.` }
+  if (files.length === 0) return { error: t('actions.text16') }
+  if (files.length > MAX_GRID_TILES) return { error: t('actions.text17', { v0: MAX_GRID_TILES }) }
   const images: { id: string; dataUrl: string }[] = []
   for (const [index, file] of files.entries()) {
-    if (!(file instanceof Blob) || file.size === 0 || file.size > MAX_IMAGE_BYTES) return { error: 'Potongan tidak valid.' }
+    if (!(file instanceof Blob) || file.size === 0 || file.size > MAX_IMAGE_BYTES) return { error: t('actions.text18') }
     const bytes = new Uint8Array(await file.arrayBuffer())
-    if (!isJpeg(bytes)) return { error: 'Potongan bukan JPEG.' }
+    if (!isJpeg(bytes)) return { error: t('actions.text19') }
     images.push({ id: `tile-${index + 1}`, dataUrl: await toReferenceDataUrl(bytes) })
   }
   try {
-    const read = await classifyDesigns(userId, images)
+    const read = await classifyDesigns(userId, images, await getUserLocale())
     return {
       tiles: images.map(({ id }) => {
         const analysis = read.get(id)
@@ -281,7 +292,7 @@ export async function classifyGridTilesAction(formData: FormData): Promise<GridT
       }),
     }
   } catch (error) {
-    return { error: aiErrorMessage(error) }
+    return { error: localizeLibraryMessage(aiErrorMessage(error), await getUserLocale()) }
   }
 }
 
@@ -306,49 +317,15 @@ export async function listOwnPostsAction(): Promise<PostsResult> {
   }
 }
 
-/** Graph codes for missing users (110) and bad requests (100), and for missing permissions (10, 200). */
-async function discoveryErrorMessage(scope: AccountScope, error: unknown, username: string): Promise<string> {
-  if (error instanceof FacebookReconnectError) return FB_RECONNECT
-  if (error instanceof InstagramApiError) {
-    if (error.isInvalidToken) {
-      await markFacebookNeedsReconnect(scope.userId, scope.accountId).catch(() => {})
-      return FB_RECONNECT
-    }
-    if (error.code === 110 || error.code === 100) {
-      return `Akun @${username} tidak bisa dibaca: tidak ada, akun personal, atau dibatasi umur. Business Discovery hanya membaca akun Business atau Creator. (Meta: ${error.message})`
-    }
-    if (error.code === 10 || error.code === 200) return `Izin Facebook kurang. (Meta: ${error.message})`
-  }
-  console.error('[brand] business discovery gagal:', describeError(error))
-  return error instanceof InstagramApiError
-    ? `Meta menolak: ${error.message}`
-    : 'Meta atau database tidak bisa dihubungi. Coba lagi.'
-}
-
-/** Another Business or Creator account's newest posts, through Business Discovery. */
-export async function discoverPostsAction(input: unknown): Promise<PostsResult> {
-  const scope = await requireAccount()
-  const username = parseInstagramUsername(text(input))
-  if (!username) return { error: 'Tulis username Instagram, mis. @namaakun, atau tempel link profilnya.' }
-  try {
-    const account = await getDiscoveryAccount(scope.userId, scope.accountId)
-    const found = await discoverAccount(account.accessToken, account.instagramUserId, username)
-    const { posts, ...profile } = found
-    return { account: profile, posts }
-  } catch (error) {
-    return { error: await discoveryErrorMessage(scope, error, username) }
-  }
-}
-
 /** One post: its photo, or every slide of a carousel, becomes one reference group. */
 interface ImportItem {
   imageUrls: string[]
   permalink: string | null
-  source: Exclude<ReferenceSource, 'upload'>
+  source: Exclude<ReferenceSource, 'upload' | 'discovery'>
   sourceLabel: string
 }
 
-const IMPORT_SOURCES = new Set<string>(['website', 'instagram', 'discovery'])
+const IMPORT_SOURCES = new Set<string>(['website', 'instagram'])
 const isHttpUrl = (value: string) => /^https?:\/\//i.test(value) && lengthOf(value) <= URL_MAX_LENGTH
 
 function parseImportItem(value: unknown): ImportItem | null {
@@ -367,10 +344,11 @@ export type ImportResult = { imported: number; failed: string[] } | { error: str
 
 /** Downloads the chosen posts into the brand bucket, one group each. The page computes their palettes afterwards. */
 export async function importReferencesAction(items: unknown): Promise<ImportResult> {
+  const t = await getTranslations('brand')
   const { userId, accountId } = await requireAccount()
   const parsed = Array.isArray(items) ? items.map(parseImportItem) : []
   if (parsed.length === 0 || parsed.length > MAX_IMPORT || parsed.some((item) => item === null)) {
-    return { error: `Pilih 1–${MAX_IMPORT} post.` }
+    return { error: t('actions.text20', { v0: MAX_IMPORT }) }
   }
 
   let imported = 0
@@ -388,14 +366,15 @@ export async function importReferencesAction(items: unknown): Promise<ImportResu
       })
       imported += 1
     } catch (error) {
-      if (error instanceof ReferenceLimitError) {
-        failed.push(error.message)
+      if (error instanceof StorageFullError) return { error: storageFullMessage(await getUserLocale()) }
+      if (error instanceof FileTooLargeError) failed.push(`Post ${index + 1}: ${localizeLibraryMessage(error.message, await getUserLocale())}`)
+      else if (error instanceof ReferenceLimitError) {
+        failed.push(localizeLibraryMessage(error.message, await getUserLocale()))
         break
-      }
-      if (error instanceof RemoteFetchError) failed.push(`Post ${index + 1}: ${error.message}`)
+      } else if (error instanceof RemoteFetchError) failed.push(`Post ${index + 1}: ${localizeLibraryMessage(error.message, await getUserLocale())}`)
       else {
         console.error('[brand] impor referensi gagal:', describeError(error))
-        failed.push(`Post ${index + 1}: gagal disimpan. ${DATABASE}`)
+        failed.push(t('actions.text21', { v0: index + 1, v1: t('shared.database') }))
       }
     }
   }
@@ -403,36 +382,37 @@ export async function importReferencesAction(items: unknown): Promise<ImportResu
   return { imported, failed }
 }
 
-function parsePatch(value: unknown): ReferencePatch | string {
-  if (!isObject(value)) return 'Perubahan tidak valid.'
+function parsePatch(value: unknown, t: Awaited<ReturnType<typeof getTranslations<'brand'>>>): ReferencePatch | string {
+  if (!isObject(value)) return t('actions.text22')
   const patch: ReferencePatch = {}
   if (value.note !== undefined) {
     patch.note = text(value.note)
-    if (lengthOf(patch.note) > NOTE_MAX_LENGTH) return `Catatan maksimal ${NOTE_MAX_LENGTH} karakter.`
+    if (lengthOf(patch.note) > NOTE_MAX_LENGTH) return t('actions.text23', { v0: NOTE_MAX_LENGTH })
   }
   if (value.description !== undefined) {
     patch.description = text(value.description)
-    if (lengthOf(patch.description) > DESCRIPTION_MAX_LENGTH) return `Deskripsi maksimal ${DESCRIPTION_MAX_LENGTH} karakter.`
+    if (lengthOf(patch.description) > DESCRIPTION_MAX_LENGTH) return t('actions.text14', { v0: DESCRIPTION_MAX_LENGTH })
   }
   if (value.palette !== undefined) {
     const palette = parsePalette(value.palette)
-    if (!palette) return 'Palet tidak valid.'
+    if (!palette) return t('actions.text24')
     patch.palette = palette
   }
-  return Object.keys(patch).length > 0 ? patch : 'Perubahan tidak valid.'
+  return Object.keys(patch).length > 0 ? patch : t('actions.text22')
 }
 
 /** No refresh: the card already shows what was typed, and palettes arrive in a batch the page refreshes once. */
 export async function updateReferenceAction(id: unknown, changes: unknown): Promise<ActionError> {
+  const t = await getTranslations('brand')
   const { userId } = await requireAccount()
-  if (!isUuid(id)) return 'Referensi tidak ditemukan.'
-  const patch = parsePatch(changes)
+  if (!isUuid(id)) return t('actions.text25')
+  const patch = parsePatch(changes, t)
   if (typeof patch === 'string') return patch
   try {
-    return (await updateReference(userId, id, patch)) ? null : 'Referensi tidak ditemukan.'
+    return (await updateReference(userId, id, patch)) ? null : t('actions.text25')
   } catch (error) {
     console.error('[brand] referensi gagal diubah:', describeError(error))
-    return `Perubahan gagal disimpan. ${DATABASE}`
+    return t('actions.text26', { v0: t('shared.database') })
   }
 }
 
@@ -440,25 +420,27 @@ const LABELS = new Set<string>(Object.keys(REFERENCE_LABELS))
 
 /** The owner's label for one slide. No refresh: the select already shows it. */
 export async function setReferenceLabelAction(imageId: unknown, label: unknown): Promise<ActionError> {
+  const t = await getTranslations('brand')
   const { userId } = await requireAccount()
-  if (!isUuid(imageId)) return 'Gambar tidak ditemukan.'
-  if (typeof label !== 'string' || !LABELS.has(label)) return 'Label tidak valid.'
+  if (!isUuid(imageId)) return t('actions.text27')
+  if (typeof label !== 'string' || !LABELS.has(label)) return t('actions.text13')
   try {
-    return (await setReferenceImageLabel(userId, imageId, label as ReferenceLabel)) ? null : 'Gambar tidak ditemukan.'
+    return (await setReferenceImageLabel(userId, imageId, label as ReferenceLabel)) ? null : t('actions.text27')
   } catch (error) {
     console.error('[brand] label referensi gagal diubah:', describeError(error))
-    return `Label gagal disimpan. ${DATABASE}`
+    return t('actions.text28', { v0: t('shared.database') })
   }
 }
 
 export async function deleteReferenceAction(id: unknown): Promise<ActionError> {
+  const t = await getTranslations('brand')
   const { userId } = await requireAccount()
-  if (!isUuid(id)) return 'Referensi tidak ditemukan.'
+  if (!isUuid(id)) return t('actions.text25')
   try {
     await deleteReference(userId, id)
   } catch (error) {
     console.error('[brand] referensi gagal dihapus:', describeError(error))
-    return 'Referensi gagal dihapus. Coba lagi.'
+    return t('actions.text29')
   }
   refresh()
   return null
@@ -468,13 +450,14 @@ export type VisualResult = { visualStyle: string; colors: string[]; used: number
 
 /** Vision analysis of the newest references. Descriptions are saved; the style guide only fills the form. */
 export async function analyzeVisualAction(): Promise<VisualResult> {
+  const t = await getTranslations('brand')
   const { userId, accountId } = await requireAccount()
   let selection
   try {
     selection = await loadVisualReferences(userId, accountId)
   } catch (error) {
     console.error('[brand] referensi gagal dibaca:', describeError(error))
-    return { error: `Referensi gagal dibaca. ${DATABASE}` }
+    return { error: t('actions.text30', { v0: t('shared.database') }) }
   }
   let { references, skipped } = selection
   let colors: string[] = []
@@ -510,17 +493,17 @@ export async function analyzeVisualAction(): Promise<VisualResult> {
     return {
       error:
         skipped > 0
-          ? 'Gambar terbaru terlalu besar untuk dikirim ke 9Router (batas 1 MB per permintaan).'
-          : 'Tambahkan referensi desain, logo, atau gambar website aktif dulu.',
+          ? t('actions.text31')
+          : t('actions.text32'),
     }
   }
 
   let analysis
   try {
-    analysis = await analyzeVisual(userId, references)
+    analysis = await analyzeVisual(userId, references, { language: await getUserLocale() })
   } catch (error) {
     console.error('[brand] analisis visual gagal:', describeError(error))
-    return { error: aiErrorMessage(error) }
+    return { error: localizeLibraryMessage(aiErrorMessage(error), await getUserLocale()) }
   }
   // A group can send several images; its first description is the one saved.
   const described = new Set<string>()
@@ -541,48 +524,56 @@ export async function analyzeVisualAction(): Promise<VisualResult> {
 }
 
 async function storeLogo({ userId, accountId }: AccountScope, bytes: Uint8Array): Promise<ActionError> {
+  const t = await getTranslations('brand')
   const type = imageType(bytes)
-  if (!type) return 'Logo harus PNG, JPEG, atau WebP.'
+  if (!type) return t('actions.text33')
   try {
     await setLogo(userId, accountId, bytes, type)
   } catch (error) {
+    if (error instanceof StorageFullError) return storageFullMessage(await getUserLocale())
+    if (error instanceof FileTooLargeError) return fileTooLargeMessage(await getUserLocale())
     console.error('[brand] logo gagal disimpan:', describeError(error))
-    return `Logo gagal disimpan. ${DATABASE}`
+    return t('actions.text34', { v0: t('shared.database') })
   }
   refresh()
   return null
 }
 
 export async function uploadLogoAction(formData: FormData): Promise<ActionError> {
+  const t = await getTranslations('brand')
   const scope = await requireAccount()
   const file = formData.get('file')
-  if (!(file instanceof Blob)) return 'File tidak ditemukan.'
-  if (file.size === 0 || file.size > MAX_LOGO_BYTES) return 'Ukuran logo harus di bawah 2 MB.'
+  if (!(file instanceof Blob)) return t('actions.text9')
+  if (file.size === 0 || file.size > MAX_IMAGE_BYTES) return t('actions.text35')
   return storeLogo(scope, new Uint8Array(await file.arrayBuffer()))
 }
 
 /** One of the logo candidates the website analysis offered. */
 export async function logoFromUrlAction(url: unknown): Promise<ActionError> {
+  const t = await getTranslations('brand')
   const scope = await requireAccount()
   const address = text(url)
-  if (!isHttpUrl(address)) return 'Alamat logo tidak valid.'
+  if (!isHttpUrl(address)) return t('actions.text36')
   try {
-    const { bytes } = await fetchImage(address, MAX_LOGO_BYTES)
+    const { bytes } = await fetchImage(address, MAX_IMAGE_BYTES)
     return await storeLogo(scope, bytes)
   } catch (error) {
-    if (error instanceof RemoteFetchError) return `Logo tidak bisa diambil: ${error.message}`
+    if (error instanceof StorageFullError) return storageFullMessage(await getUserLocale())
+    if (error instanceof FileTooLargeError) return localizeLibraryMessage(error.message, await getUserLocale())
+    if (error instanceof RemoteFetchError) return t('actions.text37', { v0: localizeLibraryMessage(error.message, await getUserLocale()) })
     console.error('[brand] logo dari website gagal:', describeError(error))
-    return 'Logo tidak bisa diambil. Coba unggah manual.'
+    return t('actions.text38')
   }
 }
 
 export async function removeLogoAction(): Promise<ActionError> {
+  const t = await getTranslations('brand')
   const { userId, accountId } = await requireAccount()
   try {
     await removeLogo(userId, accountId)
   } catch (error) {
     console.error('[brand] logo gagal dihapus:', describeError(error))
-    return 'Logo gagal dihapus. Coba lagi.'
+    return t('actions.text39')
   }
   refresh()
   return null

@@ -1,3 +1,10 @@
+import { createTranslator } from 'next-intl'
+import type { Locale } from '@/i18n/locale-config'
+import idInbox from '../../messages/id/inbox.json'
+import enInbox from '../../messages/en/inbox.json'
+
+const threadTranslations = (locale: Locale) => createTranslator({ locale, messages: locale === 'en' ? enInbox : idInbox, namespace: 'threadValidation' })
+
 /**
  * The Threads version of a post: a chain of up to 10 items, the post and then replies to it in order, each with up to
  * 500 characters and 20 photos. Pure, so the editor, the actions, the worker and the tests share it.
@@ -87,17 +94,18 @@ export function itemsFromCaption(caption: string, assetIds: readonly string[]): 
 }
 
 /** Why the chain can't go to Threads, or null. */
-export function threadItemsError(items: readonly ThreadItemDraft[]): string | null {
-  if (items.length === 0) return 'Post Threads masih kosong.'
-  if (items.length > MAX_THREAD_ITEMS) return `Maksimal ${MAX_THREAD_ITEMS} post dalam satu rantai Threads.`
+export function threadItemsError(items: readonly ThreadItemDraft[], locale: Locale = 'id'): string | null {
+  const t = threadTranslations(locale)
+  if (items.length === 0) return t('empty')
+  if (items.length > MAX_THREAD_ITEMS) return t('count', { max: MAX_THREAD_ITEMS })
   for (const [index, item] of items.entries()) {
     const number = index + 1
     if (threadsLength(item.text) > THREADS_TEXT_LIMIT) {
-      return `Post Threads #${number} lebih dari ${THREADS_TEXT_LIMIT} karakter. Pendekkan atau pakai Pecah otomatis.`
+      return t('textLimit', { number, max: THREADS_TEXT_LIMIT })
     }
-    if (item.assetIds.length > MAX_THREAD_MEDIA) return `Post Threads #${number} punya lebih dari ${MAX_THREAD_MEDIA} foto.`
+    if (item.assetIds.length > MAX_THREAD_MEDIA) return t('photoLimit', { number, max: MAX_THREAD_MEDIA })
     if (!item.text.trim() && item.assetIds.length === 0) {
-      return `Post Threads #${number} kosong: isi teks atau tambahkan foto.`
+      return t('itemEmpty', { number })
     }
   }
   return null
@@ -107,19 +115,20 @@ export function threadItemsError(items: readonly ThreadItemDraft[]): string | nu
  * Reads the chain the editor sent: up to 10 items of text and photo ids. An empty chain is allowed: the post then
  * follows its caption again. Threads' own length count is checked by threadItemsError when the chain is scheduled.
  */
-export function parseThreadItems(input: unknown): { items: ThreadItemDraft[] } | { error: string } {
-  if (!Array.isArray(input) || input.length > MAX_THREAD_ITEMS) return { error: 'Rantai Threads tidak valid.' }
+export function parseThreadItems(input: unknown, locale: Locale = 'id'): { items: ThreadItemDraft[] } | { error: string } {
+  const t = threadTranslations(locale)
+  if (!Array.isArray(input) || input.length > MAX_THREAD_ITEMS) return { error: t('invalid') }
   const items: ThreadItemDraft[] = []
   for (const item of input) {
     if (!isObject(item) || typeof item.text !== 'string' || !Array.isArray(item.assetIds)) {
-      return { error: 'Rantai Threads tidak valid.' }
+      return { error: t('invalid') }
     }
     const assetIds: unknown[] = item.assetIds
-    if (assetIds.length > MAX_THREAD_MEDIA || !assetIds.every(isUuid)) return { error: 'Foto Threads tidak valid.' }
+    if (assetIds.length > MAX_THREAD_MEDIA || !assetIds.every(isUuid)) return { error: t('photosInvalid') }
     const text = item.text.replace(/\r\n/g, '\n').trim()
     // The database caps the text at 500 code points.
     if ([...text].length > THREADS_TEXT_LIMIT) {
-      return { error: `Post Threads #${items.length + 1} lebih dari ${THREADS_TEXT_LIMIT} karakter.` }
+      return { error: t('databaseLimit', { number: items.length + 1, max: THREADS_TEXT_LIMIT }) }
     }
     items.push({ text, assetIds: [...new Set(assetIds)] })
   }

@@ -1,3 +1,6 @@
+import { inboxLoadError } from '../action-utils'
+import { IntlMessages } from '@/i18n/client-messages'
+import { getTranslations } from 'next-intl/server'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { connection } from 'next/server'
@@ -8,7 +11,7 @@ import { requireAccount } from '@/lib/auth'
 import { getRule } from '@/lib/auto-dm'
 import { EMPTY_RULE, toRuleInput, type AutoDmRule } from '@/lib/auto-dm-rules'
 import { getConnection, type Connection } from '@/lib/connection'
-import { describeError, loadErrorMessage } from '@/lib/errors'
+import { describeError } from '@/lib/errors'
 import { firstValue, isUuid, type SearchParams } from '@/lib/params'
 import { loadBrand } from '../inbox'
 import { AutoDmForm } from './auto-dm-form'
@@ -20,15 +23,19 @@ interface AutoDmPageProps {
 }
 
 /** Buat Auto DM, or Ubah with `?id=` (a query parameter rather than a [id] segment, as in Admin). */
-export default function AutoDmPage({ searchParams }: AutoDmPageProps) {
+export default async function AutoDmPage({ searchParams }: AutoDmPageProps) {
+  const t = await getTranslations('inbox.builderPage')
   return (
-    <Suspense fallback={<LoadingState variant="form" label="Memuat Auto DM…" />}>
+    <IntlMessages namespaces={['common', 'inbox']}>
+    <Suspense fallback={<LoadingState variant="form" label={t('loadingAutoDm')} />}>
       <AutoDmEditor searchParams={searchParams} />
     </Suspense>
+    </IntlMessages>
   )
 }
 
 async function AutoDmEditor({ searchParams }: AutoDmPageProps) {
+  const t = await getTranslations('inbox.builderPage')
   const params = await searchParams
   await connection()
   const { userId, accountId } = await requireAccount()
@@ -43,16 +50,16 @@ async function AutoDmEditor({ searchParams }: AutoDmPageProps) {
     ])
   } catch (error) {
     console.error('[auto-dm] aturan gagal dimuat:', describeError(error))
-    return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
+    return <Notice tone="warning">{await inboxLoadError(error)}</Notice>
   }
 
   if (id && !rule) {
     return (
       <div className="space-y-3">
-        <Notice tone="warning">Aturan tidak ditemukan.</Notice>
+        <Notice tone="warning">{t('ruleNotFound')}</Notice>
         <Link href="/balasan" className="text-sm font-medium text-zinc-700 underline underline-offset-2">
-          Kembali ke Balasan
-        </Link>
+          {t('backToReplies')}
+          </Link>
       </div>
     )
   }
@@ -63,8 +70,8 @@ async function AutoDmEditor({ searchParams }: AutoDmPageProps) {
       key={rule?.id ?? 'baru'}
       ruleId={rule?.id ?? null}
       initial={rule ? toRuleInput(rule) : EMPTY_RULE}
-      title={rule?.name ?? 'Buat Auto DM'}
-      username={instagram?.username ?? 'akunmu'}
+      title={rule?.name ?? t('createAutoDm')}
+      username={instagram?.username ?? t('yourAccount')}
       avatarUrl={brand.logoUrl}
     />
   )

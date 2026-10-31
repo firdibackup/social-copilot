@@ -3,6 +3,10 @@
  * A slot is never a post. A post keeps its absolute time, so changing the slots moves nothing. Pure, so the browser,
  * the server and the tests share it.
  */
+import { createTranslator } from 'next-intl'
+import type { Locale } from '@/i18n/locale-config'
+import idCalendar from '../../messages/id/calendar.json'
+import enCalendar from '../../messages/en/calendar.json'
 import { isObject } from './brand-options'
 import { parseWibInput, wibDateKey } from './format'
 
@@ -14,7 +18,11 @@ export interface PostingSlot {
 }
 
 /** Kalender's columns and the slot table's header, Monday first; index + 1 is the ISO weekday. */
-export const WEEKDAY_SHORT = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'] as const
+const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const
+const calendarMessages = { id: idCalendar, en: enCalendar }
+export const weekdayShort = (locale: Locale = 'id') => WEEKDAYS.map((day) => calendarMessages[locale].weekdays[day])
+/** Indonesian default retained for existing callers. Locale-aware UIs should use weekdayShort(locale). */
+export const WEEKDAY_SHORT = weekdayShort()
 
 /** Rows of the slot table: four times a day at most. */
 export const MAX_SLOT_TIMES = 4
@@ -62,19 +70,20 @@ export function generateSlots(postsPerWeek: number): PostingSlot[] {
 }
 
 /** Validates what the slot table sent: at most 4 distinct times, each with its weekdays, sorted by time. */
-export function parseSlots(input: unknown): { slots: PostingSlot[] } | { error: string } {
-  if (!Array.isArray(input)) return { error: 'Slot tidak valid.' }
-  if (input.length > MAX_SLOT_TIMES) return { error: `Maksimal ${MAX_SLOT_TIMES} jam per hari.` }
+export function parseSlots(input: unknown, locale: Locale = 'id'): { slots: PostingSlot[] } | { error: string } {
+  const t = createTranslator({ locale, messages: calendarMessages[locale], namespace: 'errors' })
+  if (!Array.isArray(input)) return { error: t('invalidSlot') }
+  if (input.length > MAX_SLOT_TIMES) return { error: t('maxTimes', { count: MAX_SLOT_TIMES }) }
   const slots: PostingSlot[] = []
   for (const item of input) {
     if (!isObject(item) || typeof item.time !== 'string' || !TIME.test(item.time) || !Array.isArray(item.days)) {
-      return { error: 'Slot tidak valid.' }
+      return { error: t('invalidSlot') }
     }
     const time = item.time
-    if (slots.some((slot) => slot.time === time)) return { error: `Jam ${time.replace(':', '.')} muncul dua kali.` }
+    if (slots.some((slot) => slot.time === time)) return { error: t('duplicateTime', { time: time.replace(':', '.') }) }
     const days: unknown[] = item.days
     if (!days.every((day): day is number => typeof day === 'number' && Number.isInteger(day) && day >= 1 && day <= 7)) {
-      return { error: 'Slot tidak valid.' }
+      return { error: t('invalidSlot') }
     }
     slots.push({ time, days: [...new Set(days)].sort((a, b) => a - b) })
   }

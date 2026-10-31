@@ -1,3 +1,5 @@
+
+import { getLocale, getTranslations } from 'next-intl/server'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { connection } from 'next/server'
@@ -9,7 +11,7 @@ import { formatCredits } from '@/lib/admin-options'
 import { requireAdmin } from '@/lib/auth'
 import { formatRupiah } from '@/lib/billing-options'
 import { appUrl } from '@/lib/env'
-import { describeError, loadErrorMessage } from '@/lib/errors'
+import { ConfigError, describeError } from '@/lib/errors'
 import { formatDateTime, formatShortDateTime } from '@/lib/format'
 import { firstValue, type SearchParams } from '@/lib/params'
 import { reminderMessage, type UnfinishedPayment } from '@/lib/payment-followup-options'
@@ -17,28 +19,39 @@ import { formatWhatsapp, whatsappLink } from '@/lib/whatsapp'
 import { TABLE, TD, TH } from '../ui'
 import { ReminderActions } from './reminder-actions'
 
-export const metadata: Metadata = { title: 'Pembayaran · Admin' }
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin')
+  return { title: t('pembayaran_page.paymentsAdmin') }
+}
 
 interface PembayaranPageProps {
   searchParams: Promise<SearchParams>
 }
 
-const FILTERS = [
-  { value: 'semua', label: 'Semua' },
-  { value: 'pending', label: 'Menunggu' },
-  { value: 'expired', label: 'Kedaluwarsa' },
-] as const
-type Filter = (typeof FILTERS)[number]['value']
 
-export default function PembayaranPage({ searchParams }: PembayaranPageProps) {
+type Filter = 'semua' | 'pending' | 'expired'
+
+export default async function PembayaranPage({ searchParams }: PembayaranPageProps) {
+  const t = await getTranslations('admin')
+
   return (
-    <Suspense fallback={<LoadingState variant="table" label="Memuat pembayaran…" />}>
+    <Suspense fallback={<LoadingState variant="table" label={t('pembayaran_page.loadingPayments')} />}>
       <Payments searchParams={searchParams} />
     </Suspense>
   )
 }
 
 async function Payments({ searchParams }: PembayaranPageProps) {
+  const locale = await getLocale()
+
+  const t = await getTranslations('admin')
+
+  const FILTERS = [
+  { value: 'semua', label: t('pembayaran_page.all') },
+  { value: 'pending', label: t('pembayaran_page.pending') },
+  { value: 'expired', label: t('pembayaran_page.expired') },
+] as const
+
   await connection()
   await requireAdmin()
   const params = await searchParams
@@ -50,7 +63,7 @@ async function Payments({ searchParams }: PembayaranPageProps) {
     payments = await listUnfinishedPayments()
   } catch (error) {
     console.error('[admin] pembayaran tertunda gagal dimuat:', describeError(error))
-    return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
+    return <Notice tone="warning">{error instanceof ConfigError ? t('loadErrors.configuration', { message: error.message }) : t('loadErrors.database')}</Notice>
   }
 
   const pending = payments.filter((payment) => payment.status === 'pending')
@@ -64,14 +77,14 @@ async function Payments({ searchParams }: PembayaranPageProps) {
   return (
     <div className="space-y-6">
       <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Menunggu pembayaran" value={formatCredits(pending.length)} />
-        <Stat label="Kedaluwarsa" value={formatCredits(expired.length)} />
-        <Stat label="Belum diingatkan" value={formatCredits(notReminded)} tone={notReminded > 0 ? 'warning' : 'normal'} />
-        <Stat label="Total nilai tertunda" value={formatRupiah(total)} />
+        <Stat label={t('pembayaran_page.awaitingPayment')} value={formatCredits(pending.length, locale)} />
+        <Stat label={t('pembayaran_page.expired')} value={formatCredits(expired.length, locale)} />
+        <Stat label={t('pembayaran_page.notRemindedYet')} value={formatCredits(notReminded, locale)} tone={notReminded > 0 ? 'warning' : 'normal'} />
+        <Stat label={t('pembayaran_page.totalPendingValue')} value={formatRupiah(total, locale)} />
       </dl>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <nav aria-label="Saring status" className="inline-flex rounded-lg border border-zinc-200 bg-zinc-50 p-0.5">
+        <nav aria-label={t('pembayaran_page.filterByStatus')} className="inline-flex rounded-lg border border-zinc-200 bg-zinc-50 p-0.5">
           {FILTERS.map((item) => {
             const active = item.value === filter
             return (
@@ -87,30 +100,30 @@ async function Payments({ searchParams }: PembayaranPageProps) {
             )
           })}
         </nav>
-        <p className="text-xs text-zinc-500">Checkout terakhir tiap pengguna yang belum dibayar, {FOLLOWUP_DAYS} hari terakhir.</p>
+        <p className="text-xs text-zinc-500">{t('pembayaran_page.eachUserSLatestUnpaidCheckoutIn')} {FOLLOWUP_DAYS} {t('pembayaran_page.days')}</p>
       </div>
 
       {rows.length === 0 ? (
         <p className="rounded-xl border border-dashed border-zinc-200 bg-white px-4 py-10 text-center text-sm text-zinc-500">
           {payments.length === 0 || filter === 'semua'
-            ? `Tidak ada pembayaran tertunda dalam ${FOLLOWUP_DAYS} hari terakhir.`
+            ? t('pembayaran_page.noPendingPaymentsInTheLastDays', { v0: FOLLOWUP_DAYS })
             : filter === 'pending'
-              ? 'Tidak ada pembayaran yang masih menunggu.'
-              : 'Tidak ada pembayaran yang kedaluwarsa.'}
+              ? t('pembayaran_page.noPaymentsAwaitingConfirmation')
+              : t('pembayaran_page.noExpiredPayments')}
         </p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
           <table className={TABLE}>
             <thead className="border-b border-zinc-100">
               <tr>
-                <th className={TH}>Pengguna</th>
+                <th className={TH}>{t('pembayaran_page.users')}</th>
                 <th className={TH}>WhatsApp</th>
-                <th className={TH}>Pesanan</th>
-                <th className={TH}>Status</th>
-                <th className={TH}>Dibuat</th>
-                <th className={TH}>Pengingat</th>
+                <th className={TH}>{t('pembayaran_page.order')}</th>
+                <th className={TH}>{t('pembayaran_page.status')}</th>
+                <th className={TH}>{t('pembayaran_page.created')}</th>
+                <th className={TH}>{t('pembayaran_page.reminder')}</th>
                 <th className={TH}>
-                  <span className="sr-only">Aksi</span>
+                  <span className="sr-only">{t('pembayaran_page.actions')}</span>
                 </th>
               </tr>
             </thead>
@@ -119,7 +132,7 @@ async function Payments({ searchParams }: PembayaranPageProps) {
                 <tr key={payment.paymentId} className="hover:bg-zinc-50">
                   <td className={`${TD} min-w-48`}>
                     <Link href={`/admin/pengguna?id=${payment.userId}`} className="font-medium text-zinc-900 underline-offset-2 hover:underline">
-                      {payment.name || payment.email || '(tanpa nama)'}
+                      {payment.name || payment.email || t('pembayaran_page.noName')}
                     </Link>
                     {payment.name && payment.email && <p className="text-xs break-all text-zinc-500">{payment.email}</p>}
                   </td>
@@ -129,43 +142,43 @@ async function Payments({ searchParams }: PembayaranPageProps) {
                   <td className={`${TD} whitespace-nowrap`}>
                     <p className="text-zinc-900">
                       {payment.planName ?? 'Carousely'}
-                      <span className="text-zinc-500"> · {payment.kind === 'upgrade' ? 'Upgrade' : payment.months ? `${payment.months} bulan` : 'Langganan'}</span>
+                      <span className="text-zinc-500"> · {payment.kind === 'upgrade' ? t('pembayaran_page.upgrade') : payment.months ? t('pembayaran_page.months', { v0: payment.months }) : t('pembayaran_page.subscription')}</span>
                       {payment.couponCode && (
-                        <span className="ml-1.5 rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs text-zinc-700">Kupon {payment.couponCode}</span>
+                        <span className="ml-1.5 rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs text-zinc-700">{t('pembayaran_page.coupon')} {payment.couponCode}</span>
                       )}
                     </p>
-                    <p className="font-medium tabular-nums text-zinc-900">{formatRupiah(payment.amount)}</p>
+                    <p className="font-medium tabular-nums text-zinc-900">{formatRupiah(payment.amount, locale)}</p>
                   </td>
                   <td className={TD}>
                     {payment.status === 'pending' ? (
                       <>
-                        <Badge tone="pending">Menunggu pembayaran</Badge>
-                        {payment.expiresAt && <p className="mt-1 text-xs whitespace-nowrap text-zinc-500">berlaku s.d. {formatShortDateTime(payment.expiresAt)}</p>}
+                        <Badge tone="pending">{t('pembayaran_page.awaitingPayment')}</Badge>
+                        {payment.expiresAt && <p className="mt-1 text-xs whitespace-nowrap text-zinc-500">{t('pembayaran_page.validUntil')} {formatShortDateTime(payment.expiresAt, locale)}</p>}
                       </>
                     ) : (
-                      <Badge tone="expired">Kedaluwarsa</Badge>
+                      <Badge tone="expired">{t('pembayaran_page.expired')}</Badge>
                     )}
                   </td>
                   <td className={`${TD} whitespace-nowrap`}>
-                    <time dateTime={payment.createdAt.toISOString()} title={formatDateTime(payment.createdAt)} className="text-zinc-700">
-                      {formatShortDateTime(payment.createdAt)}
+                    <time dateTime={payment.createdAt.toISOString()} title={formatDateTime(payment.createdAt, locale)} className="text-zinc-700">
+                      {formatShortDateTime(payment.createdAt, locale)}
                     </time>
-                    {payment.attempts > 1 && <p className="mt-1 text-xs text-amber-700">{payment.attempts}× mencoba</p>}
+                    {payment.attempts > 1 && <p className="mt-1 text-xs text-amber-700">{payment.attempts}{t('pembayaran_page.attempted')}</p>}
                   </td>
                   <td className={`${TD} whitespace-nowrap`}>
                     {payment.reminderCount === 0 ? (
-                      <span className="text-zinc-400">Belum</span>
+                      <span className="text-zinc-400">{t('pembayaran_page.notYet')}</span>
                     ) : (
                       <span className="text-zinc-700">
                         {payment.reminderCount}×
-                        {payment.remindedAt && <span className="text-zinc-500"> · terakhir {formatShortDateTime(payment.remindedAt)}</span>}
+                        {payment.remindedAt && <span className="text-zinc-500">  {t('pembayaran_page.last')} {formatShortDateTime(payment.remindedAt, locale)}</span>}
                       </span>
                     )}
                   </td>
                   <td className={TD}>
                     <ReminderActions
                       paymentId={payment.paymentId}
-                      chatHref={payment.whatsapp ? whatsappLink(payment.whatsapp, reminderMessage(payment, subscribeUrl)) : null}
+                      chatHref={payment.whatsapp ? whatsappLink(payment.whatsapp, reminderMessage(payment, subscribeUrl, locale)) : null}
                       payLink={payment.status === 'pending' ? payment.link : null}
                     />
                   </td>

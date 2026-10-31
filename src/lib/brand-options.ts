@@ -1,3 +1,7 @@
+import { createTranslator } from 'next-intl'
+import type { Locale } from '@/i18n/locale-config'
+import id from '../../messages/id/brand.json'
+import en from '../../messages/en/brand.json'
 /** Fields, limits and validation of the brand kit, shared by the /brand page and the server. */
 import { isAccountKind, isDesignStyle } from './design-styles'
 import type { ContentStrategy } from './strategy-options'
@@ -247,13 +251,14 @@ export function normalizeWebsiteUrl(input: string): string | null {
 }
 
 /** Trims, turns textarea CRLF into LF and checks the limit. */
-export function readText(input: Json, field: BrandTextField): string | { error: string } {
+export function readText(input: Json, field: BrandTextField, locale: Locale = 'id'): string | { error: string } {
+  const t = createTranslator({ locale, messages: locale === 'en' ? en : id })
   const value = input[field]
   if (value === undefined) return ''
-  if (typeof value !== 'string') return { error: 'Data brand tidak valid.' }
+  if (typeof value !== 'string') return { error: t('validation.text1') }
   const text = value.replace(/\r\n/g, '\n').trim()
   const limit = BRAND_TEXT_LIMITS[field]
-  return lengthOf(text) > limit ? { error: `${FIELD_LABELS[field]} maksimal ${limit} karakter.` } : text
+  return lengthOf(text) > limit ? { error: t('validation.text2', { v0: t(`fields.${field}`), v1: limit }) } : text
 }
 
 export function readColors(value: unknown): BrandColor[] | null {
@@ -270,24 +275,25 @@ export function readColors(value: unknown): BrandColor[] | null {
 }
 
 /** Validates what the brand form sent. The server action's parameter type is only a hint. */
-export function parseBrandFields(input: unknown): { fields: BrandFields } | { error: string } {
-  if (!isObject(input)) return { error: 'Data brand tidak valid.' }
+export function parseBrandFields(input: unknown, locale: Locale = 'id'): { fields: BrandFields } | { error: string } {
+  const t = createTranslator({ locale, messages: locale === 'en' ? en : id })
+  if (!isObject(input)) return { error: t('validation.text1') }
   const fields: BrandFields = { ...EMPTY_BRAND }
   for (const field of Object.keys(BRAND_TEXT_LIMITS) as BrandTextField[]) {
-    const text = readText(input, field)
+    const text = readText(input, field, locale)
     if (typeof text !== 'string') return text
     fields[field] = text
   }
   if (fields.websiteUrl) {
     const url = normalizeWebsiteUrl(fields.websiteUrl)
-    if (!url) return { error: 'Alamat website tidak valid.' }
-    if (lengthOf(url) > BRAND_TEXT_LIMITS.websiteUrl) return { error: 'Website maksimal 500 karakter.' }
+    if (!url) return { error: t('validation.text3') }
+    if (lengthOf(url) > BRAND_TEXT_LIMITS.websiteUrl) return { error: t('validation.text4') }
     fields.websiteUrl = url
   }
-  if (fields.accountKind && !isAccountKind(fields.accountKind)) return { error: 'Jenis akun tidak dikenal.' }
-  if (fields.designStyle && !isDesignStyle(fields.designStyle)) return { error: 'Gaya desain tidak dikenal.' }
+  if (fields.accountKind && !isAccountKind(fields.accountKind)) return { error: t('validation.text5') }
+  if (fields.designStyle && !isDesignStyle(fields.designStyle)) return { error: t('validation.text6') }
   const colors = readColors(input.colors)
-  if (!colors) return { error: `Palet maksimal ${MAX_COLORS} warna, masing-masing dengan kode hex dan peran.` }
+  if (!colors) return { error: t('validation.text7', { v0: MAX_COLORS }) }
   fields.colors = colors
   return { fields }
 }

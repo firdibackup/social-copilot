@@ -1,5 +1,11 @@
 'use client'
 
+import { useLocale, useTranslations } from 'next-intl'
+import { createTranslator } from 'next-intl'
+import type { Locale } from '@/i18n/locale-config'
+import idMessages from '@/../messages/id/editor.json'
+import enMessages from '@/../messages/en/editor.json'
+
 import { ArrowUp, ImagePlus, LoaderCircle, X } from 'lucide-react'
 import { useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { MediaImage } from '@/components/media-image'
@@ -31,18 +37,20 @@ interface ComposerProps {
   children?: ReactNode
 }
 
-const ATTACH_PLACEHOLDER = 'Tulis mau dipakai untuk apa gambar ini, misalnya "ikuti layout gambar ini"…'
-const SEND_HINT = 'Ctrl/⌘ + Enter untuk kirim'
+
+
 // One box model for the textarea and the copy under it, so both wrap the same.
 const TEXT = 'min-h-[43px] w-full whitespace-pre-wrap break-words px-1 text-[13px] leading-relaxed'
 
 /** What the owner picked or pasted, as a JPEG data URL of at most 1080 px; the server makes it smaller again. */
-async function toAttachment(file: File): Promise<string> {
+async function toAttachment(file: File, locale: Locale = 'id'): Promise<string> {
+  const t = createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'composer' })
+
   const { blob } = await toReferenceJpeg(file)
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(reader.error ?? new Error('Gambar gagal dibaca'))
+    reader.onerror = () => reject(reader.error ?? new Error(t('message1')))
     reader.readAsDataURL(blob)
   })
 }
@@ -67,6 +75,13 @@ export function Composer({
   onSend,
   children,
 }: ComposerProps) {
+  const t = useTranslations('editor.composer')
+  const locale = useLocale()
+
+  const SEND_HINT = t('message2')
+
+  const ATTACH_PLACEHOLDER = t('message3')
+
   const [ownText, setOwnText] = useState('')
   const text = heldText ?? ownText
   const [staged, setStaged] = useState<string | null>(null)
@@ -106,15 +121,15 @@ export function Composer({
   async function attach(file: File | undefined) {
     if (!file) return
     if (!file.type.startsWith('image/')) {
-      setAttachError('Lampiran harus berupa gambar.')
+      setAttachError(t('message4'))
       return
     }
     setReading(true)
     setAttachError(null)
     try {
-      setStaged(await toAttachment(file))
+      setStaged(await toAttachment(file, locale))
     } catch {
-      setAttachError('Gambar gagal dibaca. Coba gambar lain.')
+      setAttachError(t('message5'))
     } finally {
       setReading(false)
     }
@@ -146,20 +161,20 @@ export function Composer({
       {attachment && (
         <div className="mb-2 flex items-center gap-2">
           <span className="relative shrink-0">
-            <MediaImage src={attachment} alt="Gambar lampiran" className="size-14 rounded-lg border border-hairline object-cover" />
+            <MediaImage src={attachment} alt={t('message6')} className="size-14 rounded-lg border border-hairline object-cover" />
             <button
               type="button"
               onClick={() => {
                 setStaged(null)
                 setAttachError(null)
               }}
-              aria-label="Hapus lampiran"
+              aria-label={t('message7')}
               className="absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full bg-ink text-white"
             >
               <X size={12} aria-hidden="true" />
             </button>
           </span>
-          <span className="text-xs text-ink-muted">Gambar terlampir. Tulis mau dipakai untuk apa.</span>
+          <span className="text-xs text-ink-muted">{t('message8')}</span>
         </div>
       )}
       <div className="max-h-[30vh] overflow-y-auto md:max-h-[40vh] overscroll-contain [scrollbar-width:thin]">
@@ -191,8 +206,8 @@ export function Composer({
               type="button"
               onClick={() => picker.current?.click()}
               disabled={reading || readOnly}
-              aria-label="Lampirkan gambar"
-              title="Lampirkan gambar, atau tempel screenshot di kolom teks"
+              aria-label={t('message9')}
+              title={t('message10')}
               className="rounded-full p-1.5 text-ink-muted transition-colors hover:bg-zinc-100 hover:text-ink disabled:opacity-60"
             >
               {reading ? (
@@ -217,13 +232,13 @@ export function Composer({
           role={busy ? 'status' : attachError ? 'alert' : undefined}
           className={`min-w-0 flex-1 truncate text-xs ${attachError && !busy ? 'text-red-700' : 'text-ink-muted'}`}
         >
-          {busy ? (busyLabel ?? 'Memproses…') : idle}
+          {busy ? (busyLabel ?? t('message11')) : idle}
         </span>
         {busy && onCancel ? <CancelGenerationButton onClick={onCancel} pending={cancelling} /> : <button
           type="button"
           onClick={() => void send()}
           disabled={!canSend}
-          aria-label="Kirim"
+          aria-label={t('message12')}
           title={SEND_HINT}
           className={`flex size-9 shrink-0 items-center justify-center rounded-full text-white transition-colors ${canSend ? 'bg-accent hover:bg-accent-deep' : 'bg-zinc-300'}`}
         >

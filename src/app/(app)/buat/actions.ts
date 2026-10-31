@@ -1,5 +1,9 @@
 'use server'
 
+import { getLocale } from 'next-intl/server'
+
+import { getTranslations } from 'next-intl/server'
+
 import { refresh, revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireAccount, type AccountScope } from '@/lib/auth'
@@ -27,9 +31,12 @@ type Intent = 'draft' | 'schedule' | 'now'
 const isIntent = (value: unknown): value is Intent => value === 'draft' || value === 'schedule' || value === 'now'
 
 export async function savePostAction(_previous: SaveState, formData: FormData): Promise<SaveState> {
+  const t = await getTranslations('editor.actions')
+  const locale = await getLocale()
+
   const { userId, accountId } = await requireAccount()
   const intent = formData.get('intent')
-  if (!isIntent(intent)) return { error: 'Aksi tidak dikenal.' }
+  if (!isIntent(intent)) return { error: t('message1') }
 
   const id = formData.get('id')
   const postId = isUuid(id) ? id : null
@@ -45,26 +52,26 @@ export async function savePostAction(_previous: SaveState, formData: FormData): 
     targets = postId ? await getPostTargets(userId, postId) : null
   } catch (error) {
     console.error('[buat] platform post gagal dibaca:', describeError(error))
-    return { error: 'Post gagal disimpan. Coba lagi.' }
+    return { error: t('message2') }
   }
   const instagram = targets?.instagram ?? true
 
-  const errors = inspectCaption(caption).errors
-  if (intent !== 'now' && rawSchedule && !scheduledAt) errors.push('Tanggal dan jam tidak valid.')
-  if (assetIds.length > MAX_MEDIA) errors.push('Maksimal 10 foto.')
-  if (intent !== 'draft' && instagram && assetIds.length === 0) errors.push('Pilih minimal 1 foto.')
-  if (intent === 'schedule' && !rawSchedule) errors.push('Isi tanggal dan jam jadwal.')
+  const errors = inspectCaption(caption, locale).errors
+  if (intent !== 'now' && rawSchedule && !scheduledAt) errors.push(t('message3'))
+  if (assetIds.length > MAX_MEDIA) errors.push(t('message4'))
+  if (intent !== 'draft' && instagram && assetIds.length === 0) errors.push(t('message5'))
+  if (intent === 'schedule' && !rawSchedule) errors.push(t('message6'))
   if (intent === 'schedule' && scheduledAt && scheduledAt.getTime() < Date.now() - PAST_TOLERANCE_MS) {
-    errors.push('Jadwal sudah lewat. Pilih waktu lain atau Terbitkan sekarang.')
+    errors.push(t('message7'))
   }
   if (errors.length > 0) return { error: errors.join(' ') }
 
   let savedId: string
   try {
     // save_post replaces the photo list, which would drop an AI slide that lands meanwhile.
-    if (postId && (await hasSlidesInProgress(userId, postId))) return { error: 'Tunggu semua slide selesai dibuat.' }
+    if (postId && (await hasSlidesInProgress(userId, postId))) return { error: t('message8') }
     if (postId && intent !== 'draft' && targets?.threads) {
-      const problem = await scheduleProblem(userId, accountId, { postId, instagram, threads: true, caption, assetIds })
+      const problem = await scheduleProblem(userId, accountId, { postId, instagram, threads: true, caption, assetIds }, locale)
       if (problem) return { error: problem }
     }
     savedId = await savePost(userId, {
@@ -73,11 +80,11 @@ export async function savePostAction(_previous: SaveState, formData: FormData): 
       status: intent === 'draft' ? 'draft' : 'scheduled',
       scheduledAt,
       assetIds,
-    })
+    }, locale)
   } catch (error) {
     if (error instanceof PostLockedError) return { error: error.message }
     console.error('[buat] simpan gagal:', describeError(error))
-    return { error: 'Post gagal disimpan. Coba lagi.' }
+    return { error: t('message2') }
   }
   revalidatePath('/buat', 'layout')
   redirect(`/buat?id=${savedId}&ok=${intent}`)
@@ -114,6 +121,7 @@ export async function retryPostAction(formData: FormData): Promise<void> {
  * version failed or was switched on afterwards: it goes now, after the same checks as scheduling.
  */
 export async function publishThreadsNowAction(formData: FormData): Promise<void> {
+  const locale = await getLocale()
   await runPostAction(formData, 'threads', async ({ userId, accountId }, id) => {
     const post = await getPost(userId, id)
     if (!post?.threads?.enabled || !post.instagramEnabled) return false
@@ -124,7 +132,7 @@ export async function publishThreadsNowAction(formData: FormData): Promise<void>
       threads: true,
       caption: post.caption,
       assetIds: post.media.map((item) => item.assetId),
-    })
+    }, locale)
     return problem === null && publishThreadsNow(userId, id)
   })
 }
@@ -134,21 +142,23 @@ export async function publishThreadsNowAction(formData: FormData): Promise<void>
  * null once saved.
  */
 export async function setPlatformsAction(input: unknown): Promise<string | null> {
+  const t = await getTranslations('editor.actions')
+
   const { userId, accountId } = await requireAccount()
   const fields = (typeof input === 'object' && input !== null ? input : {}) as Record<string, unknown>
   const { postId, instagram, threads, story } = fields
   if (!isUuid(postId) || typeof instagram !== 'boolean' || typeof threads !== 'boolean' || typeof story !== 'boolean') {
-    return 'Permintaan tidak valid.'
+    return t('message9')
   }
   try {
     if (threads && (await getThreadsConnection(userId, accountId))?.status !== 'active') {
-      return 'Hubungkan Threads dulu di Pengaturan.'
+      return t('message10')
     }
     await setPostPlatforms(userId, postId, instagram, threads, story)
   } catch (error) {
     if (error instanceof PlatformError) return error.message
     console.error('[buat] platform gagal disimpan:', describeError(error))
-    return 'Platform gagal disimpan. Coba lagi.'
+    return t('message11')
   }
   refresh()
   return null
@@ -180,15 +190,17 @@ export async function deletePostAction(formData: FormData): Promise<void> {
 
 /** Client mutations use the same guarded delete without waiting for a redirect/render round trip. */
 export async function deletePostNowAction(id: unknown): Promise<string | null> {
+  const t = await getTranslations('editor.actions')
+
   const { userId } = await requireAccount()
-  if (!isUuid(id)) return 'Post tidak ditemukan.'
+  if (!isUuid(id)) return t('message12')
   const deleted = await getPost(userId, id)
     .then((post) => (post?.threads?.status === 'publishing' ? false : deletePost(userId, id)))
     .catch((error: unknown) => {
       console.error('[buat] hapus gagal:', describeError(error))
       return false
     })
-  if (!deleted) return 'Post gagal dihapus. Coba lagi.'
+  if (!deleted) return t('message13')
   revalidatePath('/buat', 'layout')
   return null
 }

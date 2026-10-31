@@ -1,4 +1,5 @@
 import 'server-only'
+import { languagePrompt, type Locale } from './ai-language'
 import { AiOutputError, readJson, runLogged, snippetOf } from './ai'
 import { visualBatches } from './asset-ai'
 import type { ReferenceLabel } from './brand-options'
@@ -29,7 +30,7 @@ const LABEL_LINES = [
   '- single: post satu gambar atau desain umum yang cocok untuk slide mana saja.',
 ]
 
-export function buildTemplateMessages(templates: { id: string; dataUrl: string }[]): ChatMessage[] {
+export function buildTemplateMessages(templates: { id: string; dataUrl: string }[], language: Locale = 'id'): ChatMessage[] {
   const parts: ContentPart[] = [
     {
       type: 'text',
@@ -39,7 +40,7 @@ export function buildTemplateMessages(templates: { id: string; dataUrl: string }
         ...STYLE_LINES,
         'Label slide:',
         ...LABEL_LINES,
-        `Tambahkan "note": deskripsi layout singkat dalam bahasa Indonesia, maksimal ${NOTE_MAX_LENGTH} karakter (posisi teks, panel, foto, elemen grafis).`,
+        `Tambahkan "note": deskripsi layout singkat dalam ${language === 'en' ? 'English' : 'bahasa Indonesia'}, maksimal ${NOTE_MAX_LENGTH} karakter (posisi teks, panel, foto, elemen grafis).`,
         'Gunakan ID persis seperti yang diberikan. Setiap ID harus muncul tepat sekali.',
         'Format JSON: {"templates":{"<id>":{"styles":["…"],"label":"cover|isi|cta|single","note":"…"}}}',
       ].join('\n'),
@@ -53,7 +54,7 @@ export function buildTemplateMessages(templates: { id: string; dataUrl: string }
     parts.push({ type: 'image_url', image_url: { url: template.dataUrl } })
   }
   return [
-    { role: 'system', content: SYSTEM },
+    { role: 'system', content: languagePrompt(SYSTEM, language) },
     { role: 'user', content: parts },
   ]
 }
@@ -93,6 +94,7 @@ export function readTemplateAnalyses(content: string, expectedIds: string[]): Ma
 export async function classifyDesigns(
   userId: string,
   images: { id: string; dataUrl: string }[],
+  language: Locale = 'id',
 ): Promise<Map<string, TemplateAnalysis>> {
   const read = new Map<string, TemplateAnalysis>()
   let failure: unknown = null
@@ -104,7 +106,7 @@ export async function classifyDesigns(
         'reference_labels',
         { count: ids.length },
         async () => {
-          const content = await chatCompletion(buildTemplateMessages(batch))
+          const content = await chatCompletion(buildTemplateMessages(batch, language))
           const found = readTemplateAnalyses(content, ids)
           if (found.size === 0) throw new AiOutputError(snippetOf(content))
           return found
@@ -133,7 +135,7 @@ const UNREAD = 'AI tidak memberi gaya atau label yang dikenal. Atur manual atau 
  * Sorts templates into design styles and a label: the given ones, or every pending one. One request per batch,
  * logged under the admin and never charged. A batch that fails marks its templates failed; the others go on.
  */
-export async function analyzeTemplates(adminId: string, ids: string[] | null): Promise<AnalysisResult> {
+export async function analyzeTemplates(adminId: string, ids: string[] | null, language: Locale = 'id'): Promise<AnalysisResult> {
   const result: AnalysisResult = { analyzed: 0, failed: 0 }
   const images = await loadTemplateImages(await listTemplatesToAnalyze(ids))
   const batches = visualBatches(images)
@@ -151,7 +153,7 @@ export async function analyzeTemplates(adminId: string, ids: string[] | null): P
         'template_analysis',
         { templateIds: batchIds, count: batchIds.length },
         async () => {
-          const content = await chatCompletion(buildTemplateMessages(batch))
+          const content = await chatCompletion(buildTemplateMessages(batch, language))
           const read = readTemplateAnalyses(content, batchIds)
           if (read.size === 0) throw new AiOutputError(snippetOf(content))
           return read

@@ -1,0 +1,248 @@
+{
+  "faq": {
+    "audienceAnswer": "Untuk pemilik UMKM, kreator, dan pengelola media sosial yang ingin menyiapkan konten serta mengelola Instagram dari satu tempat. Kamu bisa mulai dari ide sederhana, foto produk, atau bahan konten yang sudah ada.",
+    "demoAnswer": "Preview ini adalah demo interaktif dengan data ilustrasi. Mencoba ide, melihat jadwal, atau mengirim balasan di demo tidak membuat konten maupun mengirim pesan ke akun Instagram sungguhan.",
+    "accountAnswer": "Gunakan akun Instagram Business atau Creator. Hubungkan akun melalui alur resmi Instagram di pengaturan Carousely dan berikan izin yang diperlukan untuk fitur publikasi serta pesan.",
+    "startAnswer": "Buat akun, ikuti proses langganan di aplikasi, lalu lengkapi brand dan hubungkan Instagram kamu. Informasi paket dan biaya tersedia pada langkah langganan sebelum pembayaran.",
+    "aiAnswer": "Tidak. Hasil AI adalah bahan kerja yang bisa kamu tinjau dan edit. Kamu tetap menentukan konten mana yang dipakai dan kapan konten dijadwalkan untuk tayang.",
+    "demoQuestion": "Apakah preview di halaman ini terhubung ke akun asli?",
+    "accountQuestion": "Akun Instagram apa yang bisa dihubungkan?",
+    "aiQuestion": "Apakah konten AI langsung dipublikasikan?",
+    "startQuestion": "Bagaimana cara mulai memakai Carousely?",
+    "audienceQuestion": "Carousely cocok untuk siapa?",
+    "subtitle2": "sebelum mulai berkarya.",
+    "subtitle1": "Kenalan sedikit lagi",
+    "title": "Masih penasaran?"
+  },
+  "features": {
+    "mimo": {
+      "body": "Punya bahan mentah, tapi belum tahu mau dibikin apa? Ajak Mimo ngobrol. Ubah topik sederhana jadi ide, caption, dan konsep konten yang terasa seperti brand kamu.",
+      "point1": "Mulai dari percakapan, bukan halaman kosong",
+      "point2": "Kembangkan ide jadi draf yang bisa diedit",
+      "point3": "Kamu yang pegang keputusan akhirnya",
+      "link": "Kenalan dengan Mimo",
+      "title": "Buntu ide?\nPanggil Mimo."
+    },
+    "kalender": {
+      "body": "Lihat gambaran besar konten kamu dalam satu kalender. Atur tanggal, cek status, dan siapkan jadwal publikasi tanpa harus mengingat semuanya sendiri.",
+      "point1": "Semua jadwal terlihat dalam satu tempat",
+      "point2": "Atur waktu tayang sesuai kebutuhanmu",
+      "point3": "Pantau status setiap konten",
+      "link": "Mulai atur jadwal",
+      "title": "Satu minggu.\nSudah ada rencana."
+    },
+    "balasan": {
+      "body": "Konten yang baik membuka percakapan. Kelola DM Instagram dan minta bantuan AI untuk menyusun balasan, sambil tetap menjaga sentuhan personal kamu.",
+      "point3": "Tinjau setiap jawaban sebelum dikirim",
+      "point1": "Baca percakapan dari satu inbox",
+      "point2": "Susun balasan dengan bantuan AI",
+      "link": "Rapikan percakapan",
+      "title": "Obrolan masuk.\nHubungan terjaga."
+    },
+    "disclaimer": "Semua isi preview adalah data ilustrasi. Coba tombol dan pilihan di dalam demo.",
+    "subtitle2": "Supaya energimu habis untuk berkarya, bukan mengurus tab.",
+    "subtitle1": "Satu alur kerja yang nyambung.",
+    "title2": "jadi “sudah tayang, nih.”",
+    "explore": "Jelajahi fitur Carousely",
+    "title1": "Dari “posting apa, ya?”",
+    "repliesTab": "Balasan DM"
+  },
+  "brand": {
+    "body": "AI membantu merangkai. Kamu yang memberi karakter. Simpan identitas brand, pakai asetmu sendiri, dan ubah setiap draf sampai benar-benar pas.",
+    "link": "Bawa brand kamu ke Carousely",
+    "canvas": "Satu brand. Banyak cerita.",
+    "title2": "Di setiap postingan.",
+    "title1": "Tetap terasa kamu."
+  },
+  "inbox": {
+    "reply": "Cocok, kak! Pilih tempat dengan cahaya tidak langsung, ya. Mau kami bantu pilihkan tanaman untuk meja kerjanya?",
+    "incoming": "Halo, kak! Tanaman yang di postingan terakhir cocok buat di meja kerja nggak, ya?",
+    "sent": "Balasan demo terkirim. Tidak ada DM sungguhan yang dikirim.",
+    "review": "Tinjau dulu. Kirim saat sudah sesuai.",
+    "subtitle": "Percakapan Instagram",
+    "send": "Coba kirim balasan",
+    "example": "Contoh percakapan",
+    "suggestion": "Saran balasan AI",
+    "reset": "Ulangi demo"
+  },
+  "mimo": {
+    "plantReply": "Bagaimana kalau kita ajak audiens kenalan dengan kebutuhan tanamannya? Ini arah kontennya:",
+    "coffeeReply": "Bukan cuma soal kopinya. Ajak audiens menikmati jeda kecil di tengah hari mereka.",
+    "plantRequest": "Bantu bikin ide carousel tentang merawat tanaman untuk pemula, ya.",
+    "coffeeRequest": "Bikin ide konten kedai kopi yang hangat dan nggak terlalu jualan.",
+    "plantResult": "Kenali cahaya, atur air, dan beri ruang untuk tumbuh.",
+    "coffeeResultTitle": "Secangkir kopi. Sedikit waktu untuk diri sendiri.",
+    "coffeeReplyTitle": "Yuk, ceritakan momen di balik secangkir kopi.",
+    "coffeeResult": "Dari aroma pertama sampai obrolan terakhir.",
+    "plantReplyTitle": "Mulai dari hal kecil yang sering terlupa.",
+    "composer": "Pilih contoh ide di atas untuk mencoba",
+    "plantResultTitle": "Tanaman pertamamu, cerita barumu.",
+    "concept": "Konsep carousel · 5 slide",
+    "choose": "Pilih contoh percakapan",
+    "coffeePrompt": "Ide konten kedai kopi",
+    "partner": "Partner kreatif kamu",
+    "ready": "Siap kamu kembangkan",
+    "plantPrompt": "Ide konten tanaman"
+  },
+  "workflow": {
+    "brandBody": "Simpan karakter, gaya bahasa, dan bahan konten. Biar setiap ide punya arah yang sama.",
+    "mimoBody": "Mulai dari topik atau aset yang sudah ada. Kembangkan, edit, dan buat jadi versimu.",
+    "scheduleBody": "Tinjau konten, tentukan waktu tayang, dan ikuti percakapan yang datang setelahnya.",
+    "scheduleTitle": "Atur jadwal. Lanjut berkarya.",
+    "subtitle1": "Carousely mengurus alurnya.",
+    "subtitle2": "Ceritanya tetap punya kamu.",
+    "title2": "Bantu nemuin ritmemu.",
+    "mimoTitle": "Olah ide bareng Mimo",
+    "title1": "Bukan ganti gayamu.",
+    "brandTitle": "Kenalkan brand kamu"
+  },
+  "calendar": {
+    "hint": "Pilih konten untuk melihat jadwalnya, atau coba pindah minggu.",
+    "subtitle": "Semua ide punya waktunya.",
+    "purpleTitle": "Ide kecil, dampak besar",
+    "peachTitle": "Waktunya rehat sejenak",
+    "empty": "Ruang untuk ide baru",
+    "greenTitle": "Tumbuh pelan-pelan",
+    "previous": "Minggu sebelumnya",
+    "next": "Minggu berikutnya",
+    "title": "Kalender konten",
+    "weekView": "Tampilan minggu",
+    "photo": "Foto",
+    "range": "{range} Oktober 2026",
+    "mon": "Sen",
+    "tue": "Sel",
+    "wed": "Rab",
+    "thu": "Kam",
+    "fri": "Jum",
+    "feedback": "“{title}” dijadwalkan pada {day} Oktober. Ini adalah contoh jadwal.",
+    "morning": "09.00",
+    "noon": "12.00",
+    "afternoon": "16.00"
+  },
+  "cta": {
+    "body": "Kasih ruang untuk kreativitasmu. Carousely bantu sisanya.",
+    "start": "Mulai dengan Carousely",
+    "title2": "kita bikin bareng?",
+    "title1": "Ide berikutnya,"
+  },
+  "hero": {
+    "bottom": "Lebih banyak berkarya. Lebih sedikit pindah tab.",
+    "accountNote": "Untuk akun Instagram Business & Creator",
+    "scheduledAt": "Jumat, 23 Oktober · 16.00 WIB",
+    "postFooter": "Dari satu ide, jadi cerita.",
+    "mimoBody": "Kamu tinggal pilih idenya.",
+    "scheduled": "Konten sudah terjadwal",
+    "trust": "Integrasi API resmi",
+    "how": "Lihat cara kerjanya",
+    "mimoTitle": "Mimo bantu mikirin.",
+    "start": "Mulai bikin konten",
+    "behindScenes": "Behind the scenes",
+    "title2": "Konten tayang.",
+    "explore": "Jelajahi fitur",
+    "brandStories": "Cerita brand",
+    "tips": "Tips ringan",
+    "title1": "Ide jalan.",
+    "body": "Partner kreatif untuk Instagram kamu. Dari ide, bikin konten,<br></br> sampai jadwal tayang. Beres di Carousely."
+  },
+  "partners": {
+    "subtitle": "Brand yang sudah jalan bareng Carousely.",
+    "title": "Dipercaya oleh partner kami"
+  },
+  "dashboard": {
+    "tagline": "Ruang kerja kamu, lebih teratur.",
+    "navigation": "Ilustrasi navigasi aplikasi",
+    "greeting": "Selamat pagi, tim Akar",
+    "settings": "Pengaturan brand",
+    "workspace": "Workspace brand",
+    "preview": "Preview produk",
+    "create": "Buat konten",
+    "calendar": "Kalender",
+    "replies": "Balasan",
+    "assets": "Aset"
+  },
+  "art": {
+    "peachFooter": "Beri jeda untuk ide berikutnya.",
+    "purpleFooter": "Catatan kreatif untuk harimu.",
+    "greenFooter": "Ruang kecil. Cerita besar.",
+    "greenTitle2": "pelan-pelan.",
+    "peachTitle2": "Lanjut lagi.",
+    "peachTitle1": "Rehat dulu.",
+    "purpleTitle1": "Ide kecil,",
+    "greenTitle1": "Tumbuh",
+    "purpleTitle2": "dampak",
+    "purpleTitle3": "besar."
+  },
+  "footer": {
+    "tagline": "Teman kerja untuk ide-ide kamu.",
+    "reducedMotion": "Gerak minimal sistem",
+    "privacy": "Kebijakan privasi",
+    "enableMotion": "Aktifkan animasi",
+    "pauseMotion": "Jeda animasi"
+  },
+  "nav": {
+    "skip": "Langsung ke konten",
+    "home": "Carousely beranda",
+    "mobile": "Navigasi seluler",
+    "main": "Navigasi utama",
+    "start": "Mulai sekarang",
+    "accountLogin": "Masuk ke akun",
+    "faq": "Tanya jawab",
+    "workflow": "Cara kerja",
+    "close": "Tutup menu",
+    "open": "Buka menu",
+    "features": "Fitur",
+    "pricing": "Harga",
+    "login": "Masuk"
+  },
+  "capabilities": {
+    "ideas": "Ide & caption AI",
+    "schedule": "Jadwal publikasi",
+    "inbox": "Inbox Instagram",
+    "create": "Kreasi konten"
+  },
+  "demo": {
+    "interactive": "Demo interaktif"
+  },
+  "metadata": {
+    "title": "Carousely — Ide jalan, konten tayang.",
+    "description": "Dari ide pertama sampai konten tayang. Buat konten bersama AI Mimo, atur kalender, dan kelola balasan Instagram dalam satu workspace Carousely.",
+    "socialDescription": "Teman kerja untuk konten Instagram kamu. Bikin, jadwalkan, dan kelola dari satu tempat."
+  },
+  "pricing": {
+    "title1": "Pilih paketnya.",
+    "title2": "Mulai ceritamu.",
+    "subtitle1": "Dari konten pertama sampai kalender penuh.",
+    "subtitle2": "Pilih kuota yang pas untuk ritme brand kamu.",
+    "durationLabel": "Durasi paket",
+    "months": "{count, plural, other {# bulan}}",
+    "save": "Hemat {percent}%",
+    "empty": "Paket sedang diperbarui. Silakan kembali sebentar lagi.",
+    "features": {
+      "posts": "±{formattedCount} post setiap bulan",
+      "chatbot": "Mimo AI Chatbot",
+      "research": "Deep riset Instagram + Threads (segera untuk Threads)",
+      "creation": "Ide, skrip, carousel, gambar, dan caption AI",
+      "calendar": "Kalender dan penjadwalan konten",
+      "accounts": "1 akun Instagram + 1 akun Threads",
+      "analytics": "Analitik dan Auto DM Instagram",
+      "support": "Support prioritas 1-on-1",
+      "earlyAccess": "Early access fitur baru"
+    },
+    "descriptions": {
+      "pro": "Untuk rutin membuat dan menjadwalkan konten.",
+      "max": "Lebih banyak ruang untuk produksi dan riset konten."
+    },
+    "multiplier": "{count}× lebih banyak kuota AI",
+    "estimate": "Estimasi {count}+ post per bulan",
+    "review": "Siap kamu review tiap minggu.",
+    "perMonth": "/bulan",
+    "monthly": "Dibayar bulanan",
+    "total": "Total {amount} untuk {count} bulan",
+    "noRenewal": "Tanpa perpanjangan otomatis.",
+    "upfront": "Dibayar sekaligus, bukan cicilan.",
+    "choose": "Pilih {name}",
+    "paymentNote": "Pembayaran melalui Mayar · Kuota AI diperbarui bulanan · Riset direset pukul 00.00 WIB",
+    "estimateNote": "Estimasi jumlah post bergantung pada format konten, jumlah slide, dan penggunaan AI lainnya.",
+    "provisional": "Harga awal ditampilkan. Ketersediaan dan harga terbaru dikonfirmasi sebelum pembayaran."
+  }
+}

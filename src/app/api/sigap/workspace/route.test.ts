@@ -3,6 +3,11 @@ import { requireAccount } from '@/lib/auth'
 import { getSession, listMessages, listSessions } from '@/lib/chat'
 import { GET } from './route'
 
+vi.mock('next-intl/server', async () => {
+  const { createTranslator } = await import('next-intl')
+  const { default: mimo } = await import('../../../../../messages/id/mimo.json')
+  return { getTranslations: async (namespace: 'mimo.api') => createTranslator({ locale: 'id', messages: { mimo }, namespace }) }
+})
 vi.mock('@/lib/auth', () => ({ requireAccount: vi.fn() }))
 vi.mock('@/lib/chat', () => ({ getSession: vi.fn(), listMessages: vi.fn(), listSessions: vi.fn() }))
 vi.mock('@/lib/assets', () => ({ listProductGroups: vi.fn() }))

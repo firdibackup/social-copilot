@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import { refreshAnalytics, type RefreshResult } from './actions'
@@ -7,7 +8,6 @@ import { refreshAnalytics, type RefreshResult } from './actions'
 const BUTTON =
   'inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:opacity-50'
 
-const UNREACHABLE: RefreshResult = { status: 'error', message: 'Gagal menghubungi server. Coba lagi.' }
 
 interface SyncPanelProps {
   /** The page title and description, left of the button. */
@@ -21,17 +21,18 @@ interface SyncPanelProps {
 
 /** The header with Refresh, and one line under it with what the last sync did. */
 export function SyncPanel({ children, canSync, shouldSyncNow, lastSync }: SyncPanelProps) {
+  const t = useTranslations('analytics.sync')
   const [pending, startTransition] = useTransition()
   const [result, setResult] = useState<RefreshResult | null>(null)
   const hasAutoSynced = useRef(false)
 
   const sync = useCallback((isAuto: boolean) => {
     startTransition(async () => {
-      const next = await refreshAnalytics().catch(() => UNREACHABLE)
+      const next = await refreshAnalytics().catch((): RefreshResult => ({ status: 'error', message: t('unreachable') }))
       // The page's own sync stays quiet when another one just ran.
       if (!(isAuto && next.status === 'cooldown')) setResult(next)
     })
-  }, [])
+  }, [t])
 
   useEffect(() => {
     if (!shouldSyncNow || hasAutoSynced.current) return
@@ -39,14 +40,14 @@ export function SyncPanel({ children, canSync, shouldSyncNow, lastSync }: SyncPa
     sync(true)
   }, [shouldSyncNow, sync])
 
-  const status = pending ? 'Menyinkronkan post dan insights dari Instagram…' : (result?.message ?? lastSync)
+  const status = pending ? t('pending') : (result?.message ?? lastSync)
   return (
     <div className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-4">
         {children}
         <button type="button" onClick={() => sync(false)} disabled={!canSync || pending} className={BUTTON}>
           <RefreshCw size={16} aria-hidden="true" className={pending ? 'animate-spin' : undefined} />
-          Refresh
+          {t('refresh')}
         </button>
       </header>
       <p

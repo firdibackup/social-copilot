@@ -1,3 +1,10 @@
+import { createTranslator } from 'next-intl'
+import type { Locale } from '@/i18n/locale-config'
+import idInbox from '../../messages/id/inbox.json'
+import enInbox from '../../messages/en/inbox.json'
+
+const ruleTranslations = (locale: Locale) => createTranslator({ locale, messages: locale === 'en' ? enInbox : idInbox, namespace: 'validation' })
+
 /** Auto DM rules: their shape, validation, matching and the DMs they send. Pure, so the form and tests share it. */
 
 export const NAME_MAX_LENGTH = 60
@@ -19,7 +26,6 @@ export const EXAMPLE_KEYWORDS = ['MAU', 'LINK', 'HARGA'] as const
 const PAYLOAD_PREFIX = 'autodm:'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const NUMERIC_ID = /^\d+$/
-const UNREADABLE = 'Data aturan tidak terbaca.'
 // Letters and digits on either side mean the keyword is only part of a longer word.
 const WORD_EDGE = '[\\p{L}\\p{N}]'
 
@@ -150,54 +156,58 @@ const isHttpsUrl = (value: string) => {
   }
 }
 
-function buttonProblem(enabled: boolean, title: string, missing: string): string | null {
+function buttonProblem(enabled: boolean, title: string, missing: string, locale: Locale): string | null {
+  const t = ruleTranslations(locale)
   if (enabled && !title.trim()) return missing
-  return title.length > BUTTON_MAX_LENGTH ? `Teks tombol maksimal ${BUTTON_MAX_LENGTH} karakter.` : null
+  return title.length > BUTTON_MAX_LENGTH ? t('buttonLimit', { max: BUTTON_MAX_LENGTH }) : null
 }
 
-function textProblem(enabled: boolean, text: string, missing: string, max: number): string | null {
+function textProblem(enabled: boolean, text: string, missing: string, max: number, locale: Locale): string | null {
+  const t = ruleTranslations(locale)
   if (enabled && !text.trim()) return missing
   if (text.length <= max) return null
   return max === TEMPLATE_TEXT_MAX_LENGTH
-    ? `Pesan dengan tombol maksimal ${max} karakter.`
-    : `Pesan maksimal ${max} karakter.`
+    ? t('templateLimit', { max: max })
+    : t('textLimit', { max: max })
 }
 
-function triggerProblem(rule: AutoDmRuleInput): string | null {
-  if (!rule.name.trim()) return 'Isi nama otomatisasi.'
-  if (rule.name.length > NAME_MAX_LENGTH) return `Nama maksimal ${NAME_MAX_LENGTH} karakter.`
-  if (rule.scope === 'one' && !(rule.mediaId && NUMERIC_ID.test(rule.mediaId))) return 'Pilih post-nya dulu.'
-  if (!rule.matchAny && !rule.keywords.some((keyword) => keyword.trim())) return 'Tambah minimal satu kata kunci.'
-  if (rule.keywords.length > MAX_KEYWORDS) return `Maksimal ${MAX_KEYWORDS} kata kunci.`
+function triggerProblem(rule: AutoDmRuleInput, locale: Locale): string | null {
+  const t = ruleTranslations(locale)
+  if (!rule.name.trim()) return t('nameRequired')
+  if (rule.name.length > NAME_MAX_LENGTH) return t('nameLimit', { max: NAME_MAX_LENGTH })
+  if (rule.scope === 'one' && !(rule.mediaId && NUMERIC_ID.test(rule.mediaId))) return t('postRequired')
+  if (!rule.matchAny && !rule.keywords.some((keyword) => keyword.trim())) return t('keywordRequired')
+  if (rule.keywords.length > MAX_KEYWORDS) return t('keywordCount', { max: MAX_KEYWORDS })
   if (rule.keywords.some((keyword) => keyword.length > KEYWORD_MAX_LENGTH)) {
-    return `Kata kunci maksimal ${KEYWORD_MAX_LENGTH} karakter.`
+    return t('keywordLimit', { max: KEYWORD_MAX_LENGTH })
   }
-  if (rule.publicReply && !rule.publicReplies.some((reply) => reply.trim())) return 'Isi minimal satu balasan komentar.'
-  if (rule.publicReplies.length > MAX_VARIATIONS) return `Maksimal ${MAX_VARIATIONS} variasi balasan.`
+  if (rule.publicReply && !rule.publicReplies.some((reply) => reply.trim())) return t('replyRequired')
+  if (rule.publicReplies.length > MAX_VARIATIONS) return t('replyCount', { max: MAX_VARIATIONS })
   if (rule.publicReplies.some((reply) => reply.length > VARIATION_MAX_LENGTH)) {
-    return `Balasan komentar maksimal ${VARIATION_MAX_LENGTH} karakter.`
+    return t('replyLimit', { max: VARIATION_MAX_LENGTH })
   }
   return null
 }
 
-function messageProblem(rule: AutoDmRuleInput): string | null {
+function messageProblem(rule: AutoDmRuleInput, locale: Locale): string | null {
+  const t = ruleTranslations(locale)
   const mainMax = rule.linkButton ? TEMPLATE_TEXT_MAX_LENGTH : TEXT_MAX_LENGTH
   return (
-    textProblem(rule.opener, rule.openerText, 'Isi pesan pembuka.', TEMPLATE_TEXT_MAX_LENGTH) ??
-    buttonProblem(rule.opener, rule.openerButton, 'Isi teks tombol pesan pembuka.') ??
-    textProblem(rule.followGate, rule.followText, 'Isi pesan ajakan follow.', TEMPLATE_TEXT_MAX_LENGTH) ??
-    buttonProblem(rule.followGate, rule.followButton, 'Isi teks tombol ajakan follow.') ??
-    textProblem(true, rule.mainText, 'Isi pesan utamanya.', mainMax) ??
-    buttonProblem(rule.linkButton, rule.linkText, 'Isi teks tombol link.') ??
+    textProblem(rule.opener, rule.openerText, t('openerRequired'), TEMPLATE_TEXT_MAX_LENGTH, locale) ??
+    buttonProblem(rule.opener, rule.openerButton, t('openerButtonRequired'), locale) ??
+    textProblem(rule.followGate, rule.followText, t('followRequired'), TEMPLATE_TEXT_MAX_LENGTH, locale) ??
+    buttonProblem(rule.followGate, rule.followButton, t('followButtonRequired'), locale) ??
+    textProblem(true, rule.mainText, t('mainRequired'), mainMax, locale) ??
+    buttonProblem(rule.linkButton, rule.linkText, t('linkButtonRequired'), locale) ??
     (rule.linkUrl.length > URL_MAX_LENGTH || (rule.linkButton && !isHttpsUrl(rule.linkUrl.trim()))
-      ? 'Link tujuan harus berupa alamat https://.'
+      ? t('urlInvalid')
       : null)
   )
 }
 
 /** What still keeps the rule from being saved, or null. Required fields count only in enabled sections. */
-export function ruleProblem(rule: AutoDmRuleInput): string | null {
-  return triggerProblem(rule) ?? messageProblem(rule)
+export function ruleProblem(rule: AutoDmRuleInput, locale: Locale = 'id'): string | null {
+  return triggerProblem(rule, locale) ?? messageProblem(rule, locale)
 }
 
 /** Trimmed, keywords deduped ignoring capitals, empty variations dropped, a post only for "Satu post". */
@@ -242,8 +252,9 @@ const STRING_FIELDS = [
 const BOOLEAN_FIELDS = ['matchAny', 'wholeWord', 'dmTrigger', 'publicReply', 'opener', 'followGate', 'linkButton'] as const
 
 /** The rule the browser sent, checked field by field, normalized and validated. */
-export function parseRuleInput(value: unknown): { rule: AutoDmRuleInput } | { error: string } {
-  if (!isObject(value)) return { error: UNREADABLE }
+export function parseRuleInput(value: unknown, locale: Locale = 'id'): { rule: AutoDmRuleInput } | { error: string } {
+  const t = ruleTranslations(locale)
+  if (!isObject(value)) return { error: t('unreadable') }
   const { scope, mediaId, keywords, publicReplies } = value
   const isShaped =
     STRING_FIELDS.every((field) => typeof value[field] === 'string') &&
@@ -252,10 +263,10 @@ export function parseRuleInput(value: unknown): { rule: AutoDmRuleInput } | { er
     (mediaId === null || typeof mediaId === 'string') &&
     isStringArray(keywords) &&
     isStringArray(publicReplies)
-  if (!isShaped) return { error: UNREADABLE }
+  if (!isShaped) return { error: t('unreadable') }
 
   const rule = normalizeRule(value as unknown as AutoDmRuleInput)
-  const problem = ruleProblem(rule)
+  const problem = ruleProblem(rule, locale)
   return problem ? { error: problem } : { rule }
 }
 

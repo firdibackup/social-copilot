@@ -1,3 +1,6 @@
+import { useTranslations } from 'next-intl'
+import { getLocale } from 'next-intl/server'
+import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 import { connection } from 'next/server'
 import { currentPeriod, requireUser } from '@/lib/auth'
@@ -28,15 +31,16 @@ export async function CreditMeter() {
 }
 
 export function CreditBar({ percent }: { percent: number | null }) {
+  const t = useTranslations('shell')
   return (
-    <Link href="/pengaturan#paket" className="block space-y-1.5 rounded-lg px-3 py-2 transition-colors hover:bg-white">
+    <Link href="/pengaturan#paket" className="block min-h-11 space-y-2 rounded-[10px] px-3 py-2 transition-colors duration-150 hover:bg-white/70 focus-visible:outline-2 focus-visible:outline-offset-[-2px]">
       <span className="flex justify-between text-xs">
-        <span className="text-ink-muted">Kuota AI</span>
-        <span className="font-medium text-ink">{percent === null ? '–' : `${percent}% terpakai`}</span>
+        <span className="text-ink-muted">{t('quota')}</span>
+        <span className="font-medium text-ink">{percent === null ? '–' : t('used', { percent })}</span>
       </span>
-      <span className="block h-1.5 overflow-hidden rounded-full bg-zinc-200/80" role="presentation">
+      <span className="block h-1.5 overflow-hidden rounded-full bg-[#e3e0f5]" role="presentation">
         <span
-          className={`block h-full rounded-full transition-[width] duration-300 ${percent !== null && percent >= 90 ? 'bg-amber-500' : 'bg-accent'}`}
+          className={`block h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none ${percent !== null && percent >= 90 ? 'bg-amber-500' : 'bg-signature'}`}
           style={{ width: `${percent ?? 0}%` }}
         />
       </span>
@@ -56,14 +60,15 @@ async function loadRenewal(): Promise<{ daysLeft: number; activeUntil: Date } | 
 
 /** A strip under the header of every app page near the end; there is no email reminder without SMTP. */
 export async function RenewalBanner() {
+  const t = await getTranslations('shell')
+  const locale = await getLocale()
   const renewal = await loadRenewal()
   if (!renewal) return null
   return (
     <p role="status" className="border-b border-amber-200 bg-amber-50 px-5 py-2 text-sm text-amber-800">
-      Langganan berakhir {renewal.daysLeft <= 1 ? 'dalam 1 hari' : `${renewal.daysLeft} hari lagi`} (
-      {formatDateTime(renewal.activeUntil)}).{' '}
+      {t('renewal', { days: Math.max(1, renewal.daysLeft), date: formatDateTime(renewal.activeUntil, locale) })}{' '}
       <Link href="/pengaturan?billing=perpanjang" className="font-medium underline">
-        Perpanjang
+        {t('renew')}
       </Link>
     </p>
   )

@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { LoaderCircle, Send, Smile, Sparkles } from 'lucide-react'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { Avatar } from '@/components/avatar'
@@ -40,6 +42,7 @@ export function Composer({
   draft,
   autoFocus = false,
 }: ComposerProps) {
+  const t = useTranslations('inbox.composer')
   const [text, setText] = useState('')
   const [busy, setBusy] = useState<'send' | 'ai' | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -78,7 +81,7 @@ export function Composer({
     if (busy || text.trim() === '') return
     setBusy('send')
     setError(null)
-    const failure = await send(text).catch(() => 'Gagal mengirim. Coba lagi.')
+    const failure = await send(text).catch(() => t('couldnTSendTryAgain'))
     setBusy(null)
     if (failure) {
       setError(failure)
@@ -91,7 +94,7 @@ export function Composer({
     if (busy) return
     setBusy('ai')
     setError(null)
-    const result = await draft(text).catch((): DraftResult => ({ error: 'Gagal menghubungi server. Coba lagi.' }))
+    const result = await draft(text).catch((): DraftResult => ({ error: t('couldnTReachTheServerTryAgain') }))
     setBusy(null)
     if ('error' in result) {
       setError(result.error)
@@ -135,7 +138,7 @@ export function Composer({
               <button
                 type="button"
                 onClick={() => setEmojiOpen(!emojiOpen)}
-                aria-label="Sisipkan emoji"
+                aria-label={t('insertEmoji')}
                 aria-expanded={emojiOpen}
                 className={ICON_BUTTON}
               >
@@ -160,18 +163,18 @@ export function Composer({
               type="button"
               onClick={askAi}
               disabled={busy !== null}
-              title={text.trim() ? 'Rapikan dengan AI (1 kredit)' : 'Tulis draf dengan AI (1 kredit)'}
+              title={text.trim() ? t('polishWithAi1Credit') : t('draftWithAi1Credit')}
               className="inline-flex h-8 items-center gap-1 rounded-full px-2.5 text-sm font-medium text-accent transition-colors hover:bg-accent-soft disabled:opacity-50"
             >
               <Sparkles size={16} aria-hidden="true" className={busy === 'ai' ? 'animate-pulse' : undefined} />
-              {busy === 'ai' ? 'Menulis…' : 'AI'}
+              {busy === 'ai' ? t('writing') : 'AI'}
             </button>
             <button
               type="button"
               onClick={submit}
               disabled={busy !== null || text.trim() === ''}
-              aria-label={busy === 'send' ? 'Mengirim…' : 'Kirim (Ctrl/⌘ + Enter)'}
-              title="Kirim (Ctrl/⌘ + Enter)"
+              aria-label={busy === 'send' ? t('sending') : t('sendCtrlEnter')}
+              title={t('sendCtrlEnter')}
               className="inline-flex size-9 items-center justify-center rounded-full bg-accent text-white transition-colors hover:bg-accent-deep disabled:opacity-50"
             >
               {busy === 'send' ? <LoaderCircle size={16} className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Send size={16} aria-hidden="true" />}

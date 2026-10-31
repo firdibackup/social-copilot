@@ -1,4 +1,5 @@
 import 'server-only'
+import { languagePrompt, type Locale } from './ai-language'
 import { aiErrorMessage, cleanList, describeBrand, loadAccountBrandContext, quote, runLogged } from './ai'
 import {
   ApifyError,
@@ -30,7 +31,7 @@ import { DEFAULT_SLIDES, MAX_SLIDES } from './content-options'
 import { getDensityDefault } from './density'
 import { DEFAULT_DENSITY, type TextDensity } from './density-options'
 import { ConfigError, describeError } from './errors'
-import { parseInstagramUsername } from './facebook'
+import { parseInstagramUsername } from './instagram'
 import { formatLongDay, wibDateKey } from './format'
 import { addIdea, deleteAccountIdea, getAccountIdea, reviseAccountIdea, saveAccountIdeaScript } from './ideas'
 import { chatCompletion, chatWithTools, webSearch, type ContentPart, type ConversationMessage, type ToolCall, type ToolSchema } from './nine-router'
@@ -323,9 +324,9 @@ const DEEP_SEARCH_OFF =
   '- Intel Kompetitor (riset akun Instagram lain) sedang mati. Kalau owner minta riset akun kompetitor, minta dia menyalakan tombol Intel Kompetitor di kotak pesan.'
 
 /** Mimo's system prompt: the rules, the brand, today, and what came before the verbatim messages. */
-export function buildSystemPrompt(brand: BrandContext | null, deepSearch: boolean, summary: string, now: Date): string {
+export function buildSystemPrompt(brand: BrandContext | null, deepSearch: boolean, summary: string, now: Date, language: Locale = 'id'): string {
   const today = wibDateKey(now)
-  return [
+  return languagePrompt([
     ...SYSTEM_RULES,
     deepSearch ? DEEP_SEARCH_ON : DEEP_SEARCH_OFF,
     '',
@@ -334,7 +335,7 @@ export function buildSystemPrompt(brand: BrandContext | null, deepSearch: boolea
     '',
     brand ? describeBrand(brand).trimEnd() : 'Brand belum diisi. Sarankan owner melengkapi menu Brand supaya jawaban lebih sesuai bisnisnya.',
     ...(summary ? ['', `Ringkasan percakapan sebelumnya:\n${quote(summary)}`] : []),
-  ].join('\n')
+  ].join('\n'), language)
 }
 
 const PART_TEXT_LENGTH = 120
@@ -428,6 +429,7 @@ function userContent(turn: UserTurn): string | ContentPart[] {
 }
 
 interface ToolContext {
+  language: Locale
   userId: string
   accountId: string
   brand: BrandContext | null
@@ -474,7 +476,7 @@ async function runWebSearch(context: ToolContext, args: Json): Promise<ToolOutco
 async function runContentStatus(context: ToolContext, args: Json): Promise<ToolOutcome> {
   const topic = text(args.topic, 200)
   if (!topic) return { part: null, result: 'Gagal: topic kosong.' }
-  const items = await findContent(context.userId, context.accountId, topic)
+  const items = await findContent(context.userId, context.accountId, topic, context.language)
   return {
     part: { type: 'content_status', query: topic, items },
     result: items.length > 0 ? JSON.stringify(items) : 'Belum ada post atau ide dengan topik ini.',
@@ -491,8 +493,8 @@ async function runScheduleContent(context: ToolContext, args: Json): Promise<Too
   }
   const from = args.from ? parseWibInput(String(args.from)) : null
   if (args.from && !from) return failure('schedule_content', 'Waktu mulai tidak valid. Gunakan waktu WIB.')
-  const selected = refs.length ? refs.slice(0, MAX_SCHEDULE_ITEMS) : await discoverScheduleRefs(context.userId, context.accountId, text(args.topic, 200))
-  const data = await loadScheduleData(context.userId, context.accountId, selected, from ?? undefined)
+  const selected = refs.length ? refs.slice(0, MAX_SCHEDULE_ITEMS) : await discoverScheduleRefs(context.userId, context.accountId, text(args.topic, 200), context.language)
+  const data = await loadScheduleData(context.userId, context.accountId, selected, from ?? undefined, context.language)
   const seen = new Set<string>()
   const items = data.items.filter((item) => {
     const key = item.postId || item.id
@@ -630,6 +632,7 @@ async function draftScript(context: ToolContext, request: ScriptRequest): Promis
       context.brand,
       context.signal,
       context.density,
+      context.language,
     )
     return { ideaId: existing.id, title: request.title, script, state: 'saved' }
   }
@@ -647,6 +650,7 @@ async function draftScript(context: ToolContext, request: ScriptRequest): Promis
       context.brand,
       context.signal,
       context.density,
+      context.language,
     )
     return { ideaId, title: request.title, script, state: 'saved' }
   } catch (error) {
@@ -911,6 +915,7 @@ export interface ChatReply {
 }
 
 export interface ChatRequest {
+  language?: Locale
   userId: string
   accountId: string
   session: ChatSession
@@ -929,7 +934,7 @@ export interface ChatRequest {
  * already showed (a saved script stays saved).
  */
 export async function answerChat(request: ChatRequest): Promise<ChatReply> {
-  const { userId, accountId, session, history, turn, deepSearch, onTool } = request
+  const { userId, accountId, session, history, turn, deepSearch, onTool, language = 'id' } = request
   const parts: ChatPart[] = []
   const toolNames: string[] = []
   try {
@@ -944,10 +949,10 @@ export async function answerChat(request: ChatRequest): Promise<ChatReply> {
           loadAccountBrandContext(userId, accountId),
           getDensityDefault(userId, accountId).catch(() => DEFAULT_DENSITY),
         ])
-        const context: ToolContext = { userId, accountId, brand, density, deepSearch, signal }
+        const context: ToolContext = { userId, accountId, brand, density, deepSearch, signal, language }
         const tools = chatTools(deepSearch)
         const messages: ConversationMessage[] = [
-          { role: 'system', content: buildSystemPrompt(brand, deepSearch, session.summary, new Date()) },
+          { role: 'system', content: buildSystemPrompt(brand, deepSearch, session.summary, new Date(), language) },
           ...history.map(
             (message): ConversationMessage =>
               message.role === 'user'
@@ -960,7 +965,7 @@ export async function answerChat(request: ChatRequest): Promise<ChatReply> {
           const answer = await chatWithTools(messages, tools, undefined, signal)
           if (answer.toolCalls.length === 0) return answer.content.trim()
           // The last round's calls are not run: the model has had its turns.
-          if (round === MAX_TOOL_TURNS) return answer.content.trim() || TOO_MANY_STEPS
+          if (round === MAX_TOOL_TURNS) return answer.content.trim() || (language === 'en' ? "There are too many steps for one reply. Please continue with a smaller request." : TOO_MANY_STEPS)
           messages.push({ role: 'assistant', content: answer.content || null, tool_calls: answer.toolCalls })
           for (const call of answer.toolCalls) {
             onTool(call.function.name)
@@ -993,7 +998,7 @@ const SUMMARY_SYSTEM = [
  * Folds the next batch of old messages into the conversation's rolling summary, once enough have piled up. Runs in
  * after(), so it never slows an answer; a failure only leaves more messages verbatim until the next try.
  */
-export async function summarizeChat(userId: string, session: ChatSession): Promise<void> {
+export async function summarizeChat(userId: string, session: ChatSession, language: Locale = 'id'): Promise<void> {
   const batch = await loadSummaryBatch(session, summaryBatch)
   if (!batch || batch.length === 0) return
   const lines = batch.map(
@@ -1004,7 +1009,7 @@ export async function summarizeChat(userId: string, session: ChatSession): Promi
       (
         await chatCompletion(
           [
-            { role: 'system', content: SUMMARY_SYSTEM },
+            { role: 'system', content: languagePrompt(SUMMARY_SYSTEM, language) },
             {
               role: 'user',
               content: [

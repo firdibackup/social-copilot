@@ -1,3 +1,7 @@
+import { createTranslator } from 'next-intl'
+import type { Locale } from '@/i18n/locale-config'
+import idMessages from '../../messages/id/billing.json'
+import enMessages from '../../messages/en/billing.json'
 import { addBillingMonths, MIN_PRICE_IDR, type CatalogPlan, type PurchaseSnapshot } from './billing-catalog-options'
 
 export interface PaidTerm {
@@ -20,15 +24,16 @@ export interface UpgradeSnapshot {
 }
 
 /** Charge only the remaining fractions of anchored billing months, retaining the purchased discount. */
-export function quoteUpgrade(terms: PaidTerm[], target: CatalogPlan, version: number, now = new Date()): UpgradeSnapshot {
+export function quoteUpgrade(terms: PaidTerm[], target: CatalogPlan, version: number, now = new Date(), locale: Locale = 'id'): UpgradeSnapshot {
+  const t = createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'upgradeErrors' })
   const current = terms.find((term) => new Date(term.period_start) <= now && new Date(term.period_end) > now)
-  if (!current) throw new Error('Langganan sudah berakhir. Pilih paket untuk mengaktifkan kembali.')
+  if (!current) throw new Error(t('message1'))
   const from = current.entitlement_plan ?? current.snapshot?.plan
-  if (!from || !canUpgrade(from, target)) throw new Error('Paket ini bukan upgrade dari paket aktif.')
+  if (!from || !canUpgrade(from, target)) throw new Error(t('message2'))
   const remaining = terms.filter((term) => new Date(term.period_end) > now)
   const lines = remaining.map((term) => {
     const old = term.entitlement_plan ?? term.snapshot?.plan
-    if (!old || !canUpgrade(old, target)) throw new Error('Ada paket mendatang yang tidak dapat dinaikkan ke paket ini.')
+    if (!old || !canUpgrade(old, target)) throw new Error(t('message3'))
     const start = new Date(term.period_start)
     const end = new Date(term.period_end)
     let months = 0
@@ -40,7 +45,7 @@ export function quoteUpgrade(terms: PaidTerm[], target: CatalogPlan, version: nu
         const next = addBillingMonths(start, index + 1)
         const b = new Date(Math.min(next.getTime(), end.getTime()))
         months += Math.max(0, b.getTime() - Math.max(a.getTime(), now.getTime())) / (next.getTime() - a.getTime())
-        if (index === 2399) throw new Error('Masa aktif terlalu panjang. Hubungi tim untuk upgrade.')
+        if (index === 2399) throw new Error(t('message4'))
       }
     } else {
       months = Math.max(0, end.getTime() - Math.max(start.getTime(), now.getTime())) / (30 * 86400000)
@@ -50,8 +55,8 @@ export function quoteUpgrade(terms: PaidTerm[], target: CatalogPlan, version: nu
       amount: Math.round((target.priceIdr - old.priceIdr) * (100 - discount) / 100 * months) }
   })
   const total = lines.reduce((sum, line) => sum + line.amount, 0)
-  if (total < MIN_PRICE_IDR) throw new Error('Sisa biaya upgrade di bawah Rp 1.000. Perpanjang dulu atau tunggu periode berikutnya.')
-  if (total > 100_000_000) throw new Error('Hubungi tim untuk upgrade masa aktif ini.')
+  if (total < MIN_PRICE_IDR) throw new Error(t('message5'))
+  if (total > 100_000_000) throw new Error(t('message6'))
   return { kind: 'upgrade', version, plan: { ...target }, total, quotedAt: now.toISOString(),
     activeUntil: new Date(Math.max(...remaining.map((term) => new Date(term.period_end).getTime()))).toISOString(),
     additionalCredits: target.credits - from.credits, terms: lines }

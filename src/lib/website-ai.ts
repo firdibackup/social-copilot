@@ -1,4 +1,5 @@
 import 'server-only'
+import { languagePrompt, type Locale } from './ai-language'
 import { AiOutputError, readJson, runLogged, snippetOf } from './ai'
 import { readTags, saveTags, TAG_INSTRUCTION, visualBatches } from './asset-ai'
 import { isAssetCategory, type AssetCategory } from './asset-options'
@@ -23,7 +24,7 @@ export interface CatalogGroup {
   assetIds: string[]
 }
 
-export function buildCatalogMessages(assets: ImportedWebsiteAsset[]): ChatMessage[] {
+export function buildCatalogMessages(assets: ImportedWebsiteAsset[], language: Locale = 'id'): ChatMessage[] {
   const parts: ContentPart[] = [
     {
       type: 'text',
@@ -32,7 +33,7 @@ export function buildCatalogMessages(assets: ImportedWebsiteAsset[]): ChatMessag
         'Kategori wajib salah satu: product, people, place, logo, other.',
         'Satu produk dengan beberapa sudut foto harus menjadi satu kelompok.',
         'Gunakan ID persis seperti yang diberikan. Setiap ID harus muncul tepat sekali di groups.',
-        TAG_INSTRUCTION,
+        languagePrompt(TAG_INSTRUCTION, language),
         'Format JSON: {"groups":[{"category":"product","title":"…","description":"…","assetIds":["uuid"]}],"tags":{"uuid":["…"]}}',
       ].join('\n'),
     },
@@ -45,7 +46,7 @@ export function buildCatalogMessages(assets: ImportedWebsiteAsset[]): ChatMessag
     parts.push({ type: 'image_url', image_url: { url: asset.dataUrl } })
   }
   return [
-    { role: 'system', content: SYSTEM },
+    { role: 'system', content: languagePrompt(SYSTEM, language) },
     { role: 'user', content: parts },
   ]
 }
@@ -77,6 +78,7 @@ export async function catalogWebsiteAssets(
   accountId: string,
   assets: ImportedWebsiteAsset[],
   sourceUrl?: string,
+  language: Locale = 'id',
 ): Promise<CatalogGroup[]> {
   const catalog: CatalogGroup[] = []
   for (const batch of visualBatches(assets)) {
@@ -86,7 +88,7 @@ export async function catalogWebsiteAssets(
       'website_catalog',
       { assetIds: ids, count: ids.length },
       async () => {
-        const content = await chatCompletion(buildCatalogMessages(batch))
+        const content = await chatCompletion(buildCatalogMessages(batch, language))
         const parsed = parseCatalog(content, ids)
         for (const group of parsed) {
           await createAssetGroup(userId, accountId, { ...group, origin: 'website', sourceUrl })

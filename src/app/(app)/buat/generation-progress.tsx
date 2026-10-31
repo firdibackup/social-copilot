@@ -1,13 +1,11 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { Check } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { CarouselyLoop } from '@/components/brand-mark'
 
-const STEPS = [
-  'Membaca brief dan konteks brand',
-  'Menyusun hook, slide, dan caption',
-  'Menyiapkan visual carousel',
-  'Merender pratinjau akhir',
-] as const
+
 
 export type GenerationPhase = 'writing' | 'visual' | 'render'
 
@@ -37,6 +35,15 @@ interface GenerationProgressProps {
 
 /** Stands in for the image while the post is being made: the brand loop, the steps and a progress bar. */
 export function GenerationProgress({ phase, done = 0, total = 0, note, footer, corner, roomy = false }: GenerationProgressProps) {
+  const t = useTranslations('editor.generationProgress')
+
+  const STEPS = [
+  t('message1'),
+  t('message2'),
+  t('message3'),
+  t('message4'),
+] as const
+
   const current = PHASE_STEP[phase]
   const progress = progressFor(phase, done, total)
   const count = phase !== 'writing' && total > 1 ? `${Math.min(done + 1, total)}/${total}` : null
@@ -46,7 +53,7 @@ export function GenerationProgress({ phase, done = 0, total = 0, note, footer, c
       {corner && <div className="absolute top-2.5 right-2.5 z-10">{corner}</div>}
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4">
         <CarouselyLoop size={40} />
-        <ol aria-label="Langkah pembuatan" className="w-full divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-white shadow-[0_1px_2px_rgba(23,24,39,0.04)]">
+        <ol aria-label={t('message5')} className="w-full divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-white shadow-[0_1px_2px_rgba(23,24,39,0.04)]">
           {STEPS.map((label, index) => {
             const state = index < current ? 'done' : index === current ? 'active' : 'next'
             return (
@@ -58,7 +65,7 @@ export function GenerationProgress({ phase, done = 0, total = 0, note, footer, c
                 <StepBadge state={state} number={index + 1} />
                 <span className={`min-w-0 flex-1 ${state === 'active' ? 'font-semibold text-ink' : state === 'done' ? 'text-ink' : 'text-ink-muted'}`}>
                   {label}
-                  {state === 'done' && <span className="sr-only"> (selesai)</span>}
+                  {state === 'done' && <span className="sr-only"> {t('done')}</span>}
                 </span>
                 {state === 'active' && (
                   <span className="flex shrink-0 items-center gap-2">
@@ -84,7 +91,7 @@ export function GenerationProgress({ phase, done = 0, total = 0, note, footer, c
         {footer && <div className="text-center text-[11.5px] leading-snug text-ink-muted">{footer}</div>}
       </div>
       <p role="status" aria-live="polite" className="sr-only">
-        {`Langkah ${current + 1} dari ${STEPS.length}: ${STEPS[current]}${count && current === 2 ? `, slide ${count}` : ''}.`}
+        {t('message6', { v0: current + 1, v1: STEPS.length, v2: STEPS[current], v3: count && current === 2 ? `, slide ${count}` : '' })}
       </p>
     </div>
   )

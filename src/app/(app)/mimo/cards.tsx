@@ -1,5 +1,8 @@
 'use client'
 
+import { useTranslations, useLocale } from 'next-intl'
+
+import type { Locale } from '@/i18n/locale-config'
 import { confirmDialog } from '@/components/confirm-dialog'
 import {
   BadgeCheck,
@@ -23,6 +26,7 @@ import {
 import Link from 'next/link'
 import { useState, useTransition, type ReactNode } from 'react'
 import { ExternalImage } from '@/components/media-image'
+import { isStorageFull, STORAGE_CLEANUP_HREF, useStorageFull } from '@/components/storage-full'
 import { formatCount } from '@/lib/analytics-metrics'
 import {
   analyzeRequest,
@@ -41,14 +45,13 @@ import {
 } from '@/lib/chat-options'
 import { formatCreditShare } from '@/lib/billing-options'
 import { AUTO_PRODUCT, type ProductOption } from '@/lib/content-options'
-import { DENSITY_ORDER, isTextDensity, TEXT_DENSITIES, type TextDensity } from '@/lib/density-options'
+import { DENSITY_ORDER, isTextDensity, type TextDensity } from '@/lib/density-options'
 import { BULLET, slideProblem, type ScriptSlide } from '@/lib/script-options'
 import { retryContentJobAction } from '../buat/content-actions'
 import { cancelBulkAction, discardScriptAction, resolveConfirmAction, startBulkAction } from './actions'
 import { useBulkStatus } from './use-bulk-status'
 import { ScheduleCard } from './schedule-card'
 
-const FAILED = 'Gagal menghubungi server. Coba lagi.'
 
 const SMALL_BUTTON =
   'inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-colors disabled:opacity-60'
@@ -66,8 +69,8 @@ export interface CardContext {
   defaultDensity: TextDensity
 }
 
-export const formatBytes = (size: number) =>
-  size >= 1024 * 1024 ? `${(size / (1024 * 1024)).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(size / 1024))} KB`
+export const formatBytes = (size: number, locale: Locale = 'id') =>
+  size >= 1024 * 1024 ? `${(size / (1024 * 1024)).toFixed(1).replace('.', locale === 'id' ? ',' : '.')} MB` : `${Math.max(1, Math.round(size / 1024))} KB`
 
 /** One thin frame for every tool's result: an icon, a label, then what the tool found. */
 function ToolResult({ icon: Icon, label, children }: { icon: LucideIcon; label: ReactNode; children: ReactNode }) {
@@ -90,18 +93,20 @@ const ErrorText = ({ children }: { children: ReactNode }) => (
 
 /** A file the owner sent. A PDF's text was read once and not kept, so only its name stays. */
 export function AttachmentBubble({ kind, name, size }: { kind: 'image' | 'pdf'; name: string; size: number }) {
+  const locale = useLocale()
   const Icon = kind === 'pdf' ? FileText : ImageIcon
   return (
     <span className="inline-flex max-w-full items-center gap-2 rounded-xl border border-hairline bg-paper px-3 py-2 text-xs text-ink">
       <Icon size={16} strokeWidth={1.75} className={kind === 'pdf' ? 'shrink-0 text-red-600' : 'shrink-0 text-accent'} aria-hidden="true" />
       <span className="min-w-0 truncate font-medium">{name}</span>
-      <span className="shrink-0 text-ink-muted">{formatBytes(size)}</span>
+      <span className="shrink-0 text-ink-muted">{formatBytes(size, locale)}</span>
     </span>
   )
 }
 
 /** Everything a message shows beside its text, in the order the tools ran. */
 export function PartView({ part, context }: { part: ChatPart; context: CardContext }) {
+  const t = useTranslations('mimo.cards')
   switch (part.type) {
     case 'attachment':
       return null
@@ -132,7 +137,7 @@ export function PartView({ part, context }: { part: ChatPart; context: CardConte
       return (
         <p role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           <CircleAlert size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
-          Mimo gagal menjawab: {part.message}
+          {t('replyFailed', { message: part.message })}
         </p>
       )
   }
@@ -147,10 +152,11 @@ const hostOf = (url: string) => {
 }
 
 function SourcesCard({ query, results }: { query: string; results: { title: string; url: string }[] }) {
+  const t = useTranslations('mimo.cards')
   return (
-    <ToolResult icon={Globe} label={`Hasil web: ${query}`}>
+    <ToolResult icon={Globe} label={t('webResults', { query })}>
       {results.length === 0 ? (
-        <p className="text-sm text-ink-muted">Tidak ada hasil.</p>
+        <p className="text-sm text-ink-muted">{t('noResults')}</p>
       ) : (
         <ol className="space-y-1.5">
           {results.map((result) => (
@@ -173,15 +179,17 @@ function SourcesCard({ query, results }: { query: string; results: { title: stri
 }
 
 function CompetitorList({ query, competitors, context }: { query: string; competitors: CompetitorView[]; context: CardContext }) {
+  const t = useTranslations('mimo.cards')
+  const locale = useLocale()
   const [picked, setPicked] = useState<string[]>([])
   const ask = context.ask
   const toggle = (username: string) =>
     setPicked((current) => (current.includes(username) ? current.filter((name) => name !== username) : [...current, username]))
 
   return (
-    <ToolResult icon={Users} label={`Intel Kompetitor: ${query}`}>
+    <ToolResult icon={Users} label={t('intelResults', { query })}>
       {competitors.length === 0 ? (
-        <p className="text-sm text-ink-muted">Tidak ada akun publik yang ditemukan. Coba username atau kata kunci lain.</p>
+        <p className="text-sm text-ink-muted">{t('noAccounts')}</p>
       ) : (
         <>
           <ul className="divide-y divide-hairline">
@@ -191,20 +199,20 @@ function CompetitorList({ query, competitors, context }: { query: string; compet
                 account={account}
                 checked={picked.includes(account.username)}
                 onToggle={() => toggle(account.username)}
-                onAnalyze={ask ? () => ask(analyzeRequest([account.username])) : null}
+                onAnalyze={ask ? () => ask(analyzeRequest([account.username], locale)) : null}
               />
             ))}
           </ul>
           {competitors.length > 1 && (
             <div className="mt-3 flex items-center justify-end gap-2 border-t border-hairline pt-3">
-              <span className="text-xs text-ink-muted">{picked.length} dipilih</span>
+              <span className="text-xs text-ink-muted">{t('selected', { count: picked.length })}</span>
               <button
                 type="button"
                 disabled={!ask || picked.length === 0}
-                onClick={() => ask?.(analyzeRequest(picked))}
+                onClick={() => ask?.(analyzeRequest(picked, locale))}
                 className={PRIMARY}
               >
-                Analisis yang dipilih
+                {t('analyzeSelected')}
               </button>
             </div>
           )}
@@ -225,6 +233,8 @@ function CompetitorCard({
   onToggle: () => void
   onAnalyze: (() => void) | null
 }) {
+  const t = useTranslations('mimo.cards')
+  const locale = useLocale()
   const latest = account.recentPosts[0]
   return (
     <li className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
@@ -232,7 +242,7 @@ function CompetitorCard({
         type="checkbox"
         checked={checked}
         onChange={onToggle}
-        aria-label={`Pilih @${account.username}`}
+        aria-label={t('selectAccount', { username: account.username })}
         className="mt-3 size-4 shrink-0 accent-[var(--color-accent)]"
       />
       {account.avatar ? (
@@ -251,23 +261,23 @@ function CompetitorCard({
             className="inline-flex items-center gap-1 text-sm font-semibold text-ink hover:underline"
           >
             @{account.username}
-            {account.verified && <BadgeCheck size={14} className="text-sky-500" aria-label="Terverifikasi" />}
+            {account.verified && <BadgeCheck size={14} className="text-sky-500" aria-label={t('verified')} />}
           </a>
           <span className="text-xs text-ink-muted">
-            {formatCount(account.followers)} followers · {formatCount(account.postsCount)} post
+            {t('accountStats', { followers: formatCount(account.followers, locale), posts: formatCount(account.postsCount, locale) })}
           </span>
         </div>
         {account.name && <p className="text-xs text-ink-muted">{account.name}</p>}
         {account.bio && <p className="mt-1 line-clamp-2 text-sm whitespace-pre-line text-ink">{account.bio}</p>}
         {latest && (
           <p className="mt-1 line-clamp-1 text-xs text-ink-muted">
-            Post terbaru: {latest.caption || '(tanpa caption)'} · {formatCount(latest.likes)} like
+            {t('latestPost', { caption: latest.caption || t('noCaption'), likes: formatCount(latest.likes, locale) })}
           </p>
         )}
       </div>
       {onAnalyze && (
         <button type="button" onClick={onAnalyze} className={`${GHOST} shrink-0 text-accent`}>
-          Analisis pattern-nya
+          {t('analyzePattern')}
         </button>
       )}
     </li>
@@ -290,25 +300,26 @@ function Bullets({ items }: { items: string[] }) {
 }
 
 function AnalysisCard({ part }: { part: Extract<ChatPart, { type: 'analysis' }> }) {
-  const label = part.competitors.length > 0 ? `Analisis ${part.competitors.map((name) => `@${name}`).join(', ')}` : 'Analisis kompetitor'
+  const t = useTranslations('mimo.cards')
+  const label = part.competitors.length > 0 ? t('analysisOf', { accounts: part.competitors.map((name) => `@${name}`).join(', ') }) : t('analysis')
   return (
     <ToolResult icon={Search} label={label}>
       <div className="space-y-3">
         {part.hooks.length > 0 && (
           <div>
-            <h4 className="text-xs font-semibold text-ink-muted">Pola hook</h4>
+            <h4 className="text-xs font-semibold text-ink-muted">{t('hooks')}</h4>
             <Bullets items={part.hooks} />
           </div>
         )}
         {part.frequency && (
           <div>
-            <h4 className="text-xs font-semibold text-ink-muted">Frekuensi posting</h4>
+            <h4 className="text-xs font-semibold text-ink-muted">{t('frequency')}</h4>
             <p className="mt-1 text-sm text-ink">{part.frequency}</p>
           </div>
         )}
         {part.pillars.length > 0 && (
           <div>
-            <h4 className="text-xs font-semibold text-ink-muted">Pilar konten</h4>
+            <h4 className="text-xs font-semibold text-ink-muted">{t('pillars')}</h4>
             <Bullets items={part.pillars} />
           </div>
         )}
@@ -341,7 +352,9 @@ function SlideBody({ body }: { body: string }) {
 }
 
 function SlideRow({ slide, number }: { slide: ScriptSlide; number: number }) {
-  const problem = slideProblem(slide, number)
+  const t = useTranslations('mimo.cards')
+  const locale = useLocale()
+  const problem = slideProblem(slide, number, false, locale)
   return (
     <li className="flex gap-3">
       <span
@@ -353,13 +366,14 @@ function SlideRow({ slide, number }: { slide: ScriptSlide; number: number }) {
         {slide.label && <p className={`text-[11px] font-medium uppercase ${problem ? 'text-red-700' : 'text-ink-muted'}`}>{slide.label}</p>}
         {slide.title && <p className="text-sm font-semibold text-ink">{slide.title}</p>}
         {slide.body && <SlideBody body={slide.body} />}
-        {problem && <p className="mt-0.5 text-xs text-red-700">{problem} Perbaiki di Buat.</p>}
+        {problem && <p className="mt-0.5 text-xs text-red-700">{t('fixProblem', { problem })}</p>}
       </div>
     </li>
   )
 }
 
 function ScriptBatch({ items, errors, context }: { items: ScriptItem[]; errors: string[]; context: CardContext }) {
+  const t = useTranslations('mimo.cards')
   return (
     <div className="space-y-3">
       {items.map((item) => (
@@ -367,7 +381,7 @@ function ScriptBatch({ items, errors, context }: { items: ScriptItem[]; errors: 
       ))}
       {errors.length > 0 && (
         <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-          <p className="font-medium">Skrip yang gagal ditulis:</p>
+          <p className="font-medium">{t('scriptsFailed')}</p>
           <Bullets items={errors} />
         </div>
       )}
@@ -376,6 +390,7 @@ function ScriptBatch({ items, errors, context }: { items: ScriptItem[]; errors: 
 }
 
 function ScriptPreviewCard({ item, context }: { item: ScriptItem; context: CardContext }) {
+  const t = useTranslations('mimo.cards')
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const { sessionId, messageId } = context
@@ -384,13 +399,13 @@ function ScriptPreviewCard({ item, context }: { item: ScriptItem; context: CardC
     return (
       <p className="flex items-center gap-2 rounded-xl border border-dashed border-hairline px-4 py-3 text-sm text-ink-muted">
         <Trash2 size={14} aria-hidden="true" />
-        Skrip &ldquo;{item.title}&rdquo; dibuang.
+        {t('discarded', { title: item.title })}
       </p>
     )
   }
 
   return (
-    <ToolResult icon={FileText} label={`Skrip · ${item.script.length} slide`}>
+    <ToolResult icon={FileText} label={t('scriptSlides', { count: item.script.length })}>
       <h4 className="text-[15px] leading-snug font-semibold text-ink">{item.title}</h4>
       <ol className="mt-3 space-y-3">
         {item.script.map((slide, index) => (
@@ -400,28 +415,28 @@ function ScriptPreviewCard({ item, context }: { item: ScriptItem; context: CardC
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-hairline pt-3">
         <Link href={`/buat?ide=${item.ideaId}`} className={PRIMARY}>
           <Check size={14} aria-hidden="true" />
-          Setuju, buka di Buat
+          {t('approve')}
         </Link>
         <button
           type="button"
           disabled={pending || !sessionId}
           onClick={async () => {
             if (!sessionId || !(await confirmDialog({
-              title: `Buang skrip "${item.title}"?`,
-              description: 'Idenya ikut terhapus dari Buat.',
-              confirmLabel: 'Buang',
+              title: t('discardConfirm', { title: item.title }),
+              description: t('discardDescription'),
+              confirmLabel: t('discard'),
               tone: 'danger',
             }))) return
             startTransition(async () => {
-              setError(await discardScriptAction(sessionId, messageId, item.ideaId).catch(() => FAILED))
+              setError(await discardScriptAction(sessionId, messageId, item.ideaId).catch(() => t('failed')))
             })
           }}
           className={GHOST}
         >
           {pending ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> : <Trash2 size={14} aria-hidden="true" />}
-          Buang
+          {t('discard')}
         </button>
-        <span className="text-xs text-ink-muted">Sudah tersimpan sebagai ide. Minta revisi lewat chat.</span>
+        <span className="text-xs text-ink-muted">{t('savedIdeaHint')}</span>
       </div>
       {error && (
         <div className="mt-2">
@@ -441,18 +456,19 @@ function ContentStatusCard({
   items: Extract<ChatPart, { type: 'content_status' }>['items']
   context: CardContext
 }) {
+  const t = useTranslations('mimo.cards')
   const ask = context.ask
   return (
-    <ToolResult icon={Search} label={`Cek konten: ${query}`}>
+    <ToolResult icon={Search} label={t('contentCheck', { query })}>
       {items.length === 0 ? (
         <div className="flex flex-wrap items-center gap-3">
           <p className="flex items-center gap-2 text-sm text-ink">
             <CircleDashed size={16} className="text-ink-soft" aria-hidden="true" />
-            Belum dibuat.
+            {t('notCreated')}
           </p>
           {ask && (
-            <button type="button" onClick={() => ask(`Buatkan skrip untuk topik "${query}".`)} className={SECONDARY}>
-              Buatkan sekarang
+            <button type="button" onClick={() => ask(t('writeRequest', { query }))} className={SECONDARY}>
+              {t('createNow')}
             </button>
           )}
         </div>
@@ -469,7 +485,7 @@ function ContentStatusCard({
                 href={item.kind === 'post' ? `/buat?id=${item.id}` : `/buat?ide=${item.id}`}
                 className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-accent hover:underline"
               >
-                Buka di Buat
+                {t('openCreate')}
                 <ExternalLink size={12} aria-hidden="true" />
               </Link>
             </li>
@@ -480,15 +496,15 @@ function ContentStatusCard({
   )
 }
 
-const BULK_STAGES: Record<BulkStage, { text: string; tone: string; spin?: boolean }> = {
-  writing: { text: 'Menulis skrip…', tone: 'text-ink-muted', spin: true },
-  review: { text: 'Skrip siap, lanjutkan di Buat', tone: 'text-accent' },
-  drafting: { text: 'Menyusun caption…', tone: 'text-ink-muted', spin: true },
-  rendering: { text: 'Membuat gambar…', tone: 'text-ink-muted', spin: true },
-  done: { text: 'Selesai', tone: 'text-emerald-700' },
-  failed: { text: 'Gagal', tone: 'text-red-700' },
-  cancelled: { text: 'Dibatalkan', tone: 'text-ink-soft' },
-  gone: { text: 'Sudah dihapus', tone: 'text-ink-soft' },
+const BULK_STAGES: Record<BulkStage, { tone: string; spin?: boolean }> = {
+  writing: { tone: 'text-ink-muted', spin: true },
+  review: { tone: 'text-accent' },
+  drafting: { tone: 'text-ink-muted', spin: true },
+  rendering: { tone: 'text-ink-muted', spin: true },
+  done: { tone: 'text-emerald-700' },
+  failed: { tone: 'text-red-700' },
+  cancelled: { tone: 'text-ink-soft' },
+  gone: { tone: 'text-ink-soft' },
 }
 
 const LINK = 'inline-flex shrink-0 items-center gap-1 text-xs font-medium text-accent hover:underline'
@@ -496,11 +512,12 @@ const FIELD =
   'block w-full rounded-lg border border-hairline bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft focus:border-accent/60 focus:outline-none'
 
 /** A cost as owners see it: a share of the plan's quota, never raw credits. Null without a plan to compare to. */
-const quotaShare = (cost: number, planCredits: number | undefined) =>
-  planCredits && planCredits > 0 ? `≈ ${formatCreditShare(cost, planCredits)} kuota` : null
+const quotaShare = (cost: number, planCredits: number | undefined, locale: Locale, t: ReturnType<typeof useTranslations<'mimo.cards'>>) =>
+  planCredits && planCredits > 0 ? t('quotaShare', { share: formatCreditShare(cost, planCredits, locale) }) : null
 
 /** Mimo's bulk card, by where it stands: a plan to edit, a start to finish, a cancelled plan, or posts on their way. */
 function BulkCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk' }>; context: CardContext }) {
+  const t = useTranslations('mimo.cards')
   switch (part.state) {
     case 'proposed':
     case 'starting':
@@ -509,7 +526,7 @@ function BulkCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk' }>
       return (
         <p className="flex items-center gap-2 rounded-xl border border-dashed border-hairline px-4 py-3 text-sm text-ink-muted">
           <X size={14} aria-hidden="true" />
-          Rencana konten massal dibatalkan.
+          {t('bulkCancelled')}
         </p>
       )
     case 'started':
@@ -522,6 +539,8 @@ function BulkCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk' }>
  * needs a script, and drop posts; Setuju starts them all. `starting` shows it read-only with a way to finish.
  */
 function BulkPlanCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk' }>; context: CardContext }) {
+  const t = useTranslations('mimo.cards')
+  const locale = useLocale()
   const { data } = useBulkStatus([])
   const [draft, setPlan] = useState(part.plan)
   const [draftSettings, setSettings] = useState<BulkSettings>(part.settings ?? {
@@ -534,13 +553,14 @@ function BulkPlanCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk
   const [pending, setPending] = useState<'start' | 'cancel' | null>(null)
   const [, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const storageFull = useStorageFull()
   const { sessionId, messageId } = context
   const starting = part.state === 'starting'
   const editable = !starting && pending === null
 
   const totalShare = quotaShare(
     plan.reduce((sum, item) => sum + bulkItemCost(item, data?.rates), 0),
-    data?.planCredits,
+    data?.planCredits, locale, t,
   )
   const missingTitle = plan.some((item) => !item.ideaId && !item.title.trim())
 
@@ -558,7 +578,8 @@ function BulkPlanCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk
         kind === 'start'
           ? startBulkAction(sessionId, messageId, part.id, edits, settings)
           : cancelBulkAction(sessionId, messageId, part.id)
-      setError(await result.catch(() => FAILED))
+      const failure = await result.catch(() => t('failed'))
+      setError(storageFull(failure) ? null : failure)
       setPending(null)
     })
   }
@@ -567,27 +588,27 @@ function BulkPlanCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk
     <section className="rounded-2xl border border-accent/30 bg-paper">
       <h3 className="flex items-center gap-2 border-b border-hairline px-4 py-2.5 text-xs font-medium text-ink-muted">
         <Layers size={14} strokeWidth={1.75} aria-hidden="true" />
-        <span className="min-w-0 truncate">Rencana konten massal · {plan.length} konten</span>
+        <span className="min-w-0 truncate">{t('bulkPlan', { count: plan.length })}</span>
       </h3>
       <div className="px-4 py-3">
         <div aria-live="polite">
           {starting ? (
             <p className="flex items-center gap-2 text-sm font-medium text-ink">
               <LoaderCircle size={14} className="animate-spin text-accent" aria-hidden="true" />
-              Sedang memulai…
+              {t('starting')}
             </p>
           ) : (
             <p className="text-xs text-ink-muted">
-              Belum ada kuota terpakai. Setelah kamu setujui, skrip dan gambar tiap konten dibuat otomatis.
+              {t('quotaHint')}
             </p>
           )}
         </div>
 
         <fieldset disabled={!editable} className="mt-4 min-w-0">
-          <legend className="text-xs font-medium text-ink">Pengaturan semua konten</legend>
+          <legend className="text-xs font-medium text-ink">{t('allSettings')}</legend>
           <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="min-w-0 text-xs text-ink-muted">
-              Teks
+              {t('text')}
               <select
                 value={settings.density}
                 onChange={(event) => {
@@ -596,33 +617,33 @@ function BulkPlanCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk
                 }}
                 className={`${FIELD} mt-1 min-h-9 disabled:opacity-60`}
               >
-                {DENSITY_ORDER.map((key) => <option key={key} value={key}>{TEXT_DENSITIES[key].label}</option>)}
+                {DENSITY_ORDER.map((key) => <option key={key} value={key}>{t(`density.${key}.label`)}</option>)}
               </select>
             </label>
             <label className="min-w-0 text-xs text-ink-muted">
-              Produk
+              {t('product')}
               <select
                 value={settings.productGroupId ?? ''}
                 onChange={(event) => setSettings((current) => ({ ...current, productGroupId: event.target.value || null }))}
                 className={`${FIELD} mt-1 min-h-9 disabled:opacity-60`}
               >
-                <option value={AUTO_PRODUCT}>Otomatis</option>
+                <option value={AUTO_PRODUCT}>{t('automatic')}</option>
                 {context.products.map((product) => (
                   <option key={product.id} value={product.id}>{product.label} ({product.imageCount})</option>
                 ))}
-                <option value="">Tanpa</option>
+                <option value="">{t('none')}</option>
                 {settings.productGroupId && settings.productGroupId !== AUTO_PRODUCT && !context.products.some((product) => product.id === settings.productGroupId) && (
-                  <option value={settings.productGroupId} disabled>Produk tidak tersedia</option>
+                  <option value={settings.productGroupId} disabled>{t('productUnavailable')}</option>
                 )}
               </select>
             </label>
           </div>
-          <p className="mt-2 text-xs text-ink-muted">{TEXT_DENSITIES[settings.density].description}</p>
+          <p className="mt-2 text-xs text-ink-muted">{t(`density.${settings.density}.description`)}</p>
           {plan.some((item) => item.scripted) && (
-            <p className="mt-1 text-xs text-ink-muted">Konten dengan skrip tersimpan tetap memakai teks skripnya.</p>
+            <p className="mt-1 text-xs text-ink-muted">{t('savedScriptHint')}</p>
           )}
           {context.products.length === 0 && (
-            <p className="mt-1 text-xs text-ink-muted">Belum ada produk dengan foto aktif. Tambahkan di Aset untuk memakai foto produk.</p>
+            <p className="mt-1 text-xs text-ink-muted">{t('noProducts')}</p>
           )}
         </fieldset>
 
@@ -649,21 +670,21 @@ function BulkPlanCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk
           className={PRIMARY}
         >
           {pending === 'start' ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}
-          {starting ? 'Lanjutkan' : `Setuju, buat ${plan.length} konten`}
+          {starting ? t('continue') : t('approveBulk', { count: plan.length })}
         </button>
         {!starting && (
           <button type="button" disabled={pending !== null || !sessionId} onClick={() => run('cancel')} className={GHOST}>
             {pending === 'cancel' && <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />}
-            Batal
+            {t('cancel')}
           </button>
         )}
-        {totalShare && <span className="ml-auto text-xs text-ink-muted">Perkiraan total {totalShare}</span>}
+        {totalShare && <span className="ml-auto text-xs text-ink-muted">{t('estimatedTotal', { share: totalShare })}</span>}
       </div>
 
       {(error || missingTitle || part.errors.length > 0) && (
         <div className="space-y-1 px-4 pb-3">
           {error && <ErrorText>{error}</ErrorText>}
-          {missingTitle && !starting && <ErrorText>Judul konten tidak boleh kosong.</ErrorText>}
+          {missingTitle && !starting && <ErrorText>{t('emptyTitle')}</ErrorText>}
           {part.errors.map((line) => (
             <ErrorText key={line}>{line}</ErrorText>
           ))}
@@ -688,6 +709,7 @@ function BulkPlanRow({
   onChange: (change: Partial<Pick<BulkPlanItem, 'title' | 'angle'>>) => void
   onRemove: () => void
 }) {
+  const t = useTranslations('mimo.cards')
   const [open, setOpen] = useState(false)
   const titleEditable = editable && !item.ideaId
   const angleEditable = editable && !item.scripted
@@ -704,21 +726,21 @@ function BulkPlanRow({
             value={item.title}
             maxLength={BULK_TITLE_MAX_LENGTH}
             onChange={(event) => onChange({ title: event.target.value })}
-            aria-label={`Judul konten ${number}`}
-            placeholder="Judul konten"
+            aria-label={t('titleNumber', { number })}
+            placeholder={t('title')}
             className={`${FIELD} font-semibold`}
           />
         ) : (
           <p className="pt-1 text-sm font-semibold text-ink">
             {item.title}
-            {item.ideaId && <span className="ml-2 text-[11px] font-medium text-ink-muted">Ide tersimpan</span>}
+            {item.ideaId && <span className="ml-2 text-[11px] font-medium text-ink-muted">{t('savedIdea')}</span>}
           </p>
         )}
 
         {item.scripted ? (
           <p className="flex items-center gap-1.5 text-xs text-ink-muted">
             <FileText size={12} aria-hidden="true" />
-            Pakai skrip yang sudah tersimpan
+            {t('useSavedScript')}
           </p>
         ) : angleEditable ? (
           <input
@@ -726,8 +748,8 @@ function BulkPlanRow({
             value={item.angle}
             maxLength={BULK_ANGLE_MAX_LENGTH}
             onChange={(event) => onChange({ angle: event.target.value })}
-            aria-label={`Sudut konten ${number}`}
-            placeholder="Sudut atau hook (opsional)"
+            aria-label={t('angleNumber', { number })}
+            placeholder={t('anglePlaceholder')}
             className={`${FIELD} text-xs`}
           />
         ) : (
@@ -735,7 +757,7 @@ function BulkPlanRow({
         )}
 
         <div className="flex flex-wrap items-center gap-x-2 text-xs text-ink-muted">
-          <span>{item.slides} slide</span>
+          <span>{t('slides', { count: item.slides })}</span>
           {item.points.length > 0 && (
             <button
               type="button"
@@ -744,7 +766,7 @@ function BulkPlanRow({
               className="inline-flex items-center gap-1 font-medium text-ink-muted hover:text-ink"
             >
               <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
-              {open ? 'Sembunyikan garis besar' : 'Lihat garis besar'}
+              {open ? t('hideOutline') : t('showOutline')}
             </button>
           )}
         </div>
@@ -764,8 +786,8 @@ function BulkPlanRow({
           type="button"
           disabled={!removable}
           onClick={onRemove}
-          aria-label={`Hapus "${item.title || `konten ${number}`}" dari rencana`}
-          title={removable ? 'Hapus dari rencana' : 'Minimal satu konten'}
+          aria-label={t('removeTitle', { title: item.title || t('contentNumber', { number }) })}
+          title={removable ? t('removePlan') : t('minimumOne')}
           className={`${GHOST} -mr-2 shrink-0 px-2`}
         >
           <X size={14} aria-hidden="true" />
@@ -777,6 +799,7 @@ function BulkPlanRow({
 
 /** Posts a started plan made. The worker writes and draws each one; the stages come from polling. */
 function BulkContentCard({ items, errors, cardId, context }: { items: BulkItem[]; errors: string[]; cardId: string; context: CardContext }) {
+  const t = useTranslations('mimo.cards')
   const [scheduling, setScheduling] = useState(false)
   const { data, error: pollError, refresh } = useBulkStatus(items.map((item) => item.postId))
 
@@ -787,16 +810,16 @@ function BulkContentCard({ items, errors, cardId, context }: { items: BulkItem[]
 
   return (
     <div className="space-y-3">
-    <ToolResult icon={Layers} label={`Konten massal · ${items.length} konten`}>
+    <ToolResult icon={Layers} label={t('bulkContent', { count: items.length })}>
       <div aria-live="polite" className="mb-3 space-y-0.5">
         <p className="text-sm font-medium text-ink">
           {!data
-            ? 'Memuat status…'
+            ? t('loadingStatus')
             : finished === items.length
-              ? 'Semua konten sudah diproses'
-              : `${finished} dari ${items.length} konten selesai diproses`}
+              ? t('allDone')
+              : t('processed', { finished, count: items.length })}
         </p>
-        <p className="text-xs text-ink-muted">Skrip dan gambar dibuat otomatis. Kamu bisa menutup halaman ini.</p>
+        <p className="text-xs text-ink-muted">{t('autoHint')}</p>
       </div>
 
       <ul className="divide-y divide-hairline rounded-xl border border-hairline">
@@ -806,15 +829,15 @@ function BulkContentCard({ items, errors, cardId, context }: { items: BulkItem[]
       </ul>
 
       <button type="button" onClick={() => setScheduling((value) => !value)} aria-expanded={scheduling} className={`${SECONDARY} mt-3`}>
-        {scheduling ? 'Tutup pengaturan jadwal' : 'Atur jadwal di Mimo'}
+        {scheduling ? t('closeSchedule') : t('schedule')}
       </button>
 
       {pollError && (
         <div className="mt-2 flex items-center gap-2">
-          <ErrorText>Status belum bisa dimuat.</ErrorText>
+          <ErrorText>{t('statusError')}</ErrorText>
           <button type="button" onClick={refresh} className={GHOST}>
             <RotateCw size={12} aria-hidden="true" />
-            Coba lagi
+            {t('retry')}
           </button>
         </div>
       )}
@@ -842,15 +865,18 @@ function BulkRow({
   /** Polls again, so the retried job's new stage shows up and keeps moving. */
   onRetried: () => void
 }) {
+  const t = useTranslations('mimo.cards')
   const [retrying, startRetry] = useTransition()
   const [retryError, setRetryError] = useState<string | null>(null)
+  const storageFull = useStorageFull()
   const stage = status ? BULK_STAGES[status.stage] : null
   const retryable = status?.stage === 'failed' || status?.stage === 'cancelled'
 
   const retry = () => {
     setRetryError(null)
     startRetry(async () => {
-      setRetryError(await retryContentJobAction(item.postId).catch(() => FAILED))
+      const failure = await retryContentJobAction(item.postId).catch(() => t('failed'))
+      setRetryError(storageFull(failure) ? null : failure)
       onRetried()
     })
   }
@@ -865,29 +891,34 @@ function BulkRow({
             {status?.stage === 'done' && <Check size={12} className="shrink-0" aria-hidden="true" />}
             {status?.stage === 'failed' && <CircleAlert size={12} className="shrink-0" aria-hidden="true" />}
             <span className="min-w-0">
-              {!status ? 'Memuat status…' : status.stage === 'failed' && status.error ? `Gagal: ${status.error}` : stage?.text}
+              {!status ? t('loadingStatus') : status.stage === 'failed' && status.error ? t('failure', { error: status.error }) : t(`stages.${status.stage}`)}
             </span>
           </span>
+          {status?.stage === 'failed' && isStorageFull(status.error) && (
+            <Link href={STORAGE_CLEANUP_HREF} className="mt-0.5 inline-block text-xs font-medium text-accent underline underline-offset-2 hover:text-accent-deep">
+              {t('cleanup')}
+            </Link>
+          )}
           {status?.stage === 'done' && status.failedSlides > 0 && (
-            <span className="mt-0.5 block text-xs text-amber-700">{status.failedSlides} slide gagal, ulangi di Buat.</span>
+            <span className="mt-0.5 block text-xs text-amber-700">{t('failedSlides', { count: status.failedSlides })}</span>
           )}
         </span>
         {status?.stage === 'done' && (
           <Link href={`/buat?id=${item.postId}`} className={LINK}>
-            Lihat konten
+            {t('viewContent')}
             <ExternalLink size={12} aria-hidden="true" />
           </Link>
         )}
         {status?.stage === 'review' && (
           <Link href={`/buat?id=${item.postId}`} className={LINK}>
-            Buka di Buat
+            {t('openCreate')}
             <ExternalLink size={12} aria-hidden="true" />
           </Link>
         )}
         {retryable && (
           <button type="button" disabled={retrying} onClick={retry} className={`${GHOST} -my-1 shrink-0`}>
             {retrying ? <LoaderCircle size={12} className="animate-spin" aria-hidden="true" /> : <RotateCw size={12} aria-hidden="true" />}
-            Coba lagi
+            {t('retry')}
           </button>
         )}
       </div>
@@ -901,23 +932,24 @@ function BulkRow({
 }
 
 const CONFIRM_STATES = {
-  saved: { text: 'Tersimpan', className: 'bg-emerald-50 text-emerald-700' },
-  cancelled: { text: 'Dibatalkan', className: 'bg-zinc-100 text-ink-muted' },
+  saved: { className: 'bg-emerald-50 text-emerald-700' },
+  cancelled: { className: 'bg-zinc-100 text-ink-muted' },
 } as const
 
 /** Mimo's proposal that writes to the account: nothing is saved until the owner picks Simpan. */
 function ToolConfirmCard({ part, context }: { part: Extract<ChatPart, { type: 'confirm' }>; context: CardContext }) {
+  const t = useTranslations('mimo.cards')
   const [pending, setPending] = useState<'accept' | 'cancel' | null>(null)
   const [, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const { sessionId, messageId } = context
-  const where = part.kind === 'strategy' ? { href: '/brand', label: 'Lihat di Brand' } : { href: '/balasan', label: 'Lihat di Balasan' }
+  const where = part.kind === 'strategy' ? { href: '/brand', label: t('viewBrand') } : { href: '/balasan', label: t('viewReplies') }
 
   const resolve = (accept: boolean) => {
     if (!sessionId) return
     setPending(accept ? 'accept' : 'cancel')
     startTransition(async () => {
-      setError(await resolveConfirmAction(sessionId, messageId, part.id, accept).catch(() => FAILED))
+      setError(await resolveConfirmAction(sessionId, messageId, part.id, accept).catch(() => t('failed')))
       setPending(null)
     })
   }
@@ -928,7 +960,7 @@ function ToolConfirmCard({ part, context }: { part: Extract<ChatPart, { type: 'c
         <h3 className="text-sm font-semibold text-ink">{part.title}</h3>
         {part.state !== 'pending' && (
           <span className={`ml-auto rounded-md px-1.5 py-0.5 text-[11px] font-medium ${CONFIRM_STATES[part.state].className}`}>
-            {CONFIRM_STATES[part.state].text}
+            {t(`confirmStates.${part.state}`)}
           </span>
         )}
       </div>
@@ -944,19 +976,19 @@ function ToolConfirmCard({ part, context }: { part: Extract<ChatPart, { type: 'c
           <>
             <button type="button" disabled={pending !== null || !sessionId} onClick={() => resolve(true)} className={PRIMARY}>
               {pending === 'accept' && <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />}
-              Simpan
+              {t('save')}
             </button>
             <button type="button" disabled={pending !== null || !sessionId} onClick={() => resolve(false)} className={GHOST}>
-              Batal
+              {t('cancel')}
             </button>
-            <span className="text-xs text-ink-muted">Belum tersimpan sampai kamu memilih Simpan.</span>
+            <span className="text-xs text-ink-muted">{t('saveHint')}</span>
           </>
         ) : part.state === 'saved' ? (
           <Link href={where.href} className="text-xs font-medium text-accent hover:underline">
             {where.label}
           </Link>
         ) : (
-          <span className="text-xs text-ink-muted">Tidak ada yang diubah.</span>
+          <span className="text-xs text-ink-muted">{t('unchanged')}</span>
         )}
       </div>
       {error && (

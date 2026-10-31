@@ -1,4 +1,5 @@
-import { STATUS_LABELS, type PostStatus } from '@/lib/post-status'
+import { useTranslations } from 'next-intl'
+import { type PostStatus } from '@/lib/post-status'
 
 export const STATUS_DOT_CLASS: Record<PostStatus, string> = {
   draft: 'bg-zinc-400',
@@ -19,20 +20,22 @@ const BADGE_CLASS: Record<PostStatus, string> = {
 }
 
 export function PostStatusBadge({ status }: { status: PostStatus }) {
+  const t = useTranslations('common')
   return (
     <span className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${BADGE_CLASS[status]}`}>
-      {STATUS_LABELS[status]}
+      {t(`postStatus.${status}`)}
     </span>
   )
 }
 
 export function LateBadge() {
+  const t = useTranslations('common')
   return (
     <span
-      title="Jadwal sudah lewat tetapi belum diproses. Pastikan worker berjalan (npm run worker)."
+      title={t('late.title')}
       className="inline-flex shrink-0 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700"
     >
-      Terlambat
+      {t('late.label')}
     </span>
   )
 }

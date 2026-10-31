@@ -1,4 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('next-intl/server', async () => {
+  const { createTranslator } = await import('next-intl')
+  const { default: mimo } = await import('../../../../messages/id/mimo.json')
+  return { getTranslations: async (namespace: 'mimo.scheduleActions') => createTranslator({ locale: 'id', messages: { mimo }, namespace }) }
+})
+vi.mock('@/i18n/locale', () => ({ getUserLocale: async () => 'id' }))
+
 import { remainingCredits } from '@/lib/ai'
 import { DEFAULT_CATALOG } from '@/lib/billing-catalog-options'
 vi.mock('@/lib/billing-catalog', () => ({ getBillingCatalog: vi.fn(async () => ({ version: 1, catalog: DEFAULT_CATALOG })) }))
@@ -52,7 +60,7 @@ describe('Mimo scheduling', () => {
       .mockResolvedValueOnce({ stage: 'ready' } as never)
     const result = await scheduleFromMimoAction(SESSION, MESSAGE, CARD, [{ postId: A, at: AT }, { postId: B, at: AT }])
     expect(result.results).toEqual([{ postId: A, error: 'Tunggu gambar.' }, { postId: B, error: null }])
-    expect(commitMimoSchedule).toHaveBeenCalledExactlyOnceWith('owner', 'account', B, new Date(`${AT}:00+07:00`))
+    expect(commitMimoSchedule).toHaveBeenCalledExactlyOnceWith('owner', 'account', B, new Date(`${AT}:00+07:00`), 'id')
   })
 
   it('does not trust stale ready state, including failures from the atomic commit', async () => {
@@ -110,7 +118,7 @@ describe('images before scheduling', () => {
     expect(await makeScheduleImagesAction(SESSION, MESSAGE, CARD, IDEA)).toBeNull()
     expect(enqueueContentJob).toHaveBeenCalledExactlyOnceWith('owner', 'account', IDEA, IDEA, 'content', {
       request: expect.objectContaining({ ideaId: IDEA, slides: 2, density: 'ringkas', productGroupId: 'auto' }), script: SCRIPT, attachmentPath: null,
-    })
+    }, 'id')
     expect(commitMimoSchedule).not.toHaveBeenCalled()
   })
 
@@ -118,7 +126,7 @@ describe('images before scheduling', () => {
     vi.mocked(readScheduleItem).mockResolvedValue({ stage: 'script', postId: A, imageCost: 100 } as never)
     vi.mocked(getContentJob).mockResolvedValue({ idea_id: IDEA, payload: { density: 'lengkap' } } as never)
     expect(await makeScheduleImagesAction(SESSION, MESSAGE, CARD, A)).toBeNull()
-    expect(enqueueContentJob).toHaveBeenCalledWith('owner', 'account', IDEA, IDEA, 'content', expect.objectContaining({ script: SCRIPT }))
+    expect(enqueueContentJob).toHaveBeenCalledWith('owner', 'account', IDEA, IDEA, 'content', expect.objectContaining({ script: SCRIPT }), 'id')
   })
 
   it('refuses generation while busy or when the remaining quota is insufficient', async () => {

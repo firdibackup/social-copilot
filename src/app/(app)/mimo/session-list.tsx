@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations, useLocale } from 'next-intl'
+
 import { MessageSquare, Plus } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -24,6 +26,8 @@ interface SessionListProps {
 
 /** Mimo's left column: Chat baru and the earlier conversations, most recently used first. */
 export function SessionList({ sessions, activeId, now, className }: SessionListProps) {
+  const t = useTranslations('mimo.sessions')
+  const locale = useLocale()
   const client = useQueryClient()
   const { scope } = useMimoScope()
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -38,23 +42,23 @@ export function SessionList({ sessions, activeId, now, className }: SessionListP
     }, 100)
   }
   return (
-    <aside aria-label="Riwayat chat" className={`${className} min-h-0 w-full flex-1 flex-col`}>
+    <aside aria-label={t('label')} className={`${className} min-h-0 w-full flex-1 flex-col`}>
       <div className="px-4 pt-3 pb-2">
         <Link
           href="/mimo"
           className="flex h-10 items-center justify-center gap-2 rounded-xl bg-accent text-sm font-semibold text-white transition-colors hover:bg-accent-deep"
         >
           <Plus size={16} aria-hidden="true" />
-          Chat baru
+          {t('new')}
         </Link>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-1 pb-5">
         <div className="flex items-center gap-2 border-b border-hairline pt-2 pb-2">
-          <h2 className="text-[11px] font-medium tracking-wide text-ink-muted uppercase">Riwayat</h2>
+          <h2 className="text-[11px] font-medium tracking-wide text-ink-muted uppercase">{t('history')}</h2>
           <span className="text-[11px] text-ink-muted">{sessions.length}</span>
         </div>
         {sessions.length === 0 ? (
-          <p className="py-3 text-sm text-ink-muted">Belum ada percakapan. Tanyakan apa saja ke Mimo di kanan.</p>
+          <p className="py-3 text-sm text-ink-muted">{t('empty')}</p>
         ) : (
           <ul className="pt-1">
             {sessions.map((session) => (
@@ -71,7 +75,7 @@ export function SessionList({ sessions, activeId, now, className }: SessionListP
                   <MessageSquare size={16} strokeWidth={1.75} className="shrink-0 text-ink-soft" aria-hidden="true" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[14px] leading-snug font-medium text-ink">{session.title}</span>
-                    <span className="block text-xs text-ink-muted">{formatListTime(new Date(session.updatedAt), now)}</span>
+                    <span className="block text-xs text-ink-muted">{formatListTime(new Date(session.updatedAt), now, locale)}</span>
                   </span>
                 </Link>
                 <DeleteSessionButton id={session.id} title={session.title} active={session.id === activeId} />

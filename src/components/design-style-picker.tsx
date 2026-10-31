@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import Image from 'next/image'
 import { useState } from 'react'
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -14,12 +15,13 @@ interface Palette {
 
 /** Three hardcoded examples make the layout choice visible without spending an image generation request. */
 function MiniCarousel({ id, palette }: { id: DesignStyleId; palette: Palette }) {
+  const t = useTranslations('common')
   const [index, setIndex] = useState(0)
   const style = DESIGN_STYLES[id]
   const sample = style.samples[index]
   const heading = { fontFamily: FONT_FAMILY[style.headingFont], color: palette.ink }
   const body = { fontFamily: FONT_FAMILY[style.bodyFont], color: palette.ink }
-  const roleName = sample.role === 'isi' ? 'Isi' : sample.role === 'cta' ? 'CTA' : 'Cover'
+  const roleName = t(`design.roles.${sample.role}`)
 
   function move(event: React.MouseEvent, direction: number) {
     event.stopPropagation()
@@ -37,17 +39,17 @@ function MiniCarousel({ id, palette }: { id: DesignStyleId; palette: Palette }) 
         <div className={`absolute inset-0 flex p-5 ${sample.role === 'cta' ? 'items-center text-center' : 'flex-col'}`}>
           <div className={sample.role === 'cta' ? 'w-full' : ''}>
             <p className="mb-3 text-[8px] font-bold uppercase tracking-[0.18em]" style={{ ...body, color: palette.accent }}>
-              {sample.label}
+              {t(`design.styles.${id}.samples.${sample.role}.label`)}
             </p>
             <p className={`font-bold leading-[0.98] ${sample.role === 'cover' ? 'text-[22px]' : 'text-[18px]'}`} style={heading}>
-              {sample.title}
+              {t(`design.styles.${id}.samples.${sample.role}.title`)}
             </p>
             <p className="mt-3 text-[9px] leading-snug opacity-75" style={body}>
-              {sample.copy}
+              {t(`design.styles.${id}.samples.${sample.role}.copy`)}
             </p>
             {sample.role === 'cta' && (
               <span className="mt-4 inline-block rounded-full px-3 py-1.5 text-[8px] font-bold" style={{ background: palette.accent, color: palette.background }}>
-                Lihat selengkapnya
+                {t('design.more')}
               </span>
             )}
           </div>
@@ -55,10 +57,10 @@ function MiniCarousel({ id, palette }: { id: DesignStyleId; palette: Palette }) 
         <span className="absolute bottom-3 right-3 rounded-full bg-black/10 px-2 py-0.5 text-[8px] font-semibold" style={body}>
           {roleName} · {index + 1}/3
         </span>
-        <button type="button" aria-label={`Contoh sebelumnya — ${style.label}`} onClick={(event) => move(event, -1)} className="absolute left-2 top-1/2 rounded-full bg-white/80 p-1 text-zinc-700 shadow-sm opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100">
+        <button type="button" aria-label={t('design.previous', { style: t(`design.styles.${id}.label`) })} onClick={(event) => move(event, -1)} className="absolute left-2 top-1/2 rounded-full bg-white/80 p-1 text-zinc-700 shadow-sm opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100">
           <ChevronLeft size={13} aria-hidden="true" />
         </button>
-        <button type="button" aria-label={`Contoh berikutnya — ${style.label}`} onClick={(event) => move(event, 1)} className="absolute right-2 top-1/2 rounded-full bg-white/80 p-1 text-zinc-700 shadow-sm opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100">
+        <button type="button" aria-label={t('design.next', { style: t(`design.styles.${id}.label`) })} onClick={(event) => move(event, 1)} className="absolute right-2 top-1/2 rounded-full bg-white/80 p-1 text-zinc-700 shadow-sm opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100">
           <ChevronRight size={13} aria-hidden="true" />
         </button>
       </div>
@@ -81,8 +83,9 @@ interface DesignStylePickerProps {
 }
 
 export function DesignStylePicker({ value, onChange, palette, large = false }: DesignStylePickerProps) {
+  const t = useTranslations('common')
   return (
-    <div role="radiogroup" aria-label="Gaya desain" className={`grid gap-3 ${large ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-2'}`}>
+    <div role="radiogroup" aria-label={t('design.title')} className={`grid gap-3 ${large ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-2'}`}>
       {DESIGN_STYLE_IDS.map((id) => {
         const style = DESIGN_STYLES[id]
         const selected = value === id
@@ -104,11 +107,11 @@ export function DesignStylePicker({ value, onChange, palette, large = false }: D
                 className="sr-only"
               />
               <span className="flex items-center justify-between gap-2 text-sm font-semibold text-ink">
-                {style.label}
+                {t(`design.styles.${id}.label`)}
                 {selected && <Check size={16} className="text-accent" aria-hidden="true" />}
               </span>
-              <span className="block text-xs leading-relaxed text-ink-muted">{style.summary}</span>
-              {large && <span className="block text-xs leading-relaxed text-ink-soft">Cocok: {style.suits}</span>}
+              <span className="block text-xs leading-relaxed text-ink-muted">{t(`design.styles.${id}.summary`)}</span>
+              {large && <span className="block text-xs leading-relaxed text-ink-soft">{t('design.suits', { suits: t(`design.styles.${id}.suits`) })}</span>}
             </label>
           </div>
         )
@@ -130,6 +133,7 @@ interface FontSelectProps {
 
 /** A font from the choices, each in its own face; one typed elsewhere stays selectable as it is. */
 export function FontSelect({ label, value, onChange, recommended, extra = [], className = '' }: FontSelectProps) {
+  const t = useTranslations('common')
   const others = [...new Set([...extra, value])].filter((font) => font !== '' && fontFamilyOf(font) === undefined)
   return (
     <label className="block space-y-1 text-sm font-medium text-zinc-900">
@@ -140,18 +144,18 @@ export function FontSelect({ label, value, onChange, recommended, extra = [], cl
         style={{ fontFamily: fontFamilyOf(value) }}
         className={`block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-normal text-zinc-900 focus:border-zinc-400 focus:outline-none ${className}`}
       >
-        <option value="">{recommended ? `Ikuti gaya (${recommended})` : 'Otomatis'}</option>
+        <option value="">{recommended ? t('design.follow', { font: recommended }) : t('design.auto')}</option>
         {(['sans', 'serif'] as const).map((kind) => (
           <optgroup key={kind} label={kind === 'sans' ? 'Sans serif' : 'Serif'}>
             {FONT_CHOICES.filter((font) => font.kind === kind).map((font) => (
               <option key={font.name} value={font.name} style={{ fontFamily: FONT_FAMILY[font.name] }}>
-                {font.name} — {font.use}{font.name === recommended ? ' (disarankan)' : ''}
+                {font.name} — {t(`design.fonts.${font.name}`)}{font.name === recommended ? t('design.recommended') : ''}
               </option>
             ))}
           </optgroup>
         ))}
         {others.length > 0 && (
-          <optgroup label="Lainnya">
+          <optgroup label={t('design.other')}>
             {others.map((font) => (
               <option key={font} value={font}>
                 {font}
@@ -166,13 +170,14 @@ export function FontSelect({ label, value, onChange, recommended, extra = [], cl
 
 /** The heading over a line of body text, in the two fonts. */
 export function FontPreview({ heading, body }: { heading: string; body: string }) {
+  const t = useTranslations('common')
   return (
     <div className="space-y-1 rounded-xl border border-hairline bg-white p-5">
       <p className="text-2xl font-bold leading-tight text-ink" style={{ fontFamily: fontFamilyOf(heading) }}>
-        Konten yang bikin berhenti scroll
+        {t('design.previewHeading')}
       </p>
       <p className="text-sm leading-relaxed text-ink-muted" style={{ fontFamily: fontFamilyOf(body) }}>
-        Ini contoh teks isi slide: jelas, rapi, dan enak dibaca di layar HP.
+        {t('design.previewBody')}
       </p>
       <p className="pt-1 text-xs text-ink-soft">
         {heading} · {body}

@@ -1,3 +1,9 @@
+import type { Locale } from '@/i18n/locale-config'
+import idMessages from '../../messages/id/notifications.json'
+import enMessages from '../../messages/en/notifications.json'
+
+const notificationMessages = (locale: Locale) => locale === 'en' ? enMessages : idMessages
+
 /** Read, reply and notification rules for Balasan's DMs and comments. Pure, so the browser and tests share them. */
 
 /** Instagram's limit for a text DM, including private replies to comments. */
@@ -60,11 +66,11 @@ export const isOwnComment = (
   ownerUsername: string | null,
 ) => comment.fromId === accountId || (ownerUsername !== null && comment.username === ownerUsername)
 
-export const conversationName = (conversation: { name: string | null; username: string | null }) =>
-  conversation.name ?? (conversation.username ? `@${conversation.username}` : 'Pengguna Instagram')
+export const conversationName = (conversation: { name: string | null; username: string | null }, locale: Locale = 'id') =>
+  conversation.name ?? (conversation.username ? `@${conversation.username}` : notificationMessages(locale).instagramUser)
 
-export const commenterName = (comment: { username: string | null }) =>
-  comment.username ? `@${comment.username}` : 'Pengguna Instagram'
+export const commenterName = (comment: { username: string | null }, locale: Locale = 'id') =>
+  comment.username ? `@${comment.username}` : notificationMessages(locale).instagramUser
 
 export interface ThreadedComment<T> {
   comment: T
@@ -166,6 +172,7 @@ export function summarizeNotifications(
   conversations: readonly ConversationNotice[],
   comments: readonly CommentNotice[],
   limit = NOTIFICATION_LIMIT,
+  locale: Locale = 'id',
 ): Pick<NotificationFeed, 'count' | 'items'> {
   const dms = conversations
     .filter((conversation) => conversation.lastFromCustomer && conversation.lastIncomingAt !== null)
@@ -175,8 +182,8 @@ export function summarizeNotifications(
         key: `dm:${conversation.igsid}`,
         id: conversation.igsid,
         href: dmHref(conversation.igsid),
-        name: conversationName(conversation),
-        text: conversation.lastText ?? '(lampiran)',
+        name: conversationName(conversation, locale),
+        text: conversation.lastText ?? notificationMessages(locale).attachment,
         avatarUrl: conversation.profilePicUrl,
         at: (conversation.lastIncomingAt as Date).toISOString(),
         unread: isConversationUnread(conversation),
@@ -188,7 +195,7 @@ export function summarizeNotifications(
       key: `comment:${comment.commentId}`,
       id: comment.commentId,
       href: postCommentsHref(comment.mediaId),
-      name: commenterName(comment),
+      name: commenterName(comment, locale),
       text: comment.text,
       avatarUrl: null,
       at: comment.createdAt.toISOString(),

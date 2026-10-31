@@ -1,5 +1,7 @@
 'use client'
 
+import { useLocale, useTranslations } from 'next-intl'
+
 import { useRouter } from 'next/navigation'
 import { Fragment, useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
 import type { TextDensity } from '@/lib/density-options'
@@ -14,7 +16,7 @@ import { useEditorScope } from './editor-provider'
 import { createSaveQueue } from './save-queue'
 
 const AUTOSAVE_MS = 1000
-const FAILED = 'Gagal menghubungi server. Coba lagi.'
+
 // Stroked rather than a heavier weight: the formatted copy lies under the textarea and must wrap exactly like it.
 const BOLD = '[-webkit-text-stroke:0.45px_currentColor]'
 
@@ -44,6 +46,11 @@ export function useScriptText(
   onError: (message: string) => void,
   job: ContentJob | null = null,
 ): ScriptText {
+  const t = useTranslations('editor.scriptText')
+  const locale = useLocale()
+
+  const FAILED = t('message1')
+
   const router = useRouter()
   const client = useQueryClient()
   const scope = useEditorScope()
@@ -62,7 +69,7 @@ export function useScriptText(
     if (idea?.script && version === savedVersion) setText(scriptToText(idea.script))
   }
   const started = useRef(false)
-  const read = readScriptText(text)
+  const read = readScriptText(text, locale)
   const script = read && 'script' in read ? read.script : null
   const unsaved = idea !== null && read !== null && version !== savedVersion
 
@@ -89,7 +96,7 @@ export function useScriptText(
   useSaveBeforeNavigation(async () => {
     if (!unsaved) return true
     if (!script) {
-      setSaveError('Skrip belum valid. Perbaiki sebelum membuka konten lain.')
+      setSaveError(t('message2'))
       return false
     }
     return persist(version)
@@ -143,7 +150,7 @@ export function useScriptText(
     read,
     writing: writing || queued,
     saveState:
-      !idea || !read ? null : saving ? 'Menyimpan…' : saveError ? null : unsaved ? 'Belum tersimpan' : 'Tersimpan',
+      !idea || !read ? null : saving ? t('message3') : saveError ? null : unsaved ? t('message4') : t('message5'),
     saveError: idea && read ? saveError : null,
     write,
   }

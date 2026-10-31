@@ -3,6 +3,12 @@ import { getMessage, getSession } from '@/lib/chat'
 import { loadScheduleData } from '@/lib/chat-schedule'
 import { GET } from './route'
 
+vi.mock('next-intl/server', async () => {
+  const { createTranslator } = await import('next-intl')
+  const { default: mimo } = await import('../../../../../messages/id/mimo.json')
+  return { getTranslations: async (namespace: 'mimo.api') => createTranslator({ locale: 'id', messages: { mimo }, namespace }) }
+})
+vi.mock('@/i18n/locale', () => ({ getUserLocale: async () => 'id' }))
 vi.mock('@/lib/auth', () => ({ requireAccount: async () => ({ userId: 'owner', accountId: 'account' }) }))
 vi.mock('@/lib/chat', () => ({ getMessage: vi.fn(), getSession: vi.fn() }))
 vi.mock('@/lib/chat-schedule', () => ({ loadScheduleData: vi.fn() }))
@@ -23,7 +29,7 @@ it('reloads stored references with live status rather than persisting transient 
   const response = await GET(request())
   expect(response.status).toBe(200)
   expect(response.headers.get('cache-control')).toBe('private, no-store')
-  expect(loadScheduleData).toHaveBeenCalledWith('owner', 'account', [{ kind: 'idea', id: 'idea', title: 'Kopi' }], undefined)
+  expect(loadScheduleData).toHaveBeenCalledWith('owner', 'account', [{ kind: 'idea', id: 'idea', title: 'Kopi' }], undefined, 'id')
 })
 
 it('rejects another account session before loading content', async () => {
@@ -43,5 +49,5 @@ it('rejects malformed identifiers and unknown cards', async () => {
 it('supports existing started bulk cards', async () => {
   vi.mocked(getMessage).mockResolvedValue({ parts: [{ type: 'bulk', id: CARD, state: 'started', items: [{ postId: 'post', title: 'Kopi' }] }] } as never)
   expect((await GET(request())).status).toBe(200)
-  expect(loadScheduleData).toHaveBeenCalledWith('owner', 'account', [{ kind: 'post', id: 'post', title: 'Kopi' }], undefined)
+  expect(loadScheduleData).toHaveBeenCalledWith('owner', 'account', [{ kind: 'post', id: 'post', title: 'Kopi' }], undefined, 'id')
 })

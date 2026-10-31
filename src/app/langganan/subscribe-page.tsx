@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations, useLocale } from 'next-intl'
+import { intlLocale } from '@/i18n/locale-config'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
 import { ArrowRight, ArrowUpRight, Check, Clock, LogOut, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react'
@@ -24,12 +26,14 @@ interface Props {
 
 const PRIMARY = 'inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-[0_8px_24px_-12px_var(--color-primary)] transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none'
 const SECONDARY = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-hairline bg-paper px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-bg disabled:cursor-wait disabled:opacity-50'
-const number = (value: number) => value.toLocaleString('id-ID')
 const POLL_MS = 3000
 /** About five minutes; after that the Cek Status button is the way. */
 const POLL_ROUNDS = 100
 
 export function SubscribePage(props: Props) {
+  const t = useTranslations('billing.subscribe')
+  const locale = useLocale()
+  const money = (amount: number) => formatRupiah(amount, locale)
   const { catalog, enabled, payments } = props
   const router = useRouter()
   const plans = catalog.plans.filter((plan) => plan.active)
@@ -43,7 +47,7 @@ export function SubscribePage(props: Props) {
   const contact = useCheckoutContact(props.contact, 'langganan')
 
   const selected = plans.find((plan) => plan.id === planId) ?? plans[0]
-  const purchase = selected ? quotePurchase(catalog, props.version, selected.id, months) : null
+  const purchase = selected ? quotePurchase(catalog, props.version, selected.id, months, locale) : null
   const gross = purchase ? purchase.plan.priceIdr * months : 0
   const coupon = useCoupon('langganan', props.version, selected?.id, months)
   const applied = purchase ? coupon.applied : null
@@ -80,7 +84,7 @@ export function SubscribePage(props: Props) {
         const result = await checkPaymentAction()
         if (result.error) setError(result.error)
         else { setChecked(true); router.refresh() }
-      } catch { setError('Status belum bisa diperiksa. Coba lagi.') }
+      } catch { setError(t('checkFailed')) }
     })
   }
   function pay() {
@@ -96,12 +100,12 @@ export function SubscribePage(props: Props) {
         else if (result.error && couponCode && isCouponError(result.error)) coupon.reject(result.error)
         else if (result.error) setError(result.error)
         else if (result.link) window.location.assign(result.link)
-      } catch { setError('Pembayaran belum bisa disiapkan. Coba lagi.') }
+      } catch { setError(t('paymentFailed')) }
     })
   }
 
-  const ctaLabel = free && !waiting ? paying ? 'Mengaktifkan…' : 'Aktifkan Gratis'
-    : paying ? 'Menyiapkan pembayaran…' : !enabled ? 'Pembayaran belum diaktifkan' : waiting ? 'Selesaikan pembayaran tertunda' : 'Lanjut ke Pembayaran'
+  const ctaLabel = free && !waiting ? paying ? t('activating') : t('activateFree')
+    : paying ? t('preparingPayment') : !enabled ? t('disabled') : waiting ? t('finishPending') : t('checkout')
   const ctaDisabled = busy || (!enabled && !free) || !selected || !!waiting || coupon.checking
   const ctaArrow = !paying && (enabled || free) && !waiting
   const askContact = (enabled || free) && !waiting && !!selected
@@ -116,7 +120,7 @@ export function SubscribePage(props: Props) {
           <CarouselyLogo />
           <form action={signOut}>
             <button type="submit" className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-medium text-ink-muted transition-colors hover:bg-zinc-100 hover:text-ink">
-              <LogOut size={16} aria-hidden="true" />Keluar
+              <LogOut size={16} aria-hidden="true" />{t('logout')}
             </button>
           </form>
         </div>
@@ -125,21 +129,21 @@ export function SubscribePage(props: Props) {
       <main className="relative mx-auto w-full max-w-5xl flex-1 animate-fade-in px-5 pt-10 pb-36 sm:pt-14 lg:pb-16">
         <div className="max-w-2xl">
           <p className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-paper/80 px-3 py-1 text-xs font-medium text-ink-muted">
-            <Sparkles size={14} className="text-primary" aria-hidden="true" />{props.hasPaidBefore ? 'Aktifkan kembali akunmu' : 'Satu langkah lagi'}
+            <Sparkles size={14} className="text-primary" aria-hidden="true" />{props.hasPaidBefore ? t('reactivate') : t('oneMore')}
           </p>
           <h1 className="mt-4 font-display text-3xl font-bold tracking-[-0.03em] text-ink text-balance sm:text-[2.6rem] sm:leading-[1.1]">
-            {props.hasPaidBefore ? 'Pilih paket untuk lanjut berkarya' : 'Pilih paket untuk mulai'}
+            {props.hasPaidBefore ? t('returningTitle') : t('title')}
           </h1>
           <p className="mt-3 text-base text-ink-muted text-pretty">
-            Bayar sekali untuk durasi yang kamu pilih. Setelah pembayaran terkonfirmasi, kita langsung siapkan brand-mu.
+            {t('description')}
           </p>
         </div>
 
         <div className="mt-8 space-y-3" aria-live="polite">
           {error && <Notice tone="error">{error}</Notice>}
-          {props.syncError && <Notice tone="warning">Status pembayaran terbaru belum bisa diperiksa. Gunakan Cek Status untuk mencoba lagi.</Notice>}
-          {fulfillmentError && <Notice tone="warning">Pembayaran diterima, tetapi aktivasi perlu bantuan tim. Nomor pesanan: {fulfillmentError.id}.</Notice>}
-          {!enabled && !free && <Notice tone="warning">Pembayaran belum diaktifkan. Coba lagi nanti atau hubungi tim Carousely.</Notice>}
+          {props.syncError && <Notice tone="warning">{t('syncError')}</Notice>}
+          {fulfillmentError && <Notice tone="warning">{t('fulfillment', { id: fulfillmentError.id })}</Notice>}
+          {!enabled && !free && <Notice tone="warning">{t('notEnabled')}</Notice>}
         </div>
 
         {showStatus && (
@@ -151,25 +155,25 @@ export function SubscribePage(props: Props) {
                 </span>
                 <div>
                   <h2 id="status-heading" className="font-semibold text-ink">
-                    {waiting ? (props.returned ? 'Menunggu konfirmasi pembayaran' : 'Ada pembayaran yang belum selesai') : expired ? 'Tautan pembayaran kedaluwarsa' : 'Menunggu konfirmasi pembayaran'}
+                    {waiting ? (props.returned ? t('awaiting') : t('unfinished')) : expired ? t('expired') : t('awaiting')}
                   </h2>
                   <p className="mt-1 text-sm text-ink-muted text-pretty">
                     {waiting
                       ? props.returned
-                        ? 'Biasanya hanya butuh beberapa detik. Jika sudah membayar, cek status untuk melanjutkan.'
-                        : `Lanjutkan pembayaran ${waiting.planName ? `paket ${waiting.planName} ` : ''}(${formatRupiah(waiting.amount)}) atau tunggu tautannya kedaluwarsa sebelum memilih paket lain.`
+                        ? t('waitHint')
+                        : t('pendingHint', { plan: waiting.planName ? t('pendingPlan', { name: waiting.planName }) : '', amount: money(waiting.amount) })
                       : expired
-                        ? 'Tautan sebelumnya sudah tidak berlaku. Jika kamu sudah membayar, cek status sekali lagi — jika belum, pilih paket di bawah untuk membuat tautan baru.'
+                        ? t('expiredHint')
                         : checked
-                          ? 'Belum ada pembayaran yang terkonfirmasi. Tunggu sebentar lalu cek lagi.'
-                          : 'Belum ada pembayaran baru yang terkonfirmasi. Cek status jika kamu baru selesai membayar.'}
+                          ? t('checkedHint')
+                          : t('uncheckedHint')}
                   </p>
                 </div>
               </div>
               <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
-                {waiting?.link && <a href={waiting.link} className={`${PRIMARY} min-h-11 px-4`}>Lanjutkan Pembayaran<ArrowUpRight size={16} aria-hidden="true" /></a>}
+                {waiting?.link && <a href={waiting.link} className={`${PRIMARY} min-h-11 px-4`}>{t('continuePayment')}<ArrowUpRight size={16} aria-hidden="true" /></a>}
                 <button type="button" onClick={check} disabled={busy} className={SECONDARY}>
-                  <RefreshCw size={16} aria-hidden="true" className={checking ? 'animate-spin' : ''} />{checking ? 'Memeriksa…' : 'Cek Status'}
+                  <RefreshCw size={16} aria-hidden="true" className={checking ? 'animate-spin' : ''} />{checking ? t('checking') : t('checkStatus')}
                 </button>
               </div>
             </div>
@@ -180,17 +184,17 @@ export function SubscribePage(props: Props) {
           <div className="space-y-8">
             {plans.length ? (
               <fieldset disabled={busy}>
-                <legend className="mb-3 text-sm font-semibold text-ink">Paket</legend>
+                <legend className="mb-3 text-sm font-semibold text-ink">{t('plan')}</legend>
                 <div className={`grid gap-4 ${plans.length > 1 ? 'sm:grid-cols-2' : ''}`}>
                   {plans.map((plan) => <PlanCard key={plan.id} plan={plan} checked={selected?.id === plan.id} onSelect={() => { setPlanId(plan.id); setError(null); coupon.reprice(plan.id, months) }} />)}
                 </div>
               </fieldset>
-            ) : <Notice tone="warning">Belum ada paket yang tersedia. Coba lagi nanti.</Notice>}
+            ) : <Notice tone="warning">{t('noPlans')}</Notice>}
 
             <fieldset disabled={busy}>
               <legend className="mb-3 flex w-full flex-wrap items-baseline justify-between gap-2 text-sm font-semibold text-ink">
-                Durasi langganan
-                {maxDiscount > 0 && <span className="text-xs font-medium text-mint-ink">Hemat hingga {maxDiscount}%</span>}
+                {t('duration')}
+                {maxDiscount > 0 && <span className="text-xs font-medium text-mint-ink">{t('maxSavings', { discount: maxDiscount })}</span>}
               </legend>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {catalog.durations.map((duration) => {
@@ -198,8 +202,8 @@ export function SubscribePage(props: Props) {
                   return (
                     <label key={duration.months} className={`relative flex min-h-16 cursor-pointer flex-col items-center justify-center rounded-xl border px-3 py-2.5 text-center transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-focus ${active ? 'border-primary bg-primary/5 text-primary' : 'border-hairline bg-paper text-ink hover:border-zinc-300'}`}>
                       <input type="radio" name="durasi" value={duration.months} checked={active} onChange={() => { setMonths(duration.months); coupon.reprice(selected?.id, duration.months) }} className="sr-only" />
-                      <span className="text-sm font-semibold">{duration.months} bulan</span>
-                      <span className={`mt-0.5 text-xs ${duration.discount > 0 ? 'font-medium text-mint-ink' : 'text-ink-muted'}`}>{duration.discount > 0 ? `Hemat ${duration.discount}%` : 'Harga normal'}</span>
+                      <span className="text-sm font-semibold">{t('months', { count: duration.months })}</span>
+                      <span className={`mt-0.5 text-xs ${duration.discount > 0 ? 'font-medium text-mint-ink' : 'text-ink-muted'}`}>{duration.discount > 0 ? t('savings', { discount: duration.discount }) : t('regular')}</span>
                     </label>
                   )
                 })}
@@ -208,21 +212,21 @@ export function SubscribePage(props: Props) {
           </div>
 
           <aside aria-labelledby="ringkasan-heading" className="rounded-2xl border border-hairline bg-paper p-5 sm:p-6 lg:sticky lg:top-20">
-            <h2 id="ringkasan-heading" className="text-sm font-semibold text-ink">Ringkasan pesanan</h2>
+            <h2 id="ringkasan-heading" className="text-sm font-semibold text-ink">{t('summary')}</h2>
             {purchase ? (
               <>
-                <p className="mt-3 font-display text-xl font-bold tracking-[-0.02em] text-ink">{purchase.plan.name} · {months} bulan</p>
+                <p className="mt-3 font-display text-xl font-bold tracking-[-0.02em] text-ink">{purchase.plan.name} · {t('months', { count: months })}</p>
                 <dl className="mt-4 space-y-2.5 text-sm">
-                  <div className="flex justify-between gap-4"><dt className="text-ink-muted">{formatRupiah(purchase.plan.priceIdr)} × {months} bulan</dt><dd className="tabular-nums text-ink">{formatRupiah(gross)}</dd></div>
-                  {purchase.discount > 0 && <div className="flex justify-between gap-4 text-mint-ink"><dt>Diskon {purchase.discount}%</dt><dd className="tabular-nums">−{formatRupiah(gross - purchase.total)}</dd></div>}
-                  {applied && <div className="flex justify-between gap-4 text-mint-ink"><dt className="min-w-0 break-words">Kupon {applied.code} (−{applied.percent}%)</dt><dd className="tabular-nums">−{formatRupiah(applied.couponDiscount)}</dd></div>}
-                  <div className="flex items-baseline justify-between gap-4 border-t border-hairline pt-3"><dt className="font-semibold text-ink">Total</dt><dd className="font-display text-2xl font-bold tabular-nums tracking-[-0.02em] text-ink">{formatRupiah(total)}</dd></div>
+                  <div className="flex justify-between gap-4"><dt className="text-ink-muted">{money(purchase.plan.priceIdr)} × {t('months', { count: months })}</dt><dd className="tabular-nums text-ink">{money(gross)}</dd></div>
+                  {purchase.discount > 0 && <div className="flex justify-between gap-4 text-mint-ink"><dt>{t('discount', { discount: purchase.discount })}</dt><dd className="tabular-nums">−{money(gross - purchase.total)}</dd></div>}
+                  {applied && <div className="flex justify-between gap-4 text-mint-ink"><dt className="min-w-0 break-words">{t('coupon', { code: applied.code, percent: applied.percent })}</dt><dd className="tabular-nums">−{money(applied.couponDiscount)}</dd></div>}
+                  <div className="flex items-baseline justify-between gap-4 border-t border-hairline pt-3"><dt className="font-semibold text-ink">{t('total')}</dt><dd className="font-display text-2xl font-bold tabular-nums tracking-[-0.02em] text-ink">{money(total)}</dd></div>
                 </dl>
-                {months > 1 && !free && <p className="mt-1 text-right text-xs text-ink-muted">≈ {formatRupiah(Math.round(total / months))} / bulan</p>}
+                {months > 1 && !free && <p className="mt-1 text-right text-xs text-ink-muted">{t('monthlyApprox', { amount: money(Math.round(total / months)) })}</p>}
                 <CouponField coupon={coupon} disabled={busy || !!waiting} buttonClass={SECONDARY} inputClass="rounded-xl py-2.5 transition-colors" className="mt-5 border-t border-hairline pt-5" />
-                <p className="mt-4 flex gap-2 text-xs text-ink-muted"><Check size={14} className="mt-px shrink-0 text-mint-ink" aria-hidden="true" />Aktif {months} bulan sejak pembayaran dikonfirmasi. Kuota diperbarui setiap bulan.</p>
+                <p className="mt-4 flex gap-2 text-xs text-ink-muted"><Check size={14} className="mt-px shrink-0 text-mint-ink" aria-hidden="true" />{t('activeTerm', { count: months })}</p>
               </>
-            ) : <p className="mt-3 text-sm text-ink-muted">Pilih paket untuk melihat total.</p>}
+            ) : <p className="mt-3 text-sm text-ink-muted">{t('selectPlan')}</p>}
             {askContact && <CheckoutContactFields contact={contact} disabled={busy} className="mt-5 border-t border-hairline pt-5" />}
             <button type="button" disabled={ctaDisabled} onClick={pay} className={`${PRIMARY} mt-5 hidden w-full lg:inline-flex`}>
               {ctaLabel}{ctaArrow && <ArrowRight size={16} aria-hidden="true" />}
@@ -235,7 +239,7 @@ export function SubscribePage(props: Props) {
       {/* Mobile: the total and CTA stay within thumb reach. */}
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-hairline bg-paper/95 px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
         <div className="mx-auto flex max-w-5xl items-center gap-4">
-          {purchase && <div className="min-w-0 shrink-0"><p className="text-xs text-ink-muted">Total</p><p className="font-display text-lg font-bold tabular-nums tracking-[-0.02em] text-ink">{formatRupiah(total)}</p></div>}
+          {purchase && <div className="min-w-0 shrink-0"><p className="text-xs text-ink-muted">{t('total')}</p><p className="font-display text-lg font-bold tabular-nums tracking-[-0.02em] text-ink">{money(total)}</p></div>}
           <button type="button" disabled={ctaDisabled} onClick={pay} className={`${PRIMARY} flex-1`}>
             {ctaLabel}{ctaArrow && <ArrowRight size={16} aria-hidden="true" />}
           </button>
@@ -247,14 +251,18 @@ export function SubscribePage(props: Props) {
 }
 
 function Footnote({ free, className = '' }: { free: boolean; className?: string }) {
+  const t = useTranslations('billing.subscribe')
   return (
     <p className={`items-center gap-1.5 text-[11px] leading-snug text-ink-muted ${className}`}>
-      <ShieldCheck size={13} className="shrink-0" aria-hidden="true" />{free ? 'Gratis dengan kupon · Tanpa pembayaran, tanpa perpanjangan otomatis' : 'Pembayaran diproses melalui Mayar · Prabayar, tanpa perpanjangan otomatis'}
+      <ShieldCheck size={13} className="shrink-0" aria-hidden="true" />{free ? t('freeFootnote') : t('paidFootnote')}
     </p>
   )
 }
 
 function PlanCard({ plan, checked, onSelect }: { plan: CatalogPlan; checked: boolean; onSelect: () => void }) {
+  const t = useTranslations('billing.subscribe')
+  const locale = useLocale()
+  const money = (amount: number) => formatRupiah(amount, locale)
   return (
     <label className={`group relative flex cursor-pointer flex-col rounded-2xl border bg-paper p-5 transition-[border-color,box-shadow] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-focus ${checked ? 'border-primary shadow-[0_0_0_1px_var(--color-primary),0_18px_40px_-24px_var(--color-primary)]' : 'border-hairline hover:border-zinc-300'}`}>
       <input type="radio" name="paket" value={plan.id} checked={checked} onChange={onSelect} className="sr-only" />
@@ -265,30 +273,30 @@ function PlanCard({ plan, checked, onSelect }: { plan: CatalogPlan; checked: boo
         </span>
       </span>
       <span className="mt-3 flex items-baseline gap-1">
-        <span className="font-display text-[1.75rem] leading-none font-bold tabular-nums tracking-[-0.03em] text-ink">{formatRupiah(plan.priceIdr)}</span>
-        <span className="text-sm text-ink-muted">/ bulan</span>
+        <span className="font-display text-[1.75rem] leading-none font-bold tabular-nums tracking-[-0.03em] text-ink">{money(plan.priceIdr)}</span>
+        <span className="text-sm text-ink-muted">{t('perMonth')}</span>
       </span>
-      {plan.description && <span className="mt-2 block text-sm text-ink-muted text-pretty">{plan.description}</span>}
+      {plan.description && <span className="mt-2 block text-sm text-ink-muted text-pretty">{plan.description === 'Untuk rutin membuat dan menjadwalkan konten.' ? t('proDescription') : plan.description === 'Lebih banyak ruang untuk produksi dan riset konten.' ? t('maxDescription') : plan.description}</span>}
 
       <span className="mt-5 block border-t border-hairline pt-4">
         <span className="flex items-center gap-2.5 text-sm text-ink">
           <Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />
-          <span><strong className="font-semibold tabular-nums">±{number(estimatedPosts(plan.credits))} post</strong> / bulan</span>
+          <span><strong className="font-semibold tabular-nums">{t('posts', { count: estimatedPosts(plan.credits).toLocaleString(intlLocale(locale)) })}</strong> {t('perMonth')}</span>
         </span>
       </span>
 
       <span className="mt-3 flex items-center gap-3 rounded-xl bg-[linear-gradient(120deg,rgba(254,218,117,0.16),rgba(214,41,118,0.10)_55%,rgba(79,91,213,0.12))] px-3 py-2.5 ring-1 ring-[rgba(214,41,118,0.15)] ring-inset">
         <InstagramAiIcon width={22} height={22} className="shrink-0" />
         <span className="min-w-0">
-          <span className="block text-sm font-semibold text-ink">Riset Instagram/Threads</span>
-          <span className="block bg-[linear-gradient(90deg,#FA7E1E,#D62976,#962FBF)] bg-clip-text text-[11px] font-semibold tracking-wide text-transparent uppercase">Fitur unggulan</span>
+          <span className="block text-sm font-semibold text-ink">{t('research')}</span>
+          <span className="block bg-[linear-gradient(90deg,#FA7E1E,#D62976,#962FBF)] bg-clip-text text-[11px] font-semibold tracking-wide text-transparent uppercase">{t('featured')}</span>
         </span>
       </span>
 
       {(plan.prioritySupport || plan.earlyAccess) && (
         <span className="mt-3 block space-y-2 text-sm text-ink">
-          {plan.prioritySupport && <span className="flex items-center gap-2.5"><Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />Support prioritas</span>}
-          {plan.earlyAccess && <span className="flex items-center gap-2.5"><Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />Early access fitur baru</span>}
+          {plan.prioritySupport && <span className="flex items-center gap-2.5"><Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />{t('support')}</span>}
+          {plan.earlyAccess && <span className="flex items-center gap-2.5"><Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />{t('earlyAccess')}</span>}
         </span>
       )}
     </label>

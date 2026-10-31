@@ -1,3 +1,5 @@
+import { getTranslations } from 'next-intl/server'
+
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { LoadingState } from '@/components/loading-state'
@@ -7,10 +9,15 @@ import { describeError } from '@/lib/errors'
 import { firstValue, isUuid, type SearchParams } from '@/lib/params'
 import { EditorWorkspace } from './editor-workspace'
 
-export const metadata: Metadata = { title: 'Buat' }
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('editor.page')
+  return { title: t('title') }
+}
 
-export default function BuatPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  return <Suspense fallback={<LoadingState variant="editor" className="h-full" label="Memuat konten…" />}><Editor searchParams={searchParams} /></Suspense>
+export default async function BuatPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const t = await getTranslations('editor.page')
+
+  return <Suspense fallback={<LoadingState variant="editor" className="h-full" label={t('message1')} />}><Editor searchParams={searchParams} /></Suspense>
 }
 
 /** The opened draft and its support stream with the page, so the editor doesn't wait for hydration and two requests. */

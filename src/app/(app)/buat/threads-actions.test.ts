@@ -19,20 +19,20 @@ describe('threadsAiAction', () => {
   it('writes a new chain when every current post is blank', async () => {
     vi.mocked(writeThread).mockResolvedValue(['Hook', 'Isi'])
     await expect(threadsAiAction({ texts: ['', '  '], instruction: 'Tips kopi', target: null })).resolves.toEqual({ texts: ['Hook', 'Isi'] })
-    expect(writeThread).toHaveBeenCalledWith('user-1', 'Tips kopi')
+    expect(writeThread).toHaveBeenCalledWith('user-1', 'Tips kopi', 'id')
     expect(editThread).not.toHaveBeenCalled()
   })
 
   it('edits and may replace the whole chain', async () => {
     vi.mocked(editThread).mockResolvedValue(['Hook baru', 'Isi baru', 'CTA'])
     await expect(threadsAiAction({ texts: ['Hook lama', 'Isi lama'], instruction: 'Tambah CTA', target: null })).resolves.toEqual({ texts: ['Hook baru', 'Isi baru', 'CTA'] })
-    expect(editThread).toHaveBeenCalledWith('user-1', ['Hook lama', 'Isi lama'], 'Tambah CTA', null)
+    expect(editThread).toHaveBeenCalledWith('user-1', ['Hook lama', 'Isi lama'], 'Tambah CTA', null, 'id')
   })
 
   it('replaces only the targeted post', async () => {
     vi.mocked(editThread).mockResolvedValue(['Isi baru'])
     await expect(threadsAiAction({ texts: ['Hook', 'Isi', 'CTA'], instruction: 'Lebih santai', target: 1 })).resolves.toEqual({ texts: ['Hook', 'Isi baru', 'CTA'] })
-    expect(editThread).toHaveBeenCalledWith('user-1', ['Hook', 'Isi', 'CTA'], 'Lebih santai', 1)
+    expect(editThread).toHaveBeenCalledWith('user-1', ['Hook', 'Isi', 'CTA'], 'Lebih santai', 1, 'id')
   })
 
   it('splits an over-long generated post when the result still fits ten posts', async () => {
@@ -54,3 +54,12 @@ describe('threadsAiAction', () => {
     expect(result).toEqual({ error: expect.stringContaining('Jawaban AI tidak bisa dibaca') })
   })
 })
+
+vi.mock('next-intl/server', () => ({
+  getLocale: async () => 'id',
+  getTranslations: async (namespace: string) => {
+    const { createTranslator } = await import('next-intl')
+    const { default: editor } = await import('../../../../messages/id/editor.json')
+    return createTranslator({ locale: 'id', messages: { editor }, namespace: namespace as 'editor' })
+  },
+}))

@@ -1,10 +1,12 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useRef, useState, type FormEvent } from 'react'
 import { confirmDialog } from '@/components/confirm-dialog'
 import { MediaImage } from '@/components/media-image'
-import { ASSET_CATEGORIES } from '@/lib/asset-options'
+import { ASSET_CATEGORIES, type AssetCategory } from '@/lib/asset-options'
 import type { AssetGroup } from '@/lib/assets'
 import { createAssetGroupAction, deleteAssetGroupAction, updateAssetGroupAction } from './actions'
 import { Feedback, FIELD, PRIMARY_BUTTON, SECONDARY_BUTTON, useAssetAction } from './ui'
@@ -20,6 +22,7 @@ interface ProductCardProps {
 
 /** The account's products: pick one to see its photos, add, rename or remove one. */
 export function ProductCard({ groups, covers, filter, onFilter }: ProductCardProps) {
+  const t = useTranslations('assets')
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [editing, setEditing] = useState<AssetGroup | null>(null)
   // A fresh form every time the dialog opens, so a cancelled edit doesn't linger.
@@ -34,9 +37,9 @@ export function ProductCard({ groups, covers, filter, onFilter }: ProductCardPro
 
   async function confirmRemove(group: AssetGroup) {
     if (!(await confirmDialog({
-      title: `Hapus produk "${group.title}"?`,
-      description: 'Fotonya tetap tersimpan di Aset.',
-      confirmLabel: 'Hapus',
+      title: t('productCard.text1', { v0: group.title }),
+      description: t('productCard.text2'),
+      confirmLabel: t('productCard.text3'),
       tone: 'danger',
     }))) return
     remove.run(deleteAssetGroupAction, { id: group.id }, (result) => {
@@ -48,22 +51,19 @@ export function ProductCard({ groups, covers, filter, onFilter }: ProductCardPro
     <section aria-labelledby="produk-judul" className="rounded-xl border border-hairline bg-paper p-4">
       <div className="flex items-center justify-between gap-2">
         <h2 id="produk-judul" className="text-sm font-semibold text-ink">
-          Produk
-        </h2>
+          {t('productCard.text4')}</h2>
         <button
           type="button"
           onClick={() => open(null)}
           className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-sm font-medium text-accent hover:bg-accent-soft hover:text-accent-deep"
         >
           <Plus size={16} aria-hidden="true" />
-          Tambah produk
-        </button>
+          {t('productCard.text5')}</button>
       </div>
 
       {groups.length === 0 ? (
         <p className="mt-2 text-sm text-ink-muted">
-          Kelompokkan foto per produk agar AI memakai foto produk yang benar saat membuat konten.
-        </p>
+          {t('productCard.text6')}</p>
       ) : (
         <ul className="mt-3 max-h-96 space-y-1 overflow-y-auto">
           {groups.map((group) => {
@@ -87,8 +87,7 @@ export function ProductCard({ groups, covers, filter, onFilter }: ProductCardPro
                       {group.title}
                     </span>
                     <span className="block truncate text-xs text-ink-muted">
-                      {group.photoCount} foto
-                      {group.category !== 'product' && ` · ${ASSET_CATEGORIES[group.category]}`}
+                      {t('productCard.photoCount', { count: group.photoCount })}{group.category !== 'product' && ` · ${t(`categories.${group.category}`)}`}
                       {group.origin === 'website' && ' · website'}
                     </span>
                   </span>
@@ -96,7 +95,7 @@ export function ProductCard({ groups, covers, filter, onFilter }: ProductCardPro
                 <button
                   type="button"
                   onClick={() => open(group)}
-                  aria-label={`Ubah ${group.title}`}
+                  aria-label={t('productCard.text8', { v0: group.title })}
                   className="rounded-md p-2 text-ink-soft hover:bg-zinc-100 hover:text-ink"
                 >
                   <Pencil size={14} aria-hidden="true" />
@@ -105,7 +104,7 @@ export function ProductCard({ groups, covers, filter, onFilter }: ProductCardPro
                   type="button"
                   onClick={() => confirmRemove(group)}
                   disabled={remove.pending}
-                  aria-label={`Hapus ${group.title}`}
+                  aria-label={t('productCard.text9', { v0: group.title })}
                   className="rounded-md p-2 text-ink-soft hover:bg-red-50 hover:text-red-700 disabled:opacity-60"
                 >
                   <Trash2 size={14} aria-hidden="true" />
@@ -131,6 +130,7 @@ export function ProductCard({ groups, covers, filter, onFilter }: ProductCardPro
 }
 
 function ProductForm({ group, onClose }: { group: AssetGroup | null; onClose: () => void }) {
+  const t = useTranslations('assets')
   const save = useAssetAction()
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -147,48 +147,47 @@ function ProductForm({ group, onClose }: { group: AssetGroup | null; onClose: ()
   return (
     <form onSubmit={submit} className="space-y-4 p-5">
       <h2 id="produk-form-judul" className="text-lg font-semibold text-ink">
-        {group ? 'Ubah produk' : 'Tambah produk'}
+        {group ? t('productCard.text10') : t('productCard.text5')}
       </h2>
       {group && <input type="hidden" name="id" value={group.id} />}
       <label className="block space-y-1 text-sm font-medium text-ink">
-        <span>Nama</span>
+        <span>{t('productCard.text11')}</span>
         <input
           name="title"
           required
           maxLength={120}
           defaultValue={group?.title}
-          placeholder="Contoh: Kopi Susu Gula Aren"
+          placeholder={t('productCard.text12')}
           className={FIELD}
         />
       </label>
       <label className="block space-y-1 text-sm font-medium text-ink">
-        <span>Jenis</span>
+        <span>{t('productCard.text13')}</span>
         <select name="category" defaultValue={group?.category ?? 'product'} className={FIELD}>
-          {Object.entries(ASSET_CATEGORIES).map(([value, label]) => (
+          {Object.entries(ASSET_CATEGORIES).map(([value]) => (
             <option key={value} value={value}>
-              {label}
+              {t(`categories.${value as AssetCategory}`)}
             </option>
           ))}
         </select>
       </label>
       <label className="block space-y-1 text-sm font-medium text-ink">
-        <span>Deskripsi</span>
+        <span>{t('productCard.text14')}</span>
         <textarea
           name="description"
           maxLength={500}
           rows={3}
           defaultValue={group?.description}
-          placeholder="Ciri penting yang perlu diketahui AI saat membuat konten."
+          placeholder={t('productCard.text15')}
           className={`${FIELD} py-2`}
         />
       </label>
       <Feedback state={save.state} />
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onClose} className={SECONDARY_BUTTON}>
-          Batal
-        </button>
+          {t('productCard.text16')}</button>
         <button type="submit" disabled={save.pending} className={PRIMARY_BUTTON}>
-          {save.pending ? 'Menyimpan…' : group ? 'Simpan' : 'Tambah'}
+          {save.pending ? t('productCard.text17') : group ? t('productCard.text18') : t('productCard.text19')}
         </button>
       </div>
     </form>

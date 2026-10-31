@@ -3,6 +3,15 @@ import { AdminError, adjustCredits, deleteUser, endSubscription, grantDays, list
 import { reminderMessage } from './payment-followup-options'
 import { grantFreePeriod } from './billing'
 
+vi.mock('next-intl/server', () => ({
+  getLocale: async () => 'id',
+  getTranslations: async (namespace: string) => {
+    const { createTranslator } = await import('next-intl')
+    const { default: admin } = await import('../../messages/id/admin.json')
+    return createTranslator({ locale: 'id', messages: { admin }, namespace: namespace as 'admin' })
+  },
+}))
+
 /** A query builder that records each call and resolves to the next queued result for any table. */
 const fake = vi.hoisted(() => ({
   results: [] as { data: unknown; error: unknown }[],

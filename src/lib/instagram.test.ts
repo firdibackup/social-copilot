@@ -17,6 +17,7 @@ import {
   listInstagramConversations,
   listMediaComments,
   listMediaSince,
+  parseInstagramUsername,
   publishContainer,
   sendAutoDm,
   sendDirectMessage,
@@ -41,6 +42,21 @@ afterEach(() => {
   vi.unstubAllGlobals()
   vi.useRealTimers()
   fetchMock.mockReset()
+})
+
+describe('parseInstagramUsername', () => {
+  it.each([
+    ['@KopiSinar', 'kopisinar'],
+    ['kopi.sinar_id', 'kopi.sinar_id'],
+    ['https://www.instagram.com/kopisinar/', 'kopisinar'],
+    ['instagram.com/kopisinar?igsh=abc', 'kopisinar'],
+  ])('reads %s', (input, username) => {
+    expect(parseInstagramUsername(input)).toBe(username)
+  })
+
+  it.each(['', '@', 'kopi sinar', 'https://www.instagram.com/p/C0abc/', 'a'.repeat(31), 'kopi){id}'])('rejects %s', (input) => {
+    expect(parseInstagramUsername(input)).toBeNull()
+  })
 })
 
 describe('buildAuthorizeUrl', () => {

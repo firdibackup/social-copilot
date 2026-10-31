@@ -3,6 +3,11 @@ import { signInWithGoogle } from './actions'
 
 const oauth = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/auth', () => ({ authClient: async () => ({ auth: { signInWithOAuth: oauth } }) }))
+vi.mock('next-intl/server', async () => {
+  const { createTranslator } = await import('next-intl')
+  const { default: messages } = await import('../../../messages/id/auth.json')
+  return { getTranslations: async () => createTranslator({ locale: 'id', messages, namespace: 'form' }) }
+})
 vi.mock('next/navigation', () => ({ redirect: (url: string) => { throw new Error(`redirect:${url}`) } }))
 
 beforeEach(() => {

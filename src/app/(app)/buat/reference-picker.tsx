@@ -1,9 +1,11 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { ChevronDown, X } from 'lucide-react'
 import { useRef, useState, type ReactNode } from 'react'
 import { MediaImage } from '@/components/media-image'
-import { REFERENCE_LABELS, type BrandReference } from '@/lib/brand-options'
+import { type BrandReference  } from '@/lib/brand-options'
 import { AUTO_REFERENCE, type ReferenceOption } from '@/lib/content-options'
 
 interface ReferencePickerProps {
@@ -18,7 +20,7 @@ const CARD = 'block w-full rounded-xl border-2 p-3 text-left transition-colors'
 const SELECTED = 'border-accent bg-accent-soft/40'
 const UNSELECTED = 'border-hairline hover:bg-zinc-50'
 const TAG = 'absolute top-1 left-1 rounded bg-zinc-900/80 px-1.5 py-0.5 text-[11px] font-medium text-white'
-const FAILED = 'Referensi belum bisa dimuat. Coba lagi.'
+
 /** Signed URLs last an hour; what was loaded a minute ago is shown again as is. */
 const FRESH_MS = 60_000
 
@@ -27,13 +29,18 @@ const FRESH_MS = 60_000
  * group, Cover to CTA, so the owner sees what the slides will follow before choosing one.
  */
 export function ReferencePicker({ references, value, onChange }: ReferencePickerProps) {
+  const t = useTranslations('editor.referencePicker')
+  const roleText = useTranslations('editor.referenceRoles')
+
+  const FAILED = t('message1')
+
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [images, setImages] = useState<Record<string, BrandReference['images']>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const loadedAt = useRef(0)
   const chosen = references.find((reference) => reference.id === value)
-  const current = value === AUTO_REFERENCE ? 'Otomatis' : chosen ? chosen.label : 'Tanpa'
+  const current = value === AUTO_REFERENCE ? t('message2') : chosen ? chosen.label : t('message3')
 
   async function load() {
     if (loading || Date.now() - loadedAt.current < FRESH_MS) return
@@ -64,8 +71,8 @@ export function ReferencePicker({ references, value, onChange }: ReferencePicker
 
   return (
     <>
-      <button type="button" onClick={open} className={`${CHIP} hover:bg-zinc-100`} title="Lihat dan pilih acuan desain">
-        Acuan <span className="max-w-48 truncate font-medium text-ink">{current}</span>
+      <button type="button" onClick={open} className={`${CHIP} hover:bg-zinc-100`} title={t('message4')}>
+         {t('message5')} <span className="max-w-48 truncate font-medium text-ink">{current}</span>
         <ChevronDown size={12} aria-hidden="true" />
       </button>
       <dialog
@@ -76,13 +83,13 @@ export function ReferencePicker({ references, value, onChange }: ReferencePicker
         <div className="space-y-4 p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 id="acuan-heading" className="text-lg font-semibold text-ink">Pilih acuan desain</h2>
-              <p className="text-sm text-ink-muted">Slide baru mengikuti layout dan gaya grup yang dipilih: cover, isi, sampai CTA.</p>
+              <h2 id="acuan-heading" className="text-lg font-semibold text-ink">{t('message6')}</h2>
+              <p className="text-sm text-ink-muted">{t('description')}</p>
             </div>
             <button
               type="button"
               onClick={() => dialogRef.current?.close()}
-              aria-label="Tutup"
+              aria-label={t('message7')}
               className="rounded-full p-1.5 text-ink-muted transition-colors hover:bg-zinc-100 hover:text-ink"
             >
               <X size={18} aria-hidden="true" />
@@ -90,19 +97,16 @@ export function ReferencePicker({ references, value, onChange }: ReferencePicker
           </div>
           <div className="max-h-[65vh] space-y-3 overflow-y-auto overscroll-contain [scrollbar-width:thin]">
             <div className="grid gap-3 sm:grid-cols-2">
-              <Choice selected={value === AUTO_REFERENCE} onClick={() => pick(AUTO_REFERENCE)} title="Otomatis · satu grup">
-                AI memilih satu grup referensi utuh, jadi desain antar-slide tetap konsisten.
-              </Choice>
-              <Choice selected={value === ''} onClick={() => pick('')} title="Tanpa referensi">
-                AI mendesain sendiri dari brand kit, tanpa mengikuti referensi.
-              </Choice>
+              <Choice selected={value === AUTO_REFERENCE} onClick={() => pick(AUTO_REFERENCE)} title={t('message8')}>
+                 {t('message9')} </Choice>
+              <Choice selected={value === ''} onClick={() => pick('')} title={t('message10')}>
+                 {t('message11')} </Choice>
             </div>
             {error && (
               <p role="alert" className="text-sm text-red-700">
                 {error}{' '}
                 <button type="button" onClick={() => void load()} className="underline">
-                  Coba lagi
-                </button>
+                   {t('message12')} </button>
               </p>
             )}
             {references.map((reference) => {
@@ -117,7 +121,7 @@ export function ReferencePicker({ references, value, onChange }: ReferencePicker
                 >
                   <span className="flex items-center justify-between gap-2 text-sm font-medium text-ink">
                     <span className="truncate">{reference.label}</span>
-                    <span className="shrink-0 text-xs font-normal text-ink-muted">{reference.slideCount} gambar</span>
+                    <span className="shrink-0 text-xs font-normal text-ink-muted">{t('images', { count: reference.slideCount })}</span>
                   </span>
                   <span className="mt-2 flex flex-wrap gap-2">
                     {slides
@@ -125,7 +129,7 @@ export function ReferencePicker({ references, value, onChange }: ReferencePicker
                           <span key={image.id} className="relative">
                             <MediaImage src={image.url} className="h-28 max-w-48 rounded-md bg-zinc-100 object-contain" />
                             <span className={TAG}>
-                              {REFERENCE_LABELS[image.label]} · {index + 1}
+                              {roleText(image.label)} · {index + 1}
                             </span>
                           </span>
                         ))

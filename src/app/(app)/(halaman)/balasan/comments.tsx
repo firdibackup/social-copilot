@@ -1,3 +1,4 @@
+import { getLocale, getTranslations } from 'next-intl/server'
 import { ArrowLeft, ExternalLink, MessageSquare } from 'lucide-react'
 import { PendingLink } from './pending-link'
 import { ExternalImage } from '@/components/media-image'
@@ -12,7 +13,6 @@ import { formatListTime, formatShortDateTime } from '@/lib/format'
 import {
   canPrivateReply,
   COMMENT_DAYS,
-  commenterName,
   isCommentUnanswered,
   summarizePosts,
   threadComments,
@@ -76,14 +76,16 @@ interface CommentsProps {
   /** Quick replies above the reply box. */
 }
 
-export function Comments({ data, filter, brand, now }: CommentsProps) {
+export async function Comments({ data, filter, brand, now }: CommentsProps) {
+  const t = await getTranslations('inbox.comments')
+  const locale = await getLocale()
   if (data.view === 'post') return <PostComments data={data} filter={filter} brand={brand} now={now} />
   if (data.posts.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500">
         {filter === 'belum'
-          ? `Tidak ada komentar yang menunggu balasan di post ${COMMENT_DAYS} hari terakhir.`
-          : `Belum ada komentar di post ${COMMENT_DAYS} hari terakhir.`}
+          ? t('noneWaiting', { days: COMMENT_DAYS })
+          : t('noneRecent', { days: COMMENT_DAYS })}
       </p>
     )
   }
@@ -98,21 +100,21 @@ export function Comments({ data, filter, brand, now }: CommentsProps) {
             <PostThumbnail post={row.post} />
             <span className="min-w-0 flex-1 space-y-0.5">
               <span className={`block truncate text-sm text-zinc-900 ${row.unread > 0 ? 'font-semibold' : 'font-medium'}`}>
-                {(row.post && firstLine(row.post.caption)) || 'Post tanpa caption'}
+                {(row.post && firstLine(row.post.caption)) || t('postWithoutACaption')}
               </span>
               <span className="flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
-                <span>{row.total} komentar</span>
-                {row.unanswered > 0 && <span className="font-medium text-accent-deep">{row.unanswered} belum dibales</span>}
+                <span>{t('commentCount', { count: row.total })}</span>
+                {row.unanswered > 0 && <span className="font-medium text-accent-deep">{t('unansweredCount', { count: row.unanswered })}</span>}
                 {row.unread > 0 && (
                   <span className="inline-flex items-center gap-1 font-medium text-blue-600">
                     <span className="size-2 rounded-full bg-blue-500" aria-hidden="true" />
-                    {row.unread} baru
+                    {t('newCount', { count: row.unread })}
                   </span>
                 )}
               </span>
             </span>
             <time dateTime={row.lastCommentAt.toISOString()} className="shrink-0 self-start text-xs text-zinc-500">
-              {formatListTime(row.lastCommentAt, now)}
+              {formatListTime(row.lastCommentAt, now, locale)}
             </time>
           </PendingLink>
         </li>
@@ -133,13 +135,13 @@ export function PostThumbnail({ post, size = 'size-12' }: { post: CommentPost | 
   )
 }
 
-function toView(comment: StoredComment, now: Date): CommentView {
+function toView(comment: StoredComment, now: Date, locale: import('@/i18n/locale-config').Locale, anonymous: string): CommentView {
   return {
     commentId: comment.commentId,
-    name: commenterName(comment),
+    name: comment.username ? `@${comment.username}` : anonymous,
     text: comment.text,
     at: comment.createdAt.toISOString(),
-    atLabel: formatShortDateTime(comment.createdAt),
+    atLabel: formatShortDateTime(comment.createdAt, locale),
     isHidden: comment.isHidden,
     isFromOwner: comment.isFromOwner,
     isUnanswered: isCommentUnanswered(comment),
@@ -148,7 +150,7 @@ function toView(comment: StoredComment, now: Date): CommentView {
   }
 }
 
-function PostComments({
+async function PostComments({
   data,
   filter,
   brand,
@@ -159,22 +161,24 @@ function PostComments({
   brand: Brand
   now: Date
 }) {
+  const t = await getTranslations('inbox.comments')
+  const locale = await getLocale()
   const threads = threadComments(data.comments)
   return (
-    <section aria-label="Komentar post" className="space-y-3">
+    <section aria-label={t('postComments')} className="space-y-3">
       <MarkPostSeen mediaId={data.mediaId} />
       <PendingLink
         href={commentsHref(filter)}
         className="inline-flex items-center gap-1 text-sm text-zinc-600 hover:text-zinc-900"
       >
         <ArrowLeft size={16} aria-hidden="true" />
-        Semua post
-      </PendingLink>
+        {t('allPosts')}
+        </PendingLink>
       <div className={`${CARD} flex items-start gap-3 p-4`}>
         <PostThumbnail post={data.post} size="size-16" />
         <div className="min-w-0 flex-1 space-y-1">
           <p className="line-clamp-3 text-sm whitespace-pre-line text-zinc-900">
-            {data.post?.caption || <span className="text-zinc-400">Tanpa caption</span>}
+            {data.post?.caption || <span className="text-zinc-400">{t('noCaption')}</span>}
           </p>
           {data.post?.permalink && (
             <a
@@ -183,23 +187,22 @@ function PostComments({
               rel="noreferrer"
               className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-zinc-900"
             >
-              Buka di Instagram
-              <ExternalLink size={12} aria-hidden="true" />
+               {t('openOnInstagram')} <ExternalLink size={12} aria-hidden="true" />
             </a>
           )}
         </div>
       </div>
       {threads.length === 0 ? (
         <p className="rounded-xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500">
-          Belum ada komentar tersimpan untuk post ini.
-        </p>
+          {t('noSavedCommentsForThisPostYet')}
+          </p>
       ) : (
         <ul className={`${CARD} divide-y divide-zinc-100`}>
           {threads.map(({ comment, replies }) => (
             <CommentItem
               key={comment.commentId}
-              comment={toView(comment, now)}
-              replies={replies.map((reply) => toView(reply, now))}
+              comment={toView(comment, now, locale, t('instagramUser'))}
+              replies={replies.map((reply) => toView(reply, now, locale, t('instagramUser')))}
               brand={brand}
             />
           ))}

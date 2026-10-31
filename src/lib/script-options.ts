@@ -1,3 +1,9 @@
+import { intlLocale } from '@/i18n/locale-config'
+
+import { createTranslator } from 'next-intl'
+import type { Locale } from '@/i18n/locale-config'
+import idMessages from '../../messages/id/editor.json'
+import enMessages from '../../messages/en/editor.json'
 /** A post's slide-by-slide script, written by the AI from an idea and edited by the owner. Shared by the editor and the server. */
 import { lengthOf, truncate } from './brand-options'
 import { HEADLINE_MAX_LENGTH, headlineLimit, MAX_SLIDES } from './image-options'
@@ -36,28 +42,32 @@ export function cleanScriptSlide(value: unknown): ScriptSlide | null {
 }
 
 /** Why the slide can't be made as written, or null. A single post's one slide gets the single post's text limit. */
-export function slideProblem(slide: ScriptSlide, number: number, single = false): string | null {
-  if (!slide.title && !slide.body) return `Slide ${number} di skrip masih kosong.`
-  if (lengthOf(slide.label) > SCRIPT_LABEL_MAX_LENGTH) return `Label slide ${number} terlalu panjang.`
-  if (lengthOf(slide.title) > SCRIPT_TITLE_MAX_LENGTH) return `Judul slide ${number} maksimal ${SCRIPT_TITLE_MAX_LENGTH} karakter.`
+export function slideProblem(slide: ScriptSlide, number: number, single = false, locale: Locale = 'id'): string | null {
+  const t = createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'scriptOptions' })
+
+  if (!slide.title && !slide.body) return t('message1', { v0: number })
+  if (lengthOf(slide.label) > SCRIPT_LABEL_MAX_LENGTH) return t('message2', { v0: number })
+  if (lengthOf(slide.title) > SCRIPT_TITLE_MAX_LENGTH) return t('message3', { v0: number, v1: SCRIPT_TITLE_MAX_LENGTH })
   const limit = headlineLimit(single)
   if (lengthOf(scriptHeadline(slide)) > limit) {
     return single
-      ? `Teks single post maksimal ${limit.toLocaleString('id-ID')} karakter.`
-      : `Teks slide ${number} maksimal ${limit} karakter agar muat di gambar.`
+      ? t('message4', { v0: limit.toLocaleString(intlLocale(locale)) })
+      : t('message5', { v0: number, v1: limit })
   }
   return null
 }
 
 /** Validates a script the owner edited or that was stored. The server action's parameter type is only a hint. */
-export function parseScript(value: unknown): { script: ScriptSlide[] } | { error: string } {
-  if (!Array.isArray(value) || value.length === 0) return { error: 'Skrip kosong.' }
-  if (value.length > MAX_SLIDES) return { error: `Skrip maksimal ${MAX_SLIDES} slide.` }
+export function parseScript(value: unknown, locale: Locale = 'id'): { script: ScriptSlide[] } | { error: string } {
+  const t = createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'scriptOptions' })
+
+  if (!Array.isArray(value) || value.length === 0) return { error: t('message6') }
+  if (value.length > MAX_SLIDES) return { error: t('message7', { v0: MAX_SLIDES }) }
   const script: ScriptSlide[] = []
   for (const [index, raw] of value.entries()) {
-    if (!isObject(raw)) return { error: 'Skrip tidak valid.' }
+    if (!isObject(raw)) return { error: t('message8') }
     const slide = { label: text(raw.label), title: text(raw.title), body: text(raw.body) }
-    const problem = slideProblem(slide, index + 1, value.length === 1)
+    const problem = slideProblem(slide, index + 1, value.length === 1, locale)
     if (problem) return { error: problem }
     script.push(slide)
   }
@@ -119,9 +129,9 @@ export function splitScriptText(value: string): { intro: string; slides: ScriptS
 }
 
 /** The composer's text as a checked script, an error naming the slide that can't be made, or null for a plain topic. */
-export function readScriptText(value: string): { intro: string; script: ScriptSlide[] } | { error: string } | null {
+export function readScriptText(value: string, locale: Locale = 'id'): { intro: string; script: ScriptSlide[] } | { error: string } | null {
   const split = splitScriptText(value)
   if (!split) return null
-  const checked = parseScript(split.slides)
+  const checked = parseScript(split.slides, locale)
   return 'error' in checked ? checked : { intro: split.intro, script: checked.script }
 }

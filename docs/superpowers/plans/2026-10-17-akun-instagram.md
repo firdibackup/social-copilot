@@ -1,6 +1,6 @@
 # Data per Akun Instagram dan Referensi Carousel — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Arsip implementasi:** rencana ini telah dijalankan. Bagian Facebook Login/Business Discovery dihapus dari produk pada 2026-10-31; instruksi di bawah telah disesuaikan agar tidak mengarahkan implementasi baru ke fitur tersebut. Checklist merupakan catatan rencana lama, bukan daftar pekerjaan untuk dijalankan ulang. Migrasi historis dan tabel `facebook_connections` tetap dipertahankan; penghapusan fitur ini tidak mengubah database.
 
 **Goal:** Every dashboard row belongs to one Instagram account; switching accounts hides the old account's data (it returns on reconnect), a new account fills its brand kit and 3 design references from Instagram for free, and carousel references keep every slide with Cover/Isi/CTA labels that Buat Konten maps by slide position.
 
@@ -14,7 +14,7 @@
 
 - UI text is in Bahasa Indonesia. Exact copy from the spec: modal title `Putuskan @username?`, sentence `Semuanya kembali kalau @username dihubungkan lagi.`, buttons `Batal` and `Putuskan`, worker error `Akun Instagram berbeda`, reconnect hint `Pastikan masuk dengan @lama`, Brand banner `Menyiapkan brand dari @akun…`, picker badge `Carousel · N`.
 - Account key = `instagram_user_id` from Instagram Login (`instagram_connections.instagram_user_id`).
-- Account-scoped tables: `brand_kit`, `brand_references`, `assets`, `posts`, `content_ideas`, `dm_conversations`, `dm_messages`, `dm_settings`, `dm_templates`. `facebook_connections` is keyed by user + `instagram_user_id`.
+- Account-scoped tables: `brand_kit`, `brand_references`, `assets`, `posts`, `content_ideas`, `dm_conversations`, `dm_messages`, `dm_settings`, `dm_templates`.
 - `account_id` is a display filter, not a security boundary: per-id actions keep filtering by `user_id` only. Only actions that go out to Instagram also check the account (scheduling, worker, sending a DM).
 - Credits and subscription stay per user (`ai_generations` and `payments` get no account).
 - Labels: `cover`, `isi`, `cta`, `single`. A group stores at most 20 images. `MAX_REFERENCES` (30) counts groups. `MAX_IMPORT` (12) counts posts.
@@ -42,11 +42,11 @@
 | `src/lib/auth.ts` | `requireAccount()` |
 | `src/lib/connection.ts` | `disconnectInstagram`, `draftScheduledPosts`, `claimOrphanRows` |
 | `src/lib/brand-options.ts` | `ReferenceLabel`, `labelsForCount`, `pickReferenceImage`, `colorsFromPalettes`, group types |
-| `src/lib/instagram.ts`, `src/lib/facebook.ts` | `children` on media, `InstagramPost.images` |
+| `src/lib/instagram.ts` | `children` on media, `InstagramPost.images` |
 | `src/lib/brand.ts` | groups, account filters, partial kit update, `sync_status` |
 | `src/lib/brand-sync.ts` | new: `syncNewAccount()` |
 | `src/lib/image-palette.ts` | new: server palette with sharp |
-| `src/lib/posts.ts`, `assets.ts`, `ideas.ts`, `dm.ts`, `facebook-connection.ts` | `accountId` on reads |
+| `src/lib/posts.ts`, `assets.ts`, `ideas.ts`, `dm.ts` | `accountId` on reads |
 | `src/lib/brand-ai.ts` | optional `cost` on `analyzeProfile` and `analyzeVisual` |
 | `src/lib/image-ai.ts` | reference image chosen by slide |
 | `src/worker/publish.ts` | account check |
@@ -68,7 +68,7 @@
   - Column `account_id text` (nullable) on the 9 account-scoped tables. Index `(user_id, account_id, created_at)`. `posts` gets `(user_id, account_id, scheduled_at)` instead. DM tables use their existing order columns.
   - Trigger function `public.stamp_account()`: `before insert` on the 9 tables. When `new.account_id is null`, it sets it from `instagram_connections.instagram_user_id where user_id = new.user_id`. It stays null when the user has no connection.
   - `brand_kit`, `dm_settings`: drop the PK on `user_id`, add `unique nulls not distinct (user_id, account_id)`. `brand_kit` gets `sync_status text check (sync_status in ('running','failed'))`, default null.
-  - `facebook_connections`: PK becomes `(user_id, instagram_user_id)`.
+  - Historical schema only: this migration also changed the `facebook_connections` PK to `(user_id, instagram_user_id)`. The table remains after the 2026-10-31 feature removal; do not rewrite the migration.
   - Table `brand_reference_images (id uuid pk, user_id uuid not null → auth.users cascade, reference_id uuid not null → brand_references cascade, position smallint check 0–19, storage_path text unique not null, content_type text (same check), label text check in ('cover','isi','cta','single'), unique (reference_id, position))`. RLS on, revoke from anon and authenticated.
   - Existing data: each `brand_references` row is copied to one image (`position 0`, `single`), then `brand_references.storage_path` and `content_type` are dropped.
   - Existing rows: `update … set account_id = c.instagram_user_id from instagram_connections c where c.user_id = t.user_id` on each table.
@@ -185,15 +185,15 @@ it('takes brand colours round-robin without duplicates', () => {
 - [ ] **Step 4: Run it again.** Expected: PASS.
 - [ ] **Step 5: Commit** `feat: reference labels and slide mapping`.
 
-### Task 4: Carousel children from Instagram and Business Discovery
+### Task 4: Carousel children from Instagram
 
 **Files:**
-- Modify: `src/lib/instagram.ts:214-242`, `src/lib/facebook.ts:142-155`
-- Test: `src/lib/instagram.test.ts`, `src/lib/facebook.test.ts`
+- Modify: `src/lib/instagram.ts`
+- Test: `src/lib/instagram.test.ts`
 
 **Interfaces:**
 - Produces: `InstagramPost` = `{ id, caption, imageUrl /* cover */, images: string[] /* 1–20, carousel order */, isCarousel: boolean, permalink }`. `toPosts` drops top-level `VIDEO` posts. For `CAROUSEL_ALBUM`, `images` holds `children.data`: `media_url` for images, `thumbnail_url` for video slides, and video slides without a thumbnail are skipped. The list is capped at `MAX_GROUP_IMAGES`. When `children` is missing, `images` is `[media_url]` and `isCarousel` is false.
-- Fields asked: `id,caption,media_type,media_url,thumbnail_url,permalink,children{media_type,media_url,thumbnail_url}`. Discovery asks the same inside `media.limit(…){…}`.
+- Fields asked: `id,caption,media_type,media_url,thumbnail_url,permalink,children{media_type,media_url,thumbnail_url}`.
 
 - [ ] **Step 1: Write failing `toPosts` tests:**
   - a carousel with 3 children → `images.length === 3`, `isCarousel === true`, `imageUrl === images[0]`
@@ -203,19 +203,17 @@ it('takes brand colours round-robin without duplicates', () => {
   - a carousel without `children` → one image, `isCarousel === false`
   - 25 children → 20
 
-  In `facebook.test.ts`: the requested `fields` contains `children{media_type,media_url,thumbnail_url}`.
-- [ ] **Step 2: Run** `npx vitest run src/lib/instagram.test.ts src/lib/facebook.test.ts`. Expected: FAIL.
+- [ ] **Step 2: Run** `npx vitest run src/lib/instagram.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run it again.** Expected: PASS. Then run `npm run typecheck` and fix callers that read `InstagramPost` (`brand/actions.ts`, `references-panel.tsx`).
-- [ ] **Step 5: Verify Business Discovery live.** Ask the owner with AskUserQuestion, options "Saya cek sekarang di /brand → Akun lain" or "Lewati, pakai fallback cover". Children present means carousel groups work for other accounts. Absent means they fall back to `single` without code changes. Record the result in the spec's open items.
-- [ ] **Step 6: Commit** `feat: read carousel slides from Instagram`.
+- [ ] **Step 5: Commit** `feat: read carousel slides from Instagram`.
 
 ### Task 5: Account filters on every dashboard read
 
 **Files:**
-- Modify: `src/lib/posts.ts`, `src/lib/assets.ts`, `src/lib/ideas.ts`, `src/lib/dm.ts`, `src/lib/facebook-connection.ts`, `src/lib/brand.ts` (kit and logo only; references are Task 6)
-- Modify callers: pages and actions under `src/app/(app)/(halaman)/{aset,balasan,brand,kalender}/`, `src/app/(app)/buat/*`, `src/components/*` that list data, `src/lib/ai.ts` (`loadBrandContext`), `src/lib/image-ai.ts`, `src/lib/content-ai.ts`, `src/app/api/auth/facebook/callback/route.ts`, and the webhook `src/app/api/webhooks/instagram/route.ts`
-- Test: existing test files of the changed modules (`assets.test.ts`, `balasan/actions.test.ts`, `buat/actions.test.ts`, `ai.test.ts`, `image-ai.test.ts`, `content-ai.test.ts`, `facebook/callback/route.test.ts`)
+- Modify: `src/lib/posts.ts`, `src/lib/assets.ts`, `src/lib/ideas.ts`, `src/lib/dm.ts`, `src/lib/brand.ts` (kit and logo only; references are Task 6)
+- Modify callers: pages and actions under `src/app/(app)/(halaman)/{aset,balasan,brand,kalender}/`, `src/app/(app)/buat/*`, `src/components/*` that list data, `src/lib/ai.ts` (`loadBrandContext`), `src/lib/image-ai.ts`, `src/lib/content-ai.ts`, and the webhook `src/app/api/webhooks/instagram/route.ts`
+- Test: existing test files of the changed modules (`assets.test.ts`, `balasan/actions.test.ts`, `buat/actions.test.ts`, `ai.test.ts`, `image-ai.test.ts`, `content-ai.test.ts`)
 
 **Interfaces:**
 - Consumes: `requireAccount()` and `AccountScope` (Task 2).
@@ -223,14 +221,12 @@ it('takes brand colours round-robin without duplicates', () => {
   - `listPosts`, `listContentPosts`, `countScheduledPosts`, `listAssets` (whatever `assets.ts:54` is), `listIdeas` (`ideas.ts:17`) and the posts query at `ideas.ts:44`
   - `listConversations`, `getConversation`/messages (`dm.ts:96-121`), `listTemplates` (`dm.ts:140`), `getDmVariables`/`saveDmVariables` (`dm_settings`, upsert with `account_id` and `onConflict: 'user_id,account_id'`)
   - `getBrandKit`, `getBrandContext`, `getBrandVisual`, `loadLogoImage`, `saveBrandKit`, `setLogo`, `removeLogo` (private `loadKit(userId, accountId)`; upserts carry `account_id` and `onConflict: 'user_id,account_id'`)
-  - `getFacebookConnection`, `getDiscoveryAccount`, `markFacebookNeedsReconnect`, `deleteFacebookConnection` (filter `instagram_user_id = accountId`). `saveFacebookConnection` upserts with `onConflict: 'user_id,instagram_user_id'`.
   - `retryPost(userId, accountId, id)` adds `.eq('account_id', accountId)`.
   - `savePost` maps the `wrong_account` error to `PostLockedError('Post ini milik akun Instagram lain.')`.
   - Inserts (`assets`, `content_ideas`, `dm_templates`, `create_content`, `save_post`, `record_dm_message`) are unchanged: the trigger stamps them.
 - Per-id reads and writes (`getPost`, `deletePost`, `cancelPost`, `updateTemplate`, …) stay `userId`-only.
 - Every page loader, server action and route handler of Brand, Buat, Kalender, Aset and Balasan replaces `requireActiveUser()` with `const { userId, accountId } = await requireAccount()`. Pengaturan, Langganan, `src/components/*` status widgets and the OAuth routes keep `requireActiveUser()`.
 - The webhook passes `entry.id` as the `accountId` wherever it reads DM settings. `findUserByInstagramId` already guarantees it equals the connected account.
-- The Facebook callback reads the connected account id and saves the Page row under it.
 
 - [ ] **Step 1: Update tests first.** Where a test asserts a Supabase chain or a call such as `listPosts('user-1', …)`, add the account (`'ig-1'`) and assert `.eq('account_id', 'ig-1')`. Action tests that mock `requireActiveUser` switch to mocking `requireAccount` → `{ userId: 'user-1', accountId: 'ig-1' }`. Add one test in `buat/actions.test.ts`: a schedule action whose `savePost` rejects with `PostLockedError('Post ini milik akun Instagram lain.')` returns that message.
 - [ ] **Step 2: Run** `npm test`. Expected: the updated tests FAIL.
@@ -369,8 +365,6 @@ it('takes brand colours round-robin without duplicates', () => {
     - when `scheduledCount > 0`: "`N` posting terjadwal akan kembali jadi draft."
     - `Semuanya kembali kalau @username dihubungkan lagi.`
     - buttons `Batal` (closes) and `Putuskan` (submits the server action form)
-
-    Facebook keeps `window.confirm`.
   - `disconnectInstagram` action calls `disconnectInstagram(userId)` from `connection.ts`, then `refresh()`, as today.
   - The Instagram settings page loads `countScheduledPosts(userId, accountId)` when connected.
   - The Hubungkan ulang button (status `needs_reconnect`) shows the hint `Pastikan masuk dengan @<username>`.

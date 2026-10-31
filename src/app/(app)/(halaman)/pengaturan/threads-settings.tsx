@@ -1,3 +1,5 @@
+
+import { getLocale, getTranslations } from 'next-intl/server'
 import { Notice } from '@/components/notice'
 import { ThreadsIcon } from '@/components/threads-icon'
 import { requireUser } from '@/lib/auth'
@@ -13,32 +15,27 @@ type LoadResult =
   | { kind: 'ok'; hasInstagram: boolean; connection: ThreadsConnection | null }
   | { kind: 'error'; message: string }
 
-const SUCCESS_MESSAGES: Record<string, string> = {
-  connected: 'Threads berhasil terhubung.',
-  disconnected: 'Koneksi Threads sudah diputus.',
-}
-
-const ERROR_MESSAGES: Record<string, string> = {
-  ditolak: 'Izin Threads tidak disetujui. Hubungkan lagi dan setujui semua izin yang diminta.',
-  state_tidak_valid: 'Sesi login kedaluwarsa atau tidak valid. Mulai lagi dari tombol Hubungkan Threads.',
-  sesi_lain:
-    'Login Threads selesai di sesi akun Carousely yang berbeda dari akun yang memulainya. Buka aplikasi di alamat yang sama dengan alamat tujuan Threads, masuk dengan akun ini, lalu hubungkan lagi.',
-  perlu_instagram: 'Hubungkan Instagram dulu: Threads dipakai untuk akun Instagram yang terhubung.',
-  gagal_mulai:
-    'Login Threads gagal dimulai. Periksa THREADS_APP_ID, THREADS_REDIRECT_URI, dan konfigurasi Supabase di .env.local.',
-  gagal_token: 'Kode login gagal ditukar menjadi token. Periksa THREADS_APP_SECRET dan THREADS_REDIRECT_URI.',
-  gagal_profil: 'Token didapat, tapi profil Threads gagal diambil. Coba hubungkan lagi.',
-  gagal_database: 'Database tidak bisa diakses. Periksa konfigurasi Supabase dan migrasi terbaru.',
-  gagal_putus: 'Koneksi Threads gagal diputus. Coba lagi.',
-  akun_dipakai:
-    'Akun Threads ini sudah terhubung ke pengguna Carousely lain. Putuskan dulu dari akun tersebut, atau masuk dengan akun Threads lain.',
-}
-
-const UNKNOWN_ERROR = 'Terjadi kesalahan saat menghubungkan Threads. Coba lagi.'
-
 async function loadThreads(userId: string): Promise<LoadResult> {
+  const t = await getTranslations('settings')
+
+  const ERROR_MESSAGES: Record<string, string> = {
+  ditolak: t('threads_settings.threadsPermissionsWerenTApprovedConnectAgain'),
+  state_tidak_valid: t('threads_settings.yourLoginSessionHasExpiredOrIs'),
+  sesi_lain:
+    t('threads_settings.threadsLoginFinishedInADifferentCarousely'),
+  perlu_instagram: t('threads_settings.connectInstagramFirstThreadsIsUsedWith'),
+  gagal_mulai:
+    t('threads_settings.couldnTStartThreadsLoginCheckThreads'),
+  gagal_token: t('threads_settings.couldnTExchangeTheLoginCodeFor'),
+  gagal_profil: t('threads_settings.gotTheTokenButCouldnTFetch'),
+  gagal_database: t('threads_settings.couldnTAccessTheDatabaseCheckThe'),
+  gagal_putus: t('threads_settings.couldnTDisconnectThreadsTryAgain'),
+  akun_dipakai:
+    t('threads_settings.thisThreadsAccountIsAlreadyConnectedTo'),
+}
+
   try {
-    // Threads belongs to the connected Instagram account, like the Facebook Page.
+    // Threads belongs to the connected Instagram account.
     const accountId = await getConnectedAccountId(userId)
     return {
       kind: 'ok',
@@ -48,13 +45,38 @@ async function loadThreads(userId: string): Promise<LoadResult> {
   } catch (error) {
     console.error('[pengaturan] koneksi Threads gagal dimuat:', describeError(error))
     const message =
-      error instanceof ConfigError ? `Konfigurasi belum lengkap: ${error.message}.` : ERROR_MESSAGES.gagal_database
+      error instanceof ConfigError ? t('threads_settings.configurationIsIncomplete', { v0: error.message }) : ERROR_MESSAGES.gagal_database
     return { kind: 'error', message }
   }
 }
 
 /** Publishing to Threads and answering replies under the account's Threads posts in Balasan. */
 export async function ThreadsSettings({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const t = await getTranslations('settings')
+
+  const UNKNOWN_ERROR = t('threads_settings.somethingWentWrongWhileConnectingThreadsTry')
+
+  const ERROR_MESSAGES: Record<string, string> = {
+  ditolak: t('threads_settings.threadsPermissionsWerenTApprovedConnectAgain'),
+  state_tidak_valid: t('threads_settings.yourLoginSessionHasExpiredOrIs'),
+  sesi_lain:
+    t('threads_settings.threadsLoginFinishedInADifferentCarousely'),
+  perlu_instagram: t('threads_settings.connectInstagramFirstThreadsIsUsedWith'),
+  gagal_mulai:
+    t('threads_settings.couldnTStartThreadsLoginCheckThreads'),
+  gagal_token: t('threads_settings.couldnTExchangeTheLoginCodeFor'),
+  gagal_profil: t('threads_settings.gotTheTokenButCouldnTFetch'),
+  gagal_database: t('threads_settings.couldnTAccessTheDatabaseCheckThe'),
+  gagal_putus: t('threads_settings.couldnTDisconnectThreadsTryAgain'),
+  akun_dipakai:
+    t('threads_settings.thisThreadsAccountIsAlreadyConnectedTo'),
+}
+
+  const SUCCESS_MESSAGES: Record<string, string> = {
+  connected: t('threads_settings.threadsConnectedSuccessfully'),
+  disconnected: t('threads_settings.threadsDisconnected'),
+}
+
   const params = await searchParams
   const result = await loadThreads(await requireUser())
   const success = SUCCESS_MESSAGES[firstValue(params.th) ?? '']
@@ -79,8 +101,7 @@ export async function ThreadsSettings({ searchParams }: { searchParams: Promise<
               <Notice tone="warning">{result.message}</Notice>
             ) : !result.hasInstagram ? (
               <p className="text-sm text-zinc-600">
-                Hubungkan Instagram dulu. Threads dipakai untuk akun Instagram yang terhubung.
-              </p>
+                {t('threads_settings.connectInstagramFirstThreadsIsUsedWith2')}</p>
             ) : (
               <ThreadsDetails connection={result.connection} />
             )}
@@ -91,15 +112,17 @@ export async function ThreadsSettings({ searchParams }: { searchParams: Promise<
   )
 }
 
-function ThreadsDetails({ connection }: { connection: ThreadsConnection | null }) {
+async function ThreadsDetails({ connection }: { connection: ThreadsConnection | null }) {
+  const locale = await getLocale()
+
+  const t = await getTranslations('settings')
+
   if (!connection) {
     return (
       <>
         <p className="text-sm text-zinc-600">
-          Hubungkan akun Threads untuk menerbitkan post langsung dari Carousely dan membalas komentar orang di tab
-          Balasan.
-        </p>
-        <ConnectLink label="Hubungkan Threads" />
+          {t('threads_settings.connectYourThreadsAccountToPublishPosts')}</p>
+        <ConnectLink label={t('threads_settings.connectThreads')} />
       </>
     )
   }
@@ -111,21 +134,19 @@ function ThreadsDetails({ connection }: { connection: ThreadsConnection | null }
         <p>
           <span className="font-medium text-zinc-900">@{connection.username}</span>
           {' · '}
-          Terhubung sejak {formatDay(wibDateKey(connection.connectedAt))}
+          {t('threads_settings.connectedSince')} {formatDay(wibDateKey(connection.connectedAt), locale)}
         </p>
       </div>
       {needsReconnect ? (
         <Notice tone="error">
-          Token Threads kedaluwarsa atau izinnya dicabut. Hubungkan ulang agar post Threads tetap terbit.
-        </Notice>
+          {t('threads_settings.yourThreadsTokenExpiredOrPermissionsWere')}</Notice>
       ) : (
         <p className="flex items-center gap-1.5 text-sm text-emerald-700">
           <span aria-hidden="true" className="size-1.5 rounded-full bg-emerald-500" />
-          Koneksi aktif
-        </p>
+          {t('threads_settings.connectionActive')}</p>
       )}
       <div className="flex flex-wrap gap-2">
-        <ConnectLink label="Hubungkan ulang" secondary={!needsReconnect} />
+        <ConnectLink label={t('threads_settings.reconnect')} secondary={!needsReconnect} />
         <ThreadsDisconnectButton username={connection.username} />
       </div>
     </>

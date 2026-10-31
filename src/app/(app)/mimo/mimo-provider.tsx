@@ -22,7 +22,7 @@ export function MimoProvider({ scope, revision, children }: { scope: string; rev
     active.current = true
     const clear = (event: SubmitEvent) => {
       const form = event.target
-      if (form instanceof HTMLFormElement && form.querySelector('[aria-label="Keluar"]')) {
+      if (form instanceof HTMLFormElement && form.querySelector('[data-logout]')) {
         active.current = false
         client.clear()
       }

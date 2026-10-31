@@ -1,0 +1,134 @@
+{
+  "steps": {
+    "kind": {
+      "title": "Akun Instagram ini untuk apa?",
+      "hint": "Supaya gaya bahasa dan ide kontennya pas."
+    },
+    "name": {
+      "title": "Apa nama brand dan bidang usahanya?",
+      "hint": "Nama yang muncul di konten, dan bidangnya dalam beberapa kata."
+    },
+    "description": {
+      "title": "Ceritakan bisnismu secara singkat.",
+      "hint": "Apa yang dijual atau ditawarkan, dan apa bedanya dengan yang lain. 2–3 kalimat sudah cukup."
+    },
+    "audience": {
+      "title": "Siapa yang ingin kamu jangkau?",
+      "hint": "Contoh: ibu muda 25–35 tahun di Jabodetabek yang suka masak praktis."
+    },
+    "posts": {
+      "title": "Berapa kali posting per minggu?",
+      "hint": "Ini jadi jadwal dan kalender kontenmu. Bisa diubah kapan saja di halaman Brand."
+    },
+    "style": {
+      "title": "Gaya desain seperti apa yang kamu mau?",
+      "hint": "Ini hanya acuan font dan layout awal. Jika kamu menambahkan referensi desain atau menghubungkan Instagram, referensi tersebut akan diprioritaskan."
+    },
+    "fonts": {
+      "title": "Pilih font untuk desainmu.",
+      "hint": "Sudah kami sarankan sesuai gaya yang dipilih. Ganti kalau punya font brand sendiri."
+    },
+    "referral": {
+      "title": "Tahu Carousely dari mana?",
+      "hint": "Satu pertanyaan terakhir, biar kami tahu cara menjangkau orang sepertimu."
+    },
+    "done": {
+      "title": "Siap! Ini gaya brand-mu.",
+      "hint": "Semua bisa diubah kapan saja di halaman Brand."
+    }
+  },
+  "wizard": {
+    "failed": "Gagal menghubungi server. Coba lagi.",
+    "progress": "Kemajuan",
+    "back": "Kembali",
+    "skip": "Lewati",
+    "saving": "Menyimpan…",
+    "saveConnect": "Simpan & hubungkan Instagram",
+    "next": "Lanjut",
+    "kind": "Jenis akun",
+    "name": "Nama brand",
+    "namePlaceholder": "mis. Kopi Sinar",
+    "category": "Bidang usaha",
+    "categoryPlaceholder": "mis. Kedai kopi, skincare lokal, kursus bahasa Inggris",
+    "description": "Deskripsi bisnis",
+    "descriptionPlaceholder": "mis. Kedai kopi susu gula aren di Bandung. Biji kopi dari petani Garut, harga mahasiswa, buka sampai malam.",
+    "audience": "Target audiens",
+    "audiencePlaceholder": "mis. Mahasiswa dan pekerja muda 18–30 tahun di Bandung.",
+    "headingFont": "Font judul",
+    "bodyFont": "Font isi",
+    "weekly": "Posting per minggu",
+    "brand": "Brand",
+    "style": "Gaya desain",
+    "font": "Font",
+    "posting": "Posting",
+    "source": "Sumber",
+    "where": "Dari mana?",
+    "sourcePlaceholder": "mis. podcast, webinar, iklan…",
+    "shortcut": "Ctrl/⌘ + Enter untuk lanjut",
+    "selected": "Dipilih: {style}",
+    "posts": "{count} post / minggu",
+    "summary": "Berikutnya hubungkan Instagram. Kami ambil logo dan beberapa post sebagai contoh layout. Gaya <style>{name}</style> tetap menentukan font dan kesan desainnya, sedangkan post-mu jadi acuan susunan layout.",
+    "other": "Lainnya"
+  },
+  "sources": {
+    "Instagram": "Instagram",
+    "TikTok": "TikTok",
+    "YouTube": "YouTube",
+    "Google": "Google",
+    "Teman atau rekan": "Teman atau rekan",
+    "Komunitas atau grup": "Komunitas atau grup"
+  },
+  "styles": {
+    "minimalis": "Minimalis Modern",
+    "bold": "Bold Kreatif",
+    "elegan": "Elegan Premium",
+    "ceria": "Ceria & Playful",
+    "editorial": "Editorial Majalah",
+    "profesional": "Profesional Korporat",
+    "natural": "Natural & Organik",
+    "tech": "Tech Modern"
+  },
+  "kinds": {
+    "bisnis": {
+      "label": "Bisnis / toko",
+      "hint": "Jual produk, online atau offline."
+    },
+    "jasa": {
+      "label": "Jasa / profesional",
+      "hint": "Konsultan, klinik, agensi, freelancer."
+    },
+    "kreator": {
+      "label": "Kreator / personal brand",
+      "hint": "Konten, opini, keahlian pribadi."
+    },
+    "edukasi": {
+      "label": "Edukasi / komunitas",
+      "hint": "Kursus, tips, organisasi, komunitas."
+    }
+  },
+  "page": {
+    "title": "Kenalan dulu",
+    "preparing": "Menyiapkan ruang brand-mu…",
+    "loading": "Memuat pengaturan awal…",
+    "saveFailed": "Jawaban gagal disimpan. Coba lagi.",
+    "configurationError": "Konfigurasi belum lengkap: {message}.",
+    "databaseError": "Database tidak bisa diakses. Periksa konfigurasi Supabase di .env.local."
+  },
+  "errors": {
+    "invalid": "Jawaban tidak valid.",
+    "kind": "Jenis akun tidak dikenal.",
+    "style": "Gaya desain tidak dikenal.",
+    "colors": "Warna tidak valid.",
+    "posts": "Pilih jumlah posting per minggu dari pilihan yang ada.",
+    "referral": "Jawaban \"tahu dari mana\" maksimal {count} karakter.",
+    "length": "{field} maksimal {count} karakter."
+  },
+  "fields": {
+    "name": "Nama brand",
+    "category": "Kategori",
+    "description": "Deskripsi singkat",
+    "audience": "Target audiens",
+    "headingFont": "Font judul",
+    "bodyFont": "Font isi"
+  }
+}

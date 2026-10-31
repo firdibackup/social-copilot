@@ -1,6 +1,7 @@
 'use server'
 
 import { refresh } from 'next/cache'
+import { getTranslations } from 'next-intl/server'
 import { MissingInsightsPermissionError, syncAnalytics } from '@/lib/analytics-sync'
 import { requireAccount } from '@/lib/auth'
 import { markNeedsReconnect, NeedsReconnectError } from '@/lib/connection'
@@ -12,33 +13,31 @@ export interface RefreshResult {
   message: string
 }
 
-const RECONNECT = 'Token Instagram kedaluwarsa atau dicabut. Hubungkan ulang Instagram.'
-const MISSING_PERMISSION = 'Analitik butuh izin membaca insights. Hubungkan ulang Instagram sekali.'
-const COOLDOWN = 'Data baru saja disinkronkan. Refresh bisa dipakai lagi 10 menit setelah sync terakhir.'
-
 async function errorMessage(userId: string, error: unknown): Promise<string> {
-  if (error instanceof MissingInsightsPermissionError) return MISSING_PERMISSION
-  if (error instanceof NeedsReconnectError) return RECONNECT
+  const t = await getTranslations('analytics.sync')
+  if (error instanceof MissingInsightsPermissionError) return t('permission')
+  if (error instanceof NeedsReconnectError) return t('reconnect')
   if (error instanceof InstagramApiError && error.isInvalidToken) {
     await markNeedsReconnect(userId)
-    return RECONNECT
+    return t('reconnect')
   }
   console.error('[analitik] sync gagal:', describeError(error))
   return error instanceof InstagramApiError
-    ? `Instagram menolak: ${error.message}`
-    : 'Instagram atau database tidak bisa dihubungi. Coba lagi.'
+    ? t('rejected', { message: error.message })
+    : t('unavailable')
 }
 
 /** Refresh, and the page's own sync when its data is over 6 hours old. */
 export async function refreshAnalytics(): Promise<RefreshResult> {
+  const t = await getTranslations('analytics.sync')
   const { userId, accountId } = await requireAccount()
   let result: RefreshResult
   try {
     const synced = await syncAnalytics(userId, accountId)
-    if (synced === 'cooldown') return { status: 'cooldown', message: COOLDOWN }
+    if (synced === 'cooldown') return { status: 'cooldown', message: t('cooldown') }
     result = {
       status: 'done',
-      message: `Refresh selesai: ${synced.updated} post diperbarui, ${synced.failed} gagal.`,
+      message: t('done', { updated: synced.updated, failed: synced.failed }),
     }
   } catch (error) {
     result = { status: 'error', message: await errorMessage(userId, error) }

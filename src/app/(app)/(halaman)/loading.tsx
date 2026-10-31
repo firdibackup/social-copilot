@@ -1,5 +1,7 @@
+import { useTranslations } from 'next-intl'
 import { LoadingState } from '@/components/loading-state'
 
 export default function Loading() {
-  return <LoadingState variant="page" label="Memuat halaman…" />
+  const t = useTranslations('common')
+  return <LoadingState variant="page" label={t('loadingPage')} />
 }

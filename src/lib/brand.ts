@@ -1,6 +1,7 @@
 import 'server-only'
 import { cache } from 'react'
 import { randomUUID } from 'node:crypto'
+import sharp from 'sharp'
 import {
   coverOf,
   EMPTY_BRAND,
@@ -26,6 +27,8 @@ import { describeError } from './errors'
 import type { ReferenceOption } from './content-options'
 import type { ImageType } from './image'
 import { toReferenceDataUrl } from './slide-image'
+import { assertStorageAvailable } from './storage-quota'
+import { MAX_STORED_BYTES } from './storage-quota-options'
 import { db, unwrap } from './supabase'
 
 const BUCKET = 'brand'
@@ -302,9 +305,24 @@ export async function saveBrandKit(userId: string, accountId: string, fields: Br
   )
 }
 
+async function prepareStoredImage(bytes: Uint8Array, type: ImageType): Promise<Uint8Array> {
+  if (bytes.length <= MAX_STORED_BYTES) return bytes
+  const resized = sharp(bytes)
+    .rotate()
+    .resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true })
+  const data = type === 'image/jpeg'
+    ? await resized.jpeg({ quality: 85 }).toBuffer()
+    : type === 'image/png'
+      ? await resized.png({ compressionLevel: 9 }).toBuffer()
+      : await resized.webp({ quality: 85 }).toBuffer()
+  return new Uint8Array(data)
+}
+
 async function upload(userId: string, prefix: string, bytes: Uint8Array, type: ImageType): Promise<string> {
+  const stored = await prepareStoredImage(bytes, type)
+  await assertStorageAvailable(userId, stored.length)
   const path = `${userId}/${prefix}${randomUUID()}.${EXTENSIONS[type]}`
-  const result = await bucket().upload(path, bytes, { contentType: type })
+  const result = await bucket().upload(path, stored, { contentType: type })
   if (result.error) throw new Error(`Supabase Storage: ${result.error.message}`)
   return path
 }

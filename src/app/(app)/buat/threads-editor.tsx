@@ -1,5 +1,7 @@
 'use client'
 
+import { useLocale, useTranslations } from 'next-intl'
+
 import { ImagePlus, Plus, Scissors, Trash2, X } from 'lucide-react'
 import { useEffect, useEffectEvent, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -28,9 +30,9 @@ import { useEditorScope } from './editor-provider'
 import { createSaveQueue } from './save-queue'
 
 const AUTOSAVE_MS = 1000
-const FAILED = 'Gagal menghubungi server. Coba lagi.'
-const LOCKED = 'Post ini tidak bisa diubah lagi.'
-const SHORT = 'Kuota AI tidak cukup. Perpanjang di halaman Langganan.'
+
+
+
 const ICON_TOOL =
   'inline-flex size-8 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-zinc-100 hover:text-ink disabled:opacity-40'
 
@@ -109,6 +111,15 @@ function followCaption(caption: string, media: ItemMedia[]): EditorItem[] {
  * follows the Instagram caption until the owner types here; from then on it is saved apart, a second after typing.
  */
 export function ThreadsEditor(props: ThreadsEditorProps) {
+  const t = useTranslations('editor.threadsEditor')
+  const locale = useLocale()
+
+  const SHORT = t('message1')
+
+  const LOCKED = t('message2')
+
+  const FAILED = t('message3')
+
   const client = useQueryClient()
   const scope = useEditorScope()
   const {
@@ -222,7 +233,7 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
 
   function addAfter(index: number) {
     if (items.length >= MAX_THREAD_ITEMS) {
-      setError(`Maksimal ${MAX_THREAD_ITEMS} post dalam satu rantai Threads.`)
+      setError(t('message4', { v0: MAX_THREAD_ITEMS }))
       return
     }
     const item = { key: newKey(), text: '', media: [] }
@@ -233,7 +244,7 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
   function split(index: number) {
     const parts = splitThreadText(items[index].text)
     if (items.length - 1 + parts.length > MAX_THREAD_ITEMS) {
-      setError(`Teks ini jadi ${parts.length} post, lebih dari ${MAX_THREAD_ITEMS} post dalam satu rantai. Pendekkan dulu.`)
+      setError(t('message5', { v0: parts.length, v1: MAX_THREAD_ITEMS }))
       return
     }
     const pieces = parts.map((text, at) => ({ key: newKey(), text, media: at === 0 ? items[index].media : [] }))
@@ -254,9 +265,9 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
 
   async function followAgain() {
     if (!(await confirmDialog({
-      title: 'Ikuti caption Instagram lagi?',
-      description: 'Perubahan di versi Threads akan hilang.',
-      confirmLabel: 'Ikuti lagi',
+      title: t('message6'),
+      description: t('message7'),
+      confirmLabel: t('message8'),
       tone: 'danger',
     }))) return
     const nextVersion = version + 1
@@ -319,13 +330,13 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
   const composer = composerSlot ? createPortal(
     <Composer
       placeholder={!hasText
-        ? 'Tulis topik untuk thread…'
+        ? t('message9')
         : target === null
-          ? 'Tulis perubahan untuk thread…'
-          : `Tulis perubahan untuk post #${target + 1}…`}
-      cost={`${hasText ? '' : '≈ '}${formatCreditShare(aiCost, planCredits)} kuota`}
+          ? t('message10')
+          : t('message11', { v0: target + 1 })}
+      cost={t('message12', { v0: hasText ? '' : '≈ ', v1: formatCreditShare(aiCost, planCredits, locale) })}
       blocked={!editable ? LOCKED : short ? SHORT : null}
-      busyLabel={aiBusy ? (hasText ? 'Mengubah thread…' : 'Menulis thread…') : null}
+      busyLabel={aiBusy ? (hasText ? t('message13') : t('message14')) : null}
       readOnly={aiBusy}
       canAttach={false}
       onSend={askAi}
@@ -333,10 +344,8 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
       {hasText && editable && (
         <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
           <span className="flex items-center gap-1">
-            Ubah:
-            <TargetButton active={target === null} disabled={aiBusy} onClick={() => setTarget(null)}>
-              Semua post
-            </TargetButton>
+             {t('message15')} <TargetButton active={target === null} disabled={aiBusy} onClick={() => setTarget(null)}>
+               {t('message16')} </TargetButton>
             {selected !== null && (
               <TargetButton active={target === selected} disabled={aiBusy} onClick={() => setTarget(selected)}>
                 Post #{selected + 1}
@@ -353,29 +362,27 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
     <div className="mx-auto w-full max-w-[520px] space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">
         {following ? (
-          <span>Mengikuti caption Instagram. Tulis di sini untuk versi Threads sendiri.</span>
+          <span>{t('message17')}</span>
         ) : (
           <span className="flex items-center gap-2">
-            Versi Threads sendiri.
-            {canFollowCaption && editable && (
+            {t('independent')}{canFollowCaption && editable && (
               <button
                 type="button"
                 onClick={() => void followAgain()}
                 disabled={aiBusy}
                 className="font-medium text-ink underline disabled:opacity-40"
               >
-                Ikuti caption lagi
-              </button>
+                 {t('message18')} </button>
             )}
           </span>
         )}
         {!following && !error && (
-          <span role="status">{saving ? 'Menyimpan…' : unsaved ? 'Belum tersimpan' : postId ? 'Tersimpan' : ''}</span>
+          <span role="status">{saving ? t('message19') : unsaved ? t('message20') : postId ? t('message21') : ''}</span>
         )}
       </div>
       {error && <Notice tone="error">{error}</Notice>}
 
-      <article aria-label="Pratinjau Threads" className="rounded-2xl border border-hairline bg-white px-4 pt-4">
+      <article aria-label={t('message22')} className="rounded-2xl border border-hairline bg-white px-4 pt-4">
         <ol>
           {items.map((item, index) => {
             const length = threadsLength(item.text)
@@ -400,8 +407,8 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
                     onFocus={() => setSelected(index)}
                     onKeyDown={(event) => onKeyDown(event, index)}
                     readOnly={!editable || aiBusy}
-                    aria-label={`Teks post Threads #${index + 1}`}
-                    placeholder={editable ? (index === 0 ? 'Mulai thread…' : 'Lanjutkan thread…') : ''}
+                    aria-label={t('message23', { v0: index + 1 })}
+                    placeholder={editable ? (index === 0 ? t('message24') : t('message25')) : ''}
                     className="mt-0.5 block w-full resize-none border-0 bg-transparent p-0 text-[14px] leading-relaxed text-ink [field-sizing:content] placeholder:text-ink-soft read-only:text-ink-muted focus:outline-none"
                   />
                   {item.media.length > 0 && (
@@ -412,7 +419,7 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
                           {editable && (
                             <button
                               type="button"
-                              aria-label="Buang foto ini dari versi Threads"
+                              aria-label={t('message26')}
                               onClick={() => update(index, { media: item.media.filter((other) => other.assetId !== photo.assetId) })}
                               disabled={aiBusy}
                               className="absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 disabled:opacity-40"
@@ -435,15 +442,14 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
                           className="inline-flex h-8 items-center gap-1 rounded-full px-2.5 text-xs font-medium text-accent transition-colors hover:bg-accent-soft disabled:opacity-40"
                         >
                           <Scissors size={14} aria-hidden="true" />
-                          Pecah otomatis
-                        </button>
+                           {t('message27')} </button>
                       )}
                       <button
                         type="button"
                         onClick={() => addAfter(index)}
                         disabled={aiBusy || items.length >= MAX_THREAD_ITEMS}
-                        aria-label="Tambah post di bawah"
-                        title="Tambah post di bawah (⌘↵)"
+                        aria-label={t('message28')}
+                        title={t('message29')}
                         className={ICON_TOOL}
                       >
                         <Plus size={16} aria-hidden="true" />
@@ -456,8 +462,8 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
                           props.onLoadLibrary()
                         }}
                         disabled={aiBusy}
-                        aria-label="Tambah gambar"
-                        title="Tambah gambar"
+                        aria-label={t('message30')}
+                        title={t('message30')}
                         className={ICON_TOOL}
                       >
                         <ImagePlus size={16} aria-hidden="true" />
@@ -467,8 +473,8 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
                           type="button"
                           onClick={() => change(items.filter((_, at) => at !== index))}
                           disabled={aiBusy}
-                          aria-label={`Hapus post #${index + 1}`}
-                          title="Hapus post ini"
+                          aria-label={t('message31', { v0: index + 1 })}
+                          title={t('message32')}
                           className={`${ICON_TOOL} hover:text-red-600`}
                         >
                           <Trash2 size={15} aria-hidden="true" />
@@ -491,13 +497,12 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
           className="flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-hairline text-sm font-medium text-ink-muted transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
         >
           <Plus size={16} aria-hidden="true" />
-          Tambah post
-        </button>
+           {t('message33')} </button>
       )}
 
       {undo && sameItems(items, undo.after) && editable && !aiBusy && (
         <p className="text-xs text-ink-muted">
-          Thread diganti AI.{' '}
+          {t('aiReplaced')}{' '}
           <button
             type="button"
             onClick={() => {
@@ -506,8 +511,7 @@ export function ThreadsEditor(props: ThreadsEditorProps) {
             }}
             className="font-medium text-ink underline"
           >
-            Urungkan
-          </button>
+             {t('message34')} </button>
         </p>
       )}
 
@@ -574,8 +578,10 @@ const RING_LENGTH = 2 * Math.PI * RING_RADIUS
 
 /** How full the item is, as Threads counts it: amber near the limit, red past it. */
 function CharacterRing({ length }: { length: number }) {
+  const t = useTranslations('editor.threadsEditor')
+
   const tone = length > THREADS_TEXT_LIMIT ? 'text-red-600' : length > THREADS_TEXT_WARN ? 'text-amber-500' : 'text-accent'
-  const label = `${length} dari ${THREADS_TEXT_LIMIT} karakter`
+  const label = t('message35', { v0: length, v1: THREADS_TEXT_LIMIT })
   return (
     <span title={label} className="inline-flex h-8 items-center gap-1 px-1.5">
       <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" className={tone}>

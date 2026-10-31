@@ -29,6 +29,21 @@ const INVALID_TOKEN_CODE = 190
  * through a minute later (2026-10-30).
  */
 const TRANSIENT_CODES = new Set([-2, 1, 2, 4, 17, 32, 341, 368, 613, 9004])
+const USERNAME = /^[a-z0-9._]{1,30}$/
+/** First path segments of instagram.com links that are not profiles. */
+const NOT_PROFILES = new Set(['p', 'reel', 'reels', 'tv', 'explore', 'stories', 'accounts', 'direct'])
+
+/** `@name`, `name` or a profile link → `name`. Null for anything else, including post links. */
+export function parseInstagramUsername(input: string): string | null {
+  let text = input.trim()
+  const link = /^(?:https?:\/\/)?(?:www\.|m\.)?instagram\.com\/([^/?#]+)/i.exec(text)
+  if (link) {
+    if (NOT_PROFILES.has(link[1].toLowerCase())) return null
+    text = link[1]
+  }
+  const username = text.replace(/^@/, '').toLowerCase()
+  return USERNAME.test(username) ? username : null
+}
 
 const CONTAINER_STATUSES = ['EXPIRED', 'ERROR', 'FINISHED', 'IN_PROGRESS', 'PUBLISHED'] as const
 export type ContainerStatus = (typeof CONTAINER_STATUSES)[number]
@@ -105,8 +120,8 @@ function toApiError(body: unknown, status: number): InstagramApiError {
 }
 
 /**
- * One Graph call. graph.facebook.com and graph.threads.com answer in the same shape, so `facebook.ts` and
- * `threads.ts` use it too; `service` names the one that couldn't be reached.
+ * One Graph call. The Instagram and Threads Graph APIs answer in the same shape, so `threads.ts` uses it too;
+ * `service` names the one that couldn't be reached.
  */
 export async function request(url: string | URL, init?: RequestInit, service = 'Instagram'): Promise<Json> {
   const response = await fetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }).catch(

@@ -1,13 +1,15 @@
+import { getTranslations } from 'next-intl/server'
 import { Notice } from '@/components/notice'
 import { requireUser } from '@/lib/auth'
 import { getConnectedAccountId } from '@/lib/connection'
 import { getDensityDefault } from '@/lib/density'
 import { DEFAULT_DENSITY, type TextDensity } from '@/lib/density-options'
-import { describeError, loadErrorMessage } from '@/lib/errors'
+import { ConfigError, describeError } from '@/lib/errors'
 import { DensityPicker } from './density-picker'
 
 /** Kepadatan teks: the account's default for new posts in Buat; every post can still pick another. */
 export async function DensitySettings() {
+  const t = await getTranslations('settings')
   const userId = await requireUser()
   let state: { accountId: string | null; density: TextDensity }
   try {
@@ -15,7 +17,7 @@ export async function DensitySettings() {
     state = { accountId, density: accountId ? await getDensityDefault(userId, accountId) : DEFAULT_DENSITY }
   } catch (error) {
     console.error('[pengaturan] kepadatan teks gagal dimuat:', describeError(error))
-    return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
+    return <Notice tone="warning">{error instanceof ConfigError ? t('loadErrors.configuration', { message: error.message }) : t('loadErrors.database')}</Notice>
   }
 
   return (

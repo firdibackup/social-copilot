@@ -215,6 +215,13 @@ describe('summarizeNotifications', () => {
     expect(feed.items.map((item) => item.key)).toEqual(['comment:c2', 'dm:b', 'comment:c1'])
   })
 
+  it('localizes fallbacks when assembling a feed without changing user content', () => {
+    const feed = summarizeNotifications([dm('a', 1, { name: null, username: null, lastText: null })], [], undefined, 'en')
+    expect(feed.items[0]).toMatchObject({ name: 'Instagram user', text: '(attachment)' })
+    expect(conversationName({ name: 'Pengguna Instagram', username: null }, 'en')).toBe('Pengguna Instagram')
+    expect(commenterName({ username: null }, 'en')).toBe('Instagram user')
+  })
+
   it('shows an attachment-only DM as (lampiran)', () => {
     expect(summarizeNotifications([dm('a', 1, { lastText: null })], []).items[0].text).toBe('(lampiran)')
   })

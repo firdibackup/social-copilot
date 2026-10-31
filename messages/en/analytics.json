@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "Analytics",
+    "loading": "Loading analytics…",
+    "description": "Instagram post performance from the last 90 days. Instagram metrics can take up to 48 hours to appear.",
+    "neverSynced": "Not synced with Instagram yet.",
+    "lastSync": "Last synced {time}: {updated} posts updated, {failed} failed."
+  },
+  "summary": {
+    "label": "Summary",
+    "posts": "Total posts",
+    "days": "Last {count} days",
+    "views": "Views",
+    "withMetrics": "All posts with metrics",
+    "interactions": "Interactions",
+    "interactionNote": "Likes, comments, shares, saves",
+    "rate": "Engagement rate",
+    "rateNote": "Interactions / views"
+  },
+  "connection": {
+    "reconnect": "Reconnect Instagram",
+    "expired": "Your Instagram token expired or was revoked, so analytics can't be updated. <link>Reconnect Instagram</link> as @{username}.",
+    "permission": "Analytics needs a new permission to read insights. <link>Reconnect Instagram</link> once and sign in as @{username}."
+  },
+  "range": { "label": "Time range", "days": "{count} days" },
+  "empty": {
+    "noPosts": "No posts in the last {count} days",
+    "noData": "No analytics data yet",
+    "published": "This account's Instagram posts will appear here after they're published.",
+    "firstSync": "Posts and insights are fetched from Instagram during the first sync."
+  },
+  "table": {
+    "post": "Post",
+    "link": "Link",
+    "views": "Views",
+    "reach": "Reach",
+    "likes": "Likes",
+    "comments": "Comments",
+    "shares": "Shares",
+    "saved": "Saves",
+    "rate": "ER",
+    "noCaption": "No caption",
+    "fromApp": "Via app",
+    "insightsFailed": "Insights failed: {message}",
+    "openInstagram": "Open on Instagram"
+  },
+  "media": { "IMAGE": "Photo", "VIDEO": "Video", "CAROUSEL_ALBUM": "Carousel", "REELS": "Reels" },
+  "sync": {
+    "refresh": "Refresh",
+    "pending": "Syncing posts and insights from Instagram…",
+    "unreachable": "Couldn't reach the server. Try again.",
+    "reconnect": "Your Instagram token expired or was revoked. Reconnect Instagram.",
+    "permission": "Analytics needs permission to read insights. Reconnect Instagram once.",
+    "cooldown": "Data was just synced. You can refresh again 10 minutes after the last sync.",
+    "rejected": "Instagram rejected the request: {message}",
+    "unavailable": "Couldn't reach Instagram or the database. Try again.",
+    "done": "Refresh complete: {updated} posts updated, {failed} failed."
+  },
+  "errors": {
+    "configuration": "Configuration is incomplete: {message}.",
+    "database": "Couldn't access the database. Check your Supabase configuration in .env.local."
+  }
+}

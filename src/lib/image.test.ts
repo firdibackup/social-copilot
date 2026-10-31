@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fitToInstagram, isJpeg } from './image'
+import { fitToInstagram, isJpeg, storedJpegAttempts } from './image'
 
 describe('fitToInstagram', () => {
   it('crops a 9:16 photo to 4:5 around the centre', () => {
@@ -16,6 +16,23 @@ describe('fitToInstagram', () => {
 
   it('scales a large photo down to 1440 px wide without cropping', () => {
     expect(fitToInstagram(4000, 3000)).toEqual({ sx: 0, sy: 0, sw: 4000, sh: 3000, width: 1440, height: 1080 })
+  })
+})
+
+describe('storedJpegAttempts', () => {
+  it('tries lower quality before reducing dimensions and keeps Instagram ratios valid', () => {
+    const attempts = storedJpegAttempts(1080, 1350, 0.9, true)
+    expect(attempts.slice(0, 4)).toEqual([
+      { width: 1080, height: 1350, quality: 0.9 },
+      { width: 1080, height: 1350, quality: 0.8 },
+      { width: 1080, height: 1350, quality: 0.7 },
+      { width: 1080, height: 1350, quality: 0.6 },
+    ])
+    expect(attempts[4]).toEqual({ width: 918, height: 1147, quality: 0.6 })
+    for (const attempt of attempts) {
+      expect(attempt.height).toBeLessThanOrEqual(Math.floor((attempt.width * 5) / 4))
+      expect(attempt.height).toBeGreaterThanOrEqual(Math.ceil((attempt.width * 100) / 191))
+    }
   })
 })
 

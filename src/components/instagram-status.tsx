@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server'
 import { connection } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { getConnection } from '@/lib/connection'
@@ -28,15 +29,16 @@ export function StatusLine({ tone, label }: Status) {
 async function loadStatus(): Promise<Status> {
   // Always read at request time; otherwise a failure before the query gets prerendered into the static shell.
   await connection()
+  const t = await getTranslations('shell')
   const userId = await requireUser()
   try {
     const current = await getConnection(userId)
-    if (!current) return { tone: 'muted', label: 'Belum terhubung' }
-    if (current.status === 'needs_reconnect') return { tone: 'warning', label: 'Perlu disambung ulang' }
+    if (!current) return { tone: 'muted', label: t('connection.disconnected') }
+    if (current.status === 'needs_reconnect') return { tone: 'warning', label: t('connection.reconnect') }
     return { tone: 'ok', label: `@${current.username}` }
   } catch (error) {
     console.error('[instagram] status sidebar gagal:', describeError(error))
-    return { tone: 'muted', label: 'Status tidak tersedia' }
+    return { tone: 'muted', label: t('connection.unavailable') }
   }
 }
 

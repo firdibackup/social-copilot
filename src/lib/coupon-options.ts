@@ -1,3 +1,7 @@
+import { createTranslator } from 'next-intl'
+import type { Locale } from '@/i18n/locale-config'
+import idMessages from '../../messages/id/billing.json'
+import enMessages from '../../messages/en/billing.json'
 /** Kupon: pure rules shared by checkout, the admin form, and tests. The database re-checks all of them under a lock. */
 import { formatRupiah } from './billing-options'
 import { MIN_PRICE_IDR } from './billing-catalog-options'
@@ -45,27 +49,28 @@ export function applyCoupon(afterDuration: number, percent: number): number {
  * Whether `coupon` can be used for this plan and duration by this user. Throws a CouponError with a message for
  * people. A total between Rp 0 and Rp 1.000 can't be paid through Mayar, and only a 100% coupon may make it free.
  */
-export function assertCouponUsable(coupon: Coupon, usage: CouponUsage, planId: string, months: number, totalBefore: number, now = new Date()): number {
-  if (!coupon.active) throw new CouponError('Kupon ini sudah tidak aktif.')
-  if (coupon.expiresAt && coupon.expiresAt <= now) throw new CouponError('Kupon ini sudah kedaluwarsa.')
-  if (coupon.planIds.length && !coupon.planIds.includes(planId)) throw new CouponError('Kupon ini tidak berlaku untuk paket yang dipilih.')
+export function assertCouponUsable(coupon: Coupon, usage: CouponUsage, planId: string, months: number, totalBefore: number, now = new Date(), locale: Locale = 'id'): number {
+  const t = createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'couponErrors' })
+  if (!coupon.active) throw new CouponError(t('message1'))
+  if (coupon.expiresAt && coupon.expiresAt <= now) throw new CouponError(t('message2'))
+  if (coupon.planIds.length && !coupon.planIds.includes(planId)) throw new CouponError(t('message3'))
   if (coupon.months.length && !coupon.months.includes(months)) {
-    throw new CouponError(`Kupon ini hanya berlaku untuk durasi ${[...coupon.months].sort((a, b) => a - b).join(', ')} bulan.`)
+    throw new CouponError(t('duration', { months: [...coupon.months].sort((a, b) => a - b).join(', ') }))
   }
-  if (usage.usedByUser) throw new CouponError('Kupon ini sudah pernah kamu pakai.')
-  if (usage.used >= coupon.maxUses) throw new CouponError('Kuota kupon ini sudah habis.')
+  if (usage.usedByUser) throw new CouponError(t('message4'))
+  if (usage.used >= coupon.maxUses) throw new CouponError(t('message5'))
   const total = applyCoupon(totalBefore, coupon.percent)
   if (total > 0 && total < MIN_PRICE_IDR) {
-    throw new CouponError(`Total setelah kupon di bawah ${formatRupiah(MIN_PRICE_IDR)}, jadi tidak bisa dibayar. Pilih durasi atau paket lain.`)
+    throw new CouponError(t('minimum', { amount: formatRupiah(MIN_PRICE_IDR, locale) }))
   }
   return total
 }
 
 /** The purchase with the coupon taken off, checked first. The snapshot keeps the coupon for the database to re-check. */
 export function withCoupon<T extends { plan: { id: string }; months: number; total: number }>(
-  purchase: T, coupon: Coupon, usage: CouponUsage, now = new Date(),
+  purchase: T, coupon: Coupon, usage: CouponUsage, now = new Date(), locale: Locale = 'id',
 ): T & { coupon: AppliedCoupon; couponDiscount: number } {
-  const total = assertCouponUsable(coupon, usage, purchase.plan.id, purchase.months, purchase.total, now)
+  const total = assertCouponUsable(coupon, usage, purchase.plan.id, purchase.months, purchase.total, now, locale)
   return { ...purchase, total, coupon: { id: coupon.id, code: coupon.code, percent: coupon.percent }, couponDiscount: purchase.total - total }
 }
 
@@ -88,25 +93,26 @@ const integer = (value: unknown, min: number, max: number) => {
  * The admin form. `expiresAt` is a `datetime-local` value read as WIB (UTC+7), or empty for no expiry.
  * Plan ids and months are checked against the catalog so a restriction can't name something that doesn't exist.
  */
-export function parseCoupon(input: Record<string, unknown>, catalog: { planIds: string[]; months: number[] }, now = new Date()): CouponInput {
+export function parseCoupon(input: Record<string, unknown>, catalog: { planIds: string[]; months: number[] }, now = new Date(), locale: Locale = 'id'): CouponInput {
+  const t = createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'couponErrors' })
   const code = normalizeCouponCode(input.code)
-  if (!COUPON_CODE.test(code)) throw new CouponError('Kode kupon 3–30 karakter: huruf, angka, - atau _.')
+  if (!COUPON_CODE.test(code)) throw new CouponError(t('message6'))
   const percent = integer(input.percent, 1, 100)
-  if (percent === null) throw new CouponError('Diskon kupon harus bilangan bulat 1–100%.')
+  if (percent === null) throw new CouponError(t('message7'))
   const maxUses = integer(input.maxUses, 1, 1_000_000)
-  if (maxUses === null) throw new CouponError('Kuantitas kupon harus bilangan bulat 1–1.000.000.')
+  if (maxUses === null) throw new CouponError(t('message8'))
   let expiresAt: Date | null = null
   if (typeof input.expiresAt === 'string' && input.expiresAt.trim()) {
-    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(input.expiresAt.trim())) throw new CouponError('Tanggal kedaluwarsa tidak valid.')
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(input.expiresAt.trim())) throw new CouponError(t('message9'))
     expiresAt = new Date(`${input.expiresAt.trim()}:00+07:00`)
-    if (Number.isNaN(expiresAt.getTime())) throw new CouponError('Tanggal kedaluwarsa tidak valid.')
-    if (expiresAt <= now) throw new CouponError('Tanggal kedaluwarsa harus di masa depan.')
+    if (Number.isNaN(expiresAt.getTime())) throw new CouponError(t('message9'))
+    if (expiresAt <= now) throw new CouponError(t('message10'))
   }
   const list = (value: unknown) => (Array.isArray(value) ? value : value === undefined || value === '' ? [] : [value])
   const planIds = [...new Set(list(input.planIds).map(String))]
-  if (planIds.some((id) => !catalog.planIds.includes(id))) throw new CouponError('Paket yang dibatasi tidak ada di katalog.')
+  if (planIds.some((id) => !catalog.planIds.includes(id))) throw new CouponError(t('message11'))
   const months = [...new Set(list(input.months).map((value) => integer(value, 1, 12)))]
-  if (months.some((value) => value === null || !catalog.months.includes(value))) throw new CouponError('Durasi yang dibatasi tidak ada di katalog.')
+  if (months.some((value) => value === null || !catalog.months.includes(value))) throw new CouponError(t('message12'))
   return { code, percent, maxUses, active: input.active === true || input.active === 'on' || input.active === 'true',
     expiresAt, planIds, months: (months as number[]).sort((a, b) => a - b) }
 }

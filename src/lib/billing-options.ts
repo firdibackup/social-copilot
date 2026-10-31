@@ -1,3 +1,4 @@
+import { intlLocale, type Locale } from '@/i18n/locale-config'
 import type { LoggedTask } from './ai'
 
 /** The one plan. Credits are the period's AI allowance: of 10,000, a 5-slide post (103 credits) is about 1%. */
@@ -64,11 +65,10 @@ export const tagCost = (photos: number) => photos * TASK_CREDITS.asset_tags
 export const usedPercent = (used: number, credits: number) =>
   Math.max(0, Math.min(100, Math.floor((used * 100) / credits)))
 
-const shareFormat = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 })
 
 /** What a cost is as a share of the period's `total` credits, e.g. "6,3%" or "0,2%". */
-export const formatCreditShare = (credits: number, total: number) => `${shareFormat.format((credits / total) * 100)}%`
+export const formatCreditShare = (credits: number, total: number, locale: Locale = 'id') => `${new Intl.NumberFormat(intlLocale(locale), { maximumFractionDigits: 1 }).format((credits / total) * 100)}%`
 
 /** e.g. "Rp 99.000", with a no-break space. */
-export const formatRupiah = (amount: number) =>
-  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount)
+export const formatRupiah = (amount: number, locale: Locale = 'id') =>
+  new Intl.NumberFormat(intlLocale(locale), { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount)

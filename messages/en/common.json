@@ -1,0 +1,331 @@
+{
+  "save": "Save",
+  "cancel": "Cancel",
+  "delete": "Delete",
+  "loading": "Loading…",
+  "localeToggleLabel": "Language",
+  "indonesian": "Bahasa Indonesia",
+  "english": "English",
+  "postStatus": {
+    "draft": "Draft",
+    "scheduled": "Scheduled",
+    "publishing": "Publishing",
+    "published": "Published",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "cancelling": "Cancelling…",
+  "dialog": {
+    "continue": "Continue",
+    "ok": "OK"
+  },
+  "preparingCarousely": "Getting Carousely ready…",
+  "late": {
+    "title": "The scheduled time has passed but the post has not been processed. Make sure the worker is running (npm run worker).",
+    "label": "Late"
+  },
+  "platform": {
+    "both": "Instagram and {threads}"
+  },
+  "loadingPage": "Loading page…",
+  "checkout": {
+    "nameRequired": "Enter a name for billing.",
+    "whatsappRequired": "Enter an active WhatsApp number.",
+    "whatsappInvalid": "Invalid WhatsApp number. Example: 0812 3456 7890.",
+    "title": "Your details",
+    "name": "Name",
+    "whatsapp": "WhatsApp number",
+    "hint": "For payment confirmation and help if something goes wrong.",
+    "nameMax": "Name must be {max} characters or fewer."
+  },
+  "grid": {
+    "imageError": "Your browser can’t read this image. Convert it to JPG or PNG first.",
+    "close": "Close",
+    "reading": "Reading image and finding tiles…",
+    "title": "Split grid image",
+    "closeGrid": "Close grid splitter",
+    "columns": "Columns",
+    "rows": "Rows",
+    "selectAll": "Select all",
+    "clear": "Clear",
+    "undetected": "No grid detected. Set the columns and rows.",
+    "limitReached": "Tile limit reached",
+    "added": "Already added",
+    "notReady": "Image is not ready",
+    "reset": "Reset to {cols}×{rows}",
+    "selected": "{count} of {total} selected",
+    "manual": "Grid set manually: {cols}×{rows}.",
+    "detected": "Detected a {cols}×{rows} grid.",
+    "limit": "Add up to {count} tiles at a time.",
+    "alt": "Grid image {name}",
+    "tile": "Tile {count}",
+    "tileLabel": "Tile {count}{suffix}",
+    "decrease": "Decrease {name}",
+    "count": "Number of {name}",
+    "increase": "Increase {name}",
+    "addedSuffix": ", already added",
+    "pickHint": "Click a tile to select or skip it."
+  },
+  "slots": {
+    "failed": "Could not reach the server. Try again.",
+    "weekdays": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat",
+      "sun": "Sun"
+    },
+    "scheduleHint": "Changing this schedule won’t affect posts already scheduled.",
+    "defaultHint": " Currently following the frequency target in Brand.",
+    "time": "Time",
+    "add": "Add time",
+    "perWeek": "Posts per week",
+    "presetHint": "Redistributes slots evenly. This sets your calendar, not how much content AI creates.",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "exists": "Time {time} is already in the table.",
+    "row": "Time for row {row}",
+    "remove": "Remove time {time}",
+    "posts": "{count, plural, one {# post} other {# posts}}",
+    "count": "<n>{count}</n> posting slots per week.",
+    "saveError": "Could not save slots. Try again.",
+    "maxTimes": "Up to {max} times per day.",
+    "duplicate": "Time {time} appears twice.",
+    "invalid": "Invalid slot."
+  },
+  "upload": {
+    "formatError": "Your browser can’t read this format. Convert it to JPG or PNG first.",
+    "interrupted": "Upload interrupted. Try again.",
+    "button": "Upload photos",
+    "progress": "Uploading {current} of {total}…",
+    "fileNotSaved": "{name} has not been saved.",
+    "photosNotSaved": "{count, plural, one {# photo has} other {# photos have}} not been saved."
+  },
+  "storage": {
+    "title": "Storage full",
+    "noSpace": "New files can’t be saved until you free up some space.",
+    "cleanup": "Clean up in Assets",
+    "later": "Later",
+    "hint": "Delete unused files, especially <b>AI-generated images</b> that aren’t used in any post. We’ve already picked them out for you in Assets."
+  },
+  "design": {
+    "styles": {
+      "minimalis": {
+        "label": "Modern Minimalist",
+        "summary": "Clean, generous whitespace with typography in the spotlight.",
+        "suits": "Education, professional services, understated premium products.",
+        "samples": {
+          "cover": {
+            "label": "Practical guide",
+            "title": "Clear Content, Stronger Message",
+            "copy": "Start with one clear idea."
+          },
+          "isi": {
+            "label": "01 · Focus",
+            "title": "One slide, one message",
+            "copy": "Whitespace helps readers find the point."
+          },
+          "cta": {
+            "label": "Next steps",
+            "title": "Ready to tidy up your content?",
+            "copy": "Save this guide →"
+          }
+        }
+      },
+      "bold": {
+        "label": "Bold Creative",
+        "summary": "Bold colors, oversized type, color blocks and high contrast.",
+        "suits": "Creators, youth brands, promotions and viral content.",
+        "samples": {
+          "cover": {
+            "label": "Stop scrolling",
+            "title": "Great Ideas Deserve to Be Seen!",
+            "copy": "Swipe to see how →"
+          },
+          "isi": {
+            "label": "01",
+            "title": "Open with a surprise",
+            "copy": "Use a line that challenges right away."
+          },
+          "cta": {
+            "label": "Your turn",
+            "title": "Make Your Content Stand Out",
+            "copy": "Try it now →"
+          }
+        }
+      },
+      "elegan": {
+        "label": "Premium Elegance",
+        "summary": "Luxurious serifs, muted colors and an exclusive feel.",
+        "suits": "Fashion, beauty, jewelry, hotels and fine dining.",
+        "samples": {
+          "cover": {
+            "label": "THE EDIT",
+            "title": "Small Details, Lasting Impressions",
+            "copy": "A guide to building a premium image."
+          },
+          "isi": {
+            "label": "01 · Detail",
+            "title": "Curate, don’t decorate",
+            "copy": "Choose elements that earn their place."
+          },
+          "cta": {
+            "label": "Discover more",
+            "title": "Find your brand’s signature style",
+            "copy": "Start exploring"
+          }
+        }
+      },
+      "ceria": {
+        "label": "Bright & Playful",
+        "summary": "Bright pastels, rounded shapes and cute illustrations.",
+        "suits": "Children’s products, snacks, hobbies and casual communities.",
+        "samples": {
+          "cover": {
+            "label": "Let’s learn!",
+            "title": "Bring Your Ideas to Life",
+            "copy": "Swipe to start ✦"
+          },
+          "isi": {
+            "label": "01",
+            "title": "Start with what you love",
+            "copy": "Simple ideas are easier to build on."
+          },
+          "cta": {
+            "label": "You made it!",
+            "title": "Time to Try It Yourself",
+            "copy": "Let’s start →"
+          }
+        }
+      },
+      "editorial": {
+        "label": "Magazine Editorial",
+        "summary": "Magazine-inspired: striking photos, a neat grid and large headlines.",
+        "suits": "Media, opinions, lifestyle and personal brands.",
+        "samples": {
+          "cover": {
+            "label": "ISSUE 01 · INSIGHT",
+            "title": "A New Look at Old Habits",
+            "copy": "Notes for a more mindful life."
+          },
+          "isi": {
+            "label": "01 · Perspective",
+            "title": "What goes unnoticed",
+            "copy": "Big changes often start with small observations."
+          },
+          "cta": {
+            "label": "End note",
+            "title": "What would you like to change?",
+            "copy": "Share your perspective →"
+          }
+        }
+      },
+      "profesional": {
+        "label": "Corporate Professional",
+        "summary": "Neat and trustworthy, with blue/navy tones, data and icons.",
+        "suits": "B2B, finance, consulting, healthcare and formal education.",
+        "samples": {
+          "cover": {
+            "label": "BUSINESS BRIEF",
+            "title": "Better Decisions with Data",
+            "copy": "Three steps to spot opportunities."
+          },
+          "isi": {
+            "label": "01 · Analysis",
+            "title": "Start with the key indicators",
+            "copy": "Compare trends, not isolated numbers."
+          },
+          "cta": {
+            "label": "Consultation",
+            "title": "Ready to plan your next move?",
+            "copy": "Contact our team →"
+          }
+        }
+      },
+      "natural": {
+        "label": "Natural & Organic",
+        "summary": "Earth tones, paper textures, leaves and a warm feel.",
+        "suits": "Natural products, coffee, health, wellness and home-based food businesses.",
+        "samples": {
+          "cover": {
+            "label": "SLOW LIVING NOTE",
+            "title": "Good Habits Grow Slowly",
+            "copy": "Start small, every day."
+          },
+          "isi": {
+            "label": "01 · Growth",
+            "title": "Give the process some space",
+            "copy": "Consistency matters more than perfection."
+          },
+          "cta": {
+            "label": "A gentle reminder",
+            "title": "Start with one step",
+            "copy": "Save for later"
+          }
+        }
+      },
+      "tech": {
+        "label": "Modern Tech",
+        "summary": "Dark backgrounds, neon accents and futuristic grids.",
+        "suits": "Technology, apps, gaming, crypto and digital marketing.",
+        "samples": {
+          "cover": {
+            "label": "SYSTEM UPDATE",
+            "title": "Work Faster, Not Harder",
+            "copy": "Streamline your digital workflow."
+          },
+          "isi": {
+            "label": "01 · AUTOMATE",
+            "title": "Eliminate repetitive work",
+            "copy": "Let the system handle routine tasks."
+          },
+          "cta": {
+            "label": "READY TO START?",
+            "title": "Upgrade the Way You Work",
+            "copy": "Start now →"
+          }
+        }
+      }
+    },
+    "fonts": {
+      "Plus Jakarta Sans": "modern & local",
+      "Inter": "clean & readable",
+      "DM Sans": "modern & friendly",
+      "Manrope": "premium & minimal",
+      "Sora": "tech & futuristic",
+      "Space Grotesk": "tech & editorial",
+      "Outfit": "cheerful & geometric",
+      "Rubik": "friendly & bold",
+      "Nunito Sans": "warm & relaxed",
+      "Roboto": "neutral & informative",
+      "Open Sans": "clear & professional",
+      "Lato": "humanist & professional",
+      "Poppins": "bold & popular",
+      "Montserrat": "corporate & bold",
+      "Playfair Display": "luxurious & editorial",
+      "DM Serif Display": "editorial & distinctive",
+      "Fraunces": "organic & expressive",
+      "Lora": "warm & elegant",
+      "Merriweather": "trustworthy & readable",
+      "Libre Baskerville": "classic & premium"
+    },
+    "roles": {
+      "isi": "Content",
+      "cta": "CTA",
+      "cover": "Cover"
+    },
+    "more": "Learn more",
+    "title": "Design style",
+    "auto": "Automatic",
+    "recommended": " (recommended)",
+    "other": "Other",
+    "previewHeading": "Content that stops the scroll",
+    "previewBody": "Sample slide text: clear, tidy, and easy to read on a phone.",
+    "previous": "Previous example — {style}",
+    "next": "Next example — {style}",
+    "follow": "Follow style ({font})",
+    "suits": "Best for: {suits}"
+  }
+}

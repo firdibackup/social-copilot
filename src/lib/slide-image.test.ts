@@ -1,5 +1,7 @@
 import sharp from 'sharp'
+import { randomFillSync } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
+import { TARGET_STORED_BYTES } from './image'
 import { SlideImageError, toReferenceDataUrl, toSlideJpeg, toWebsiteJpeg } from './slide-image'
 
 const RED = { r: 255, g: 0, b: 0 }
@@ -24,6 +26,12 @@ async function pixel(bytes: Uint8Array, x: number, y: number) {
 
 const isJpeg = (bytes: Uint8Array) => bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
 
+async function noise(width: number, height: number): Promise<Uint8Array> {
+  const data = Buffer.allocUnsafe(width * height * 3)
+  randomFillSync(data)
+  return new Uint8Array(await sharp(data, { raw: { width, height, channels: 3 } }).jpeg({ quality: 100 }).toBuffer())
+}
+
 describe('toSlideJpeg', () => {
   it.each([
     ['4:5', 1088, 1360, 1080, 1350],
@@ -34,6 +42,14 @@ describe('toSlideJpeg', () => {
     expect(slide).toMatchObject({ width: outWidth, height: outHeight })
     expect(isJpeg(slide.bytes)).toBe(true)
     expect(await sharp(slide.bytes).metadata()).toMatchObject({ width: outWidth, height: outHeight, format: 'jpeg' })
+  })
+
+  it('compresses a noisy slide below the stored-file target and reports final dimensions', async () => {
+    const slide = await toSlideJpeg(await noise(1080, 1350), '4:5')
+    const metadata = await sharp(slide.bytes).metadata()
+
+    expect(slide.bytes.byteLength).toBeLessThanOrEqual(TARGET_STORED_BYTES)
+    expect(slide).toMatchObject({ width: metadata.width, height: metadata.height })
   })
 
   it('crops the centre instead of squashing a landscape image', async () => {
@@ -82,6 +98,14 @@ describe('toWebsiteJpeg', () => {
     const image = await toWebsiteJpeg(await halves(2000, 1000))
     expect(image).toMatchObject({ width: 1440, height: 754 })
     expect(await sharp(image.bytes).metadata()).toMatchObject({ format: 'jpeg', width: 1440, height: 754 })
+  })
+
+  it('compresses noisy website images below the stored-file target and reports final dimensions', async () => {
+    const image = await toWebsiteJpeg(await noise(2000, 1200))
+    const metadata = await sharp(image.bytes).metadata()
+
+    expect(image.bytes.byteLength).toBeLessThanOrEqual(TARGET_STORED_BYTES)
+    expect(image).toMatchObject({ width: metadata.width, height: metadata.height })
   })
 
   it('rejects tiny images', async () => {

@@ -1,4 +1,5 @@
 import 'server-only'
+import { languagePrompt, type Locale } from './ai-language'
 import { AiOutputError, describeBrand, loadBrandContext, quote, readJson, runLogged, snippetOf } from './ai'
 import { truncate, type BrandContext } from './brand-options'
 import { CAPTION_MAX_LENGTH } from './caption'
@@ -162,12 +163,13 @@ export function buildContentMessages(
   script: ScriptSlide[] | null = null,
   pillarId: string | null = null,
   density: TextDensity = DEFAULT_DENSITY,
+  language: Locale = 'id',
 ): ChatMessage[] {
-  if (script) return buildScriptedContentMessages(topic, script, brand, products, attachment, pillarId)
+  if (script) return buildScriptedContentMessages(topic, script, brand, products, attachment, pillarId, language)
   const carousel = slides > 1
   const attached = attachment ? ', "attachment": "…"' : ''
   return [
-    { role: 'system', content: carousel ? CONTENT_SYSTEM : SINGLE_SYSTEM },
+    { role: 'system', content: languagePrompt(carousel ? CONTENT_SYSTEM : SINGLE_SYSTEM, language) },
     {
       role: 'user',
       content: withImage(
@@ -204,12 +206,13 @@ function buildScriptedContentMessages(
   products: ProductCandidate[],
   attachment: string | null,
   pillarId: string | null,
+  language: Locale = 'id',
 ): ChatMessage[] {
   const slides = script.length
   const carousel = slides > 1
   const attached = attachment ? ', "attachment": "…"' : ''
   return [
-    { role: 'system', content: carousel ? CONTENT_SYSTEM : SINGLE_SYSTEM },
+    { role: 'system', content: languagePrompt(carousel ? CONTENT_SYSTEM : SINGLE_SYSTEM, language) },
     {
       role: 'user',
       content: withImage(
@@ -303,6 +306,7 @@ export function planContent<T>(
   script: ScriptSlide[] | null = null,
   brandContext?: BrandContext | null,
   signal?: AbortSignal,
+  language: Locale = 'id',
 ): Promise<{ plan: ContentPlan; saved: T }> {
   if (script && script.length !== request.slides) return Promise.reject(new Error('Jumlah slide tidak sama dengan skrip'))
   const input = {
@@ -333,6 +337,7 @@ export function planContent<T>(
             script,
             request.pillarId,
             request.density,
+            language,
           ),
           undefined,
           signal,
@@ -348,7 +353,7 @@ export function planContent<T>(
   )
 }
 
-export function buildIdeasMessages(brand: BrandContext, recent: string[]): ChatMessage[] {
+export function buildIdeasMessages(brand: BrandContext, recent: string[], language: Locale = 'id'): ChatMessage[] {
   const avoid = recent.length > 0 ? ['', `Jangan ulangi ide atau post yang sudah ada:\n${quote(recent.join('\n'))}`] : []
   const pillars = brand.strategy?.pillars ?? []
   const quota = pillarQuota(pillars, IDEAS_COUNT)
@@ -364,7 +369,7 @@ export function buildIdeasMessages(brand: BrandContext, recent: string[]): ChatM
       ? 'sesuai strategi konten di atas, mengikuti pilar dan fokusnya'
       : 'campuran edukasi atau tips, cerita di balik layar, promosi, dan interaksi dengan pengikut'
   return [
-    { role: 'system', content: IDEAS_SYSTEM },
+    { role: 'system', content: languagePrompt(IDEAS_SYSTEM, language) },
     {
       role: 'user',
       content: [
@@ -424,10 +429,11 @@ export function suggestIdeas(
   brand: BrandContext,
   recent: string[],
   save: (ideas: SuggestedIdea[]) => Promise<void>,
+  language: Locale = 'id',
 ): Promise<SuggestedIdea[]> {
   return runLogged(userId, 'content_ideas', { recent: recent.length }, async () => {
     const ideas = parseIdeas(
-      await chatCompletion(buildIdeasMessages(brand, recent)),
+      await chatCompletion(buildIdeasMessages(brand, recent, language)),
       brand.strategy?.pillars.map((pillar) => pillar.id),
     )
     await save(ideas)
@@ -454,9 +460,10 @@ export function buildScriptMessages(
   /** Mimo's direction: what the owner asked to change, or what the competitors it studied do. */
   brief = '',
   density: TextDensity = DEFAULT_DENSITY,
+  language: Locale = 'id',
 ): ChatMessage[] {
   return [
-    { role: 'system', content: SCRIPT_SYSTEM },
+    { role: 'system', content: languagePrompt(SCRIPT_SYSTEM, language) },
     {
       role: 'user',
       content: [
@@ -514,24 +521,25 @@ export function writeScript(
   brandContext?: BrandContext | null,
   signal?: AbortSignal,
   density: TextDensity = DEFAULT_DENSITY,
+  language: Locale = 'id',
 ): Promise<ScriptSlide[]> {
   const input = { ideaId: idea.id, idea: idea.title, density, ...(brief ? { brief } : {}) }
   return runLogged(userId, 'content_script', input, async () => {
     const brand = brandContext === undefined ? await loadBrandContext(userId) : brandContext
     const script = parseScriptAnswer(
-      await chatCompletion(buildScriptMessages(idea.title, brand, 'auto', brief, density), undefined, signal),
+      await chatCompletion(buildScriptMessages(idea.title, brand, 'auto', brief, density, language), undefined, signal),
     )
     await save(script)
     return script
   })
 }
 
-export function buildCaptionEditMessages(caption: string, instruction: string, brand: BrandContext | null): ChatMessage[] {
+export function buildCaptionEditMessages(caption: string, instruction: string, brand: BrandContext | null, language: Locale = 'id'): ChatMessage[] {
   const task = caption
     ? 'Tugas: ubah caption di bawah sesuai permintaan owner. Pertahankan fakta, mention, dan hashtag yang ada, kecuali owner meminta lain.'
     : 'Tugas: tulis caption baru sesuai permintaan owner: 2–4 paragraf pendek dengan ajakan bertindak, lalu 3–8 hashtag relevan di baris terakhir.'
   return [
-    { role: 'system', content: CAPTION_SYSTEM },
+    { role: 'system', content: languagePrompt(CAPTION_SYSTEM, language) },
     {
       role: 'user',
       content: [
@@ -554,10 +562,10 @@ export function parseCaption(content: string): string {
 }
 
 /** A caption changed as the owner asked; it only fills the editor. */
-export function editCaption(userId: string, caption: string, instruction: string): Promise<string> {
+export function editCaption(userId: string, caption: string, instruction: string, language: Locale = 'id'): Promise<string> {
   return runLogged(userId, 'caption_edit', { caption, instruction }, async () => {
     const brand = await loadBrandContext(userId)
-    return parseCaption(await chatCompletion(buildCaptionEditMessages(caption, instruction, brand)))
+    return parseCaption(await chatCompletion(buildCaptionEditMessages(caption, instruction, brand, language)))
   })
 }
 
@@ -566,9 +574,10 @@ export function buildSlideRevisionMessages(
   instruction: string,
   attachment: string | null = null,
   single = false,
+  language: Locale = 'id',
 ): ChatMessage[] {
   return [
-    { role: 'system', content: single ? SINGLE_SLIDE_SYSTEM : SLIDE_SYSTEM },
+    { role: 'system', content: languagePrompt(single ? SINGLE_SLIDE_SYSTEM : SLIDE_SYSTEM, language) },
     {
       role: 'user',
       content: withImage(
@@ -608,6 +617,7 @@ export async function reviseSlide(
   attachment: string | null = null,
   signal?: AbortSignal,
   single = false,
+  language: Locale = 'id',
 ): Promise<Slide> {
-  return parseSlide(await chatCompletion(buildSlideRevisionMessages(slide, instruction, attachment, single), undefined, signal), single)
+  return parseSlide(await chatCompletion(buildSlideRevisionMessages(slide, instruction, attachment, single, language), undefined, signal), single)
 }

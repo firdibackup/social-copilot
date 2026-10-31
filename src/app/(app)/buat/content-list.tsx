@@ -1,5 +1,11 @@
 'use client'
 
+import { useLocale, useTranslations } from 'next-intl'
+import { createTranslator } from 'next-intl'
+import type { Locale } from '@/i18n/locale-config'
+import idMessages from '@/../messages/id/editor.json'
+import enMessages from '@/../messages/en/editor.json'
+
 import { Lightbulb, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -10,7 +16,6 @@ import { useEditorScope } from './editor-provider'
 import { MediaImage } from '@/components/media-image'
 import { formatShortDate, formatTime } from '@/lib/format'
 import type { Idea } from '@/lib/ideas'
-import { STATUS_LABELS } from '@/lib/post-status'
 import type { ContentListItem } from '@/lib/posts'
 import { pillarOf, type ContentStrategy } from '@/lib/strategy-options'
 import { DeleteIdeaButton, FindIdeasButton, OpenIdeaButton } from './idea-buttons'
@@ -29,19 +34,25 @@ interface ContentListProps {
   strategy: ContentStrategy | null
 }
 
-function meta(post: ContentListItem): string {
-  const kind = post.slideCount === 1 ? 'Single post' : post.slideCount > 1 ? `Carousel ${post.slideCount} slide` : '0 slide'
+function meta(post: ContentListItem, statusLabel: string, locale: Locale = 'id'): string {
+  const t = createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'contentList' })
+
+  const kind = post.slideCount === 1 ? 'Single post' : post.slideCount > 1 ? t('message1', { v0: post.slideCount }) : '0 slide'
   const parts = [post.instagramEnabled ? kind : 'Threads']
   if (post.generation) return post.generation
-  if (post.inProgress > 0) parts.push('sedang dibuat')
+  if (post.inProgress > 0) parts.push(t('generating'))
   else if (post.status === 'scheduled' && post.scheduledAt) {
-    parts.push(`terbit ${formatShortDate(post.scheduledAt)} ${formatTime(post.scheduledAt)}`)
-  } else if (post.status !== 'draft') parts.push(STATUS_LABELS[post.status].toLowerCase())
+    parts.push(t('message2', { v0: formatShortDate(post.scheduledAt, locale), v1: formatTime(post.scheduledAt, locale) }))
+  } else if (post.status !== 'draft') parts.push(statusLabel.toLowerCase())
   return parts.join(' · ')
 }
 
 /** Buat's left column: the posts still worth editing and the AI's ideas for new ones. */
 export function ContentList({ posts, ideas, strategy }: ContentListProps) {
+  const t = useTranslations('editor.contentList')
+  const statusText = useTranslations('common.postStatus')
+  const locale = useLocale()
+
   const client = useQueryClient()
   const scope = useEditorScope()
   const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -49,7 +60,7 @@ export function ContentList({ posts, ideas, strategy }: ContentListProps) {
   const prefetch = (id: string) => {
     if (prefetchTimer.current) clearTimeout(prefetchTimer.current)
     prefetchTimer.current = setTimeout(() => {
-      if (client.isFetching({ queryKey: ['editor', scope, 'detail'] }) < 2) void client.prefetchQuery(detailQuery(scope, id))
+      if (client.isFetching({ queryKey: ['editor', scope, 'detail'] }) < 2) void client.prefetchQuery(detailQuery(scope, id, '', locale))
     }, 120)
   }
   const hiddenPosts = useHiddenPosts()
@@ -64,7 +75,7 @@ export function ContentList({ posts, ideas, strategy }: ContentListProps) {
   const shown = posts.filter((post) => !hiddenPosts.has(post.id) && (threads ? post.threadsEnabled : post.instagramEnabled))
   const shownIdeas = ideas.filter((idea) => !hiddenIdeas.has(idea.id))
   return (
-    <aside aria-label="Daftar konten" className={`${editing ? 'hidden md:flex' : 'flex'} min-h-0 w-full shrink-0 flex-col md:w-[320px] md:border-r md:border-hairline`}>
+    <aside aria-label={t('message3')} className={`${editing ? 'hidden md:flex' : 'flex'} min-h-0 w-full shrink-0 flex-col md:w-[320px] md:border-r md:border-hairline`}>
       <ContentQueuePoll posts={posts} />
       <div className="px-4 pt-3 pb-2">
         <Link
@@ -72,16 +83,16 @@ export function ContentList({ posts, ideas, strategy }: ContentListProps) {
           className="flex h-10 items-center justify-center gap-2 rounded-xl bg-accent text-sm font-semibold text-white transition-colors hover:bg-accent-deep"
         >
           <Plus size={16} aria-hidden="true" />
-          {threads ? 'Post Threads baru' : 'Konten baru'}
+          {threads ? t('message4') : t('message5')}
         </Link>
       </div>
       <div data-content-list-scroll className="min-h-0 flex-1 overflow-y-auto px-4 pt-1 pb-5">
-        <ListSection title="Draft & konten" count={shown.length}>
+        <ListSection title={t('message6')} count={shown.length}>
           {shown.length === 0 ? (
             <p className="py-2 text-sm text-ink-muted">
               {threads
-                ? 'Belum ada post Threads. Tulis yang pertama di kanan, atau nyalakan Threads di post Instagram lewat Pilih platform.'
-                : 'Belum ada post. Mulai dari ide di bawah, atau tulis topik sendiri.'}
+                ? t('message7')
+                : t('message8')}
             </p>
           ) : (
             <ul>
@@ -103,7 +114,7 @@ export function ContentList({ posts, ideas, strategy }: ContentListProps) {
                     )}
                     <span className="min-w-0">
                       <span className="line-clamp-2 text-[14px] leading-snug font-semibold text-ink">{post.label}</span>
-                      <span className="mt-0.5 block text-xs text-ink-muted">{meta(post)}</span>
+                      <span className="mt-0.5 block text-xs text-ink-muted">{meta(post, statusText(post.status), locale)}</span>
                     </span>
                   </Link>
                 </li>
@@ -112,9 +123,9 @@ export function ContentList({ posts, ideas, strategy }: ContentListProps) {
           )}
         </ListSection>
 
-        <ListSection title="Ide" count={shownIdeas.length} action={<FindIdeasButton />}>
+        <ListSection title={t('message9')} count={shownIdeas.length} action={<FindIdeasButton />}>
           {shownIdeas.length === 0 ? (
-            <p className="py-2 text-sm text-ink-muted">Pilih Cari ide: Mimo menyusun 5 ide lengkap beserta skrip dari Brand Anda.</p>
+            <p className="py-2 text-sm text-ink-muted">{t('emptyIdeas')}</p>
           ) : (
             <ul>
               {shownIdeas.map((idea) => (
@@ -134,7 +145,7 @@ export function ContentList({ posts, ideas, strategy }: ContentListProps) {
                           {pillarOf(strategy, idea.pillarId)?.name}
                         </span>
                       )}
-                      {idea.script && <span className="mt-0.5 block text-xs text-ink-muted">Skrip siap · {idea.script.length} slide</span>}
+                      {idea.script && <span className="mt-0.5 block text-xs text-ink-muted">{t('scriptReady', { count: idea.script.length })}</span>}
                     </span>
                   </OpenIdeaButton>
                   <DeleteIdeaButton id={idea.id}

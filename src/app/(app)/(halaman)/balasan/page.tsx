@@ -1,3 +1,6 @@
+import { inboxLoadError } from './action-utils'
+import { IntlMessages } from '@/i18n/client-messages'
+import { getTranslations } from 'next-intl/server'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { connection } from 'next/server'
@@ -8,7 +11,7 @@ import { Notice } from '@/components/notice'
 import { requireAccount } from '@/lib/auth'
 import { latestRuns, listRules } from '@/lib/auto-dm'
 import { getConnection, type Connection } from '@/lib/connection'
-import { describeError, loadErrorMessage } from '@/lib/errors'
+import { describeError } from '@/lib/errors'
 import { COMMENTS_SCOPE } from '@/lib/instagram'
 import { firstValue, type SearchParams } from '@/lib/params'
 import { THREADS_REPLIES_SCOPE } from '@/lib/threads'
@@ -21,7 +24,10 @@ import { dmHref, Inbox, loadBrand, loadInbox, type Brand, type DmFilter, type Fi
 import { loadThreadsComments, ThreadsComments, type ThreadsCommentsData } from './threads-comments'
 import { PendingLink } from './pending-link'
 
-export const metadata: Metadata = { title: 'Balasan' }
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('inbox.page')
+  return { title: t('replies') }
+}
 
 type Tab = 'dm' | 'komentar'
 
@@ -29,19 +35,23 @@ interface BalasanPageProps {
   searchParams: Promise<SearchParams>
 }
 
-export default function BalasanPage({ searchParams }: BalasanPageProps) {
+export default async function BalasanPage({ searchParams }: BalasanPageProps) {
+  const t = await getTranslations('inbox.page')
   return (
+    <IntlMessages namespaces={['common', 'inbox']}>
     <div className="space-y-8">
-      <Suspense fallback={<LoadingState variant="page" label="Memuat balasan…" />}>
+      <Suspense fallback={<LoadingState variant="page" label={t('loadingReplies')} />}>
         <BalasanView searchParams={searchParams} />
       </Suspense>
     </div>
+    </IntlMessages>
   )
 }
 
 const RECONNECT_LINK = 'font-medium underline underline-offset-2'
 
 async function BalasanView({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const t = await getTranslations('inbox.page')
   const params = await searchParams
   await connection()
   const { userId, accountId } = await requireAccount()
@@ -64,7 +74,7 @@ async function BalasanView({ searchParams }: { searchParams: Promise<SearchParam
   ])
   if (instagramResult.error) {
     console.error('[balasan] koneksi gagal dimuat:', describeError(instagramResult.error))
-    return <Notice tone="warning">{loadErrorMessage(instagramResult.error)}</Notice>
+    return <Notice tone="warning">{await inboxLoadError(instagramResult.error)}</Notice>
   }
   const instagram: Connection | null = instagramResult.value
   // Threads only adds a view to Komentar: without it the page works as before.
@@ -87,19 +97,18 @@ async function BalasanView({ searchParams }: { searchParams: Promise<SearchParam
     <div className="space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-xl space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Balasan</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">{t('replies')}</h1>
           <p className="text-zinc-500">
-            DM dan komentar Instagram yang masuk. ✨ AI membantu menulis draf yang kamu kirim sendiri;
-            Aturan Auto DM yang aktif membalas komentar dan DM yang cocok secara otomatis.
-          </p>
+            {t('incomingInstagramDmsAndCommentsAiHelpsWriteDrafts')}
+            </p>
         </div>
         <RefreshButton key={`${tab}-${platform}`} pull={pull} />
       </header>
 
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-zinc-200">
-        <nav aria-label="Jenis balasan" className="flex gap-6">
+        <nav aria-label={t('replyType')} className="flex gap-6">
           <TabLink href={dmHref(dmFilter)} active={tab === 'dm'} label="DM" />
-          <TabLink href={commentsHref(filter)} active={tab === 'komentar'} label="Komentar" />
+          <TabLink href={commentsHref(filter)} active={tab === 'komentar'} label={t('comments')} />
         </nav>
         <div className="flex items-center gap-2 pb-2">
           <FilterSelect
@@ -123,11 +132,11 @@ async function BalasanView({ searchParams }: { searchParams: Promise<SearchParam
       {tab === 'dm' ? (
         <div className="space-y-8">
           <DmTab userId={userId} accountId={accountId} filter={dmFilter} params={params} brand={brand} now={now} />
-          <RulesSection userId={userId} accountId={accountId} username={instagram?.username ?? 'akunmu'} />
+          <RulesSection userId={userId} accountId={accountId} username={instagram?.username ?? t('yourAccount')} />
         </div>
       ) : (
         <div className="space-y-4">
-          <nav aria-label="Platform komentar" className="flex flex-wrap gap-2">
+          <nav aria-label={t('commentPlatform')} className="flex flex-wrap gap-2">
             <PlatformLink
               href={commentsHref(filter)}
               active={platform === 'instagram'}
@@ -208,7 +217,7 @@ async function DmTab({ userId, accountId, filter, params, brand, now }: Omit<Tab
     data = await loadInbox(userId, accountId, filter, selectedId, now)
   } catch (error) {
     console.error('[balasan] DM gagal dimuat:', describeError(error))
-    return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
+    return <Notice tone="warning">{await inboxLoadError(error)}</Notice>
   }
   return <Inbox {...data} filter={filter} selectedId={selectedId} brand={brand} now={now} />
 }
@@ -224,7 +233,7 @@ async function RulesSection({ userId, accountId, username }: { userId: string; a
     cards = rules.map((rule) => ({ rule, run: runs.get(rule.id) ?? null }))
   } catch (error) {
     console.error('[auto-dm] aturan gagal dimuat:', describeError(error))
-    return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
+    return <Notice tone="warning">{await inboxLoadError(error)}</Notice>
   }
   return <AutoDmRules cards={cards} username={username} />
 }
@@ -236,7 +245,7 @@ async function CommentsTab({ instagram, ...props }: TabProps & { instagram: Conn
     data = await loadComments(userId, accountId, filter, firstValue(params.post), now)
   } catch (error) {
     console.error('[balasan] komentar gagal dimuat:', describeError(error))
-    return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
+    return <Notice tone="warning">{await inboxLoadError(error)}</Notice>
   }
   return (
     <div className="space-y-4">
@@ -253,7 +262,7 @@ async function ThreadsCommentsTab({ threads, ...props }: TabProps & { threads: T
     data = await loadThreadsComments(userId, accountId, filter, firstValue(params.post), now)
   } catch (error) {
     console.error('[balasan] balasan Threads gagal dimuat:', describeError(error))
-    return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
+    return <Notice tone="warning">{await inboxLoadError(error)}</Notice>
   }
   return (
     <div className="space-y-4">
@@ -263,57 +272,45 @@ async function ThreadsCommentsTab({ threads, ...props }: TabProps & { threads: T
   )
 }
 
-function ThreadsNotice({ threads }: { threads: ThreadsConnection | null }) {
+async function ThreadsNotice({ threads }: { threads: ThreadsConnection | null }) {
+  const t = await getTranslations('inbox.page')
   // A plain <a>: the route redirects off-site to Threads.
-  const reconnect = (
-    <a href="/api/auth/threads/start" className={RECONNECT_LINK}>
-      Hubungkan ulang Threads
-    </a>
-  )
+
   if (!threads) {
     return (
       <Notice tone="warning">
-        Hubungkan Threads di{' '}
-        <Link href="/pengaturan#threads" className={RECONNECT_LINK}>
-          Pengaturan
-        </Link>{' '}
-        untuk melihat dan membalas balasan di post Threads.
+        {t.rich('connectThreads', { settings: (chunks) => <Link href="/pengaturan#threads" className={RECONNECT_LINK}>{chunks}</Link> })}
       </Notice>
     )
   }
   if (threads.status === 'needs_reconnect') {
     return (
       <Notice tone="error">
-        Token Threads kedaluwarsa atau dicabut, jadi balasan tidak bisa ditarik. {reconnect} dengan @{threads.username}.
+        {t.rich('threadsExpired', { username: threads.username, reconnect: (chunks) => <a href="/api/auth/threads/start" className={RECONNECT_LINK}>{chunks}</a> })}
       </Notice>
     )
   }
   if (!threads.scopes.includes(THREADS_REPLIES_SCOPE)) {
-    return <Notice tone="warning">Komentar Threads butuh izin membaca balasan. {reconnect} sekali.</Notice>
+    return <Notice tone="warning">{t.rich('threadsPermission', { reconnect: (chunks) => <a href="/api/auth/threads/start" className={RECONNECT_LINK}>{chunks}</a> })}</Notice>
   }
   return null
 }
-function CommentsNotice({ instagram }: { instagram: Connection | null }) {
-  if (!instagram) return <Notice tone="warning">Hubungkan akun Instagram dulu di Pengaturan.</Notice>
+async function CommentsNotice({ instagram }: { instagram: Connection | null }) {
+  const t = await getTranslations('inbox.page')
+  if (!instagram) return <Notice tone="warning">{t('connectYourInstagramAccountInSettingsFirst')}</Notice>
   // A plain <a>: the route redirects off-site to Instagram.
-  const reconnect = (
-    <a href="/api/auth/instagram/start" className={RECONNECT_LINK}>
-      Hubungkan ulang Instagram
-    </a>
-  )
+
   if (instagram.status === 'needs_reconnect') {
     return (
       <Notice tone="error">
-        Token Instagram kedaluwarsa atau dicabut, jadi komentar tidak bisa ditarik. {reconnect} dengan @
-        {instagram.username}.
+        {t.rich('instagramExpired', { username: instagram.username, reconnect: (chunks) => <a href="/api/auth/instagram/start" className={RECONNECT_LINK}>{chunks}</a> })}
       </Notice>
     )
   }
   if (!instagram.scopes.includes(COMMENTS_SCOPE)) {
     return (
       <Notice tone="warning">
-        Komentar butuh izin baru untuk membaca dan membalas komentar. {reconnect} sekali dan masuk dengan @
-        {instagram.username}.
+        {t.rich('instagramPermission', { username: instagram.username, reconnect: (chunks) => <a href="/api/auth/instagram/start" className={RECONNECT_LINK}>{chunks}</a> })}
       </Notice>
     )
   }

@@ -80,3 +80,15 @@ describe('external comment mutations', () => {
     await expect(setThreadsHiddenAction('456', true)).resolves.toContain('rejected')
   })
 })
+
+vi.mock('next-intl/server', async () => {
+  const { createTranslator } = await import('next-intl')
+  const { default: inbox } = await import('../../../../../messages/id/inbox.json')
+  return {
+    getTranslations: async (namespace: string) => {
+      const section = namespace.replace('inbox.', '') as keyof typeof inbox
+      return createTranslator({ locale: 'id', messages: inbox[section] })
+    },
+    getLocale: async () => 'id',
+  }
+})

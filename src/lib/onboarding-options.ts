@@ -1,5 +1,9 @@
+import { createTranslator } from 'next-intl'
+import type { Locale } from '@/i18n/locale-config'
+import idMessages from '../../messages/id/onboarding.json'
+import enMessages from '../../messages/en/onboarding.json'
 /** The onboarding wizard's answers and their validation, shared by /mulai and the server. */
-import { BRAND_TEXT_LIMITS, FIELD_LABELS, isObject, lengthOf, readColors, type BrandColor } from './brand-options'
+import { BRAND_TEXT_LIMITS, isObject, lengthOf, readColors, type BrandColor } from './brand-options'
 import { isAccountKind, isDesignStyle, type AccountKind, type DesignStyleId } from './design-styles'
 
 export interface OnboardingAnswers {
@@ -47,39 +51,40 @@ const TEXT_FIELDS = ['name', 'category', 'description', 'audience', 'headingFont
  * Validates what the wizard sent. Every answer may be empty: the answers are saved step by step, and the wizard
  * itself makes the user answer the required steps before finishing.
  */
-export function parseAnswers(input: unknown): { answers: OnboardingAnswers } | { error: string } {
-  if (!isObject(input)) return { error: 'Jawaban tidak valid.' }
+export function parseAnswers(input: unknown, locale: Locale = 'id'): { answers: OnboardingAnswers } | { error: string } {
+  const t = createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages })
+  if (!isObject(input)) return { error: t('errors.invalid') }
   const answers: OnboardingAnswers = { ...EMPTY_ANSWERS }
   for (const field of TEXT_FIELDS) {
     const value = input[field]
     if (value === undefined) continue
-    if (typeof value !== 'string') return { error: 'Jawaban tidak valid.' }
+    if (typeof value !== 'string') return { error: t('errors.invalid') }
     const text = value.replace(/\r\n/g, '\n').trim()
     const limit = BRAND_TEXT_LIMITS[field]
-    if (lengthOf(text) > limit) return { error: `${FIELD_LABELS[field]} maksimal ${limit} karakter.` }
+    if (lengthOf(text) > limit) return { error: t('errors.length', { field: t(`fields.${field}`), count: limit }) }
     answers[field] = text
   }
   const { accountKind, designStyle } = input
   if (accountKind !== undefined && accountKind !== '') {
-    if (!isAccountKind(accountKind)) return { error: 'Jenis akun tidak dikenal.' }
+    if (!isAccountKind(accountKind)) return { error: t('errors.kind') }
     answers.accountKind = accountKind
   }
   if (designStyle !== undefined && designStyle !== '') {
-    if (!isDesignStyle(designStyle)) return { error: 'Gaya desain tidak dikenal.' }
+    if (!isDesignStyle(designStyle)) return { error: t('errors.style') }
     answers.designStyle = designStyle
   }
   const colors = readColors(input.colors)
-  if (!colors) return { error: 'Warna tidak valid.' }
+  if (!colors) return { error: t('errors.colors') }
   answers.colors = colors
   const { postsPerWeek, referralSource } = input
   if (postsPerWeek !== undefined && postsPerWeek !== 0) {
-    if (!isPostsPerWeekChoice(postsPerWeek)) return { error: 'Pilih jumlah posting per minggu dari pilihan yang ada.' }
+    if (!isPostsPerWeekChoice(postsPerWeek)) return { error: t('errors.posts') }
     answers.postsPerWeek = postsPerWeek
   }
   if (referralSource !== undefined) {
-    if (typeof referralSource !== 'string') return { error: 'Jawaban tidak valid.' }
+    if (typeof referralSource !== 'string') return { error: t('errors.invalid') }
     const text = referralSource.replace(/\s+/g, ' ').trim()
-    if (lengthOf(text) > REFERRAL_MAX_LENGTH) return { error: `Jawaban "tahu dari mana" maksimal ${REFERRAL_MAX_LENGTH} karakter.` }
+    if (lengthOf(text) > REFERRAL_MAX_LENGTH) return { error: t('errors.referral', { count: REFERRAL_MAX_LENGTH }) }
     answers.referralSource = text
   }
   return { answers }

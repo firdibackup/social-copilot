@@ -13,6 +13,13 @@ import {
   uploadReferenceAction,
 } from './actions'
 
+vi.mock('next-intl/server', async () => {
+  const { createTranslator } = await import('next-intl')
+  const { idMessages } = await import('@/i18n/messages')
+  return { getTranslations: async (namespace: 'brand' | 'assets') => createTranslator({ locale: 'id', messages: idMessages, namespace }) }
+})
+vi.mock('@/i18n/locale', () => ({ getUserLocale: async () => 'id' }))
+
 vi.mock('next/cache', () => ({ refresh: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ requireAccount: vi.fn(async () => ({ userId: 'user-1', accountId: 'ig-1' })) }))
 vi.mock('@/lib/brand', async (importOriginal) => ({
@@ -128,6 +135,7 @@ describe('classifyGridTilesAction', () => {
       tiles: [null, { label: 'cta', description: 'Tombol di bawah' }],
     })
     expect(vi.mocked(classifyDesigns).mock.calls[0][1].map((tile) => tile.id)).toEqual(['tile-1', 'tile-2'])
+    expect(classifyDesigns).toHaveBeenCalledWith('user-1', expect.any(Array), 'id')
   })
 
   it('refuses a request without tiles', async () => {
@@ -161,6 +169,7 @@ describe('analyzeProfileAction', () => {
 
     await analyzeProfileAction('', true)
 
+    expect(analyzeProfile).toHaveBeenCalledWith('user-1', expect.any(Object), { language: 'id' })
     expect(vi.mocked(analyzeProfile).mock.calls[0][1].instagram).toEqual({
       username: 'kopi',
       name: 'Kopi',

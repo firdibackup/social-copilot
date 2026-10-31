@@ -1,5 +1,6 @@
 import { ExternalLink } from 'lucide-react'
-import type { Metadata } from 'next'
+import { getLocale, getTranslations } from 'next-intl/server'
+import { IntlMessages } from '@/i18n/client-messages'
 import Link from 'next/link'
 import { connection } from 'next/server'
 import { Suspense, type ReactNode } from 'react'
@@ -19,27 +20,30 @@ import {
 } from '@/lib/analytics-metrics'
 import { requireAccount } from '@/lib/auth'
 import { getConnection, type Connection } from '@/lib/connection'
-import { describeError, loadErrorMessage } from '@/lib/errors'
+import { ConfigError, describeError } from '@/lib/errors'
 import { formatDateTime, formatShortDate } from '@/lib/format'
 import { INSIGHTS_SCOPE } from '@/lib/instagram'
 import { firstValue, type SearchParams } from '@/lib/params'
 import { SyncPanel } from './sync-panel'
 
-export const metadata: Metadata = { title: 'Analitik' }
+export async function generateMetadata() {
+  const t = await getTranslations('analytics')
+  return { title: t('page.title') }
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const CARD = 'rounded-xl border border-zinc-200 bg-white'
 const RECONNECT_LINK = 'font-medium underline underline-offset-2'
-const MEDIA_LABELS: Record<string, string> = { IMAGE: 'Foto', VIDEO: 'Video', CAROUSEL_ALBUM: 'Carousel' }
 
 interface AnalitikPageProps {
   searchParams: Promise<SearchParams>
 }
 
-export default function AnalitikPage({ searchParams }: AnalitikPageProps) {
+export default async function AnalitikPage({ searchParams }: AnalitikPageProps) {
+  const t = await getTranslations('analytics')
   return (
     <div className="space-y-6">
-      <Suspense fallback={<LoadingState variant="analytics" label="Memuat analitik…" />}>
+      <Suspense fallback={<LoadingState variant="analytics" label={t('page.loading')} />}>
         <AnalyticsView searchParams={searchParams} />
       </Suspense>
     </div>
@@ -63,12 +67,9 @@ async function loadData(userId: string, accountId: string, since: Date): Promise
   return { instagram, state, posts, appIds }
 }
 
-function lastSyncLabel(state: SyncState | null): string {
-  if (!state?.finishedAt) return 'Belum pernah disinkronkan dengan Instagram.'
-  return `Terakhir sync ${formatDateTime(state.finishedAt)}: ${state.updated} post diperbarui, ${state.failed} gagal.`
-}
-
 async function AnalyticsView({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const t = await getTranslations('analytics')
+  const locale = await getLocale()
   const params = await searchParams
   await connection()
   const { userId, accountId } = await requireAccount()
@@ -80,7 +81,7 @@ async function AnalyticsView({ searchParams }: { searchParams: Promise<SearchPar
     data = await loadData(userId, accountId, new Date(now.getTime() - range * DAY_MS))
   } catch (error) {
     console.error('[analitik] gagal memuat:', describeError(error))
-    return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
+    return <Notice tone="warning">{error instanceof ConfigError ? t('errors.configuration', { message: error.message }) : t('errors.database')}</Notice>
   }
 
   const { instagram, state, posts, appIds } = data
@@ -89,65 +90,56 @@ async function AnalyticsView({ searchParams }: { searchParams: Promise<SearchPar
   const summary = summarize(posts)
 
   return (
-    <>
+    <IntlMessages namespaces={['common', 'analytics']}>
       <SyncPanel
         canSync={canSync}
         shouldSyncNow={canSync && isSyncStale(state?.startedAt ?? null, now)}
-        lastSync={lastSyncLabel(state)}
+        lastSync={state?.finishedAt ? t('page.lastSync', { time: formatDateTime(state.finishedAt, locale), updated: state.updated, failed: state.failed }) : t('page.neverSynced')}
       >
         <div className="max-w-xl space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Analitik</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">{t('page.title')}</h1>
           <p className="text-zinc-500">
-            Performa post Instagram dari 90 hari terakhir. Angka dari Instagram bisa terlambat sampai 48 jam.
+            {t('page.description')}
           </p>
         </div>
       </SyncPanel>
       <ConnectionNotice instagram={instagram} hasPermission={hasPermission} />
       <RangeNav current={range} />
-      <section aria-label="Ringkasan" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total post" value={formatCount(summary.postCount)} note={`${range} hari terakhir`} />
-        <StatCard label="Views" value={formatCount(summary.views)} note="Semua post dengan metrik" />
-        <StatCard label="Interaksi" value={formatCount(summary.interactions)} note="Suka, komentar, share, simpan" />
-        <StatCard label="Engagement rate" value={formatRate(summary.engagementRate)} note="Interaksi / views" />
+      <section aria-label={t('summary.label')} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label={t('summary.posts')} value={formatCount(summary.postCount, locale)} note={t('summary.days', { count: range })} />
+        <StatCard label={t('summary.views')} value={formatCount(summary.views, locale)} note={t('summary.withMetrics')} />
+        <StatCard label={t('summary.interactions')} value={formatCount(summary.interactions, locale)} note={t('summary.interactionNote')} />
+        <StatCard label={t('summary.rate')} value={formatRate(summary.engagementRate, locale)} note={t('summary.rateNote')} />
       </section>
       {posts.length > 0 ? (
         <PostTable posts={posts} appIds={appIds} />
       ) : (
         <EmptyState hasSynced={state?.finishedAt != null} range={range} />
       )}
-    </>
+    </IntlMessages>
   )
 }
 
-function ConnectionNotice({ instagram, hasPermission }: { instagram: Connection | null; hasPermission: boolean }) {
+async function ConnectionNotice({ instagram, hasPermission }: { instagram: Connection | null; hasPermission: boolean }) {
+  const t = await getTranslations('analytics')
   if (!instagram) return null
-  // A plain <a>: the route redirects off-site to Instagram. The callback lands on Pengaturan.
-  const reconnect = (
-    <a href="/api/auth/instagram/start" className={RECONNECT_LINK}>
-      Hubungkan ulang Instagram
-    </a>
-  )
+  const values = {
+    username: instagram.username,
+    link: (children: ReactNode) => <a href="/api/auth/instagram/start" className={RECONNECT_LINK}>{children}</a>,
+  }
   if (instagram.status === 'needs_reconnect') {
-    return (
-      <Notice tone="error">
-        Token Instagram kedaluwarsa atau dicabut, jadi analitik tidak bisa diperbarui. {reconnect} dengan @
-        {instagram.username}.
-      </Notice>
-    )
+    return <Notice tone="error">{t.rich('connection.expired', values)}</Notice>
   }
   if (!hasPermission) {
-    return (
-      <Notice tone="warning">
-        Analitik butuh izin baru untuk membaca insights. {reconnect} sekali dan masuk dengan @{instagram.username}.
-      </Notice>
-    )
+    return <Notice tone="warning">{t.rich('connection.permission', values)}</Notice>
   }
   return null
 }
 
-function RangeNav({ current }: { current: RangeDays }) {
+async function RangeNav({ current }: { current: RangeDays }) {
+  const t = await getTranslations('analytics')
   return (
-    <nav aria-label="Rentang waktu" className="inline-flex rounded-lg border border-zinc-200 bg-white p-0.5 text-sm">
+    <nav aria-label={t('range.label')} className="inline-flex rounded-lg border border-zinc-200 bg-white p-0.5 text-sm">
       {RANGES.map((days) => (
         <Link
           key={days}
@@ -155,7 +147,7 @@ function RangeNav({ current }: { current: RangeDays }) {
           aria-current={days === current ? 'page' : undefined}
           className={`rounded-md px-3 py-1 ${days === current ? 'bg-zinc-900 font-medium text-white' : 'text-zinc-600 hover:text-zinc-900'}`}
         >
-          {days} hari
+          {t('range.days', { count: days })}
         </Link>
       ))}
     </nav>
@@ -172,42 +164,41 @@ function StatCard({ label, value, note }: { label: string; value: string; note: 
   )
 }
 
-function EmptyState({ hasSynced, range }: { hasSynced: boolean; range: RangeDays }) {
+async function EmptyState({ hasSynced, range }: { hasSynced: boolean; range: RangeDays }) {
+  const t = await getTranslations('analytics')
   return (
     <div className={`${CARD} px-6 py-12 text-center`}>
       <p className="font-semibold text-zinc-900">
-        {hasSynced ? `Belum ada post dalam ${range} hari terakhir` : 'Belum ada data analitik'}
+        {hasSynced ? t('empty.noPosts', { count: range }) : t('empty.noData')}
       </p>
       <p className="mt-1 text-sm text-zinc-500">
         {hasSynced
-          ? 'Post Instagram akun ini akan muncul di sini setelah dipublikasikan.'
-          : 'Post dan insights diambil dari Instagram saat sync pertama.'}
+          ? t('empty.published')
+          : t('empty.firstSync')}
       </p>
     </div>
   )
 }
 
-const typeLabel = (post: AnalyticsPost) =>
-  post.productType === 'REELS' ? 'Reels' : (MEDIA_LABELS[post.mediaType] ?? post.mediaType)
+const NUMBER_HEADS = ['views', 'reach', 'likes', 'comments', 'shares', 'saved', 'rate'] as const
 
-const NUMBER_HEADS = ['Views', 'Reach', 'Suka', 'Komentar', 'Share', 'Simpan', 'ER']
-
-function PostTable({ posts, appIds }: { posts: AnalyticsPost[]; appIds: Set<string> }) {
+async function PostTable({ posts, appIds }: { posts: AnalyticsPost[]; appIds: Set<string> }) {
+  const t = await getTranslations('analytics')
   return (
     <div className={`${CARD} overflow-x-auto`}>
       <table className="w-full min-w-[56rem] text-sm">
         <thead className="border-b border-zinc-200 text-left text-xs font-medium tracking-wide text-zinc-500 uppercase">
           <tr>
             <th scope="col" className="px-4 py-3">
-              Post
+              {t('table.post')}
             </th>
             {NUMBER_HEADS.map((head) => (
               <th key={head} scope="col" className="px-3 py-3 text-right">
-                {head}
+                {t(`table.${head}`)}
               </th>
             ))}
             <th scope="col" className="px-4 py-3">
-              <span className="sr-only">Link</span>
+              <span className="sr-only">{t('table.link')}</span>
             </th>
           </tr>
         </thead>
@@ -225,7 +216,9 @@ function NumberCell({ children }: { children: ReactNode }) {
   return <td className="px-3 py-3 text-right text-zinc-900 tabular-nums">{children}</td>
 }
 
-function PostRow({ post, isFromApp }: { post: AnalyticsPost; isFromApp: boolean }) {
+async function PostRow({ post, isFromApp }: { post: AnalyticsPost; isFromApp: boolean }) {
+  const t = await getTranslations('analytics')
+  const locale = await getLocale()
   const caption = post.caption.split('\n', 1)[0].trim()
   return (
     <tr>
@@ -235,37 +228,37 @@ function PostRow({ post, isFromApp }: { post: AnalyticsPost; isFromApp: boolean 
             {post.thumbnailUrl && <ExternalImage src={post.thumbnailUrl} className="size-full object-cover" />}
           </div>
           <div className="min-w-0 space-y-0.5">
-            <p className="max-w-xs truncate text-zinc-900">{caption || <span className="text-zinc-400">Tanpa caption</span>}</p>
+            <p className="max-w-xs truncate text-zinc-900">{caption || <span className="text-zinc-400">{t('table.noCaption')}</span>}</p>
             <p className="flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
               <span>
-                {typeLabel(post)} · {formatShortDate(post.postedAt)}
+                {post.productType === 'REELS' ? t('media.REELS') : post.mediaType === 'IMAGE' || post.mediaType === 'VIDEO' || post.mediaType === 'CAROUSEL_ALBUM' ? t(`media.${post.mediaType}`) : post.mediaType} · {formatShortDate(post.postedAt, locale)}
               </span>
               {isFromApp && (
-                <span className="rounded-full bg-accent-soft px-2 py-0.5 font-medium text-accent-deep">Lewat app</span>
+                <span className="rounded-full bg-accent-soft px-2 py-0.5 font-medium text-accent-deep">{t('table.fromApp')}</span>
               )}
             </p>
             {post.insightsError && (
               <p className="max-w-xs truncate text-xs text-red-700" title={post.insightsError}>
-                Insights gagal: {post.insightsError}
+                {t('table.insightsFailed', { message: post.insightsError })}
               </p>
             )}
           </div>
         </div>
       </td>
-      <NumberCell>{formatCount(post.views)}</NumberCell>
-      <NumberCell>{formatCount(post.reach)}</NumberCell>
-      <NumberCell>{formatCount(post.likes)}</NumberCell>
-      <NumberCell>{formatCount(post.comments)}</NumberCell>
-      <NumberCell>{formatCount(post.shares)}</NumberCell>
-      <NumberCell>{formatCount(post.saved)}</NumberCell>
-      <NumberCell>{formatRate(engagementRate(post.totalInteractions, post.views))}</NumberCell>
+      <NumberCell>{formatCount(post.views, locale)}</NumberCell>
+      <NumberCell>{formatCount(post.reach, locale)}</NumberCell>
+      <NumberCell>{formatCount(post.likes, locale)}</NumberCell>
+      <NumberCell>{formatCount(post.comments, locale)}</NumberCell>
+      <NumberCell>{formatCount(post.shares, locale)}</NumberCell>
+      <NumberCell>{formatCount(post.saved, locale)}</NumberCell>
+      <NumberCell>{formatRate(engagementRate(post.totalInteractions, post.views), locale)}</NumberCell>
       <td className="px-4 py-3 text-right">
         {post.permalink && (
           <a
             href={post.permalink}
             target="_blank"
             rel="noreferrer"
-            aria-label="Buka di Instagram"
+            aria-label={t('table.openInstagram')}
             className="inline-flex text-zinc-400 hover:text-zinc-900"
           >
             <ExternalLink size={16} aria-hidden="true" />

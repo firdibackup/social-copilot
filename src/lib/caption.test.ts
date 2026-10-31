@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { inspectCaption } from './caption'
 
 describe('inspectCaption', () => {
+  it('localizes all validation errors without changing counts', () => {
+    const caption = 'a'.repeat(2201) + ' #tag'.repeat(31) + ' @user'.repeat(21)
+    const english = inspectCaption(caption, 'en')
+    expect(english.errors).toEqual(['Caption exceeds 2,200 characters.', 'More than 30 hashtags.', 'More than 20 mentions.'])
+    expect({ ...english, errors: [] }).toEqual({ ...inspectCaption(caption), errors: [] })
+  })
   it('counts hashtags written in any script', () => {
     expect(inspectCaption('Ngopi pagi #kopi #コーヒー #ramadan2026').hashtags).toBe(3)
   })

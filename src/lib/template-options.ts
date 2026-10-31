@@ -1,3 +1,8 @@
+
+import { createTranslator } from 'next-intl'
+import type { Locale } from '@/i18n/locale-config'
+import idMessages from '../../messages/id/editor.json'
+import enMessages from '../../messages/en/editor.json'
 /** Design templates: the admin's example slides, shared by Admin › Template, the AI analysis and Buat Konten. */
 import { REFERENCE_LABELS, type Picker, type ReferenceLabel, type SlideRole } from './brand-options'
 import { DESIGN_STYLE_IDS, isDesignStyle, type DesignStyleId } from './design-styles'
@@ -66,11 +71,13 @@ export function planTemplates(pool: PoolTemplate[], roles: (SlideRole | null)[],
 /** The admin's correction of one template, from the edit form. */
 export function parseTemplateEdit(
   fields: Record<string, unknown>,
-  styles: unknown[],
+  styles: unknown[], locale: Locale = 'id',
 ): { styles: DesignStyleId[]; label: ReferenceLabel } | { error: string } {
+  const t = createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'templateOptions' })
+
   const picked = DESIGN_STYLE_IDS.filter((id) => styles.includes(id))
-  if (styles.some((style) => !isDesignStyle(style))) return { error: 'Gaya tidak dikenal.' }
-  if (picked.length === 0) return { error: 'Pilih minimal satu gaya.' }
-  if (!isTemplateLabel(fields.label)) return { error: 'Pilih label: Cover, Isi, CTA atau Umum.' }
+  if (styles.some((style) => !isDesignStyle(style))) return { error: t('message1') }
+  if (picked.length === 0) return { error: t('message2') }
+  if (!isTemplateLabel(fields.label)) return { error: t('message3') }
   return { styles: picked, label: fields.label }
 }

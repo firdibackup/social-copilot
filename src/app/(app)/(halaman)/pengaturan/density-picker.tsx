@@ -1,14 +1,18 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { useState, useTransition } from 'react'
 import { Notice } from '@/components/notice'
-import { DENSITY_ORDER, TEXT_DENSITIES, type TextDensity } from '@/lib/density-options'
+import { DENSITY_ORDER, type TextDensity } from '@/lib/density-options'
 import { setDensityDefaultAction } from './actions'
-
-const FAILED = 'Gagal menghubungi server. Coba lagi.'
 
 /** Saves on its own as soon as an option is picked; goes back to the old one when saving fails. */
 export function DensityPicker({ initialDensity, connected }: { initialDensity: TextDensity; connected: boolean }) {
+  const t = useTranslations('settings')
+
+  const FAILED = t('density_picker.couldnTReachTheServerTryAgain')
+
   const [density, setDensity] = useState(initialDensity)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -31,17 +35,15 @@ export function DensityPicker({ initialDensity, connected }: { initialDensity: T
     <fieldset className="space-y-3" disabled={!connected || pending} aria-describedby="kepadatan-hint">
       <div className="space-y-1">
         <legend id="kepadatan-heading" className="text-xs font-semibold tracking-wider text-zinc-900 uppercase">
-          Kepadatan teks slide
-        </legend>
+          {t('density_picker.slideTextDensity')}</legend>
         <p id="kepadatan-hint" className="text-sm text-zinc-500">
           {connected
-            ? 'Default banyaknya penjelasan di slide isi atau post satu gambar. Hook dan CTA carousel tetap singkat. Bisa diganti per post; skrip yang sudah ada perlu disusun ulang.'
-            : 'Hubungkan Instagram dulu.'}
+            ? t('density_picker.defaultDetailLevelForContentSlidesOr')
+            : t('density_picker.connectInstagramFirst')}
         </p>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         {DENSITY_ORDER.map((key) => {
-          const option = TEXT_DENSITIES[key]
           const checked = density === key
           return (
             <label
@@ -57,9 +59,9 @@ export function DensityPicker({ initialDensity, connected }: { initialDensity: T
                   onChange={() => pick(key)}
                   className="accent-accent"
                 />
-                {option.label}
+                {t(`densityLabels.${key}`)}
               </span>
-              <span className="text-zinc-500">{option.description}</span>
+              <span className="text-zinc-500">{t(`densityDescriptions.${key}`)}</span>
             </label>
           )
         })}

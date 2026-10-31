@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { EyeOff } from 'lucide-react'
 import { useState } from 'react'
 import { confirmDialog } from '@/components/confirm-dialog'
@@ -35,7 +37,6 @@ export interface CommentView {
 export type CommentPlatform = 'instagram' | 'threads'
 
 const ACTION = 'text-xs font-medium text-zinc-500 hover:text-zinc-900 disabled:opacity-50'
-const FAILED = 'Gagal menghubungi server. Coba lagi.'
 
 /** What a reply does on each platform: Instagram comments, or replies under the account's Threads posts. */
 const REPLY = {
@@ -96,6 +97,8 @@ interface CommentBodyProps {
 }
 
 function CommentBody({ comment, brand, platform, onRemoved, onRestore }: CommentBodyProps) {
+  const t = useTranslations('inbox.commentItem')
+  const FAILED = t('couldnTReachTheServerTryAgain')
   const [mode, setMode] = useState<'reply' | 'dm' | null>(null)
   const [hidden, setHidden] = useState(comment.isHidden)
   const [pending, setPending] = useState(false)
@@ -122,9 +125,9 @@ function CommentBody({ comment, brand, platform, onRemoved, onRestore }: Comment
 
   async function remove() {
     if (!(await confirmDialog({
-      title: 'Hapus komentar ini dari Instagram?',
-      description: 'Balasan di bawahnya ikut terhapus.',
-      confirmLabel: 'Hapus',
+      title: t('deleteThisCommentFromInstagram'),
+      description: t('repliesBelowItWillAlsoBeDeleted'),
+      confirmLabel: t('delete'),
       tone: 'danger',
     }))) return
     onRemoved?.()
@@ -136,30 +139,30 @@ function CommentBody({ comment, brand, platform, onRemoved, onRestore }: Comment
     <div className="space-y-2">
       <div className={hidden ? 'opacity-60' : undefined}>
         <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
-          <span className="font-medium text-zinc-900">{comment.isFromOwner ? `${comment.name} (kamu)` : comment.name}</span>
+          <span className="font-medium text-zinc-900">{comment.isFromOwner ? t('you', { name: comment.name }) : comment.name}</span>
           <time dateTime={comment.at} className="text-xs text-zinc-500">
             {comment.atLabel}
           </time>
           {hidden && (
             <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600">
               <EyeOff size={12} aria-hidden="true" />
-              Disembunyikan
-            </span>
+              {t('hidden')}
+              </span>
           )}
           {comment.isUnanswered && (
             <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-deep">
-              Belum dibales
-            </span>
+              {t('unanswered')}
+              </span>
           )}
-          {comment.dmSent && <span className="text-xs text-zinc-500">· Dibalas lewat DM</span>}
+          {comment.dmSent && <span className="text-xs text-zinc-500">{t('repliedViaDm')}</span>}
         </p>
-        <p className="text-sm whitespace-pre-line text-zinc-800">{comment.text || '(kosong)'}</p>
+        <p className="text-sm whitespace-pre-line text-zinc-800">{comment.text || t('empty')}</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <button type="button" onClick={() => setMode(mode === 'reply' ? null : 'reply')} className={ACTION}>
-          Balas
-        </button>
+          {t('reply')}
+          </button>
         {!comment.isFromOwner && comment.canHide !== false && (
           <button
             type="button"
@@ -167,7 +170,7 @@ function CommentBody({ comment, brand, platform, onRemoved, onRestore }: Comment
             disabled={pending}
             className={ACTION}
           >
-            {hidden ? 'Tampilkan' : 'Sembunyikan'}
+            {hidden ? t('show') : t('hide')}
           </button>
         )}
         {isInstagram && !comment.isFromOwner && (
@@ -175,16 +178,16 @@ function CommentBody({ comment, brand, platform, onRemoved, onRestore }: Comment
             type="button"
             onClick={() => setMode(mode === 'dm' ? null : 'dm')}
             disabled={!comment.canDm}
-            title={comment.canDm ? undefined : 'Instagram hanya menerima satu DM per komentar, dalam 7 hari setelah komentar.'}
+            title={comment.canDm ? undefined : t('instagramOnlyAllowsOneDmPerCommentWithin7')}
             className={ACTION}
           >
-            Balas lewat DM
-          </button>
+            {t('replyViaDm')}
+            </button>
         )}
         {isInstagram && (
           <button type="button" onClick={remove} disabled={pending} className={`${ACTION} hover:text-red-600`}>
-            Hapus
-          </button>
+            {t('delete')}
+            </button>
         )}
       </div>
 
@@ -193,7 +196,7 @@ function CommentBody({ comment, brand, platform, onRemoved, onRestore }: Comment
       {mode === 'reply' && (
         <Composer
           key="reply"
-          placeholder="Tulis balasan…"
+          placeholder={t('writeAReply')}
           maxLength={actions.maxLength}
           brand={brand}
           autoFocus
@@ -208,11 +211,11 @@ function CommentBody({ comment, brand, platform, onRemoved, onRestore }: Comment
       {mode === 'dm' && (
         <div className="space-y-1">
           <p className="text-xs text-zinc-500">
-            DM pribadi ke {comment.name}. Instagram hanya menerima satu DM untuk komentar ini.
+            {t('privateDm', { name: comment.name })}
           </p>
           <Composer
             key="dm"
-            placeholder="Tulis DM…"
+            placeholder={t('writeADm')}
             maxLength={REPLY_MAX_LENGTH}
             brand={brand}
             autoFocus

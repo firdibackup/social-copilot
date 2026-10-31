@@ -1,7 +1,8 @@
 'use client'
 
-import { CalendarClock, ChevronDown, Layers, Plus, X } from 'lucide-react'
+import { PiCalendarCheck, PiCaretDown, PiPlus, PiStack, PiX } from 'react-icons/pi'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
@@ -12,7 +13,6 @@ import { fillSlotAction } from './actions'
 
 /** A chip asks the page's one picker to open; the drafts list is sent to the page once, not per chip. */
 const PICK_EVENT = 'kalender:pilih-slot'
-const FAILED = 'Gagal menghubungi server. Coba lagi.'
 const DIALOG =
   'm-auto w-[min(40rem,calc(100%-2rem))] rounded-2xl p-0 backdrop:bg-[rgba(20,21,31,0.3)] backdrop:backdrop-blur-[2px]'
 const CLOSE = 'rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900'
@@ -42,6 +42,7 @@ const buatHref = (slot: OpenSlot) => `/buat?baru=1&slot=${encodeURIComponent(slo
 
 /** "Slot 19.00": a click opens it into Buat (a new post for this slot) and Pilih (a finished draft). */
 export function SlotChip({ slot }: { slot: OpenSlot }) {
+  const t = useTranslations('calendar.slots')
   const [open, setOpen] = useState(false)
   const box = useRef<HTMLDivElement>(null)
 
@@ -66,10 +67,10 @@ export function SlotChip({ slot }: { slot: OpenSlot }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label={`Slot kosong ${slot.day} ${slot.time}`}
+        aria-label={t('emptyLabel', { day: slot.day, time: slot.time })}
         className="block w-full truncate rounded-md border border-dashed border-zinc-300 px-1.5 py-0.5 text-left text-xs text-zinc-500 transition-colors hover:border-accent hover:text-accent"
       >
-        Slot {slot.time}
+        {t('time', { time: slot.time })}
       </button>
     )
   }
@@ -77,10 +78,10 @@ export function SlotChip({ slot }: { slot: OpenSlot }) {
     <div ref={box} className="flex gap-1 animate-fade-in">
       <Link
         href={buatHref(slot)}
-        className="inline-flex min-w-0 flex-1 items-center justify-center gap-0.5 rounded-md bg-accent px-1 py-0.5 text-xs font-semibold text-white hover:bg-accent-deep"
+        className="btn-signature inline-flex min-w-0 flex-1 items-center justify-center gap-0.5 rounded-md px-1 py-0.5 text-xs font-semibold"
       >
-        <Plus size={12} aria-hidden="true" />
-        Buat
+        <PiPlus size={12} aria-hidden="true" />
+        {t('create')}
       </Link>
       <button
         type="button"
@@ -91,8 +92,8 @@ export function SlotChip({ slot }: { slot: OpenSlot }) {
         }}
         className="inline-flex min-w-0 flex-1 items-center justify-center gap-0.5 rounded-md border border-zinc-200 bg-white px-1 py-0.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50"
       >
-        <ChevronDown size={12} aria-hidden="true" />
-        Pilih
+        <PiCaretDown size={12} aria-hidden="true" />
+        {t('choose')}
       </button>
     </div>
   )
@@ -100,6 +101,7 @@ export function SlotChip({ slot }: { slot: OpenSlot }) {
 
 /** Pilih: the page's finished drafts as cards; a click puts that post in the slot. */
 export function SlotPicker({ drafts }: { drafts: DraftCard[] }) {
+  const t = useTranslations('calendar.slots')
   const dialog = useRef<HTMLDialogElement>(null)
   const [slot, setSlot] = useState<OpenSlot | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -121,7 +123,7 @@ export function SlotPicker({ drafts }: { drafts: DraftCard[] }) {
     setPicking(postId)
     setError(null)
     startTransition(async () => {
-      const failure = await fillSlotAction(postId, slot.value).catch(() => FAILED)
+      const failure = await fillSlotAction(postId, slot.value).catch(() => t('unreachable'))
       setPicking(null)
       if (failure) setError(failure)
       else dialog.current?.close()
@@ -136,19 +138,19 @@ export function SlotPicker({ drafts }: { drafts: DraftCard[] }) {
             <h2 id="pilih-judul" className="text-lg font-semibold text-ink">
               {slot?.day}
             </h2>
-            <p className="text-sm text-ink-muted">Pilih post jadi untuk slot {slot?.time} WIB.</p>
+            <p className="text-sm text-ink-muted">{t('description', { time: slot?.time ?? '' })}</p>
           </div>
-          <button type="button" aria-label="Tutup" onClick={() => dialog.current?.close()} className={CLOSE}>
-            <X size={18} aria-hidden="true" />
+          <button type="button" aria-label={t('close')} onClick={() => dialog.current?.close()} className={CLOSE}>
+            <PiX size={18} aria-hidden="true" />
           </button>
         </div>
         {error && <Notice tone="error">{error}</Notice>}
         {drafts.length === 0 ? (
           <div className="rounded-xl border border-dashed border-zinc-300 p-6 text-center text-sm text-ink-muted">
-            <p>Belum ada post jadi yang belum terjadwal.</p>
+            <p>{t('empty')}</p>
             {slot && (
               <Link href={buatHref(slot)} className="mt-2 inline-block font-medium text-ink underline">
-                Buat post untuk slot ini
+                {t('createForSlot')}
               </Link>
             )}
           </div>
@@ -168,8 +170,8 @@ export function SlotPicker({ drafts }: { drafts: DraftCard[] }) {
                       <span className="mt-0.5 line-clamp-2 block text-xs text-ink-muted">{draft.subtitle}</span>
                     )}
                     <span className="mt-2 flex items-center gap-1.5 text-xs text-ink-muted">
-                      <Layers size={12} aria-hidden="true" />
-                      {picking === draft.id ? 'Menjadwalkan…' : `${draft.slideCount} slide · ${slot?.time ?? ''}`}
+                      <PiStack size={12} aria-hidden="true" />
+                      {picking === draft.id ? t('scheduling') : t('slides', { count: draft.slideCount, time: slot?.time ?? '' })}
                       <PlatformBadge instagram={draft.instagram} threads={draft.threads} />
                     </span>
                   </span>
@@ -190,25 +192,26 @@ export function SlotPicker({ drafts }: { drafts: DraftCard[] }) {
 
 /** The header's Slot posting button: the slot table in a dialog. */
 export function SlotsButton({ slots, isDefault }: { slots: PostingSlot[]; isDefault: boolean }) {
+  const t = useTranslations('calendar.slots')
   const dialog = useRef<HTMLDialogElement>(null)
   return (
     <>
       <button
         type="button"
         onClick={() => dialog.current?.showModal()}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-50"
+        className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[10px] border border-zinc-200 bg-white px-3 text-sm font-medium whitespace-nowrap text-zinc-800 transition-colors duration-150 hover:border-zinc-300 hover:bg-zinc-50"
       >
-        <CalendarClock size={16} aria-hidden="true" />
-        Slot posting
+        <PiCalendarCheck size={17} aria-hidden="true" />
+        {t('title')}
       </button>
       <dialog ref={dialog} aria-labelledby="slot-judul" className={DIALOG}>
         <div className="space-y-4 p-5">
           <div className="flex items-start justify-between gap-3">
             <h2 id="slot-judul" className="text-lg font-semibold text-ink">
-              Slot posting
+              {t('title')}
             </h2>
-            <button type="button" aria-label="Tutup" onClick={() => dialog.current?.close()} className={CLOSE}>
-              <X size={18} aria-hidden="true" />
+            <button type="button" aria-label={t('close')} onClick={() => dialog.current?.close()} className={CLOSE}>
+              <PiX size={18} aria-hidden="true" />
             </button>
           </div>
           <SlotEditor initialSlots={slots} isDefault={isDefault} />

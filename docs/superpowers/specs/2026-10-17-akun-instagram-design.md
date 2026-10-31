@@ -1,8 +1,10 @@
 # Data per Akun Instagram dan Referensi Carousel — Desain
 
 - **Tanggal:** 2026-10-17
-- **Status:** dibangun 2026-10-17 (rencana: `docs/superpowers/plans/2026-10-17-akun-instagram.md`). Owner menegaskan data akun lama disembunyikan, bukan dihapus. Belum diuji: migration di database VPS, Business Discovery dengan `children`, dan uji manual dua akun.
+- **Status:** dibangun 2026-10-17 (rencana historis: `docs/superpowers/plans/2026-10-17-akun-instagram.md`). Owner menegaskan data akun lama disembunyikan, bukan dihapus. Facebook Login/Business Discovery dihapus 2026-10-31. Belum diuji: migration di database VPS dan uji manual dua akun.
 - **Menyentuh:** multi-user (`2026-10-16-multi-user-design.md`), Brand (`2026-10-16-brand-kit-design.md`), Buat Konten (`2026-10-16-buat-konten-design.md`), Balasan, Kalender, Aset, worker.
+
+> **Pembaruan 2026-10-31:** cakupan aktif di bawah tidak lagi mencakup Business Discovery. Tabel `facebook_connections` tetap ada sebagai peninggalan migrasi, dan referensi lama bersumber `discovery` tetap didukung. Tidak ada perubahan database dalam penghapusan fitur ini. Detail penghapusan ada di [desain Brand Kit](2026-10-16-brand-kit-design.md#pembaruan-2026-10-31-penghapusan-business-discovery).
 
 ## Tujuan
 
@@ -46,7 +48,7 @@ Sukses kalau:
 | Kredit isi otomatis | Gratis, sekali per akun baru. Tetap dicatat di `ai_generations` dengan biaya 0. |
 | Video atau Reels | Dilewati. Yang diambil adalah 3 posting foto atau carousel terbaru. |
 | Label slide | Berdasarkan urutan, bisa diubah pemilik. |
-| Grup carousel berlaku untuk | Semua sumber Instagram: isi otomatis, posting sendiri, dan akun lain (Business Discovery). |
+| Grup carousel berlaku untuk | Semua sumber Instagram yang aktif: isi otomatis dan posting akun sendiri. |
 | Pemetaan di Buat Konten | Sesuai posisi: slide 1 ← Cover, slide tengah ← Isi (bergiliran), slide terakhir ← CTA. |
 
 ## Keputusan builder (dibuat saat desain, belum diperiksa owner)
@@ -63,12 +65,10 @@ Sukses kalau:
 
 ## Model data
 
-**Kunci akun.** Kunci akun adalah `instagram_user_id` dari Instagram Login, nilai yang sama dengan `instagram_connections.instagram_user_id` dan `facebook_connections.instagram_user_id`. Kolom baru `account_id text` ditambahkan ke tabel yang tampil per akun:
+**Kunci akun.** Kunci akun adalah `instagram_user_id` dari Instagram Login, nilainya sama dengan `instagram_connections.instagram_user_id`. Kolom baru `account_id text` ditambahkan ke tabel yang tampil per akun:
 
 - `brand_kit`, `brand_references`, `assets`, `posts`, `content_ideas`
 - `dm_conversations`, `dm_messages`, `dm_settings`, `dm_templates`
-
-`facebook_connections` sudah punya `instagram_user_id`. Kuncinya menjadi pengguna + akun.
 
 Tabel anak seperti `post_media`, `post_slides`, `publish_attempts`, dan gambar referensi ikut induknya. Tabel anak tidak perlu kolom ini kecuali builder butuh untuk query.
 
@@ -81,7 +81,7 @@ Tabel anak seperti `post_media`, `post_slides`, `publish_attempts`, dan gambar r
   - Worker memeriksa `posts.account_id` sama dengan akun koneksi sebelum membuat container. Kalau berbeda, posting gagal tanpa retry dengan pesan "Akun Instagram berbeda".
   - Mengirim DM ditolak kalau percakapannya bukan milik akun yang terhubung.
 
-**Singleton** (`brand_kit`, `dm_settings`, `facebook_connections`) dikunci per pengguna + akun. Data yatim dari migrasi (`account_id` null) harus bertahan sampai diambil akun berikutnya. Builder memilih cara aman di Postgres milik Supabase self-hosted, misalnya unique index `nulls not distinct` (PG15+) atau mengisi akun dulu sebelum mengganti kunci.
+**Singleton** (`brand_kit`, `dm_settings`) dikunci per pengguna + akun. Data yatim dari migrasi (`account_id` null) harus bertahan sampai diambil akun berikutnya. Builder memilih cara aman di Postgres milik Supabase self-hosted, misalnya unique index `nulls not distinct` (PG15+) atau mengisi akun dulu sebelum mengganti kunci.
 
 **Referensi berisi grup.** `brand_references` menjadi grup. Grup menyimpan sumber, label sumber, permalink, catatan, deskripsi, dan palet cover. Gambarnya pindah ke tabel anak, misalnya `brand_reference_images`, dengan kolom:
 
@@ -112,7 +112,7 @@ Server menjalankan satu fungsi SQL dalam satu transaksi:
 1. Posting akun itu yang berstatus `scheduled` menjadi `draft`. Ini perubahan status saja, seperti batal.
 2. Baris `instagram_connections` dihapus.
 
-Posting yang sedang `publishing` dibiarkan: worker menyelesaikan atau menggagalkannya seperti biasa. Putuskan Facebook tetap memakai confirm yang sekarang.
+Posting yang sedang `publishing` dibiarkan: worker menyelesaikan atau menggagalkannya seperti biasa.
 
 **Hubungkan.** Callback Instagram, setelah token dan profil didapat, berjalan dalam urutan ini:
 
@@ -135,9 +135,9 @@ Menghubungkan ulang akun yang sudah punya `brand_kit` tidak memicu apa pun.
 
 "Gratis" berarti isi otomatis juga berjalan kalau kredit periode sudah habis. Builder memastikan pengecekan kredit di `runLogged` tidak memblokir pemanggilan berbiaya 0 ini, tanpa membuka jalan gratis lain.
 
-**Ambil carousel.** `fetchRecentMedia` dan `discoverAccount` meminta `children{media_type,media_url,thumbnail_url}`. `toPosts` mengembalikan daftar gambar per posting, dan `VIDEO` di level atas dilewati untuk impor. Business Discovery belum terbukti mengembalikan `children`. Verifikasi dengan permintaan nyata. Kalau tidak ada, posting dari akun lain jatuh ke cover saja (`single`).
+**Ambil carousel.** `fetchRecentMedia` meminta `children{media_type,media_url,thumbnail_url}`. `toPosts` mengembalikan daftar gambar per posting, dan `VIDEO` di level atas dilewati untuk impor. Kalau Instagram tidak mengembalikan `children`, posting jatuh ke cover saja (`single`).
 
-Di pemilih posting (posting sendiri dan akun lain), kartu carousel menampilkan cover dengan lencana "Carousel · N". Memilihnya mengimpor seluruh grup, dan `MAX_IMPORT` menghitung posting.
+Di pemilih posting akun sendiri, kartu carousel menampilkan cover dengan lencana "Carousel · N". Memilihnya mengimpor seluruh grup, dan `MAX_IMPORT` menghitung posting.
 
 **Label berdasarkan urutan.** Fungsi murni dari jumlah gambar:
 
@@ -168,4 +168,4 @@ Label yang tidak ada jatuh ke cover, dan cover yang tidak ada jatuh ke gambar pe
 - Putuskan: posting terjadwal menjadi draft dan koneksi terhapus dalam satu transaksi.
 - Worker: posting dengan akun berbeda gagal tanpa retry.
 - Filter akun pada query daftar Brand, Aset, Kalender, Buat, dan Balasan.
-- Uji manual dengan dua akun Instagram nyata: Putuskan → Hubungkan akun lain → kembali, plus isi otomatis dan carousel dari Business Discovery.
+- Uji manual dengan dua akun Instagram nyata: Putuskan → Hubungkan akun lain → kembali, plus isi otomatis dan carousel dari posting akun sendiri.

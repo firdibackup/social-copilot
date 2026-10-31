@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
@@ -9,7 +10,8 @@ const nextConfig: NextConfig = {
     agentUpgrade: "security",
     // Three 5 MB Mimo attachments plus multipart overhead; the route validates each file itself.
     proxyClientMaxBodySize: "16mb",
-    // Photo uploads: Meta's 8 MB limit plus multipart overhead.
+    // Stored files are compressed below 2 MB, but one Brand grid upload carries several tiles and a raw logo is
+    // re-encoded on the server, so the request itself may still be larger.
     serverActions: { bodySizeLimit: "9mb" },
   },
   async redirects() {
@@ -32,4 +34,6 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+const withNextIntl = createNextIntlPlugin();
+
+export default withNextIntl(nextConfig);

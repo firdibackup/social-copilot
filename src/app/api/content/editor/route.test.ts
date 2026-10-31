@@ -3,6 +3,13 @@ import { GET } from './route'
 import { requireAccount } from '@/lib/auth'
 import { loadEditorDetail, loadEditorSupport } from '@/lib/editor-data'
 
+vi.mock('next-intl/server', () => ({
+  getTranslations: async (namespace: string) => {
+    const { createTranslator } = await import('next-intl')
+    const { default: editor } = await import('../../../../../messages/id/editor.json')
+    return createTranslator({ locale: 'id', messages: { editor }, namespace: namespace as 'editor.routeeditor' })
+  },
+}))
 vi.mock('@/lib/auth', () => ({ requireAccount: vi.fn() }))
 vi.mock('@/lib/editor-data', () => ({ loadEditorDetail: vi.fn(), loadEditorSupport: vi.fn() }))
 

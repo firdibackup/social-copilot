@@ -1,4 +1,10 @@
 import 'server-only'
+import { createTranslator } from 'next-intl'
+import type { Locale } from '@/i18n/locale-config'
+import idMessages from '../../messages/id/editor.json'
+import enMessages from '../../messages/en/editor.json'
+
+const postTranslations = (locale: Locale) => createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'posts' })
 import { contentRevision, type ContentRevisionRow } from './content-revision'
 import { signMediaUrls } from './assets'
 import { truncate, type SlideRole } from './brand-options'
@@ -188,7 +194,8 @@ export async function getPost(userId: string, id: string, accountId?: string): P
 }
 
 /** Creates or replaces a post's content in one transaction (see `save_post`). Returns the post id. */
-export async function savePost(userId: string, input: PostInput): Promise<string> {
+export async function savePost(userId: string, input: PostInput, locale: Locale = 'id'): Promise<string> {
+  const t = postTranslations(locale)
   const { data, error } = await db().rpc('save_post', {
     p_user_id: userId,
     p_id: input.id,
@@ -198,21 +205,22 @@ export async function savePost(userId: string, input: PostInput): Promise<string
     p_asset_ids: input.assetIds,
   })
   if (error?.message === 'post_locked') {
-    throw new PostLockedError('Post sedang atau mungkin sudah diterbitkan, jadi isinya tidak bisa diubah.')
+    throw new PostLockedError(t('lockedContent'))
   }
-  if (error?.message === 'wrong_account') throw new PostLockedError('Post ini milik akun Instagram lain.')
+  if (error?.message === 'wrong_account') throw new PostLockedError(t('wrongAccount'))
   if (error) throw new Error(`Supabase: ${error.message}`)
   return data as string
 }
 
 /** Puts a finished post on the schedule without touching its content: Kalender's Pilih (see schedule_post). */
-export async function schedulePost(userId: string, id: string, at: Date): Promise<void> {
+export async function schedulePost(userId: string, id: string, at: Date, locale: Locale = 'id'): Promise<void> {
+  const t = postTranslations(locale)
   const { error } = await db().rpc('schedule_post', { p_user_id: userId, p_id: id, p_scheduled_at: at.toISOString() })
   if (error?.message === 'post_locked') {
-    throw new PostLockedError('Post sedang atau mungkin sudah diterbitkan, jadi tidak bisa dijadwalkan di sini.')
+    throw new PostLockedError(t('lockedSchedule'))
   }
-  if (error?.message === 'invalid_media') throw new PostLockedError('Post untuk Instagram butuh minimal 1 foto.')
-  if (error?.message === 'wrong_account') throw new PostLockedError('Post ini milik akun Instagram lain.')
+  if (error?.message === 'invalid_media') throw new PostLockedError(t('invalidMedia'))
+  if (error?.message === 'wrong_account') throw new PostLockedError(t('wrongAccount'))
   if (error) throw new Error(`Supabase: ${error.message}`)
 }
 
@@ -275,9 +283,9 @@ export async function deletePost(userId: string, id: string): Promise<boolean> {
 const LABEL_MAX_LENGTH = 80
 
 /** What a list calls a post: its title, else its caption's first line. */
-export function postLabel(post: Pick<Post, 'title' | 'caption'>): string {
+export function postLabel(post: Pick<Post, 'title' | 'caption'>, locale: Locale = 'id'): string {
   const label = post.title || post.caption.split('\n', 1)[0].trim()
-  return label ? truncate(label, LABEL_MAX_LENGTH) : 'Tanpa judul'
+  return label ? truncate(label, LABEL_MAX_LENGTH) : postTranslations(locale)('untitled')
 }
 
 /** A post in Buat's list: not published yet, so still worth opening in the editor. */
@@ -322,7 +330,8 @@ const threadsEnabledOf = (value: ContentListRow['post_threads']) =>
   Boolean((Array.isArray(value) ? value[0] : value)?.enabled)
 
 /** The account's unpublished posts, most recently changed first. */
-export async function listContentPosts(userId: string, accountId: string): Promise<ContentListItem[]> {
+export async function listContentPosts(userId: string, accountId: string, locale: Locale = 'id'): Promise<ContentListItem[]> {
+  const t = postTranslations(locale)
   const rows = unwrap(
     await db()
       .from('posts')
@@ -344,15 +353,15 @@ export async function listContentPosts(userId: string, accountId: string): Promi
     const captionLine = row.caption.split('\n', 1)[0].trim()
     const job = Array.isArray(row.content_jobs) ? row.content_jobs[0] : row.content_jobs
     const pending = job?.status === 'pending' || job?.status === 'running'
-    const generation = job?.status === 'cancelled' ? 'Pembuatan dibatalkan'
-      : job?.status === 'failed' ? 'Pembuatan gagal · coba lagi'
-      : pending ? (job.kind === 'script' ? 'Menyusun skrip…' : 'Menyusun caption dan slide…')
-        : job?.kind === 'script' ? 'Draft · skrip siap' : null
+    const generation = job?.status === 'cancelled' ? t('cancelled')
+      : job?.status === 'failed' ? t('failed')
+      : pending ? (job.kind === 'script' ? t('writingScript') : t('writingContent'))
+        : job?.kind === 'script' ? t('scriptReady') : null
     return {
       revision: contentRevision({ ...row, content_jobs: row.content_jobs ?? null }),
       generation,
       id: row.id,
-      label: postLabel(row),
+      label: postLabel(row, locale),
       subtitle: row.title && captionLine !== row.title ? truncate(captionLine, LABEL_MAX_LENGTH) : '',
       status: row.status,
       scheduledAt: toDate(row.scheduled_at),

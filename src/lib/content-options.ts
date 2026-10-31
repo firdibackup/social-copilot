@@ -1,3 +1,8 @@
+
+import { createTranslator } from 'next-intl'
+import type { Locale } from '@/i18n/locale-config'
+import idMessages from '../../messages/id/editor.json'
+import enMessages from '../../messages/en/editor.json'
 /** Choices and limits of Buat Konten, shared by the editor and the server. */
 import { lengthOf } from './brand-options'
 import { isTextDensity, type TextDensity } from './density-options'
@@ -55,8 +60,10 @@ const text = (value: unknown) => (typeof value === 'string' ? value.replace(/\r\
 const optionalId = (value: unknown) => (value === null || value === undefined || value === '' ? null : value)
 
 /** Validates what the composer sent. The server action's parameter type is only a hint. */
-export function parseContentRequest(value: unknown): { request: ContentRequest } | { error: string } {
-  if (!isObject(value)) return { error: 'Permintaan tidak valid.' }
+export function parseContentRequest(value: unknown, locale: Locale = 'id'): { request: ContentRequest } | { error: string } {
+  const t = createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'contentOptions' })
+
+  if (!isObject(value)) return { error: t('message1') }
   const topic = text(value.topic)
   const { slides, format } = value
   const referenceId = optionalId(value.referenceId)
@@ -64,22 +71,22 @@ export function parseContentRequest(value: unknown): { request: ContentRequest }
   const pillarId = optionalId(value.pillarId)
   const ideaId = optionalId(value.ideaId)
 
-  if (!topic) return { error: 'Tulis topik atau ide konten dulu.' }
-  if (lengthOf(topic) > TOPIC_MAX_LENGTH) return { error: `Topik maksimal ${TOPIC_MAX_LENGTH} karakter.` }
+  if (!topic) return { error: t('message2') }
+  if (lengthOf(topic) > TOPIC_MAX_LENGTH) return { error: t('message3', { v0: TOPIC_MAX_LENGTH }) }
   if (typeof slides !== 'number' || !Number.isInteger(slides) || slides < 1 || slides > MAX_SLIDES) {
-    return { error: `Jumlah slide 1–${MAX_SLIDES}.` }
+    return { error: t('message4', { v0: MAX_SLIDES }) }
   }
-  if (!isImageFormat(format)) return { error: 'Format gambar tidak dikenal.' }
+  if (!isImageFormat(format)) return { error: t('message5') }
   if (referenceId !== null && referenceId !== AUTO_REFERENCE && !isUuid(referenceId)) {
-    return { error: 'Referensi tidak ditemukan.' }
+    return { error: t('message6') }
   }
   if (productGroupId !== null && productGroupId !== AUTO_PRODUCT && !isUuid(productGroupId)) {
-    return { error: 'Produk tidak ditemukan.' }
+    return { error: t('message7') }
   }
-  if (typeof pillarId !== 'string' && pillarId !== null) return { error: 'Pilar tidak dikenal.' }
-  if (pillarId !== null && !PILLAR_ID.test(pillarId)) return { error: 'Pilar tidak dikenal.' }
-  if (ideaId !== null && !isUuid(ideaId)) return { error: 'Ide tidak ditemukan.' }
-  if (!isTextDensity(value.density)) return { error: 'Kepadatan teks tidak dikenal.' }
+  if (typeof pillarId !== 'string' && pillarId !== null) return { error: t('message8') }
+  if (pillarId !== null && !PILLAR_ID.test(pillarId)) return { error: t('message8') }
+  if (ideaId !== null && !isUuid(ideaId)) return { error: t('message9') }
+  if (!isTextDensity(value.density)) return { error: t('message10') }
   return {
     request: {
       topic,
@@ -96,11 +103,13 @@ export function parseContentRequest(value: unknown): { request: ContentRequest }
 }
 
 /** An edit the owner typed into the composer. */
-export function parseInstruction(value: unknown): string | { error: string } {
+export function parseInstruction(value: unknown, locale: Locale = 'id'): string | { error: string } {
+  const t = createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'contentOptions' })
+
   const instruction = text(value)
-  if (!instruction) return { error: 'Tulis perubahan yang diinginkan dulu.' }
+  if (!instruction) return { error: t('message11') }
   if (lengthOf(instruction) > INSTRUCTION_MAX_LENGTH) {
-    return { error: `Perubahan maksimal ${INSTRUCTION_MAX_LENGTH} karakter.` }
+    return { error: t('message12', { v0: INSTRUCTION_MAX_LENGTH }) }
   }
   return instruction
 }

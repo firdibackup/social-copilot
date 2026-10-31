@@ -1,3 +1,6 @@
+import { IntlMessages } from '@/i18n/client-messages'
+
+import { getLocale, getTranslations } from 'next-intl/server'
 import { Suspense, type ReactNode } from 'react'
 import { LoadingState } from '@/components/loading-state'
 import { Notice } from '@/components/notice'
@@ -11,25 +14,29 @@ import { WorkspaceFrame } from './workspace-frame'
 import { EditorProvider } from './editor-provider'
 
 /** Keep the list mounted when only the selected draft's query string changes. */
-export default function BuatLayout({ children }: { children: ReactNode }) {
+export default async function BuatLayout({ children }: { children: ReactNode }) {
+  const t = await getTranslations('editor.layout')
+
   return (
-    <Suspense fallback={<LoadingState variant="editor" className="h-full" label="Memuat konten…" />}>
+    <Suspense fallback={<LoadingState variant="editor" className="h-full" label={t('message1')} />}>
       <AuthenticatedWorkspace>{children}</AuthenticatedWorkspace>
     </Suspense>
   )
 }
 
 async function AuthenticatedWorkspace({ children }: { children: ReactNode }) {
+  const t = await getTranslations('editor.layout')
+
   const { userId, accountId } = await requireAccount()
   const scope = `${userId}:${accountId}`
   return (
-    <EditorProvider key={scope} scope={scope}>
+    <IntlMessages namespaces={['common', 'editor']}><EditorProvider key={scope} scope={scope}>
       <WorkspaceFrame list={
-        <Suspense fallback={<div className="w-full shrink-0 md:w-[320px]"><LoadingState variant="line" label="Memuat daftar konten…" /></div>}>
+        <Suspense fallback={<div className="w-full shrink-0 md:w-[320px]"><LoadingState variant="line" label={t('message2')} /></div>}>
           <DraftList />
         </Suspense>
       }>{children}</WorkspaceFrame>
-    </EditorProvider>
+    </EditorProvider></IntlMessages>
   )
 }
 
@@ -38,7 +45,7 @@ async function DraftList() {
   let data
   try {
     const [posts, ideas, strategy] = await Promise.all([
-      listContentPosts(userId, accountId),
+      listContentPosts(userId, accountId, await getLocale()),
       listIdeas(userId, accountId),
       getAccountStrategy(userId, accountId).catch(() => null),
     ])

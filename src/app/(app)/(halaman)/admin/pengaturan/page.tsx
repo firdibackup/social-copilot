@@ -1,3 +1,5 @@
+
+import { getTranslations } from 'next-intl/server'
 import type { Metadata } from 'next'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
@@ -11,21 +13,28 @@ import { SettingsForm } from './settings-form'
 import { BillingForm } from './billing-form'
 import { getBillingCatalog } from '@/lib/billing-catalog'
 
-export const metadata: Metadata = { title: 'Pengaturan · Admin' }
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin')
+  return { title: t('settingsPage.settingsAdmin') }
+}
 
 /** The text model verified on 2026-10-16, offered as a one-click choice beside the Claude models 9Router lists. */
 const VERIFIED_TEXT_MODEL = 'cc/claude-haiku-4-5-20251001'
 const MAX_PRESETS = 4
 
-export default function AdminPengaturanPage() {
+export default async function AdminPengaturanPage() {
+  const t = await getTranslations('admin')
+
   return (
-    <Suspense fallback={<LoadingState variant="form" className="max-w-3xl" label="Memuat pengaturan…" />}>
+    <Suspense fallback={<LoadingState variant="form" className="max-w-3xl" label={t('settingsPage.loadingSettings')} />}>
       <Settings />
     </Suspense>
   )
 }
 
 async function Settings() {
+  const t = await getTranslations('admin')
+
   await connection()
   await requireAdmin()
   const settings = await getAppSettings()
@@ -37,7 +46,7 @@ async function Settings() {
     models = await listModels()
   } catch (error) {
     console.error('[admin] daftar model 9Router gagal:', describeError(error))
-    modelsError = 'Daftar model dari 9Router tidak bisa diambil, tapi id model tetap bisa diketik manual.'
+    modelsError = t('settingsPage.couldnTFetchTheModelListFrom')
   }
   // /models doesn't list image models (they are in the 9Router dashboard), so the default is the only sure one.
   const imageModels = [...new Set([DEFAULT_IMAGE_MODEL, ...models.filter((model) => /image|dall-?e|imagen/i.test(model))])]
@@ -46,7 +55,7 @@ async function Settings() {
 
   return (
     <div className="max-w-3xl space-y-4">
-      {billing ? <BillingForm key={billing.version} {...billing} /> : <Notice tone="warning">Jalankan migrasi billing_catalog untuk mengatur paket Pro/Max.</Notice>}
+      {billing ? <BillingForm key={billing.version} {...billing} /> : <Notice tone="warning">{t('settingsPage.runTheBillingCatalogMigrationToConfigure')}</Notice>}
       {modelsError && <Notice tone="warning">{modelsError}</Notice>}
       <SettingsForm
         values={{

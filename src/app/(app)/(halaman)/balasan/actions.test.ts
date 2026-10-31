@@ -120,3 +120,15 @@ describe('sendReply', () => {
     await expect(sendReply(CUSTOMER, 'Halo')).resolves.toBeNull()
   })
 })
+
+vi.mock('next-intl/server', async () => {
+  const { createTranslator } = await import('next-intl')
+  const { default: inbox } = await import('../../../../../messages/id/inbox.json')
+  return {
+    getTranslations: async (namespace: string) => {
+      const section = namespace.replace('inbox.', '') as keyof typeof inbox
+      return createTranslator({ locale: 'id', messages: inbox[section] })
+    },
+    getLocale: async () => 'id',
+  }
+})

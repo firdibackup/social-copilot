@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl'
 import { InstagramIcon } from '@/components/instagram-icon'
 import { ThreadsIcon } from '@/components/threads-icon'
 
@@ -24,10 +25,11 @@ interface PlatformBadgeProps {
  * Threads chip tucked over the Instagram one like an avatar stack.
  */
 export function PlatformBadge({ instagram, threads, threadsTone = 'text-zinc-500', threadsStatus, size = 'md' }: PlatformBadgeProps) {
+  const t = useTranslations('common')
   if (!instagram && !threads) return null
   const { chip, glyph, overlap } = SIZES[size]
   const threadsText = threadsStatus ? `Threads ${threadsStatus}` : 'Threads'
-  const label = instagram && threads ? `Instagram dan ${threadsText}` : instagram ? 'Instagram' : threadsText
+  const label = instagram && threads ? t('platform.both', { threads: threadsText }) : instagram ? 'Instagram' : threadsText
 
   return (
     <span title={label} className="inline-flex shrink-0 items-center">

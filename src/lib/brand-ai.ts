@@ -1,4 +1,5 @@
 import 'server-only'
+import { languagePrompt, type Locale } from './ai-language'
 import { AiOutputError, describeBrand, quote, readJson, runLogged, snippetOf } from './ai'
 import type { VisualReference } from './brand'
 import { BRAND_TEXT_LIMITS, DESCRIPTION_MAX_LENGTH, isObject, PROFILE_FIELDS, truncate, type BrandContext, type ProfileText } from './brand-options'
@@ -84,9 +85,9 @@ function describeSources({ website, instagram }: ProfileSources): string {
   return parts.join('\n\n')
 }
 
-export function buildProfileMessages(sources: ProfileSources): ChatMessage[] {
+export function buildProfileMessages(sources: ProfileSources, language: Locale = 'id'): ChatMessage[] {
   return [
-    { role: 'system', content: PROFILE_SYSTEM },
+    { role: 'system', content: languagePrompt(PROFILE_SYSTEM, language) },
     { role: 'user', content: `${PROFILE_TASK}\n\n${describeSources(sources)}` },
   ]
 }
@@ -105,6 +106,7 @@ export function parseProfile(content: string): ProfileDraft {
 
 /** Only the new-account fill passes `cost: 0`; owner-started requests pay TASK_CREDITS. */
 interface CostOption {
+  language?: Locale
   cost?: number
 }
 
@@ -114,7 +116,7 @@ export function analyzeProfile(userId: string, sources: ProfileSources, options:
     userId,
     'brand_profile',
     sources,
-    async () => parseProfile(await chatCompletion(buildProfileMessages(sources))),
+    async () => parseProfile(await chatCompletion(buildProfileMessages(sources, options.language))),
     options,
   )
 }
@@ -136,7 +138,7 @@ const VISUAL_TASK = [
   'Format JSON: {"visualStyle": "…", "references": ["deskripsi referensi 1", "deskripsi referensi 2", …]}, urut sesuai nomor referensi.',
 ].join('\n')
 
-export function buildVisualMessages(references: VisualReference[]): ChatMessage[] {
+export function buildVisualMessages(references: VisualReference[], language: Locale = 'id'): ChatMessage[] {
   const parts: ContentPart[] = [{ type: 'text', text: VISUAL_TASK }]
   references.forEach((reference, index) => {
     const note = reference.note ? `, catatan owner:\n${quote(reference.note)}` : ''
@@ -144,7 +146,7 @@ export function buildVisualMessages(references: VisualReference[]): ChatMessage[
     parts.push({ type: 'image_url', image_url: { url: reference.dataUrl } })
   })
   return [
-    { role: 'system', content: VISUAL_SYSTEM },
+    { role: 'system', content: languagePrompt(VISUAL_SYSTEM, language) },
     { role: 'user', content: parts },
   ]
 }
@@ -175,7 +177,7 @@ export function analyzeVisual(
     userId,
     'brand_visual',
     input,
-    async () => parseVisual(await chatCompletion(buildVisualMessages(references)), references.length),
+    async () => parseVisual(await chatCompletion(buildVisualMessages(references, options.language)), references.length),
     options,
   )
 }
@@ -207,10 +209,10 @@ export interface StrategySources {
   recent: string[]
 }
 
-export function buildStrategyMessages({ brand, recent }: StrategySources): ChatMessage[] {
+export function buildStrategyMessages({ brand, recent }: StrategySources, language: Locale = 'id'): ChatMessage[] {
   const posts = recent.map((text, index) => `${index + 1}.\n${quote(truncate(text, CAPTION_SAMPLE_LENGTH))}`)
   return [
-    { role: 'system', content: STRATEGY_SYSTEM },
+    { role: 'system', content: languagePrompt(STRATEGY_SYSTEM, language) },
     {
       role: 'user',
       content: [
@@ -258,7 +260,7 @@ export function analyzeStrategy(userId: string, sources: StrategySources, option
     userId,
     'brand_strategy',
     { brand: sources.brand, recent: sources.recent.length },
-    async () => parseStrategyAnswer(await chatCompletion(buildStrategyMessages(sources))),
+    async () => parseStrategyAnswer(await chatCompletion(buildStrategyMessages(sources, options.language))),
     options,
   )
 }

@@ -1,19 +1,16 @@
 'use client'
 
+import { useLocale, useTranslations } from 'next-intl'
+
 import { BatteryFull, Bookmark, Camera, ChevronLeft, Heart, MessageCircle, Send, Signal, Wifi } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
+import { intlLocale, type Locale } from '@/i18n/locale-config'
 import { ExternalImage } from '@/components/media-image'
 import type { AutoDmRuleInput } from '@/lib/auto-dm-rules'
 import type { RulePost } from '../auto-dm-actions'
-import { PLACEHOLDERS, Segmented, withoutExample } from './fields'
+import { usePlaceholders, Segmented, withoutExample } from './fields'
 
 type View = 'post' | 'komentar' | 'dm'
-
-const VIEWS = [
-  { value: 'post', label: 'Post' },
-  { value: 'komentar', label: 'Komentar' },
-  { value: 'dm', label: 'DM' },
-] as const
 
 /** What a commenter writes in "kata apa pun" mode. */
 const ANY_COMMENT = 'Keren banget! 🤩'
@@ -29,6 +26,12 @@ interface PhonePreviewProps {
 
 /** A dark Instagram phone that follows the form as it is filled in. */
 export function PhonePreview({ rule, username, avatarUrl, post }: PhonePreviewProps) {
+  const t = useTranslations('inbox.builderPhonePreview')
+  const VIEWS = [
+  { value: 'post', label: 'Post' },
+  { value: 'komentar', label: t('comments') },
+  { value: 'dm', label: 'DM' },
+] as const
   const [view, setView] = useState<View>('komentar')
   const comment = rule.matchAny ? ANY_COMMENT : (rule.keywords[0] ?? 'MAU')
   const account = { username, avatarUrl }
@@ -43,7 +46,7 @@ export function PhonePreview({ rule, username, avatarUrl, post }: PhonePreviewPr
           {view === 'dm' && <DmView account={account} rule={rule} comment={comment} />}
         </div>
       </div>
-      <Segmented label="Pratinjau" options={VIEWS} value={view} onChange={setView} />
+      <Segmented label={t('preview')} options={VIEWS} value={view} onChange={setView} />
     </div>
   )
 }
@@ -85,16 +88,18 @@ function PostImage({ post, className }: { post: RulePost | null; className?: str
   )
 }
 
-const count = (value: number | null | undefined) => (value ?? 0).toLocaleString('id-ID')
+const count = (value: number | null | undefined, locale: Locale) => (value ?? 0).toLocaleString(intlLocale(locale))
 
 function PostView({ account, post }: { account: Account; post: RulePost | null }) {
+  const locale = useLocale()
+  const t = useTranslations('inbox.builderPhonePreview')
   return (
     <div className="flex-1 overflow-hidden text-[13px]">
       <div className="relative flex items-center justify-center py-2">
         <ChevronLeft size={22} className="absolute left-3" aria-hidden="true" />
         <div className="text-center leading-tight">
           <p className="text-[10px] font-semibold tracking-wide text-zinc-400 uppercase">{account.username}</p>
-          <p className="font-semibold">Postingan</p>
+          <p className="font-semibold">{t('posts')}</p>
         </div>
       </div>
       <div className="flex items-center gap-2 px-3 py-2">
@@ -104,10 +109,10 @@ function PostView({ account, post }: { account: Account; post: RulePost | null }
       <PostImage post={post} />
       <div className="flex items-center gap-4 px-3 py-2.5" aria-hidden="true">
         <span className="flex items-center gap-1">
-          <Heart size={20} /> {count(post?.likes)}
+          <Heart size={20} /> {count(post?.likes, locale)}
         </span>
         <span className="flex items-center gap-1">
-          <MessageCircle size={20} /> {count(post?.comments)}
+          <MessageCircle size={20} /> {count(post?.comments, locale)}
         </span>
         <Send size={20} />
         <Bookmark size={20} className="ml-auto" />
@@ -127,15 +132,16 @@ interface CommentsViewProps {
 }
 
 function CommentsView({ account, post, rule, comment }: CommentsViewProps) {
-  const reply = rule.publicReplies.find((variation) => variation.trim()) ?? withoutExample(PLACEHOLDERS.variation)
+  const placeholders = usePlaceholders()
+  const t = useTranslations('inbox.builderPhonePreview')
+  const reply = rule.publicReplies.find((variation) => variation.trim()) ?? withoutExample(placeholders.variation)
   return (
     <div className="relative flex-1 overflow-hidden text-[13px]">
       <PostImage post={post} className="opacity-40" />
       <div className="absolute inset-x-0 bottom-0 flex h-[78%] flex-col rounded-t-2xl bg-[#262626]">
         <div className="mx-auto mt-2 h-1 w-9 rounded-full bg-zinc-500" />
         <div className="relative border-b border-white/10 py-2.5 text-center font-semibold">
-          Komentar
-          <Send size={18} className="absolute top-2.5 right-3" aria-hidden="true" />
+           {t('comments')} <Send size={18} className="absolute top-2.5 right-3" aria-hidden="true" />
         </div>
         <div className="flex-1 space-y-4 overflow-hidden px-3 py-3">
           <CommentLine
@@ -157,7 +163,7 @@ function CommentsView({ account, post, rule, comment }: CommentsViewProps) {
           </p>
           <div className="flex items-center gap-2">
             <AccountAvatar account={account} />
-            <span className="flex-1 rounded-full border border-white/20 px-3 py-1.5 text-zinc-400">Tambahkan komentar…</span>
+            <span className="flex-1 rounded-full border border-white/20 px-3 py-1.5 text-zinc-400">{t('addAComment')}</span>
           </div>
         </div>
       </div>
@@ -166,15 +172,16 @@ function CommentsView({ account, post, rule, comment }: CommentsViewProps) {
 }
 
 function CommentLine({ avatar, name, text }: { avatar: ReactNode; name: string; text: string }) {
+  const t = useTranslations('inbox.builderPhonePreview')
   return (
     <div className="flex gap-2">
       {avatar}
       <div className="min-w-0 flex-1">
         <p className="text-[12px]">
-          <span className="font-semibold">{name}</span> <span className="text-zinc-400">Baru saja</span>
+          <span className="font-semibold">{name}</span> <span className="text-zinc-400">{t('justNow')}</span>
         </p>
         <p className="break-words whitespace-pre-line">{text}</p>
-        <p className="mt-0.5 text-[11px] font-semibold text-zinc-400">Balas</p>
+        <p className="mt-0.5 text-[11px] font-semibold text-zinc-400">{t('reply')}</p>
       </div>
       <Heart size={12} className="mt-1 shrink-0 text-zinc-400" aria-hidden="true" />
     </div>
@@ -211,7 +218,9 @@ const Divider = ({ children }: { children: string }) => (
 )
 
 function DmView({ account, rule, comment }: { account: Account; rule: AutoDmRuleInput; comment: string }) {
-  const mainDivider = rule.followGate ? 'Setelah follow & tekan tombol' : rule.opener ? 'Setelah tombol ditekan' : null
+  const placeholders = usePlaceholders()
+  const t = useTranslations('inbox.builderPhonePreview')
+  const mainDivider = rule.followGate ? t('afterFollowingTappingTheButton') : rule.opener ? t('afterTappingTheButton') : null
   return (
     <div className="flex flex-1 flex-col overflow-hidden text-[13px]">
       <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
@@ -224,23 +233,23 @@ function DmView({ account, rule, comment }: { account: Account; rule: AutoDmRule
         <Camera size={20} aria-hidden="true" />
       </div>
       <div className="flex-1 space-y-2 overflow-y-auto px-3 py-3">
-        <p className="text-center text-[11px] text-zinc-500">Membalas komentar: “{comment}”</p>
+        <p className="text-center text-[11px] text-zinc-500">{t('replyingTo', { comment })}</p>
         {rule.opener && (
           <Bubble
             account={account}
             text={rule.openerText}
-            placeholder={PLACEHOLDERS.openerText}
-            button={{ text: rule.openerButton, placeholder: PLACEHOLDERS.openerButton }}
+            placeholder={placeholders.openerText}
+            button={{ text: rule.openerButton, placeholder: placeholders.openerButton }}
           />
         )}
         {rule.followGate && (
           <>
-            {rule.opener && <Divider>Setelah tombol ditekan</Divider>}
+            {rule.opener && <Divider>{t('afterTappingTheButton')}</Divider>}
             <Bubble
               account={account}
               text={rule.followText}
-              placeholder={PLACEHOLDERS.followText}
-              button={{ text: rule.followButton, placeholder: PLACEHOLDERS.followButton }}
+              placeholder={placeholders.followText}
+              button={{ text: rule.followButton, placeholder: placeholders.followButton }}
             />
           </>
         )}
@@ -248,12 +257,12 @@ function DmView({ account, rule, comment }: { account: Account; rule: AutoDmRule
         <Bubble
           account={account}
           text={rule.mainText}
-          placeholder={PLACEHOLDERS.mainText}
-          button={rule.linkButton ? { text: rule.linkText, placeholder: PLACEHOLDERS.linkText } : undefined}
+          placeholder={placeholders.mainText}
+          button={rule.linkButton ? { text: rule.linkText, placeholder: placeholders.linkText } : undefined}
         />
       </div>
       <div className="px-3 pb-4">
-        <p className="rounded-full border border-white/20 px-4 py-2 text-zinc-400">Kirim pesan…</p>
+        <p className="rounded-full border border-white/20 px-4 py-2 text-zinc-400">{t('sendAMessage')}</p>
       </div>
     </div>
   )

@@ -1,3 +1,6 @@
+
+import type adminMessages from '@/../messages/id/admin.json'
+import { getLocale, getTranslations } from 'next-intl/server'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { connection } from 'next/server'
@@ -9,21 +12,30 @@ import { formatCredits } from '@/lib/admin-options'
 import { getPlan, imageModel, textModel } from '@/lib/app-settings'
 import { requireAdmin } from '@/lib/auth'
 import type { Plan } from '@/lib/billing-options'
-import { describeError, loadErrorMessage } from '@/lib/errors'
+import { ConfigError, describeError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
 import { ACTION_LABELS, CARD, CARD_TITLE, TABLE, TASK_LABELS, TD, TH } from './ui'
 
-export const metadata: Metadata = { title: 'Admin' }
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin')
+  return { title: t('page.admin') }
+}
 
-export default function AdminPage() {
+export default async function AdminPage() {
+  const t = await getTranslations('admin')
+
   return (
-    <Suspense fallback={<LoadingState variant="analytics" label="Memuat ringkasan…" />}>
+    <Suspense fallback={<LoadingState variant="analytics" label={t('page.loadingOverview')} />}>
       <Overview />
     </Suspense>
   )
 }
 
 async function Overview() {
+  const locale = await getLocale()
+
+  const t = await getTranslations('admin')
+
   await connection()
   await requireAdmin()
   let data: { overview: AdminOverview; text: string; image: string; plan: Plan }
@@ -32,7 +44,7 @@ async function Overview() {
     data = { overview, text, image, plan }
   } catch (error) {
     console.error('[admin] ringkasan gagal dimuat:', describeError(error))
-    return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
+    return <Notice tone="warning">{error instanceof ConfigError ? t('loadErrors.configuration', { message: error.message }) : t('loadErrors.database')}</Notice>
   }
   const { overview, text, image, plan } = data
   const requests = overview.usage.reduce((sum, row) => sum + row.requests, 0)
@@ -42,11 +54,11 @@ async function Overview() {
   return (
     <div className="space-y-6">
       <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Pengguna" value={formatCredits(overview.users)} />
-        <Stat label="Langganan aktif" value={formatCredits(overview.activeUsers)} />
-        <Stat label={`Permintaan AI ${overview.usageDays} hari`} value={formatCredits(requests)} />
+        <Stat label={t('page.users')} value={formatCredits(overview.users, locale)} />
+        <Stat label={t('page.activeSubscriptions')} value={formatCredits(overview.activeUsers, locale)} />
+        <Stat label={t('page.aiRequestsOverDays', { v0: overview.usageDays })} value={formatCredits(requests, locale)} />
         <Stat
-          label="Gagal"
+          label={t('page.failed')}
           value={requests === 0 ? '–' : `${Math.round((failed * 100) / requests)}%`}
           tone={requests > 0 && failed * 10 >= requests ? 'warning' : 'normal'}
         />
@@ -54,55 +66,52 @@ async function Overview() {
 
       <section className={CARD}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className={CARD_TITLE}>Yang dipakai sekarang</h2>
+          <h2 className={CARD_TITLE}>{t('page.currentlyInUse')}</h2>
           <Link href="/admin/pengaturan" className="text-sm font-medium text-zinc-900 underline">
-            Ubah
-          </Link>
+            {t('page.edit')}</Link>
         </div>
         <dl className="grid gap-3 text-sm sm:grid-cols-3">
           <div>
-            <dt className="text-zinc-500">Model teks</dt>
+            <dt className="text-zinc-500">{t('page.textModel')}</dt>
             <dd className="font-mono text-zinc-900">{text}</dd>
           </div>
           <div>
-            <dt className="text-zinc-500">Model gambar</dt>
+            <dt className="text-zinc-500">{t('page.imageModel')}</dt>
             <dd className="font-mono text-zinc-900">{image}</dd>
           </div>
           <div>
-            <dt className="text-zinc-500">Paket</dt>
+            <dt className="text-zinc-500">{t('page.plan')}</dt>
             <dd className="text-zinc-900">
-              {plan.name} · {formatCredits(plan.credits)} kredit / {plan.days} hari
-            </dd>
+              {plan.name} · {formatCredits(plan.credits, locale)} {t('page.credits')} {plan.days} {t('page.days')}</dd>
           </div>
         </dl>
       </section>
 
       <section className="space-y-3">
         <h2 className={CARD_TITLE}>
-          Pemakaian AI per model, {overview.usageDays} hari terakhir ({formatCredits(credits)} kredit)
-        </h2>
+          {t('page.usageHeading', { days: overview.usageDays, credits: formatCredits(credits, locale) })}</h2>
         {overview.usage.length === 0 ? (
-          <p className="text-sm text-zinc-500">Belum ada permintaan AI.</p>
+          <p className="text-sm text-zinc-500">{t('page.noAiRequestsYet')}</p>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
             <table className={TABLE}>
               <thead className="border-b border-zinc-100">
                 <tr>
                   <th className={TH}>Model</th>
-                  <th className={TH}>Permintaan</th>
-                  <th className={TH}>Gagal</th>
-                  <th className={TH}>Kredit</th>
-                  <th className={TH}>Pengguna</th>
+                  <th className={TH}>{t('page.requests')}</th>
+                  <th className={TH}>{t('page.failed')}</th>
+                  <th className={TH}>{t('page.credits3')}</th>
+                  <th className={TH}>{t('page.users')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
                 {overview.usage.map((row) => (
                   <tr key={row.model}>
                     <td className={`${TD} font-mono text-zinc-900`}>{row.model}</td>
-                    <td className={TD}>{formatCredits(row.requests)}</td>
-                    <td className={`${TD} ${row.failed > 0 ? 'text-red-700' : ''}`}>{formatCredits(row.failed)}</td>
-                    <td className={TD}>{formatCredits(row.credits)}</td>
-                    <td className={TD}>{formatCredits(row.users)}</td>
+                    <td className={TD}>{formatCredits(row.requests, locale)}</td>
+                    <td className={`${TD} ${row.failed > 0 ? 'text-red-700' : ''}`}>{formatCredits(row.failed, locale)}</td>
+                    <td className={TD}>{formatCredits(row.credits, locale)}</td>
+                    <td className={TD}>{formatCredits(row.users, locale)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -112,20 +121,20 @@ async function Overview() {
       </section>
 
       <section className="space-y-3">
-        <h2 className={CARD_TITLE}>Permintaan AI gagal terbaru</h2>
+        <h2 className={CARD_TITLE}>{t('page.latestFailedAiRequests')}</h2>
         {overview.failures.length === 0 ? (
-          <p className="text-sm text-zinc-500">Tidak ada.</p>
+          <p className="text-sm text-zinc-500">{t('page.none')}</p>
         ) : (
           <ul className="divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 bg-white text-sm">
             {overview.failures.map((failure, index) => (
               <li key={index} className="space-y-1 px-4 py-3">
                 <p className="flex flex-wrap gap-x-3 text-zinc-500">
-                  <span>{formatDateTime(failure.createdAt)}</span>
-                  <span>{TASK_LABELS[failure.task] ?? failure.task}</span>
+                  <span>{formatDateTime(failure.createdAt, locale)}</span>
+                  <span>{(Object.hasOwn(TASK_LABELS, failure.task) ? t(`tasks.${failure.task as keyof typeof adminMessages.tasks}`) : failure.task)}</span>
                   <span className="font-mono">{failure.model}</span>
                   <span>{failure.email}</span>
                 </p>
-                <p className="break-words text-zinc-900">{failure.error ?? '(tanpa pesan)'}</p>
+                <p className="break-words text-zinc-900">{failure.error ?? t('page.noMessage')}</p>
               </li>
             ))}
           </ul>
@@ -133,17 +142,17 @@ async function Overview() {
       </section>
 
       <section className="space-y-3">
-        <h2 className={CARD_TITLE}>Riwayat aksi admin</h2>
+        <h2 className={CARD_TITLE}>{t('page.adminActionHistory')}</h2>
         {overview.log.length === 0 ? (
-          <p className="text-sm text-zinc-500">Belum ada.</p>
+          <p className="text-sm text-zinc-500">{t('page.noneYet')}</p>
         ) : (
           <ul className="divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 bg-white text-sm">
             {overview.log.map((entry, index) => (
               <li key={index} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3">
-                <span className="text-zinc-500">{formatDateTime(entry.createdAt)}</span>
-                <span className="font-medium text-zinc-900">{ACTION_LABELS[entry.action] ?? entry.action}</span>
+                <span className="text-zinc-500">{formatDateTime(entry.createdAt, locale)}</span>
+                <span className="font-medium text-zinc-900">{(Object.hasOwn(ACTION_LABELS, entry.action) ? t(`actionsLabels.${entry.action as keyof typeof adminMessages.actionsLabels}`) : entry.action)}</span>
                 {entry.targetEmail && <span className="text-zinc-700">{entry.targetEmail}</span>}
-                <span className="text-zinc-500">oleh {entry.adminEmail}</span>
+                <span className="text-zinc-500">{t('page.by')} {entry.adminEmail}</span>
                 <LogDetail detail={entry.detail} />
               </li>
             ))}
@@ -166,10 +175,14 @@ function Stat({ label, value, tone = 'normal' }: { label: string; value: string;
 }
 
 /** The few details worth a glance: days, credits, a note. */
-function LogDetail({ detail }: { detail: Record<string, unknown> }) {
+async function LogDetail({ detail }: { detail: Record<string, unknown> }) {
+  const locale = await getLocale()
+
+  const t = await getTranslations('admin')
+
   const parts: string[] = []
-  if (typeof detail.days === 'number') parts.push(`${detail.days} hari`)
-  if (typeof detail.amount === 'number') parts.push(`${detail.amount > 0 ? '+' : ''}${formatCredits(detail.amount)} kredit`)
+  if (typeof detail.days === 'number') parts.push(t('page.days3', { v0: detail.days }))
+  if (typeof detail.amount === 'number') parts.push(t('page.credits4', { v0: detail.amount > 0 ? '+' : '', v1: formatCredits(detail.amount, locale) }))
   if (typeof detail.note === 'string' && detail.note) parts.push(`"${detail.note}"`)
   if (parts.length === 0) return null
   return <span className="text-zinc-500">· {parts.join(' · ')}</span>

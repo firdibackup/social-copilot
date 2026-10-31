@@ -1,5 +1,9 @@
 'use client'
 
+import type { Locale } from '@/i18n/locale-config'
+
+import { useLocale, useTranslations } from 'next-intl'
+
 import Link from 'next/link'
 import { useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -16,26 +20,9 @@ import { detailQuery, editorKeys, supportQuery, type EditorDetail, type EditorSu
 import { useEditorScope } from './editor-provider'
 import { useHiddenPosts } from './optimistic-events'
 
-const OK_MESSAGES: Record<string, string> = {
-  draft: 'Draft tersimpan.',
-  schedule: 'Post dijadwalkan.',
-  now: 'Post masuk antrean dan akan diterbitkan worker dalam 5 detik.',
-  cancel: 'Jadwal dibatalkan.',
-  retry: 'Post dijadwalkan ulang untuk terbit sekarang.',
-  duplicate: 'Salinan dibuat sebagai draft.',
-  threads: 'Versi Threads masuk antrean dan akan diterbitkan worker dalam 5 detik.',
-  story: 'Story masuk antrean dan akan dibagikan worker dalam 5 detik.',
-}
 
-const FAILED_MESSAGES: Record<string, string> = {
-  cancel: 'Jadwal tidak bisa dibatalkan karena worker sudah mulai memproses post ini.',
-  retry: 'Post ini tidak bisa dicoba lagi pada statusnya sekarang.',
-  duplicate: 'Post gagal diduplikat. Coba lagi.',
-  hapus: 'Post tidak bisa dihapus saat sedang diterbitkan.',
-  threads:
-    'Versi Threads belum bisa diterbitkan. Pastikan Threads terhubung di Pengaturan dan isi post Threads-nya tidak kosong atau terlalu panjang.',
-  story: 'Story ini tidak bisa dicoba lagi pada statusnya sekarang.',
-}
+
+
 
 /** What the server rendered for the URL it saw; null parts are fetched by the browser. */
 export interface EditorInitial {
@@ -47,9 +34,9 @@ export interface EditorInitial {
 }
 
 /** A slot picked in Kalender (`?slot=`), while it is still ahead. */
-function pickedSlot(value: string | undefined, now: Date) {
+function pickedSlot(value: string | undefined, now: Date, locale: Locale) {
   const at = value ? parseWibInput(value) : null
-  return at && at.getTime() - now.getTime() >= MIN_SLOT_LEAD_MS ? toSlot(at, now) : null
+  return at && at.getTime() - now.getTime() >= MIN_SLOT_LEAD_MS ? toSlot(at, now, locale) : null
 }
 
 /**
@@ -59,6 +46,30 @@ function pickedSlot(value: string | undefined, now: Date) {
  * phone only one column shows at a time.
  */
 export function EditorWorkspace({ initial }: { initial: EditorInitial }) {
+  const t = useTranslations('editor.editorWorkspace')
+  const locale = useLocale()
+
+  const FAILED_MESSAGES: Record<string, string> = {
+  cancel: t('message1'),
+  retry: t('message2'),
+  duplicate: t('message3'),
+  hapus: t('message4'),
+  threads:
+    t('message5'),
+  story: t('message6'),
+}
+
+  const OK_MESSAGES: Record<string, string> = {
+  draft: t('message7'),
+  schedule: t('message8'),
+  now: t('message9'),
+  cancel: t('message10'),
+  retry: t('message11'),
+  duplicate: t('message12'),
+  threads: t('message13'),
+  story: t('message14'),
+}
+
   const params = Object.fromEntries(useSearchParams())
   const scope = useEditorScope()
   const client = useQueryClient()
@@ -70,8 +81,8 @@ export function EditorWorkspace({ initial }: { initial: EditorInitial }) {
   const postId = isUuid(id) ? id : null
   const ideaKey = !postId && isUuid(ideaParam) ? ideaParam : ''
   const seeded = initial.id === (postId ?? '') && initial.idea === ideaKey
-  const detail = useQuery({ ...detailQuery(scope, postId ?? '', ideaKey), ...(seeded && initial.detail && { initialData: initial.detail, initialDataUpdatedAt: initial.at }) })
-  const support = useQuery({ ...supportQuery(scope), ...(initial.support && { initialData: initial.support, initialDataUpdatedAt: initial.at }) })
+  const detail = useQuery({ ...detailQuery(scope, postId ?? '', ideaKey, locale), ...(seeded && initial.detail && { initialData: initial.detail, initialDataUpdatedAt: initial.at }) })
+  const support = useQuery({ ...supportQuery(scope, locale), ...(initial.support && { initialData: initial.support, initialDataUpdatedAt: initial.at }) })
   // Each server render (a refresh after an action, or the poll) brings fresh data: other drafts go stale, these are taken as-is.
   useEffect(() => {
     const complete = initial.detail && initial.support
@@ -81,20 +92,20 @@ export function EditorWorkspace({ initial }: { initial: EditorInitial }) {
     client.setQueryData(editorKeys.support(scope), initial.support, { updatedAt: initial.at })
   }, [client, scope, initial])
   if ((!detail.data && detail.error) || (!support.data && support.error)) {
-    return <div className="p-6"><Notice tone="error">Konten belum bisa dimuat. <button className="underline" onClick={() => { void detail.refetch(); void support.refetch() }}>Coba lagi</button></Notice></div>
+    return <div className="p-6"><Notice tone="error">{t('message15')} <button className="underline" onClick={() => { void detail.refetch(); void support.refetch() }}>{t('message16')}</button></Notice></div>
   }
-  if (!detail.data || !support.data) return <LoadingState variant="editor" className="h-full" label="Memuat konten…" />
+  if (!detail.data || !support.data) return <LoadingState variant="editor" className="h-full" label={t('message17')} />
   const data = detail.data
   const { post, slides, idea, threadItems } = data
   const { instagram, kit, products, references, credits, plan, threads, defaultDensity } = support.data
   const density = data.job?.kind === 'script' ? data.job.payload.density ?? DEFAULT_DENSITY : defaultDensity
   const now = new Date()
-  const queue = data.queue.filter((slot) => pickedSlot(slot.value, now))
+  const queue = data.queue.flatMap((slot) => { const picked = pickedSlot(slot.value, now, locale); return picked ? [picked] : [] })
   const platform = firstValue(params.platform) === 'threads' ? 'threads' : 'instagram'
   const day = firstValue(params.tanggal) ?? ''
-  const daySlot = day ? slotOn(day, now) : null
+  const daySlot = day ? slotOn(day, now, locale) : null
   const slotParam = firstValue(params.slot)
-  const kalenderSlot = pickedSlot(slotParam, now)
+  const kalenderSlot = pickedSlot(slotParam, now, locale)
   const editing = Boolean(postId || idea || daySlot || kalenderSlot || firstValue(params.baru))
   const ok = OK_MESSAGES[firstValue(params.ok) ?? '']
   const failed = FAILED_MESSAGES[firstValue(params.gagal) ?? '']
@@ -107,33 +118,28 @@ export function EditorWorkspace({ initial }: { initial: EditorInitial }) {
     <>
       {ok && <Notice tone="success">{ok}</Notice>}
       {failed && <Notice tone="error">{failed}</Notice>}
-      {(detail.error || support.error) && <Notice tone="warning">Pembaruan belum berhasil. Menampilkan data terakhir. <button className="underline" onClick={() => { void detail.refetch(); void support.refetch() }}>Coba lagi</button></Notice>}
+      {(detail.error || support.error) && <Notice tone="warning">{t('message18')} <button className="underline" onClick={() => { void detail.refetch(); void support.refetch() }}>{t('message16')}</button></Notice>}
       {id && !post && (
         <Notice tone="error">
-          Post tidak ditemukan. Mungkin sudah dihapus.{' '}
+           {t('message19')}{' '}
           <Link href="/buat" className="underline">
-            Buat konten baru
-          </Link>
+             {t('message20')} </Link>
         </Notice>
       )}
       {post && <StatusNote post={post} />}
       {post?.instagramEnabled && !instagramReady && post.status !== 'published' && (
         <Notice tone="warning">
-          Instagram belum tersambung atau perlu disambungkan ulang. Post tetap bisa dijadwalkan, tetapi akan gagal terbit
-          sampai akun disambungkan di{' '}
+           {t('message21')}{' '}
           <Link href="/pengaturan" className="underline">
-            Pengaturan
-          </Link>
+             {t('message22')} </Link>
           .
         </Notice>
       )}
       {post?.threads?.enabled && threadsLink !== 'active' && post.threads.status !== 'published' && (
         <Notice tone="warning">
-          Threads belum terhubung atau perlu disambungkan ulang, jadi versi Threads akan gagal terbit sampai Threads
-          dihubungkan di{' '}
+           {t('message23')}{' '}
           <Link href="/pengaturan#threads" className="underline">
-            Pengaturan
-          </Link>
+             {t('message22')} </Link>
           .
         </Notice>
       )}
@@ -161,7 +167,7 @@ export function EditorWorkspace({ initial }: { initial: EditorInitial }) {
           credits={credits}
           planCredits={plan.credits}
           rates={support.data!.rates}
-          slot={kalenderSlot ?? daySlot ?? queue[0] ?? suggestedSlot(now)}
+          slot={kalenderSlot ?? daySlot ?? queue[0] ?? suggestedSlot(now, locale)}
           queue={queue}
           day={daySlot ? day : null}
           slotParam={kalenderSlot ? (slotParam ?? null) : null}

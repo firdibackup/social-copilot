@@ -1,3 +1,10 @@
+import { createTranslator } from 'next-intl'
+import type { Locale } from '@/i18n/locale-config'
+import idMessages from '../../messages/id/mimo.json'
+import enMessages from '../../messages/en/mimo.json'
+
+const optionsTranslator = (locale: Locale = 'id') => createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'options' })
+
 /** Mimo, the AI copilot chat: what the server and the page share. Pure, so tests and the browser can use it. */
 import type { ContentStrategy } from './strategy-options'
 import type { ScheduleRef } from './chat-schedule-options'
@@ -18,9 +25,12 @@ import { isUuid } from './params'
 export const DAILY_LIMITS = { chat: 100, deep_search: 10 } as const
 export type LimitedTask = keyof typeof DAILY_LIMITS
 
+export const limitMessage = (task: LimitedTask, locale: Locale = 'id') =>
+  optionsTranslator(locale)(`limit_${task}`, { count: DAILY_LIMITS[task] })
+
 export const LIMIT_MESSAGES: Record<LimitedTask, string> = {
-  chat: `Limit chat harian tercapai (${DAILY_LIMITS.chat}/hari). Reset jam 00:00 WIB.`,
-  deep_search: `Limit riset kompetitor harian tercapai (${DAILY_LIMITS.deep_search}/hari). Reset jam 00:00 WIB.`,
+  chat: limitMessage('chat'),
+  deep_search: limitMessage('deep_search'),
 }
 
 /** 00:00 WIB of the day `now` falls in: where today's limits start counting. */
@@ -41,18 +51,20 @@ export const ATTACHMENT_ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,application/pdf,ima
 export type AttachmentKind = 'image' | 'pdf'
 
 /** What kind of file it is, or why it can't go along. */
-export function checkAttachment(file: { name: string; type: string; size: number }): { kind: AttachmentKind } | { error: string } {
+export function checkAttachment(file: { name: string; type: string; size: number }, locale: Locale = 'id'): { kind: AttachmentKind } | { error: string } {
+  const t = optionsTranslator(locale)
   const pdf = file.type === 'application/pdf' || (file.type === '' && file.name.toLowerCase().endsWith('.pdf'))
-  if (!pdf && !IMAGE_TYPES.includes(file.type)) return { error: `${file.name}: hanya PDF, JPG, PNG, atau WebP.` }
-  if (file.size > MAX_FILE_BYTES) return { error: `${file.name} lebih dari 5 MB.` }
-  if (file.size === 0) return { error: `${file.name} kosong.` }
+  if (!pdf && !IMAGE_TYPES.includes(file.type)) return { error: t('fileType', { name: file.name }) }
+  if (file.size > MAX_FILE_BYTES) return { error: t('fileSize', { name: file.name }) }
+  if (file.size === 0) return { error: t('emptyFile', { name: file.name }) }
   return { kind: pdf ? 'pdf' : 'image' }
 }
 
 /** Why this set of attachments can't go together, or null. */
-export function attachmentsProblem(kinds: AttachmentKind[]): string | null {
-  if (kinds.length > MAX_ATTACHMENTS) return `Maksimal ${MAX_ATTACHMENTS} lampiran per pesan.`
-  if (kinds.filter((kind) => kind === 'pdf').length > 1) return 'Maksimal 1 PDF per pesan.'
+export function attachmentsProblem(kinds: AttachmentKind[], locale: Locale = 'id'): string | null {
+  const t = optionsTranslator(locale)
+  if (kinds.length > MAX_ATTACHMENTS) return t('attachmentLimit', { count: MAX_ATTACHMENTS })
+  if (kinds.filter((kind) => kind === 'pdf').length > 1) return t('onePdf')
   return null
 }
 
@@ -73,9 +85,10 @@ export function searchPattern(query: string): string | null {
 export const pdfPlaceholder = (name: string) => `[PDF: ${name}]`
 
 /** The first message, on one line and cut short. No AI request just for a title. */
-export function sessionTitle(message: string, fallback: string): string {
+export function sessionTitle(message: string, fallback: string, locale: Locale = 'id'): string {
+  const t = optionsTranslator(locale)
   const line = message.replace(/\s+/g, ' ').trim() || fallback.trim()
-  if (!line) return 'Chat baru'
+  if (!line) return t('newChat')
   const cut = truncate(line, SESSION_TITLE_MAX_LENGTH)
   return cut.length < line.length ? `${cut.trimEnd()}…` : cut
 }
@@ -176,12 +189,13 @@ export interface BulkSettings {
   productGroupId: string | null
 }
 
-export function parseBulkSettings(value: unknown): { settings: BulkSettings } | { error: string } {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return { error: 'Pengaturan konten tidak valid.' }
+export function parseBulkSettings(value: unknown, locale: Locale = 'id'): { settings: BulkSettings } | { error: string } {
+  const t = optionsTranslator(locale)
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return { error: t('invalidSettings') }
   const { density, productGroupId } = value as Record<string, unknown>
-  if (!isTextDensity(density)) return { error: 'Kepadatan teks tidak dikenal.' }
+  if (!isTextDensity(density)) return { error: t('unknownDensity') }
   if (productGroupId !== null && productGroupId !== AUTO_PRODUCT && !isUuid(productGroupId)) {
-    return { error: 'Produk tidak ditemukan. Pilih ulang produk.' }
+    return { error: t('productMissing') }
   }
   return { settings: { density, productGroupId } }
 }
@@ -201,25 +215,26 @@ export interface BulkEdit {
  * The plan as the owner approved it: only posts that were planned, each at most once, with a title and angle that
  * may only change where the card lets them. Pure, for tests.
  */
-export function applyBulkEdits(plan: BulkPlanItem[], edits: unknown): { plan: BulkPlanItem[] } | { error: string } {
-  if (!Array.isArray(edits)) return { error: 'Rencana tidak valid. Muat ulang halaman.' }
+export function applyBulkEdits(plan: BulkPlanItem[], edits: unknown, locale: Locale = 'id'): { plan: BulkPlanItem[] } | { error: string } {
+  const t = optionsTranslator(locale)
+  if (!Array.isArray(edits)) return { error: t('invalidPlan') }
   const byKey = new Map(plan.map((item) => [item.key, item]))
   const seen = new Set<string>()
   const result: BulkPlanItem[] = []
   for (const edit of edits) {
-    if (typeof edit !== 'object' || edit === null) return { error: 'Rencana tidak valid. Muat ulang halaman.' }
+    if (typeof edit !== 'object' || edit === null) return { error: t('invalidPlan') }
     const { key, title, angle } = edit as Record<string, unknown>
     const item = typeof key === 'string' ? byKey.get(key) : undefined
-    if (!item || seen.has(item.key)) return { error: 'Rencana tidak valid. Muat ulang halaman.' }
+    if (!item || seen.has(item.key)) return { error: t('invalidPlan') }
     seen.add(item.key)
     const nextTitle = item.ideaId ? item.title : typeof title === 'string' ? title.replace(/\s+/g, ' ').trim() : ''
-    if (!nextTitle) return { error: 'Judul konten tidak boleh kosong.' }
-    if (nextTitle.length > BULK_TITLE_MAX_LENGTH) return { error: `Judul maksimal ${BULK_TITLE_MAX_LENGTH} karakter.` }
+    if (!nextTitle) return { error: t('emptyTitle') }
+    if (nextTitle.length > BULK_TITLE_MAX_LENGTH) return { error: t('titleLength', { count: BULK_TITLE_MAX_LENGTH }) }
     const nextAngle = item.scripted ? item.angle : typeof angle === 'string' ? angle.replace(/\r\n/g, '\n').trim() : ''
-    if (nextAngle.length > BULK_ANGLE_MAX_LENGTH) return { error: `Sudut konten maksimal ${BULK_ANGLE_MAX_LENGTH} karakter.` }
+    if (nextAngle.length > BULK_ANGLE_MAX_LENGTH) return { error: t('angleLength', { count: BULK_ANGLE_MAX_LENGTH }) }
     result.push({ ...item, title: nextTitle, angle: nextAngle })
   }
-  if (result.length === 0) return { error: 'Pilih minimal satu konten.' }
+  if (result.length === 0) return { error: t('pickContent') }
   return { plan: result }
 }
 
@@ -328,34 +343,25 @@ export type ChatEvent =
   /** The answer could not be stored; the owner's message was. */
   | { type: 'error'; sessionId: string; message: string }
 
-export const TOOL_LABELS: Record<string, string> = {
-  web_search: 'Mimo sedang mencari di web…',
-  check_content_status: 'Mimo sedang mengecek konten yang sudah ada…',
-  intel_kompetitor: 'Mimo sedang mencari kompetitor…',
-  analyze_and_draft: 'Mimo sedang menyusun skrip…',
-  bulk_content: 'Mimo sedang menyusun rencana konten massal…',
-  schedule_content: 'Mimo sedang menyiapkan jadwal dari draft di Buat…',
-  update_content_strategy: 'Mimo sedang menyusun strategi…',
-  create_auto_dm_rule: 'Mimo sedang menyusun aturan Auto DM…',
+export const TOOL_LABELS = {
+  web_search: idMessages.options.tools.web_search,
+  check_content_status: idMessages.options.tools.check_content_status,
+  intel_kompetitor: idMessages.options.tools.intel_kompetitor,
+  analyze_and_draft: idMessages.options.tools.analyze_and_draft,
+  bulk_content: idMessages.options.tools.bulk_content,
+  schedule_content: idMessages.options.tools.schedule_content,
+  update_content_strategy: idMessages.options.tools.update_content_strategy,
+  create_auto_dm_rule: idMessages.options.tools.create_auto_dm_rule,
 }
 
-export const THINKING_LABEL = 'Mimo sedang berpikir…'
+export const THINKING_LABEL = idMessages.options.thinking
 
 export type SuggestionContext = 'empty' | 'after_deep_search' | 'after_script'
 
-const SUGGESTIONS: Record<SuggestionContext, string[]> = {
-  empty: [
-    'Cari 5 konten yang lagi trending buat niche aku',
-    'Analisis kompetitor @username, buatkan konten mirip',
-    'Cek apakah ide [topik] sudah pernah dibuat',
-    'Rapikan strategi konten aku',
-  ],
-  after_deep_search: ['Buatkan skrip dari semua ini', 'Analisis pattern-nya aja', 'Cari yang lain'],
-  after_script: ['Ubah hook-nya', 'Buat lebih singkat', 'Buatkan 3 ide lain dari topik ini'],
-}
+const SUGGESTIONS = idMessages.options.suggestions
 
 /** Static snippets for where the chat stands: no AI request just for suggestions. */
-export const suggestionsFor = (context: SuggestionContext) => SUGGESTIONS[context]
+export const suggestionsFor = (context: SuggestionContext, locale: Locale = 'id') => Object.values((locale === 'en' ? enMessages.options.suggestions : SUGGESTIONS)[context])
 
 /** Which snippets fit after the newest message, or null for none. */
 export function suggestionContext(messages: Pick<ChatMessageView, 'role' | 'parts'>[]): SuggestionContext | null {
@@ -370,5 +376,5 @@ export function suggestionContext(messages: Pick<ChatMessageView, 'role' | 'part
 }
 
 /** Asks Mimo to analyze the picked accounts, from the competitor cards. */
-export const analyzeRequest = (usernames: string[]) =>
-  `Analisis pola konten ${usernames.map((name) => `@${name}`).join(', ')}: hook yang dipakai, frekuensi posting, dan pilar kontennya.`
+export const analyzeRequest = (usernames: string[], locale: Locale = 'id') =>
+  optionsTranslator(locale)('analyzeRequest', { accounts: usernames.map((name) => `@${name}`).join(', ') })

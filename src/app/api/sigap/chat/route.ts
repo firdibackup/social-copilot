@@ -1,3 +1,5 @@
+import { getTranslations } from 'next-intl/server'
+import { getUserLocale, type Locale } from '@/i18n/locale'
 import { after } from 'next/server'
 import { aiErrorMessage, AiLimitError } from '@/lib/ai'
 import { currentPeriod, currentUser } from '@/lib/auth'
@@ -6,6 +8,8 @@ import { answerChat, persistableParts, summarizeChat, type UserTurn } from '@/li
 import {
   attachmentsProblem,
   checkAttachment,
+  limitMessage,
+  LIMIT_MESSAGES,
   MESSAGE_MAX_LENGTH,
   pdfPlaceholder,
   sessionTitle,
@@ -35,11 +39,11 @@ interface Upload {
 }
 
 /** The attachments, checked again here (the browser's checks can be skipped) and read for this one request. */
-async function readUploads(files: File[], text: string): Promise<Upload> {
-  const checked = files.map((file) => ({ file, check: checkAttachment(file) }))
+async function readUploads(files: File[], text: string, locale: Locale): Promise<Upload> {
+  const checked = files.map((file) => ({ file, check: checkAttachment(file, locale) }))
   for (const { check } of checked) if ('error' in check) throw new InputError(check.error)
   const kinds = checked.map(({ check }) => ('kind' in check ? check.kind : 'image'))
-  const problem = attachmentsProblem(kinds)
+  const problem = attachmentsProblem(kinds, locale)
   if (problem) throw new InputError(problem)
 
   const turn: UserTurn = { text, images: [], pdf: null }
@@ -63,11 +67,13 @@ async function readUploads(files: File[], text: string): Promise<Upload> {
  * (NDJSON ChatEvents), and actions run one at a time per page, so the session list would wait behind it.
  */
 export async function POST(request: Request): Promise<Response> {
+  const t = await getTranslations('mimo.api')
+  const locale = await getUserLocale()
   const user = await currentUser()
-  if (!user) return refuse(401, 'Sesi berakhir. Masuk lagi.')
-  if (!(await currentPeriod(user.id))) return refuse(403, 'Langganan tidak aktif. Aktifkan di halaman Langganan untuk memakai Mimo.')
+  if (!user) return refuse(401, t('sessionExpired'))
+  if (!(await currentPeriod(user.id))) return refuse(403, t('subscription'))
   const accountId = await getConnectedAccountId(user.id)
-  if (!accountId) return refuse(409, 'Hubungkan akun Instagram dulu di Pengaturan.')
+  if (!accountId) return refuse(409, t('connect'))
   const userId = user.id
 
   let session: ChatSession | null = null
@@ -75,27 +81,27 @@ export async function POST(request: Request): Promise<Response> {
   let deepSearch: boolean
   try {
     const form = await request.formData().catch(() => {
-      throw new InputError('Pesan tidak terbaca. Coba kirim lagi.')
+      throw new InputError(t('unreadable'))
     })
     const rawText = form.get('text')
     const text = (typeof rawText === 'string' ? rawText : '').replace(/\r\n/g, '\n').trim()
     const sessionId = form.get('sessionId')
     deepSearch = form.get('deepSearch') === '1'
     const files = form.getAll('files').filter((value): value is File => value instanceof File)
-    if (!text && files.length === 0) throw new InputError('Tulis pesan dulu.')
-    if (text.length > MESSAGE_MAX_LENGTH) throw new InputError(`Pesan maksimal ${MESSAGE_MAX_LENGTH} karakter.`)
+    if (!text && files.length === 0) throw new InputError(t('emptyMessage'))
+    if (text.length > MESSAGE_MAX_LENGTH) throw new InputError(t('messageLength', { count: MESSAGE_MAX_LENGTH }))
     if (sessionId) {
-      if (!isUuid(sessionId)) throw new InputError('Percakapan tidak ditemukan.')
+      if (!isUuid(sessionId)) throw new InputError(t('conversationMissing'))
       session = await getSession(userId, accountId, sessionId)
-      if (!session) return refuse(404, 'Percakapan tidak ditemukan. Mungkin sudah dihapus.')
+      if (!session) return refuse(404, t('deletedConversation'))
     }
     // Reserve after cheap form validation but before expensive PDF/image processing or any persistence.
     await reserveDailyUsage(userId, 'chat')
-    upload = await readUploads(files, text)
+    upload = await readUploads(files, text, locale)
   } catch (error) {
     if (error instanceof InputError || error instanceof PdfError) return refuse(400, error.message)
-    if (error instanceof SlideImageError) return refuse(400, 'Gambar tidak bisa dibaca. Coba gambar lain.')
-    if (error instanceof AiLimitError) return refuse(429, error.message)
+    if (error instanceof SlideImageError) return refuse(400, t('imageError'))
+    if (error instanceof AiLimitError) return refuse(429, error.message === LIMIT_MESSAGES.chat ? limitMessage('chat', locale) : error.message)
     console.error('[mimo] pesan gagal diterima:', describeError(error))
     return refuse(500, aiErrorMessage(error))
   }
@@ -108,14 +114,14 @@ export async function POST(request: Request): Promise<Response> {
   try {
     if (!session) {
       const firstName = upload.parts.find((part) => part.type === 'attachment')
-      session = await createSession(userId, accountId, sessionTitle(upload.turn.text, firstName?.type === 'attachment' ? firstName.name : ''))
+      session = await createSession(userId, accountId, sessionTitle(upload.turn.text, firstName?.type === 'attachment' ? firstName.name : '', locale))
       created = true
     }
     history = await loadHistory(session)
     userMessage = await addMessage(userId, session.id, { role: 'user', content, parts: upload.parts })
   } catch (error) {
     console.error('[mimo] pesan gagal disimpan:', describeError(error))
-    return refuse(500, 'Pesan gagal disimpan. Periksa Supabase dan migrasi terbaru.')
+    return refuse(500, t('saveError'))
   }
 
   const chat = session
@@ -123,7 +129,7 @@ export async function POST(request: Request): Promise<Response> {
   const past = history
   // Runs once the stream has closed, so the new answer is counted.
   after(() =>
-    summarizeChat(userId, chat).catch((error: unknown) => console.error('[mimo] ringkasan gagal:', describeError(error))),
+    summarizeChat(userId, chat, locale).catch((error: unknown) => console.error('[mimo] ringkasan gagal:', describeError(error))),
   )
 
   const encoder = new TextEncoder()
@@ -144,6 +150,7 @@ export async function POST(request: Request): Promise<Response> {
           history: past,
           turn: upload.turn,
           deepSearch,
+          language: locale,
           onTool: (name) => send({ type: 'tool', name }),
         })
         const assistant = await addMessage(userId, chat.id, { role: 'assistant', content: reply.content, parts: persistableParts(reply.parts) })
@@ -151,7 +158,7 @@ export async function POST(request: Request): Promise<Response> {
         send({ type: 'done', sessionId: chat.id, created, user: firstUser, assistant: { ...assistant, parts: reply.parts } })
       } catch (error) {
         console.error('[mimo] jawaban gagal disimpan:', describeError(error))
-        send({ type: 'error', sessionId: chat.id, message: 'Jawaban gagal disimpan. Muat ulang halaman lalu coba lagi.' })
+        send({ type: 'error', sessionId: chat.id, message: t('replySaveError') })
       } finally {
         try {
           controller.close()

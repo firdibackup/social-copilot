@@ -1,3 +1,5 @@
+
+import { getLocale, getTranslations } from 'next-intl/server'
 import { InstagramIcon } from '@/components/instagram-icon'
 import { Notice } from '@/components/notice'
 import { requireUser } from '@/lib/auth'
@@ -18,36 +20,26 @@ type LoadResult =
   | { kind: 'ok'; connection: Connection | null; health: ConnectionHealth | null; scheduledCount: number }
   | { kind: 'error'; message: string }
 
-const SUCCESS_MESSAGES: Record<string, string> = {
-  connected: 'Instagram berhasil terhubung.',
-  disconnected: 'Koneksi Instagram sudah diputus.',
-}
-
-const ERROR_MESSAGES: Record<string, string> = {
-  ditolak: 'Izin Instagram tidak disetujui. Hubungkan lagi dan setujui semua izin yang diminta.',
-  state_tidak_valid: 'Sesi login kedaluwarsa atau tidak valid. Mulai lagi dari tombol Hubungkan Instagram.',
-  sesi_lain:
-    'Login Instagram selesai di sesi akun Carousely yang berbeda dari akun yang memulainya. Biasanya karena aplikasi dibuka di alamat lain (misalnya localhost) dari alamat tujuan Instagram, atau di sana masih masuk dengan akun lain. Buka aplikasi di alamat yang sama, masuk dengan akun ini, lalu hubungkan lagi.',
-  gagal_mulai: 'Login Instagram gagal dimulai. Periksa konfigurasi Instagram dan Supabase di .env.local.',
-  gagal_token:
-    'Kode login gagal ditukar menjadi token. Coba hubungkan lagi untuk mendapat kode baru. Jika tetap gagal, periksa pasangan Instagram App ID/Secret dan pastikan INSTAGRAM_REDIRECT_URI sama persis dengan redirect URI di Meta.',
-  gagal_token_panjang:
-    'Token awal didapat, tapi gagal ditukar menjadi token jangka panjang. Periksa detail error di bawah dan Instagram App Secret, lalu coba hubungkan lagi.',
-  gagal_profil: 'Token didapat, tapi profil Instagram gagal diambil. Coba hubungkan lagi.',
-  gagal_database: 'Database tidak bisa diakses. Periksa konfigurasi Supabase di .env.local.',
-  gagal_putus: 'Koneksi gagal diputus. Coba lagi.',
-  akun_dipakai:
-    'Akun Instagram ini sudah tersambung ke pengguna Carousely lain. Putuskan dulu dari akun tersebut, atau hubungkan akun Instagram lain.',
-}
-
-const UNKNOWN_ERROR = 'Terjadi kesalahan saat menghubungkan Instagram. Coba lagi.'
-
-const ACCOUNT_TYPE_LABELS: Record<string, string> = {
-  BUSINESS: 'Akun Bisnis',
-  MEDIA_CREATOR: 'Akun Kreator',
-}
-
 async function loadInstagram(userId: string): Promise<LoadResult> {
+  const t = await getTranslations('settings')
+
+  const ERROR_MESSAGES: Record<string, string> = {
+  ditolak: t('instagram_settings.instagramPermissionsWerenTApprovedConnectAgain'),
+  state_tidak_valid: t('instagram_settings.yourLoginSessionHasExpiredOrIs'),
+  sesi_lain:
+    t('instagram_settings.instagramLoginFinishedInADifferentCarousely'),
+  gagal_mulai: t('instagram_settings.couldnTStartInstagramLoginCheckThe'),
+  gagal_token:
+    t('instagram_settings.couldnTExchangeTheLoginCodeFor'),
+  gagal_token_panjang:
+    t('instagram_settings.gotTheInitialTokenButCouldnT'),
+  gagal_profil: t('instagram_settings.gotTheTokenButCouldnTFetch'),
+  gagal_database: t('instagram_settings.couldnTAccessTheDatabaseCheckThe'),
+  gagal_putus: t('instagram_settings.couldnTDisconnectTryAgain'),
+  akun_dipakai:
+    t('instagram_settings.thisInstagramAccountIsAlreadyConnectedTo'),
+}
+
   try {
     const connection = await getConnection(userId)
     const health = connection?.status === 'active' ? await checkConnectionHealth(userId) : null
@@ -59,7 +51,7 @@ async function loadInstagram(userId: string): Promise<LoadResult> {
     console.error('[pengaturan] koneksi gagal dimuat:', describeError(error))
     const message =
       error instanceof ConfigError
-        ? `Konfigurasi belum lengkap: ${error.message}.`
+        ? t('instagram_settings.configurationIsIncomplete', { v0: error.message })
         : ERROR_MESSAGES.gagal_database
     return { kind: 'error', message }
   }
@@ -70,6 +62,32 @@ interface InstagramSettingsProps {
 }
 
 export async function InstagramSettings({ searchParams }: InstagramSettingsProps) {
+  const t = await getTranslations('settings')
+
+  const UNKNOWN_ERROR = t('instagram_settings.somethingWentWrongWhileConnectingInstagramTry')
+
+  const ERROR_MESSAGES: Record<string, string> = {
+  ditolak: t('instagram_settings.instagramPermissionsWerenTApprovedConnectAgain'),
+  state_tidak_valid: t('instagram_settings.yourLoginSessionHasExpiredOrIs'),
+  sesi_lain:
+    t('instagram_settings.instagramLoginFinishedInADifferentCarousely'),
+  gagal_mulai: t('instagram_settings.couldnTStartInstagramLoginCheckThe'),
+  gagal_token:
+    t('instagram_settings.couldnTExchangeTheLoginCodeFor'),
+  gagal_token_panjang:
+    t('instagram_settings.gotTheInitialTokenButCouldnT'),
+  gagal_profil: t('instagram_settings.gotTheTokenButCouldnTFetch'),
+  gagal_database: t('instagram_settings.couldnTAccessTheDatabaseCheckThe'),
+  gagal_putus: t('instagram_settings.couldnTDisconnectTryAgain'),
+  akun_dipakai:
+    t('instagram_settings.thisInstagramAccountIsAlreadyConnectedTo'),
+}
+
+  const SUCCESS_MESSAGES: Record<string, string> = {
+  connected: t('instagram_settings.instagramConnectedSuccessfully'),
+  disconnected: t('instagram_settings.instagramDisconnected'),
+}
+
   const params = await searchParams
   const result = await loadInstagram(await requireUser())
   const success = SUCCESS_MESSAGES[firstValue(params.ig) ?? '']
@@ -87,20 +105,17 @@ export async function InstagramSettings({ searchParams }: InstagramSettingsProps
     <section id="instagram" aria-labelledby="instagram-heading" className="space-y-4">
       {fromWizard && (
         <Notice tone="success">
-          Gaya brand tersimpan. Langkah terakhir: hubungkan Instagram. Logo, warna, dan contoh post diambil dari akunmu,
-          dan gaya yang kamu pilih tetap dipakai.
-        </Notice>
+          {t('instagram_settings.brandStyleSavedOneLastStepConnect')}</Notice>
       )}
       {needsAccount && !fromWizard && (
         <Notice tone="warning">
-          Hubungkan akun Instagram dulu untuk memakai Brand, Buat Konten, Kalender, Aset, dan Balasan.
-        </Notice>
+          {t('instagram_settings.connectInstagramFirstToUseBrandCreate')}</Notice>
       )}
       {success && <Notice tone="success">{success}</Notice>}
       {error && (
         <Notice tone="error">
           {error}
-          {errorDetail && <span className="mt-2 block break-words text-xs">Detail: {errorDetail}</span>}
+          {errorDetail && <span className="mt-2 block break-words text-xs">{t('instagram_settings.details')} {errorDetail}</span>}
         </Notice>
       )}
 
@@ -135,15 +150,22 @@ interface ConnectionDetailsProps {
   scheduledCount: number
 }
 
-function ConnectionDetails({ connection, health, scheduledCount }: ConnectionDetailsProps) {
+async function ConnectionDetails({ connection, health, scheduledCount }: ConnectionDetailsProps) {
+  const locale = await getLocale()
+
+  const t = await getTranslations('settings')
+
+  const ACCOUNT_TYPE_LABELS: Record<string, string> = {
+  BUSINESS: t('instagram_settings.businessAccount'),
+  MEDIA_CREATOR: t('instagram_settings.creatorAccount'),
+}
+
   if (!connection) {
     return (
       <>
         <p className="text-sm text-zinc-600">
-          Belum ada akun yang terhubung. Hubungkan akun Instagram Business atau Creator untuk menjadwalkan konten dan
-          membalas DM.
-        </p>
-        <ConnectLink label="Hubungkan Instagram" />
+          {t('instagram_settings.noAccountConnectedYetConnectAnInstagram')}</p>
+        <ConnectLink label={t('instagram_settings.connectInstagram')} />
       </>
     )
   }
@@ -158,19 +180,17 @@ function ConnectionDetails({ connection, health, scheduledCount }: ConnectionDet
           {' · '}
           {ACCOUNT_TYPE_LABELS[connection.accountType] ?? connection.accountType}
         </p>
-        <p>Token berlaku sampai {formatDateTime(connection.tokenExpiresAt)}</p>
+        <p>{t('instagram_settings.tokenValidUntil')} {formatDateTime(connection.tokenExpiresAt, locale)}</p>
       </div>
       <HealthNotice needsReconnect={needsReconnect} health={health} />
       <div className="flex flex-wrap gap-2">
-        {needsReconnect && <ConnectLink label="Sambungkan ulang" />}
+        {needsReconnect && <ConnectLink label={t('instagram_settings.reconnect')} />}
         <InstagramDisconnectButton username={connection.username} scheduledCount={scheduledCount} />
       </div>
       {needsReconnect && (
         // Instagram's login page can't show our warning: another account logging in here counts as switching.
         <p className="text-xs text-zinc-500">
-          Pastikan masuk dengan @{connection.username}. Akun lain akan menggantikannya, dan posting terjadwal
-          @{connection.username} kembali jadi draft.
-        </p>
+          {t('instagram_settings.reconnectWarning', { username: connection.username })}</p>
       )}
     </>
   )
@@ -181,22 +201,22 @@ interface HealthNoticeProps {
   health: ConnectionHealth | null
 }
 
-function HealthNotice({ needsReconnect, health }: HealthNoticeProps) {
+async function HealthNotice({ needsReconnect, health }: HealthNoticeProps) {
+  const t = await getTranslations('settings')
+
   if (needsReconnect) {
     return (
       <Notice tone="error">
-        Token kedaluwarsa atau izin dicabut. Sambungkan ulang agar posting dan DM tetap berjalan.
-      </Notice>
+        {t('instagram_settings.theTokenExpiredOrPermissionsWereRevoked')}</Notice>
     )
   }
   if (health === 'unreachable') {
-    return <Notice tone="warning">Instagram tidak bisa dicek saat ini. Koneksi yang tersimpan tetap dipakai.</Notice>
+    return <Notice tone="warning">{t('instagram_settings.instagramCanTBeCheckedRightNow')}</Notice>
   }
   return (
     <p className="flex items-center gap-1.5 text-sm text-emerald-700">
       <span aria-hidden="true" className="size-1.5 rounded-full bg-emerald-500" />
-      Koneksi aktif
-    </p>
+      {t('instagram_settings.connectionActive')}</p>
   )
 }
 

@@ -86,8 +86,8 @@ describe('savePostAction', () => {
       threads: true,
       caption: '',
       assetIds: [],
-    })
-    expect(savePost).toHaveBeenCalledWith(USER, expect.objectContaining({ status: 'scheduled', assetIds: [] }))
+    }, 'id')
+    expect(savePost).toHaveBeenCalledWith(USER, expect.objectContaining({ status: 'scheduled', assetIds: [] }), 'id')
   })
 
   it('refuses to schedule what Threads would not take', async () => {
@@ -108,7 +108,7 @@ describe('savePostAction', () => {
 
   it('saves an empty draft', async () => {
     await expect(submit({ intent: 'draft', caption: '' })).rejects.toThrow(`REDIRECT /buat?id=${POST_ID}&ok=draft`)
-    expect(savePost).toHaveBeenCalledWith(USER, { id: null, caption: '', status: 'draft', scheduledAt: null, assetIds: [] })
+    expect(savePost).toHaveBeenCalledWith(USER, { id: null, caption: '', status: 'draft', scheduledAt: null, assetIds: [] }, 'id')
     expect(revalidatePath).toHaveBeenCalledWith('/buat', 'layout')
   })
 
@@ -119,12 +119,13 @@ describe('savePostAction', () => {
     expect(savePost).toHaveBeenCalledWith(
       USER,
       expect.objectContaining({ status: 'scheduled', scheduledAt: new Date('2026-10-14T12:00:00Z'), assetIds: [PHOTO] }),
+      'id',
     )
   })
 
   it('publishes now at the current time', async () => {
     await expect(submit({ intent: 'now', caption: 'Halo', assetId: PHOTO })).rejects.toThrow('ok=now')
-    expect(savePost).toHaveBeenCalledWith(USER, expect.objectContaining({ scheduledAt: new Date('2026-10-14T05:00:00Z') }))
+    expect(savePost).toHaveBeenCalledWith(USER, expect.objectContaining({ scheduledAt: new Date('2026-10-14T05:00:00Z') }), 'id')
   })
 
   it('refuses to schedule without photos', async () => {
@@ -151,7 +152,7 @@ describe('savePostAction', () => {
 
   it('ignores ids that are not uuids', async () => {
     await expect(submit({ intent: 'draft', id: "1' or '1'='1", assetId: ['nope', PHOTO] })).rejects.toThrow('REDIRECT')
-    expect(savePost).toHaveBeenCalledWith(USER, expect.objectContaining({ id: null, assetIds: [PHOTO] }))
+    expect(savePost).toHaveBeenCalledWith(USER, expect.objectContaining({ id: null, assetIds: [PHOTO] }), 'id')
   })
 
   it('explains a locked post', async () => {
@@ -172,3 +173,12 @@ describe('savePostAction', () => {
     expect(hasSlidesInProgress).not.toHaveBeenCalled()
   })
 })
+
+vi.mock('next-intl/server', () => ({
+  getLocale: async () => 'id',
+  getTranslations: async (namespace: string) => {
+    const { createTranslator } = await import('next-intl')
+    const { default: editor } = await import('../../../../messages/id/editor.json')
+    return createTranslator({ locale: 'id', messages: { editor }, namespace: namespace as 'editor' })
+  },
+}))

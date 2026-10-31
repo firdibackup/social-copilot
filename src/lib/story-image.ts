@@ -1,6 +1,7 @@
 import 'server-only'
 import path from 'node:path'
 import sharp from 'sharp'
+import { storedJpegAttempts, TARGET_STORED_BYTES } from './image'
 
 export const STORY_WIDTH = 1080
 export const STORY_HEIGHT = 1920
@@ -69,15 +70,23 @@ export async function renderStory(slide: Uint8Array, username: string): Promise<
 
   const blockHeight = info.height + TEXT_GAP + text.height
   const slideTop = SAFE_TOP + Math.round((STORY_HEIGHT - SAFE_TOP - SAFE_BOTTOM - blockHeight) / 2)
-  return sharp(background)
-    .composite([
-      { input: rounded, left: Math.round((STORY_WIDTH - info.width) / 2), top: slideTop },
-      {
-        input: text.input,
-        left: Math.round((STORY_WIDTH - text.width) / 2),
-        top: slideTop + info.height + TEXT_GAP,
-      },
-    ])
-    .jpeg({ quality: 90 })
-    .toBuffer()
+  const composed = sharp(background).composite([
+    { input: rounded, left: Math.round((STORY_WIDTH - info.width) / 2), top: slideTop },
+    {
+      input: text.input,
+      left: Math.round((STORY_WIDTH - text.width) / 2),
+      top: slideTop + info.height + TEXT_GAP,
+    },
+  ])
+
+  // Sharp resizes before it composites, so flatten first: a smaller attempt must shrink the finished story.
+  const flattened = await composed.png().toBuffer()
+  for (const attempt of storedJpegAttempts(STORY_WIDTH, STORY_HEIGHT, 0.9)) {
+    const data = await sharp(flattened)
+      .resize(attempt.width, attempt.height)
+      .jpeg({ quality: Math.round(attempt.quality * 100) })
+      .toBuffer()
+    if (data.length <= TARGET_STORED_BYTES) return data
+  }
+  throw new Error('Foto tidak bisa diproses. Coba foto lain.')
 }

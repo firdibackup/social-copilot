@@ -1,5 +1,11 @@
 'use client'
 
+import { useLocale, useTranslations } from 'next-intl'
+import { createTranslator } from 'next-intl'
+import type { Locale } from '@/i18n/locale-config'
+import idMessages from '@/../messages/id/editor.json'
+import enMessages from '@/../messages/en/editor.json'
+
 import { ArrowRight, CalendarClock, CalendarPlus, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   useActionState,
@@ -33,15 +39,6 @@ const PILL = `flex w-full items-center justify-center gap-2 rounded-2xl border b
 const QUIET = `rounded-lg px-2 py-1.5 text-[13px] font-medium text-ink-muted transition-colors hover:bg-zinc-50 hover:text-ink disabled:opacity-60 ${FOCUS}`
 /** The selected day and time share one soft highlight. */
 const PICKED = 'bg-zinc-100 font-semibold text-ink'
-const WEEKDAYS = [
-  ['Se', 'Senin'],
-  ['Se', 'Selasa'],
-  ['Ra', 'Rabu'],
-  ['Ka', 'Kamis'],
-  ['Ju', 'Jumat'],
-  ['Sa', 'Sabtu'],
-  ['Mi', 'Minggu'],
-] as const
 const SECTION_LABEL = 'text-[11px] font-medium tracking-wide text-ink-muted uppercase'
 
 interface ScheduleButtonProps {
@@ -55,16 +52,21 @@ interface ScheduleButtonProps {
   disabled: boolean
 }
 
-function confirmNow(event: MouseEvent<HTMLButtonElement>) {
+function confirmNow(event: MouseEvent<HTMLButtonElement>, locale: Locale = 'id') {
+  const t = createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'scheduleButton' })
+
   void confirmSubmit(event, {
-    title: 'Terbitkan post ini sekarang?',
-    description: 'Post akan langsung dikirim ke platform yang dipilih.',
-    confirmLabel: 'Terbitkan',
+    title: t('message1'),
+    description: t('message2'),
+    confirmLabel: t('message3'),
   })
 }
 
 /** Left: the Jadwalkan dialog. Right: the suggested slot in one click. */
 export function ScheduleButton({ post, caption, assetIds, slot, queue, disabled }: ScheduleButtonProps) {
+  const t = useTranslations('editor.scheduleButton')
+  const locale = useLocale()
+
   const [state, formAction, pending] = useActionState<SaveState, FormData>(savePostAction, { error: null })
   const dialogRef = useRef<HTMLDialogElement>(null)
   /** When the dialog opened: the picker is mounted fresh, with that moment as its "now", on every open. */
@@ -94,9 +96,9 @@ export function ScheduleButton({ post, caption, assetIds, slot, queue, disabled 
 
   function confirmSlot(event: FormEvent<HTMLFormElement>) {
     void confirmSubmit(event, {
-      title: `Jadwalkan post ini ${slot.label.toLowerCase()} WIB?`,
-      description: 'Post akan diterbitkan otomatis pada waktu tersebut.',
-      confirmLabel: 'Jadwalkan',
+      title: t('message4', { v0: slot.label.toLowerCase() }),
+      description: t('message5'),
+      confirmLabel: t('message6'),
     })
   }
 
@@ -113,7 +115,7 @@ export function ScheduleButton({ post, caption, assetIds, slot, queue, disabled 
           className="inline-flex items-center gap-2 rounded-l-xl bg-accent px-4 text-[14px] font-semibold text-white transition-colors hover:bg-accent-deep disabled:opacity-60"
         >
           <CalendarClock size={17} aria-hidden="true" />
-          {post.status === 'scheduled' ? 'Ubah jadwal' : 'Jadwalkan'}
+          {post.status === 'scheduled' ? t('message7') : t('message6')}
         </button>
         <form action={formAction} onSubmit={confirmSlot} className="flex">
           {content}
@@ -122,7 +124,7 @@ export function ScheduleButton({ post, caption, assetIds, slot, queue, disabled 
           <button
             type="submit"
             disabled={off}
-            title={`Jadwalkan ${slot.label.toLowerCase()} WIB`}
+            title={t('message8', { v0: slot.label.toLowerCase() })}
             className="inline-flex items-center gap-1.5 rounded-r-xl border-l border-white/25 bg-accent px-3 text-[13px] font-semibold text-white transition-colors hover:bg-accent-deep disabled:opacity-60"
           >
             {slot.label}
@@ -145,9 +147,8 @@ export function ScheduleButton({ post, caption, assetIds, slot, queue, disabled 
         <div className="space-y-4 p-5">
           <div className="space-y-0.5">
             <h2 id="schedule-heading" className="text-lg font-semibold text-ink">
-              Jadwalkan
-            </h2>
-            <p className="text-xs text-ink-muted">Semua waktu dalam WIB (Asia/Jakarta).</p>
+               {t('message6')} </h2>
+            <p className="text-xs text-ink-muted">{t('message9')}</p>
           </div>
 
           {next ? (
@@ -156,7 +157,7 @@ export function ScheduleButton({ post, caption, assetIds, slot, queue, disabled 
                 next,
                 <button type="submit" disabled={pending} className={PILL}>
                   <ArrowRight size={16} className="shrink-0 text-ink-muted" aria-hidden="true" />
-                  <span className="font-semibold text-ink">Slot kosong berikutnya</span>
+                  <span className="font-semibold text-ink">{t('message10')}</span>
                   <span className="font-medium text-ink-muted tabular-nums">{next.label}</span>
                 </button>,
               )}
@@ -164,7 +165,7 @@ export function ScheduleButton({ post, caption, assetIds, slot, queue, disabled 
                 <details className="group">
                   <summary className={`${PILL} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
                     <CalendarPlus size={16} className="shrink-0 text-ink-muted" aria-hidden="true" />
-                    <span className="font-semibold text-ink">Tambahkan ke slot antrean</span>
+                    <span className="font-semibold text-ink">{t('message11')}</span>
                     <ChevronDown size={16} className="shrink-0 text-ink-muted transition-transform group-open:rotate-180" aria-hidden="true" />
                   </summary>
                   <ul className="mt-2 divide-y divide-hairline rounded-2xl border border-hairline">
@@ -178,8 +179,7 @@ export function ScheduleButton({ post, caption, assetIds, slot, queue, disabled 
                             disabled={pending}
                             className="rounded-lg px-2.5 py-1 text-xs font-semibold text-accent transition-colors hover:bg-accent-soft disabled:opacity-60"
                           >
-                            Jadwalkan di sini
-                          </button>,
+                             {t('message12')} </button>,
                         )}
                       </li>
                     ))}
@@ -189,13 +189,12 @@ export function ScheduleButton({ post, caption, assetIds, slot, queue, disabled 
             </div>
           ) : (
             <p className="rounded-2xl border border-dashed border-hairline px-4 py-3 text-xs text-ink-muted">
-              Belum ada slot posting kosong. Atur slot di Pengaturan → Jadwal atau di Kalender.
-            </p>
+               {t('message13')} </p>
           )}
 
           <form action={formAction} className="space-y-3">
             {content}
-            <p className={SECTION_LABEL}>Pilih tanggal &amp; jam sendiri</p>
+            <p className={SECTION_LABEL}>{t('message14')}</p>
             {openedAt && (
               <DateTimePicker
                 key={openedAt.getTime()}
@@ -208,11 +207,9 @@ export function ScheduleButton({ post, caption, assetIds, slot, queue, disabled 
             )}
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
               <button type="button" onClick={() => dialogRef.current?.close()} className={QUIET}>
-                Batal
-              </button>
-              <button type="submit" name="intent" value="now" disabled={pending} onClick={confirmNow} className={QUIET}>
-                Terbitkan sekarang
-              </button>
+                 {t('message15')} </button>
+              <button type="submit" name="intent" value="now" disabled={pending} onClick={(event) => confirmNow(event, locale)} className={QUIET}>
+                 {t('message16')} </button>
             </div>
           </form>
         </div>
@@ -235,6 +232,9 @@ interface DateTimePickerProps {
 
 /** A month calendar and a 15-minute time column, in WIB, that schedule the form at the picked moment. */
 function DateTimePicker({ now, initial, pending, children }: DateTimePickerProps) {
+  const t = useTranslations('editor.scheduleButton')
+  const locale = useLocale()
+
   const today = wibDateKey(now)
   const openDay = firstOpenDay(now)
   const [start] = useState(() => {
@@ -281,27 +281,27 @@ function DateTimePicker({ now, initial, pending, children }: DateTimePickerProps
               type="button"
               onClick={() => setMonth(shiftMonth(month, -1))}
               disabled={!canGoBack}
-              aria-label="Bulan sebelumnya"
+              aria-label={t('message17')}
               className={`grid size-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-zinc-100 hover:text-ink disabled:pointer-events-none disabled:opacity-30 ${FOCUS}`}
             >
               <ChevronLeft size={16} aria-hidden="true" />
             </button>
             <p aria-live="polite" className="text-sm font-semibold text-ink">
-              {formatMonth(month)}
+              {formatMonth(month, locale)}
             </p>
             <button
               type="button"
               onClick={() => setMonth(shiftMonth(month, 1))}
-              aria-label="Bulan berikutnya"
+              aria-label={t('message18')}
               className={`grid size-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-zinc-100 hover:text-ink ${FOCUS}`}
             >
               <ChevronRight size={16} aria-hidden="true" />
             </button>
           </div>
-          <div role="group" aria-label={`Tanggal, ${formatMonth(month)}`} className="grid grid-cols-7 gap-y-0.5 text-center">
-            {WEEKDAYS.map(([short, full]) => (
-              <abbr key={full} title={full} className="pb-1 text-[11px] font-medium text-ink-soft no-underline">
-                {short}
+          <div role="group" aria-label={t('message19', { v0: formatMonth(month, locale) })} className="grid grid-cols-7 gap-y-0.5 text-center">
+            {([0, 1, 2, 3, 4, 5, 6] as const).map((day) => (
+              <abbr key={day} title={t(`day${day}.full`)} className="pb-1 text-[11px] font-medium text-ink-soft no-underline">
+                {t(`day${day}.short`)}
               </abbr>
             ))}
             {calendarDays(month).map((key) => {
@@ -324,7 +324,7 @@ function DateTimePicker({ now, initial, pending, children }: DateTimePickerProps
                   disabled={!open}
                   onClick={() => pickDay(key)}
                   aria-pressed={selected}
-                  aria-label={`${formatLongDay(key)} ${key.slice(0, 4)}${key === today ? ', hari ini' : ''}`}
+                  aria-label={`${formatLongDay(key, locale)} ${key.slice(0, 4)}${key === today ? t('message20') : ''}`}
                   className={`mx-auto grid h-9 w-full max-w-9 place-items-center rounded-lg text-[13px] tabular-nums transition-colors disabled:cursor-not-allowed ${tone} ${FOCUS}`}
                 >
                   {Number(key.slice(8))}
@@ -336,28 +336,28 @@ function DateTimePicker({ now, initial, pending, children }: DateTimePickerProps
 
         <div className="relative w-[4.5rem] shrink-0 border-l border-hairline">
           <div className="absolute inset-0 flex flex-col">
-            <p className={`${SECTION_LABEL} px-2 pt-4 pb-2 text-center`}>Jam</p>
+            <p className={`${SECTION_LABEL} px-2 pt-4 pb-2 text-center`}>{t('message21')}</p>
             <div
               ref={listRef}
               role="group"
-              aria-label={`Jam, ${formatLongDay(day)}`}
+              aria-label={t('message22', { v0: formatLongDay(day, locale) })}
               className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-1.5 pb-8 [mask-image:linear-gradient(to_bottom,black_calc(100%-2.5rem),transparent)] [scrollbar-width:none]"
             >
               {times.length > 0 ? (
-                times.map((t) => (
+                times.map((timeValue) => (
                   <button
-                    key={t}
+                    key={timeValue}
                     type="button"
-                    onClick={() => setTime(t)}
-                    aria-pressed={t === time}
-                    aria-label={`Jam ${timeLabel(t)}`}
-                    className={`block w-full rounded-lg py-1.5 text-center text-[13px] tabular-nums transition-colors ${t === time ? PICKED : 'text-ink hover:bg-zinc-50'} ${FOCUS} focus-visible:outline-offset-[-2px]`}
+                    onClick={() => setTime(timeValue)}
+                    aria-pressed={timeValue === time}
+                    aria-label={t('message23', { v0: timeLabel(timeValue) })}
+                    className={`block w-full rounded-lg py-1.5 text-center text-[13px] tabular-nums transition-colors ${timeValue === time ? PICKED : 'text-ink hover:bg-zinc-50'} ${FOCUS} focus-visible:outline-offset-[-2px]`}
                   >
-                    {timeLabel(t)}
+                    {timeLabel(timeValue)}
                   </button>
                 ))
               ) : (
-                <p className="px-1 pt-2 text-center text-[11px] text-ink-muted">Tidak ada jam tersisa</p>
+                <p className="px-1 pt-2 text-center text-[11px] text-ink-muted">{t('message24')}</p>
               )}
             </div>
           </div>
@@ -375,8 +375,7 @@ function DateTimePicker({ now, initial, pending, children }: DateTimePickerProps
           time ? 'bg-accent text-white hover:bg-accent-deep disabled:opacity-60' : 'cursor-not-allowed bg-zinc-100 text-ink-soft'
         }`}
       >
-        Jadwalkan
-      </button>
+         {t('message6')} </button>
     </>
   )
 }

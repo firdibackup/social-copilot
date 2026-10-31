@@ -1,3 +1,7 @@
+import { createTranslator } from 'next-intl'
+import { intlLocale, type Locale } from '@/i18n/locale-config'
+import idMessages from '../../messages/id/billing.json'
+import enMessages from '../../messages/en/billing.json'
 /** Admin follow-ups on unfinished Mayar checkouts: the WhatsApp message. Pure, shared by the page and tests. */
 import { formatRupiah } from './billing-options'
 
@@ -26,17 +30,18 @@ export interface UnfinishedPayment {
   attempts: number
 }
 
-const timeFormat = new Intl.DateTimeFormat('id-ID', {
+const timeFormat = (locale: Locale) => new Intl.DateTimeFormat(intlLocale(locale), {
   day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta', timeZoneName: 'short',
 })
 
 /** The chat an admin starts from the dashboard. `subscribeUrl` is where a new link is made once the old one expired. */
-export function reminderMessage(payment: UnfinishedPayment, subscribeUrl: string): string {
-  const greeting = `Halo${payment.name ? ` ${payment.name}` : ''}, kami dari tim Carousely.`
-  const order = `${payment.kind === 'upgrade' ? 'upgrade ke paket' : 'paket'} ${payment.planName ?? 'Carousely'}${payment.months && payment.kind !== 'upgrade' ? ` ${payment.months} bulan` : ''} (${formatRupiah(payment.amount)})`
+export function reminderMessage(payment: UnfinishedPayment, subscribeUrl: string, locale: Locale = 'id'): string {
+  const t = createTranslator({ locale, messages: locale === 'en' ? enMessages : idMessages, namespace: 'reminder' })
+  const greeting = t('greeting', { name: payment.name ? ` ${payment.name}` : '' })
+  const order = `${t(payment.kind === 'upgrade' ? 'upgrade' : 'plan')} ${payment.planName ?? 'Carousely'}${payment.months && payment.kind !== 'upgrade' ? t('months', { count: payment.months }) : ''} (${formatRupiah(payment.amount, locale)})`
   if (payment.status === 'pending' && payment.link) {
-    const until = payment.expiresAt ? ` Tautannya berlaku sampai ${timeFormat.format(payment.expiresAt)}.` : ''
-    return `${greeting} Pembayaran ${order} kamu belum selesai. Kamu bisa melanjutkannya di sini: ${payment.link}${until}\n\nAda kendala saat membayar? Balas pesan ini, kami bantu.`
+    const until = payment.expiresAt ? t('until', { date: timeFormat(locale).format(payment.expiresAt) }) : ''
+    return t('pending', { greeting, order, link: payment.link, until })
   }
-  return `${greeting} Kami lihat pembayaran ${order} kamu belum selesai dan tautannya sudah kedaluwarsa.\n\nAda kendala saat membayar? Balas pesan ini, kami bantu. Kalau masih berminat, buat pesanan baru di ${subscribeUrl}`
+  return t('expired', { greeting, order, url: subscribeUrl })
 }

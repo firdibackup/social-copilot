@@ -1,3 +1,5 @@
+import { createTranslator } from 'next-intl'
+import adminMessages from '@/../messages/id/admin.json'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AdminError, adjustCredits, deleteUser, grantDays, logAdminAction } from '@/lib/admin'
 import { saveAppSettings } from '@/lib/app-settings'
@@ -13,6 +15,8 @@ import {
   uploadTemplateAction,
   userAction,
 } from './actions'
+
+vi.mock('next-intl/server', () => ({ getLocale: async () => 'id', getTranslations: async () => createTranslator({ locale: 'id', messages: adminMessages }) }))
 
 vi.mock('next/cache', () => ({ refresh: vi.fn() }))
 vi.mock('next/navigation', () => ({
@@ -191,11 +195,11 @@ describe('template actions', () => {
       error: null,
       success: '2 template dianalisis.',
     })
-    expect(analyzeTemplates).toHaveBeenCalledWith(ADMIN.id, null)
+    expect(analyzeTemplates).toHaveBeenCalledWith(ADMIN.id, null, 'id')
 
     vi.mocked(analyzeTemplates).mockResolvedValue({ analyzed: 0, failed: 1 })
     expect((await analyzeTemplatesAction(TEMPLATE)).error).toContain('0 dari 1')
-    expect(analyzeTemplates).toHaveBeenLastCalledWith(ADMIN.id, [TEMPLATE])
+    expect(analyzeTemplates).toHaveBeenLastCalledWith(ADMIN.id, [TEMPLATE], 'id')
 
     expect(await analyzeTemplatesAction('bukan-id')).toEqual({
       error: 'Template tidak ditemukan.',

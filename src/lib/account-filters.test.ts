@@ -5,7 +5,6 @@ import { getBrandContext, getBrandKit, saveBrandKit } from './brand'
 import { EMPTY_BRAND } from './brand-options'
 import { getConnectedAccountId } from './connection'
 import { getConversation, listConversations } from './dm'
-import { getDiscoveryAccount, getFacebookConnection } from './facebook-connection'
 import { listIdeas, recentTitles } from './ideas'
 import { db } from './supabase'
 
@@ -43,13 +42,6 @@ describe('dashboard reads filter by the connected account', () => {
     expect(filtered(calls, 'account_id', 'ig-1')).toBe(true)
   })
 
-  it('reads the Facebook Page of the connected account', async () => {
-    answer({ data: null, error: null })
-    await getFacebookConnection('user-1', 'ig-1')
-    expect(filtered(calls, 'instagram_user_id', 'ig-1')).toBe(true)
-    await expect(getDiscoveryAccount('user-1', 'ig-1')).rejects.toThrow()
-    expect(filtered(calls, 'instagram_user_id', 'ig-1')).toBe(true)
-  })
 })
 
 describe('singleton writes key on user and account', () => {

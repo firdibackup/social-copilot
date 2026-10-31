@@ -43,7 +43,7 @@ Isolasi dijaga di `src/lib`: setiap fungsi data menerima `userId` sebagai parame
 ### Data
 Migrasi `20261016040000_multi_user.sql`:
 - Semua tabel mendapat `user_id → auth.users on delete cascade`. Baris lama menjadi milik user auth pertama (owner).
-- Singleton (`instagram_connections`, `facebook_connections`, `brand_kit`, `dm_settings`) berkunci `user_id`.
+- Singleton (`instagram_connections`, `facebook_connections`, `brand_kit`, `dm_settings`) berkunci `user_id` pada migrasi ini. **Catatan 2026-10-31:** integrasi Facebook Login dihapus dari aplikasi; tabel `facebook_connections` dan migrasi historis tetap dipertahankan, bukan di-drop.
 - `instagram_connections.instagram_user_id` unik: satu akun IG untuk satu user.
 - Kunci DM menjadi `(user_id, igsid)` dan `(user_id, mid)`.
 - `save_post(p_user_id, …)` menolak foto milik user lain. `record_dm_message(p_user_id, …)` bekerja per user.

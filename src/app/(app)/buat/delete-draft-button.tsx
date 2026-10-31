@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Trash2 } from 'lucide-react'
@@ -9,6 +11,8 @@ import { useEditorScope } from './editor-provider'
 import { removePostOptimistically } from './optimistic-events'
 
 export function DeleteDraftButton({ id, onError }: { id: string; onError: (message: string) => void }) {
+  const t = useTranslations('editor.deleteDraftButton')
+
   const client = useQueryClient()
   const scope = useEditorScope()
   const lock = useRef(false)
@@ -18,9 +22,9 @@ export function DeleteDraftButton({ id, onError }: { id: string; onError: (messa
     if (lock.current) return
     lock.current = true
     const confirmed = await confirmDialog({
-      title: 'Hapus konten ini?',
-      description: 'Draft akan dihapus permanen.',
-      confirmLabel: 'Hapus',
+      title: t('message1'),
+      description: t('message2'),
+      confirmLabel: t('message3'),
       tone: 'danger',
     })
     if (!confirmed) {
@@ -29,7 +33,7 @@ export function DeleteDraftButton({ id, onError }: { id: string; onError: (messa
     }
     setPending(true)
     const restore = await removePostOptimistically(client, scope, id)
-    const error = await deleteDraftAction(id).catch(() => 'Gagal menghubungi server. Coba lagi.')
+    const error = await deleteDraftAction(id).catch(() => t('message4'))
     if (error) {
       restore()
       lock.current = false
@@ -43,7 +47,7 @@ export function DeleteDraftButton({ id, onError }: { id: string; onError: (messa
     <button type="button" disabled={pending} aria-busy={pending} onClick={() => void remove()}
       className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-hairline bg-white px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 disabled:cursor-wait disabled:opacity-60">
       <Trash2 size={14} aria-hidden="true" />
-      {pending ? 'Menghapus…' : 'Hapus konten'}
+      {pending ? t('message5') : t('message6')}
     </button>
   )
 }

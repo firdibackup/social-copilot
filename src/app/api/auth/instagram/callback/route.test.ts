@@ -1,3 +1,5 @@
+import { createTranslator } from 'next-intl'
+import settingsMessages from '@/../messages/id/settings.json'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { currentPeriod, currentUser } from '@/lib/auth'
 import { after } from 'next/server'
@@ -13,12 +15,14 @@ import {
   getConnectedAccountId,
   saveConnection,
 } from '@/lib/connection'
-import { deleteOtherFacebookConnections } from '@/lib/facebook-connection'
 import { ensureWebhookSubscription } from '@/lib/inbox-sync'
 import { exchangeCodeForToken, exchangeForLongLivedToken, fetchProfile, InstagramApiError } from '@/lib/instagram'
 import { deleteOtherThreadsConnection } from '@/lib/threads-connection'
 import { GET } from './route'
 
+vi.mock('next-intl/server', () => ({ getTranslations: async () => createTranslator({ locale: 'id', messages: settingsMessages }) }))
+
+vi.mock('@/i18n/locale', () => ({ getUserLocale: async () => 'id' }))
 vi.mock('@/lib/auth', () => ({ currentPeriod: vi.fn(), currentUser: vi.fn() }))
 vi.mock('@/lib/connection', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/connection')>()),
@@ -29,7 +33,6 @@ vi.mock('@/lib/connection', async (importOriginal) => ({
   claimOrphanRows: vi.fn(),
 }))
 vi.mock('next/server', () => ({ after: vi.fn() }))
-vi.mock('@/lib/facebook-connection', () => ({ deleteOtherFacebookConnections: vi.fn() }))
 vi.mock('@/lib/threads-connection', () => ({ deleteOtherThreadsConnection: vi.fn() }))
 vi.mock('@/lib/brand', () => ({ hasBrandKit: vi.fn(), startBrandSync: vi.fn() }))
 vi.mock('@/lib/brand-sync', () => ({ syncNewAccount: vi.fn() }))
@@ -93,7 +96,7 @@ describe('GET /api/auth/instagram/callback', () => {
       expect(hasBrandKit).toHaveBeenCalledWith(USER, PROFILE.userId)
       expect(startBrandSync).toHaveBeenCalledWith(USER, PROFILE.userId, {})
       runAfterTasks()
-      expect(syncNewAccount).toHaveBeenCalledWith(USER, PROFILE.userId, undefined)
+      expect(syncNewAccount).toHaveBeenCalledWith(USER, PROFILE.userId, undefined, 'id')
     })
 
     it('seeds the new account’s brand with the onboarding answers', async () => {
@@ -115,7 +118,7 @@ describe('GET /api/auth/instagram/callback', () => {
         heading_font: 'Plus Jakarta Sans',
       })
       runAfterTasks()
-      expect(syncNewAccount).toHaveBeenCalledWith(USER, PROFILE.userId, 5)
+      expect(syncNewAccount).toHaveBeenCalledWith(USER, PROFILE.userId, 5, 'id')
     })
 
     it('leaves an account that already has a brand as it is', async () => {
@@ -152,14 +155,6 @@ describe('GET /api/auth/instagram/callback', () => {
       expect(draftScheduledPosts).toHaveBeenCalledWith(USER, 'ig-old')
     })
 
-    it('removes Facebook Page tokens of other accounts once the new account is saved', async () => {
-      vi.mocked(getConnectedAccountId).mockResolvedValue('ig-old')
-
-      await connect()
-
-      expect(deleteOtherFacebookConnections).toHaveBeenCalledWith(USER, PROFILE.userId)
-    })
-
     it('removes a Threads connection made for another account', async () => {
       vi.mocked(getConnectedAccountId).mockResolvedValue('ig-old')
 
@@ -193,7 +188,6 @@ describe('GET /api/auth/instagram/callback', () => {
 
       expect(draftScheduledPosts).not.toHaveBeenCalled()
       expect(claimOrphanRows).not.toHaveBeenCalled()
-      expect(deleteOtherFacebookConnections).not.toHaveBeenCalled()
       expect(deleteOtherThreadsConnection).not.toHaveBeenCalled()
     })
   })

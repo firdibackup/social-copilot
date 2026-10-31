@@ -185,6 +185,67 @@
   animation: var(--animate-sweep);
 }
 
+/*
+ * Carousely's signature, taken from the mark: violet into blue, then cyan, mint and pink. Text only ever sits on
+ * the deep violet→blue end (white on #4b3ff0 is 6.43:1, on #3f56e8 5.66:1); the light stops go on shapes without text.
+ */
+:root {
+  --signature-deep: linear-gradient(115deg, #4b3ff0 0%, #3f56e8 100%);
+  --signature-deep-hover: linear-gradient(115deg, #4234d6 0%, #3a4fd9 100%);
+  --signature-full: linear-gradient(90deg, #6558f5 0%, #4f7bff 40%, #38c6e6 70%, #7ee3b8 88%, #f59ac8 100%);
+  --sidebar-ground: #f3f1fd;
+}
+
+/* The one primary action per view: Post baru and friends. */
+@utility btn-signature {
+  background-image: var(--signature-deep);
+  color: #fff;
+  box-shadow:
+    0 1px 2px rgb(43 33 160 / 0.18),
+    inset 0 1px 0 rgb(255 255 255 / 0.14);
+  cursor: pointer;
+  transition:
+    box-shadow 160ms ease-out,
+    transform 160ms ease-out,
+    filter 160ms ease-out;
+
+  &:hover {
+    background-image: var(--signature-deep-hover);
+    box-shadow:
+      0 4px 12px -4px rgb(43 33 160 / 0.35),
+      inset 0 1px 0 rgb(255 255 255 / 0.14);
+  }
+  &:active {
+    transform: translateY(1px);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+  &:disabled,
+  &[aria-disabled='true'] {
+    cursor: not-allowed;
+    filter: saturate(0.4);
+    opacity: 0.6;
+    box-shadow: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+    &:active {
+      transform: none;
+    }
+  }
+}
+
+/* Shapes without text only: the active-nav slides and the credit fill. */
+@utility bg-signature {
+  background-image: var(--signature-full);
+}
+
+@utility bg-sidebar {
+  background-color: var(--sidebar-ground);
+}
+
 /* Mimo's AI tools while on: the brand violet flowing through pink, orange and blue. */
 @utility ai-gradient {
   background-image: linear-gradient(90deg, #6558f5, #a64bf0, #e8457c, #f0803c, #4f7bff, #6558f5);

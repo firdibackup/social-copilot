@@ -36,6 +36,7 @@ export async function storeSlideImage(
   const asset = await createAsset(userId, new Blob([image.bytes.slice().buffer]), image.width, image.height, {
     accountId: accountId ?? undefined,
     origin: 'ai',
+    enforceQuota: false,
   })
   return asset.id
 }

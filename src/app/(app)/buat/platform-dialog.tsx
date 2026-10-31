@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { X } from 'lucide-react'
 import { useState, useTransition, type ReactNode, type RefObject } from 'react'
 import { InstagramIcon } from '@/components/instagram-icon'
@@ -7,7 +9,7 @@ import { Notice } from '@/components/notice'
 import { ThreadsIcon } from '@/components/threads-icon'
 import { setPlatformsAction } from './actions'
 
-const FAILED = 'Gagal menghubungi server. Coba lagi.'
+
 const LINK = 'font-medium text-ink underline underline-offset-2'
 
 export type ThreadsLink = 'active' | 'needs_reconnect' | 'none'
@@ -25,6 +27,10 @@ interface PlatformDialogProps {
  * Posting ke mana: Instagram (with its Story) and Threads on or off for this post, each with the account it goes to.
  */
 export function PlatformDialog({ dialogRef, postId, instagram, threads, story }: PlatformDialogProps) {
+  const t = useTranslations('editor.platformDialog')
+
+  const FAILED = t('message1')
+
   const [instagramOn, setInstagramOn] = useState(instagram.enabled)
   const [storyOn, setStoryOn] = useState(story.enabled)
   const [threadsOn, setThreadsOn] = useState(threads.enabled)
@@ -49,20 +55,18 @@ export function PlatformDialog({ dialogRef, postId, instagram, threads, story }:
   const threadsNote: ReactNode =
     threads.link === 'none' ? (
       <>
-        Belum terhubung ·{' '}
+         {t('message2')}{' '}
         <a href="/api/auth/threads/start" className={LINK}>
-          Hubungkan
-        </a>
+           {t('message3')} </a>
       </>
     ) : threads.link === 'needs_reconnect' ? (
       <>
-        Perlu disambung ulang ·{' '}
+         {t('message4')}{' '}
         <a href="/api/auth/threads/start" className={LINK}>
-          Hubungkan ulang
-        </a>
+           {t('message5')} </a>
       </>
     ) : threads.locked ? (
-      'Sudah atau sedang terbit di Threads.'
+      t('message6')
     ) : null
 
   return (
@@ -76,13 +80,12 @@ export function PlatformDialog({ dialogRef, postId, instagram, threads, story }:
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 id="platform-heading" className="text-lg font-semibold text-ink">
-              Posting ke mana?
-            </h2>
-            <p className="text-sm text-ink-muted">Pilih akun tujuan untuk post ini.</p>
+               {t('message7')} </h2>
+            <p className="text-sm text-ink-muted">{t('message8')}</p>
           </div>
           <button
             type="button"
-            aria-label="Tutup"
+            aria-label={t('message9')}
             onClick={() => dialogRef.current?.close()}
             className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
           >
@@ -97,7 +100,7 @@ export function PlatformDialog({ dialogRef, postId, instagram, threads, story }:
             checked={instagramOn}
             onChange={setInstagramOn}
             disabled={instagram.locked}
-            note={instagram.locked ? 'Sudah atau sedang terbit di Instagram.' : null}
+            note={instagram.locked ? t('message10') : null}
           >
             {instagramOn && (
               <label className="flex items-start gap-2.5 pl-12 text-sm">
@@ -109,11 +112,11 @@ export function PlatformDialog({ dialogRef, postId, instagram, threads, story }:
                   className="mt-0.5 size-4 shrink-0 accent-accent disabled:opacity-50"
                 />
                 <span>
-                  <span className="block font-medium text-ink">Bagikan juga ke Story</span>
+                  <span className="block font-medium text-ink">{t('message11')}</span>
                   <span className="block text-xs text-ink-muted">
                     {story.locked
-                      ? 'Post sudah atau sedang terbit, jadi pilihan Story tidak bisa diubah lagi.'
-                      : 'Slide pertama jadi Story 9:16. Story tidak bisa pakai link, jadi kami arahkan orang ke nama akunmu.'}
+                      ? t('message12')
+                      : t('message13')}
                   </span>
                 </span>
               </label>
@@ -137,15 +140,14 @@ export function PlatformDialog({ dialogRef, postId, instagram, threads, story }:
             onClick={() => dialogRef.current?.close()}
             className="rounded-lg border border-hairline bg-white px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-zinc-50"
           >
-            Batal
-          </button>
+             {t('message14')} </button>
           <button
             type="button"
             onClick={save}
             disabled={pending || (!instagramOn && !threadsOn)}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-deep disabled:opacity-60"
           >
-            {pending ? 'Menyimpan…' : 'Simpan'}
+            {pending ? t('message15') : t('message16')}
           </button>
         </div>
       </div>
@@ -166,6 +168,8 @@ interface PlatformRowProps {
 }
 
 function PlatformRow({ icon, name, username, checked, onChange, disabled, note, children }: PlatformRowProps) {
+  const t = useTranslations('editor.platformDialog')
+
   return (
     <li className="space-y-3 p-3">
       <div className="flex items-center gap-3">
@@ -182,7 +186,7 @@ function PlatformRow({ icon, name, username, checked, onChange, disabled, note, 
           type="button"
           role="switch"
           aria-checked={checked}
-          aria-label={`Posting ke ${name}`}
+          aria-label={t('message17', { v0: name })}
           disabled={disabled}
           onClick={() => onChange(!checked)}
           className={`relative h-6 w-10 shrink-0 rounded-full transition-colors disabled:opacity-50 ${checked ? 'bg-accent' : 'bg-zinc-300'}`}

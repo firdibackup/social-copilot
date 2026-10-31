@@ -1,3 +1,4 @@
+import { getLocale, getTranslations } from 'next-intl/server'
 import { PendingLink } from './pending-link'
 import { ProfileAvatar } from '@/components/profile-avatar'
 import { listAutoDmConversationIds } from '@/lib/auto-dm'
@@ -13,7 +14,7 @@ import {
 } from '@/lib/dm'
 import { describeError } from '@/lib/errors'
 import { formatListTime, formatShortDateTime } from '@/lib/format'
-import { conversationName, isConversationUnread } from '@/lib/inbox-rules'
+import { isConversationUnread } from '@/lib/inbox-rules'
 import { profilesToRead } from '@/lib/inbox-sync'
 import { MarkConversationSeen, SyncProfiles } from './controls'
 import { ReplyBox } from './reply-box'
@@ -83,12 +84,6 @@ export async function loadInbox(
   return { conversations: listed, thread: loadedThread }
 }
 
-const EMPTY_LIST: Record<DmFilter, { title?: string; text: string }> = {
-  belum: { text: 'Tidak ada DM yang menunggu balasan.' },
-  semua: { text: 'Belum ada DM masuk.' },
-  otomatis: { title: 'Belum ada DM', text: 'Nggak ada percakapan yang cocok sama filter ini.' },
-}
-
 interface InboxProps extends InboxData {
   filter: DmFilter
   selectedId: string | undefined
@@ -96,7 +91,13 @@ interface InboxProps extends InboxData {
   now: Date
 }
 
-export function Inbox({ conversations, thread, filter, selectedId, brand, now }: InboxProps) {
+export async function Inbox({ conversations, thread, filter, selectedId, brand, now }: InboxProps) {
+  const t = await getTranslations('inbox.inbox')
+  const EMPTY_LIST: Record<DmFilter, { title?: string; text: string }> = {
+  belum: { text: t('noDmsWaitingForAReply') },
+  semua: { text: t('noIncomingDmsYet') },
+  otomatis: { title: t('noDmsYet'), text: t('noConversationsMatchThisFilter') },
+}
   // The open conversation stays in the list after it is answered, so "Belum dibales" doesn't swallow it.
   const list =
     thread && !conversations.some((conversation) => conversation.igsid === thread.conversation.igsid)
@@ -112,8 +113,8 @@ export function Inbox({ conversations, thread, filter, selectedId, brand, now }:
       <SyncProfiles igsids={staleProfiles} />
       {selectedId && !thread && (
         <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Percakapan tidak ditemukan.
-        </p>
+          {t('conversationNotFound')}
+          </p>
       )}
       {list.length === 0 ? (
         <div className="space-y-1 rounded-xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500">
@@ -149,8 +150,10 @@ interface ConversationRowProps {
   now: Date
 }
 
-function ConversationRow({ conversation, href, isOpen, now }: ConversationRowProps) {
-  const name = conversationName(conversation)
+async function ConversationRow({ conversation, href, isOpen, now }: ConversationRowProps) {
+  const t = await getTranslations('inbox.inbox')
+  const locale = await getLocale()
+  const name = conversation.name ?? (conversation.username ? `@${conversation.username}` : t('instagramUser'))
   // Opening the thread marks it read; until the next load the row still says it was unread.
   const unread = !isOpen && isConversationUnread(conversation)
   return (
@@ -164,23 +167,25 @@ function ConversationRow({ conversation, href, isOpen, now }: ConversationRowPro
       <span className="min-w-0 flex-1 space-y-0.5">
         <span className="flex items-center gap-2">
           <span className={`truncate text-sm text-zinc-900 ${unread ? 'font-semibold' : 'font-medium'}`}>{name}</span>
-          {unread && <span className="size-2 shrink-0 rounded-full bg-blue-500" aria-label="Belum dibaca" />}
+          {unread && <span className="size-2 shrink-0 rounded-full bg-blue-500" aria-label={t('unread')} />}
         </span>
         <span className={`block truncate text-sm ${unread ? 'text-zinc-800' : 'text-zinc-500'}`}>
-          {!conversation.lastFromCustomer && 'Kamu: '}
-          {conversation.lastText ?? '(lampiran)'}
+          {!conversation.lastFromCustomer && t('you')}
+          {conversation.lastText ?? t('attachment')}
         </span>
       </span>
       <time dateTime={conversation.lastMessageAt.toISOString()} className="shrink-0 self-start text-xs text-zinc-500">
-        {formatListTime(conversation.lastMessageAt, now)}
+        {formatListTime(conversation.lastMessageAt, now, locale)}
       </time>
     </PendingLink>
   )
 }
 
-function ThreadView({ thread, brand }: { thread: Thread; brand: Brand }) {
+async function ThreadView({ thread, brand }: { thread: Thread; brand: Brand }) {
+  const t = await getTranslations('inbox.inbox')
+  const locale = await getLocale()
   const { conversation, messages } = thread
-  const name = conversationName(conversation)
+  const name = conversation.name ?? (conversation.username ? `@${conversation.username}` : t('instagramUser'))
   return (
     <div className="space-y-4 border-t border-zinc-100 bg-zinc-50 px-3 py-4 sm:px-5">
       <MarkConversationSeen igsid={conversation.igsid} />
@@ -205,9 +210,9 @@ function ThreadView({ thread, brand }: { thread: Thread; brand: Brand }) {
                   : 'rounded-br-md bg-accent text-white'
               }`}
             >
-              <p className={message.text === null ? 'italic opacity-70' : undefined}>{message.text ?? '(lampiran)'}</p>
+              <p className={message.text === null ? 'italic opacity-70' : undefined}>{message.text ?? t('attachment')}</p>
               <time dateTime={message.sentAt.toISOString()} className="mt-1 block text-[11px] opacity-60">
-                {formatShortDateTime(message.sentAt)}
+                {formatShortDateTime(message.sentAt, locale)}
               </time>
             </div>
           </li>

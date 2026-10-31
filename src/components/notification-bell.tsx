@@ -1,8 +1,8 @@
 'use client'
 
+import { useTranslations, useLocale } from 'next-intl'
 import {
   AtSign,
-  Bell,
   CheckCheck,
   CreditCard,
   Camera,
@@ -12,6 +12,7 @@ import {
   MessageCircle,
 } from 'lucide-react'
 import Link from 'next/link'
+import { PiBell } from 'react-icons/pi'
 import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { LoadingState } from '@/components/loading-state'
@@ -39,6 +40,7 @@ async function fetchFeed(): Promise<NotificationFeed | null> {
 }
 
 export function NotificationBell() {
+  const t = useTranslations('shell.notifications')
   const pathname = usePathname()
   const [feed, setFeed] = useState<NotificationFeed>(EMPTY)
   const [filter, setFilter] = useState<Filter>('all')
@@ -141,7 +143,7 @@ export function NotificationBell() {
     setMarkingAll(false)
   }
 
-  const label = feed.count > 0 ? `Notifikasi, ${feed.count} belum dibaca` : 'Notifikasi'
+  const label = feed.count > 0 ? t('unreadLabel', { count: feed.count }) : t('title')
   const visibleItems = filter === 'unread' ? feed.items.filter((item) => item.unread) : feed.items
 
   return (
@@ -156,11 +158,11 @@ export function NotificationBell() {
           setOpen(next)
           if (next) void load(true)
         }}
-        className={`relative inline-flex size-9 items-center justify-center rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 ${
+        className={`relative inline-flex h-11 min-w-11 cursor-pointer items-center justify-center rounded-lg transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 ${
           open ? 'bg-accent-soft text-accent-deep' : 'text-ink-muted hover:bg-zinc-100 hover:text-ink'
         }`}
       >
-        <Bell size={18} strokeWidth={1.75} aria-hidden="true" />
+        <PiBell size={19} aria-hidden="true" />
         {feed.count > 0 && (
           <span className="absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] leading-none font-semibold text-white tabular-nums ring-2 ring-paper">
             {feed.count > BADGE_MAX ? `${BADGE_MAX}+` : feed.count}
@@ -171,14 +173,14 @@ export function NotificationBell() {
       {open && (
         <section
           role="dialog"
-          aria-label="Notifikasi"
+          aria-label={t('title')}
           className="absolute top-full right-0 z-30 mt-2 w-[min(23rem,calc(100vw-1.5rem))] animate-modal-in overflow-hidden rounded-2xl border border-hairline bg-paper shadow-[0_16px_40px_rgba(23,24,39,0.14)]"
         >
           <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
             <div className="flex min-w-0 items-baseline gap-2">
-              <h2 className="text-base font-semibold text-ink">Notifikasi</h2>
+              <h2 className="text-base font-semibold text-ink">{t('title')}</h2>
               {feed.status === 'active' && feed.count > 0 && (
-                <span className="text-xs font-medium text-accent tabular-nums">{feed.count} baru</span>
+                <span className="text-xs font-medium text-accent tabular-nums">{t('newCount', { count: feed.count })}</span>
               )}
             </div>
             {feed.status === 'active' && feed.count > 0 && (
@@ -193,7 +195,7 @@ export function NotificationBell() {
                 ) : (
                   <CheckCheck size={13} aria-hidden="true" />
                 )}
-                Tandai semua dibaca
+                {t('markAll')}
               </button>
             )}
           </div>
@@ -209,7 +211,7 @@ export function NotificationBell() {
                     filter === value ? 'text-ink' : 'text-ink-muted hover:text-ink'
                   }`}
                 >
-                  {value === 'all' ? 'Semua' : `Belum dibaca${feed.count > 0 ? ` (${feed.count})` : ''}`}
+                  {value === 'all' ? t('all') : t('unread', { suffix: feed.count > 0 ? ` (${feed.count})` : '' })}
                   {filter === value && <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-accent" />}
                 </button>
               ))}
@@ -218,32 +220,32 @@ export function NotificationBell() {
 
           {loadError && loaded && (
             <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
-              <span>Daftar terbaru belum bisa dimuat.</span>
+              <span>{t('latestError')}</span>
               <button type="button" onClick={() => void load(true)} className="shrink-0 font-semibold hover:underline">
-                Coba lagi
+                {t('retry')}
               </button>
             </div>
           )}
 
           {loading && !loaded ? (
-            <LoadingState label="Memuat notifikasi…" className="min-h-44 px-4" />
+            <LoadingState label={t('loading')} className="min-h-44 px-4" />
           ) : loadError && !loaded ? (
             <ErrorState retry={() => void load(true)} />
           ) : feed.status === 'instagram_required' ? (
             <UnavailableState
               icon={<Camera size={20} aria-hidden="true" />}
-              title="Hubungkan Instagram"
-              body="Notifikasi DM dan komentar akan muncul setelah akun Instagram terhubung."
+              title={t('connect')}
+              body={t('connectBody')}
               href="/pengaturan#instagram"
-              action="Buka Pengaturan"
+              action={t('settings')}
             />
           ) : feed.status === 'subscription_required' ? (
             <UnavailableState
               icon={<CreditCard size={20} aria-hidden="true" />}
-              title="Aktifkan langganan"
-              body="Notifikasi tersedia selama langganan aktif."
+              title={t('subscribe')}
+              body={t('subscribeBody')}
               href="/langganan"
-              action="Lihat Langganan"
+              action={t('plans')}
             />
           ) : visibleItems.length === 0 ? (
             <EmptyState filter={filter} />
@@ -253,7 +255,7 @@ export function NotificationBell() {
 
           {actionError && (
             <p role="status" className="border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">
-              Perubahan belum tersimpan. Coba lagi.
+              {t('saveError')}
             </p>
           )}
 
@@ -263,7 +265,7 @@ export function NotificationBell() {
               onClick={() => setOpen(false)}
               className="block border-t border-hairline px-4 py-3 text-center text-xs font-medium text-ink-muted transition-colors hover:bg-zinc-50 hover:text-ink"
             >
-              Buka semua di Balasan
+              {t('openInbox')}
             </Link>
           )}
         </section>
@@ -283,6 +285,8 @@ function NotificationList({
   markOne: (item: Notification) => Promise<void>
   close: () => void
 }) {
+  const t = useTranslations('shell.notifications')
+  const locale = useLocale()
   const now = new Date()
   return (
     <ul className="max-h-[25rem] divide-y divide-hairline overflow-y-auto overscroll-contain">
@@ -308,22 +312,22 @@ function NotificationList({
                 <span className="flex items-baseline justify-between gap-2">
                   <span className={`truncate text-sm text-ink ${item.unread ? 'font-semibold' : 'font-medium'}`}>{item.name}</span>
                   <time dateTime={item.at} className="shrink-0 text-[11px] text-ink-muted tabular-nums">
-                    {formatListTime(new Date(item.at), now)}
+                    {formatListTime(new Date(item.at), now, locale)}
                   </time>
                 </span>
                 <span className="flex items-center gap-1.5 text-[11px] font-medium text-ink-muted">
                   {item.kind === 'dm' ? <MessageCircle size={12} aria-hidden="true" /> : <AtSign size={12} aria-hidden="true" />}
-                  {item.kind === 'dm' ? 'Pesan langsung' : 'Komentar'}
+                  {item.kind === 'dm' ? t('dm') : t('comment')}
                 </span>
-                <span className="line-clamp-2 block text-sm leading-5 text-zinc-600">{item.text || '(kosong)'}</span>
+                <span className="line-clamp-2 block text-sm leading-5 text-zinc-600">{item.text || t('emptyText')}</span>
               </span>
             </Link>
             <button
               type="button"
               onClick={() => void markOne(item)}
               disabled={marking}
-              title={item.unread ? 'Tandai dibaca' : 'Tandai belum dibaca'}
-              aria-label={`${item.unread ? 'Tandai dibaca' : 'Tandai belum dibaca'}: ${item.name}`}
+              title={item.unread ? t('markRead') : t('markUnread')}
+              aria-label={`${item.unread ? t('markRead') : t('markUnread')}: ${item.name}`}
               className="absolute right-3 bottom-3 inline-flex size-8 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-paper hover:text-accent focus-visible:bg-paper disabled:opacity-50"
             >
               {marking ? (
@@ -342,28 +346,30 @@ function NotificationList({
 }
 
 function ErrorState({ retry }: { retry: () => void }) {
+  const t = useTranslations('shell.notifications')
   return (
     <div className="flex min-h-44 flex-col items-center justify-center gap-3 px-6 text-center">
       <div>
-        <p className="text-sm font-semibold text-ink">Notifikasi belum bisa dimuat</p>
-        <p className="mt-1 text-xs leading-5 text-ink-muted">Periksa koneksi lalu coba lagi.</p>
+        <p className="text-sm font-semibold text-ink">{t('loadError')}</p>
+        <p className="mt-1 text-xs leading-5 text-ink-muted">{t('checkConnection')}</p>
       </div>
       <button type="button" onClick={retry} className="min-h-9 rounded-lg bg-ink px-3 text-xs font-semibold text-white hover:bg-zinc-800">
-        Coba lagi
+        {t('retry')}
       </button>
     </div>
   )
 }
 
 function EmptyState({ filter }: { filter: Filter }) {
+  const t = useTranslations('shell.notifications')
   return (
     <div className="flex min-h-44 flex-col items-center justify-center px-6 text-center">
       <span className="mb-3 flex size-10 items-center justify-center rounded-xl bg-accent-soft text-accent">
         <CheckCheck size={19} aria-hidden="true" />
       </span>
-      <p className="text-sm font-semibold text-ink">{filter === 'unread' ? 'Semua sudah dibaca' : 'Belum ada notifikasi'}</p>
+      <p className="text-sm font-semibold text-ink">{filter === 'unread' ? t('allRead') : t('empty')}</p>
       <p className="mt-1 max-w-56 text-xs leading-5 text-ink-muted">
-        {filter === 'unread' ? 'Notifikasi baru akan muncul di sini.' : 'DM dan komentar terbaru akan muncul di sini.'}
+        {filter === 'unread' ? t('newHint') : t('emptyHint')}
       </p>
     </div>
   )

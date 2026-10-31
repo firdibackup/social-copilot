@@ -1,5 +1,9 @@
 'use client'
 
+import { intlLocale } from '@/i18n/locale-config'
+
+import { useLocale, useTranslations } from 'next-intl'
+
 import { useActionState, useState, useTransition } from 'react'
 import { Notice } from '@/components/notice'
 import { MAX_GRANT_DAYS, MODEL_MAX_LENGTH, PLAN_NAME_MAX_LENGTH } from '@/lib/admin-options'
@@ -29,6 +33,10 @@ interface SettingsFormProps {
 }
 
 export function SettingsForm({ values, defaults, textModels, textPresets, imageModels, updatedAt }: SettingsFormProps) {
+  const locale = useLocale()
+
+  const t = useTranslations('admin')
+
   const [state, action, saving] = useActionState(saveSettingsAction, INITIAL)
   const [textModel, setTextModel] = useState(values.textModel)
   const [imageModel, setImageModel] = useState(values.imageModel)
@@ -39,16 +47,14 @@ export function SettingsForm({ values, defaults, textModels, textPresets, imageM
     <form action={action} className="space-y-4">
       <section className={CARD}>
         <div className="space-y-1">
-          <h2 className={CARD_TITLE}>Model AI</h2>
+          <h2 className={CARD_TITLE}>{t('settings_form.aiModels')}</h2>
           <p className={HINT}>
-            Pilih dari daftar atau ketik id model dari 9Router. Kosongkan untuk memakai default dari .env. Tes dulu sebelum
-            menyimpan: model yang salah membuat semua fitur AI gagal.
-          </p>
+            {t('settings_form.chooseFromTheListOrEnterA')}</p>
         </div>
 
         <ModelField
           name="textModel"
-          label="Model teks (caption, ide, brand)"
+          label={t('settings_form.textModelCaptionsIdeasBrand')}
           kind="text"
           value={textModel}
           onChange={setTextModel}
@@ -58,39 +64,38 @@ export function SettingsForm({ values, defaults, textModels, textPresets, imageM
         />
         <ModelField
           name="imageModel"
-          label="Model gambar (slide AI)"
+          label={t('settings_form.imageModelAiSlides')}
           kind="image"
           value={imageModel}
           onChange={setImageModel}
           options={imageModels}
           defaultModel={defaults.imageModel}
           presets={[]}
-          note="Tes gambar memakan waktu 30–60 detik dan memakai kuota 9Router."
+          note={t('settings_form.imageTestsTake3060SecondsAnd')}
         />
       </section>
 
       <section className={CARD}>
         <div className="space-y-1">
-          <h2 className={CARD_TITLE}>Default pemberian akses manual</h2>
+          <h2 className={CARD_TITLE}>{t('settings_form.manualAccessDefaults')}</h2>
           <p className={HINT}>
-            Dipakai saat admin memberikan akses manual. Paket Pro/Max diatur di bagian Paket & kredit di atas.
-          </p>
+            {t('settings_form.usedWhenAnAdminGrantsAccessManually')}</p>
         </div>
         <label className={LABEL}>
-          <span>Nama paket</span>
+          <span>{t('settings_form.planName')}</span>
           <input name="planName" defaultValue={values.planName} maxLength={PLAN_NAME_MAX_LENGTH} required className={FIELD} />
         </label>
         <div className="grid gap-3 sm:grid-cols-3">
           <label className={LABEL}>
-            <span>Harga (Rp)</span>
+            <span>{t('settings_form.priceRp')}</span>
             <input name="planPrice" type="number" min={0} step={1000} defaultValue={values.planPrice} required className={FIELD} />
           </label>
           <label className={LABEL}>
-            <span>Durasi (hari)</span>
+            <span>{t('settings_form.durationDays')}</span>
             <input name="planDays" type="number" min={1} max={MAX_GRANT_DAYS} defaultValue={values.planDays} required className={FIELD} />
           </label>
           <label className={LABEL}>
-            <span>Kredit AI per periode</span>
+            <span>{t('settings_form.aiCreditsPerPeriod')}</span>
             <input
               name="planCredits"
               type="number"
@@ -102,16 +107,16 @@ export function SettingsForm({ values, defaults, textModels, textPresets, imageM
             />
           </label>
         </div>
-        {perPost !== null && <p className={HINT}>Cukup untuk sekitar {perPost} konten carousel 3 slide per periode.</p>}
+        {perPost !== null && <p className={HINT}>{t('settings_form.enoughForAbout')} {perPost} {t('settings_form.label3SlideCarouselPostsPerPeriod')}</p>}
       </section>
 
       {state.error && <Notice tone="error">{state.error}</Notice>}
       {state.success && <Notice tone="success">{state.success}</Notice>}
       <div className="flex flex-wrap items-center gap-3">
         <button type="submit" disabled={saving} className={PRIMARY_BUTTON}>
-          {saving ? 'Menyimpan…' : 'Simpan model & akses manual'}
+          {saving ? t('settings_form.saving') : t('settings_form.saveModelsManualAccess')}
         </button>
-        {updatedAt && <span className="text-xs text-zinc-500">Terakhir diubah {formatDateTime(new Date(updatedAt))}</span>}
+        {updatedAt && <span className="text-xs text-zinc-500">{t('settings_form.lastUpdated')} {formatDateTime(new Date(updatedAt), locale)}</span>}
       </div>
     </form>
   )
@@ -130,6 +135,9 @@ interface ModelFieldProps {
 }
 
 function ModelField({ name, label, kind, value, onChange, options, defaultModel, presets, note }: ModelFieldProps) {
+  const locale = useLocale()
+  const t = useTranslations('admin')
+
   const [result, setResult] = useState<ModelTestResult | null>(null)
   const [testing, startTest] = useTransition()
   const listId = `${name}-options`
@@ -154,14 +162,14 @@ function ModelField({ name, label, kind, value, onChange, options, defaultModel,
               onChange(event.target.value)
               setResult(null)
             }}
-            placeholder={defaultModel ? `Default: ${defaultModel}` : 'Isi id model'}
+            placeholder={defaultModel ? t('settings_form.default', { v0: defaultModel }) : t('settings_form.enterModelId')}
             maxLength={MODEL_MAX_LENGTH}
             autoComplete="off"
             spellCheck={false}
             className={`${FIELD} min-w-0 flex-1 font-mono`}
           />
           <button type="button" onClick={test} disabled={testing || !tested} className={BUTTON}>
-            {testing ? 'Menguji…' : 'Tes'}
+            {testing ? t('settings_form.testing') : t('settings_form.test')}
           </button>
         </div>
       </label>
@@ -194,23 +202,22 @@ function ModelField({ name, label, kind, value, onChange, options, defaultModel,
               }}
               className="rounded-full border border-zinc-200 px-2.5 py-1 text-xs text-zinc-700 hover:bg-zinc-50"
             >
-              Pakai default
-            </button>
+              {t('settings_form.useDefault')}</button>
           )}
         </div>
       )}
       <p className={HINT}>
-        {options.length > 0 ? `${options.length} model tersedia di daftar. ` : ''}
+        {options.length > 0 ? t('settings_form.modelsAvailableInTheList', { v0: options.length }) : ''}
         {note}
       </p>
       {result && (
         <div className="space-y-2">
           <Notice tone={result.ok ? 'success' : 'error'}>
-            {result.ok ? 'Berhasil' : 'Gagal'} ({(result.ms / 1000).toFixed(1)} dtk, {tested}): {result.message}
+            {result.ok ? t('settings_form.success') : t('settings_form.failed')} ({(result.ms / 1000).toLocaleString(intlLocale(locale), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} {t('settings_form.sec')} {tested}): {result.message}
           </Notice>
           {result.ok && result.preview && (
             // eslint-disable-next-line @next/next/no-img-element -- a data URL from the test, not a page asset
-            <img src={result.preview} alt="Hasil tes model gambar" className="size-32 rounded-lg border border-zinc-200" />
+            <img src={result.preview} alt={t('settings_form.imageModelTestResult')} className="size-32 rounded-lg border border-zinc-200" />
           )}
         </div>
       )}

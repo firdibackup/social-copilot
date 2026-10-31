@@ -3,9 +3,6 @@ import { ConfigError } from './errors'
 
 type ServerEnvKey =
   | 'APIFY_TOKEN'
-  | 'FACEBOOK_APP_ID'
-  | 'FACEBOOK_APP_SECRET'
-  | 'FACEBOOK_REDIRECT_URI'
   | 'INSTAGRAM_APP_ID'
   | 'INSTAGRAM_APP_SECRET'
   | 'INSTAGRAM_REDIRECT_URI'

@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server'
 import { getPlan } from '@/lib/app-settings'
 import { getCurrentPeriod } from '@/lib/billing'
 import { getBillingCatalog } from '@/lib/billing-catalog'
@@ -9,11 +10,12 @@ import { isUuid } from '@/lib/params'
 
 /** A bulk card's poll. A GET route, not a server action: actions run one at a time and would queue the card's buttons. */
 export async function GET(request: Request) {
+  const t = await getTranslations('mimo.api')
   const { userId, accountId } = await requireAccount()
   const ids = [...new Set(new URL(request.url).searchParams.getAll('id'))]
   const headers = { 'cache-control': 'private, no-store' }
   if (ids.length > MAX_BULK_POLL || !ids.every(isUuid)) {
-    return Response.json({ error: 'Konten tidak valid.' }, { status: 400, headers })
+    return Response.json({ error: t('invalidContent') }, { status: 400, headers })
   }
   try {
     const [items, period, billing] = await Promise.all([getBulkStatuses(userId, accountId, ids), getCurrentPeriod(userId), getBillingCatalog()])
@@ -21,6 +23,6 @@ export async function GET(request: Request) {
     return Response.json({ items, planCredits: plan.credits, rates: billing.catalog.rates } satisfies BulkStatusResponse, { headers })
   } catch (error) {
     console.error('[mimo] status konten massal gagal dimuat:', describeError(error))
-    return Response.json({ error: 'Status belum bisa dimuat.' }, { status: 500, headers })
+    return Response.json({ error: t('statusError') }, { status: 500, headers })
   }
 }

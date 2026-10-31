@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "Calendar",
+    "loading": "Loading calendar…",
+    "loadingPeriod": "Loading calendar",
+    "target": "Target {count} posts/week · ",
+    "brand": "Manage in Brand",
+    "setTarget": "Set your posting target in Brand",
+    "view": "View",
+    "month": "Month",
+    "week": "Week",
+    "list": "List",
+    "newPost": "New post",
+    "deleted": "Post deleted from the app. Published posts are still on Instagram."
+  },
+  "monthView": { "previous": "Previous month", "next": "Next month" },
+  "weekView": { "previous": "Previous week", "next": "Next week", "label": "Week {period}", "empty": "Empty" },
+  "day": {
+    "today": "Today",
+    "weeklyPosts": "posts this week",
+    "weeklyTarget": "{count} of {target} target posts this week",
+    "newPost": "New post on {day}"
+  },
+  "weekdays": { "1": "Mon", "2": "Tue", "3": "Wed", "4": "Thu", "5": "Fri", "6": "Sat", "7": "Sun" },
+  "targetStatus": { "pending": "pending", "publishing": "publishing", "published": "published", "failed": "failed" },
+  "story": { "title": "Story: {status}", "label": "Story {status}", "badge": "+Story", "compactBadge": "+S" },
+  "list": {
+    "filter": "Filter by status",
+    "all": "All",
+    "clearDay": "Clear date filter",
+    "empty": "No posts here yet.",
+    "create": "Create post",
+    "unscheduled": "Not scheduled yet",
+    "photos": " · {count, plural, one {# photo} other {# photos}}"
+  },
+  "slots": {
+    "unreachable": "Couldn't reach the server. Try again.",
+    "emptyLabel": "Empty slot {day} {time}",
+    "time": "Slot {time}",
+    "create": "Create",
+    "choose": "Choose",
+    "description": "Choose a finished post for the {time} WIB slot.",
+    "close": "Close",
+    "empty": "No finished, unscheduled posts yet.",
+    "createForSlot": "Create a post for this slot",
+    "scheduling": "Scheduling…",
+    "slides": "{count, plural, one {# slide} other {# slides}} · {time}",
+    "title": "Posting slots"
+  },
+  "errors": {
+    "invalidSlot": "Invalid slot.",
+    "pastSlot": "This slot has passed. Choose another slot.",
+    "missingPost": "Post not found. It may have been deleted.",
+    "takenSlot": "This slot is already filled. Choose another slot.",
+    "slidesPending": "Wait for all slides in this post to finish generating.",
+    "fixCaption": "{errors} Fix this in Create first.",
+    "scheduleFailed": "Couldn't schedule the post. Try again.",
+    "maxTimes": "A maximum of {count} times per day.",
+    "duplicateTime": "Time {time} appears twice.",
+    "configuration": "Configuration is incomplete: {message}.",
+    "database": "Couldn't access the database. Check your Supabase configuration in .env.local."
+  }
+}

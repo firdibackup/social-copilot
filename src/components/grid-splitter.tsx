@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { Check, Grid2x2, Minus, Plus, RotateCcw, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { cellsOf, cropTile, loadGrid, type GridSource } from '@/lib/grid-crop'
@@ -76,6 +77,7 @@ async function previewOf(source: GridSource): Promise<string> {
  * the file: a new picture starts fresh.
  */
 export function GridSplitter({ file, maxSelectable, limitHint, busy = false, onCancel, renderTile, children }: GridSplitterProps) {
+  const t = useTranslations('common')
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [failed, setFailed] = useState(false)
   const [chosenGrid, setChosenGrid] = useState<GridSize | null>(null)
@@ -108,7 +110,7 @@ export function GridSplitter({ file, maxSelectable, limitHint, busy = false, onC
   const source = loaded?.source ?? null
   const crop = useCallback(
     (tile: GridTile) => {
-      if (!source) return Promise.reject(new Error('Gambar belum siap'))
+      if (!source) return Promise.reject(new Error(t('grid.notReady')))
       let promise = crops.get(tile.key)
       if (!promise) {
         promise = cropTile(source, tile.rect)
@@ -118,7 +120,7 @@ export function GridSplitter({ file, maxSelectable, limitHint, busy = false, onC
       }
       return promise
     },
-    [source, crops],
+    [source, crops, t],
   )
 
   const grid = chosenGrid ?? source?.detected ?? { cols: 1, rows: 1 }
@@ -159,9 +161,9 @@ export function GridSplitter({ file, maxSelectable, limitHint, busy = false, onC
   if (failed) {
     return (
       <div className="space-y-3">
-        <Notice tone="error">Gambar tidak bisa dibaca browser. Ubah ke JPG atau PNG dulu.</Notice>
+        <Notice tone="error">{t('grid.imageError')}</Notice>
         <button type="button" onClick={onCancel} className={SMALL_BUTTON}>
-          Tutup
+          {t('grid.close')}
         </button>
       </div>
     )
@@ -170,7 +172,7 @@ export function GridSplitter({ file, maxSelectable, limitHint, busy = false, onC
   if (!loaded || !source) {
     return (
       <div role="status" className="space-y-3">
-        <p className="text-sm text-zinc-500">Membaca gambar dan mencari potongan…</p>
+        <p className="text-sm text-zinc-500">{t('grid.reading')}</p>
         <Skeleton className="mx-auto aspect-[4/5] w-full max-w-sm rounded-lg" />
       </div>
     )
@@ -187,7 +189,7 @@ export function GridSplitter({ file, maxSelectable, limitHint, busy = false, onC
         <div className="min-w-0 space-y-0.5">
           <p className="flex items-center gap-1.5 text-sm font-semibold text-zinc-900">
             <Grid2x2 size={16} aria-hidden="true" className="text-primary" />
-            Potong gambar grid
+            {t('grid.title')}
           </p>
           <p className="truncate text-xs text-zinc-500">{file.name}</p>
         </div>
@@ -195,7 +197,7 @@ export function GridSplitter({ file, maxSelectable, limitHint, busy = false, onC
           type="button"
           onClick={onCancel}
           disabled={busy}
-          aria-label="Tutup potong grid"
+          aria-label={t('grid.closeGrid')}
           className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-50"
         >
           <X size={16} aria-hidden="true" />
@@ -203,37 +205,36 @@ export function GridSplitter({ file, maxSelectable, limitHint, busy = false, onC
       </div>
 
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-lg bg-zinc-50 px-3 py-2.5">
-        <Stepper label="Kolom" value={grid.cols} max={MAX_GRID_COLS} disabled={busy} onChange={(cols) => changeGrid({ ...grid, cols })} />
-        <Stepper label="Baris" value={grid.rows} max={MAX_GRID_ROWS} disabled={busy} onChange={(rows) => changeGrid({ ...grid, rows })} />
+        <Stepper label={t('grid.columns')} value={grid.cols} max={MAX_GRID_COLS} disabled={busy} onChange={(cols) => changeGrid({ ...grid, cols })} />
+        <Stepper label={t('grid.rows')} value={grid.rows} max={MAX_GRID_ROWS} disabled={busy} onChange={(rows) => changeGrid({ ...grid, rows })} />
         {edited && !undetected && (
           <button type="button" onClick={() => changeGrid(detected)} disabled={busy} className={SMALL_BUTTON}>
             <RotateCcw size={12} aria-hidden="true" />
-            Kembali ke {detected.cols}×{detected.rows}
+            {t('grid.reset', { cols: detected.cols, rows: detected.rows })}
           </button>
         )}
         <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
           <span className="text-xs text-zinc-500 tabular-nums" aria-live="polite">
-            {chosen.length} dari {open.length} dipilih
+            {t('grid.selected', { count: chosen.length, total: open.length })}
           </span>
           <button type="button" onClick={() => choose(open.slice(0, limit))} disabled={busy || full} className={SMALL_BUTTON}>
-            Pilih semua
+            {t('grid.selectAll')}
           </button>
           <button type="button" onClick={() => choose([])} disabled={busy || chosen.length === 0} className={SMALL_BUTTON}>
-            Kosongkan
+            {t('grid.clear')}
           </button>
         </div>
       </div>
 
       {undetected && !edited ? (
-        <Notice tone="warning">Grid tidak terdeteksi, atur kolom dan baris.</Notice>
+        <Notice tone="warning">{t('grid.undetected')}</Notice>
       ) : (
         <p className="text-xs text-zinc-500">
-          {edited ? `Grid diatur manual: ${grid.cols}×${grid.rows}.` : `Terdeteksi grid ${grid.cols}×${grid.rows}.`} Klik potongan
-          untuk memilih atau melewatinya.
+          {t(edited ? 'grid.manual' : 'grid.detected', { cols: grid.cols, rows: grid.rows })}{' '}{t('grid.pickHint')}
         </p>
       )}
       {limit < open.length && (
-        <Notice tone="warning">{limitHint ?? `Maksimal ${limit} potongan sekali tambah.`}</Notice>
+        <Notice tone="warning">{limitHint ?? t('grid.limit', { count: limit })}</Notice>
       )}
 
       <div
@@ -241,7 +242,7 @@ export function GridSplitter({ file, maxSelectable, limitHint, busy = false, onC
         style={{ aspectRatio: `${source.width} / ${source.height}`, width: `min(100%, calc(65vh * ${ratio}))` }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={loaded.preview} alt={`Gambar grid ${file.name}`} draggable={false} className="absolute inset-0 size-full" />
+        <img src={loaded.preview} alt={t('grid.alt', { name: file.name })} draggable={false} className="absolute inset-0 size-full" />
         {cellRects.map((rect, index) => {
           const done = added.has(keyOf(index))
           const on = chosen.includes(index)
@@ -253,8 +254,8 @@ export function GridSplitter({ file, maxSelectable, limitHint, busy = false, onC
               onClick={() => toggle(index)}
               disabled={busy || done || blocked}
               aria-pressed={on}
-              aria-label={`Potongan ${index + 1}${done ? ', sudah ditambahkan' : ''}`}
-              title={blocked ? 'Batas potongan tercapai' : undefined}
+              aria-label={t('grid.tileLabel', { count: index + 1, suffix: done ? t('grid.addedSuffix') : '' })}
+              title={blocked ? t('grid.limitReached') : undefined}
               className={`group absolute transition-[background-color,box-shadow] duration-150 focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white disabled:cursor-not-allowed ${
                 done
                   ? 'bg-zinc-950/65'
@@ -287,7 +288,7 @@ export function GridSplitter({ file, maxSelectable, limitHint, busy = false, onC
                   aria-hidden="true"
                   className="absolute inset-x-1.5 bottom-1.5 truncate rounded bg-white/90 px-1 py-0.5 text-center text-[11px] font-medium text-zinc-700"
                 >
-                  Sudah ditambahkan
+                  {t('grid.added')}
                 </span>
               )}
             </button>
@@ -306,7 +307,7 @@ export function GridSplitter({ file, maxSelectable, limitHint, busy = false, onC
                 >
                   <TilePicture preview={loaded.preview} source={source} rect={tile.rect} />
                 </div>
-                <p className="text-center text-[11px] font-medium text-zinc-500">Potongan {tile.index + 1}</p>
+                <p className="text-center text-[11px] font-medium text-zinc-500">{t('grid.tile', { count: tile.index + 1 })}</p>
               </div>
               <div className="min-w-0 flex-1">{renderTile(tile)}</div>
             </li>
@@ -317,7 +318,7 @@ export function GridSplitter({ file, maxSelectable, limitHint, busy = false, onC
       <div className="flex flex-wrap items-center gap-2">
         {children({ tiles, remaining: open.length, crop, markAdded })}
         <button type="button" onClick={onCancel} disabled={busy} className={CANCEL_BUTTON}>
-          Batal
+          {t('cancel')}
         </button>
       </div>
     </div>
@@ -352,6 +353,7 @@ interface StepperProps {
 }
 
 function Stepper({ label, value, max, disabled, onChange }: StepperProps) {
+  const t = useTranslations('common')
   const name = label.toLowerCase()
   return (
     <div role="group" aria-label={label} className="flex items-center gap-2">
@@ -361,19 +363,19 @@ function Stepper({ label, value, max, disabled, onChange }: StepperProps) {
           type="button"
           onClick={() => onChange(value - 1)}
           disabled={disabled || value <= 1}
-          aria-label={`Kurangi ${name}`}
+          aria-label={t('grid.decrease', { name })}
           className="rounded-l-lg p-1.5 text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
         >
           <Minus size={14} aria-hidden="true" />
         </button>
-        <output aria-live="polite" aria-label={`Jumlah ${name}`} className="w-7 text-center text-sm font-semibold tabular-nums text-zinc-900">
+        <output aria-live="polite" aria-label={t('grid.count', { name })} className="w-7 text-center text-sm font-semibold tabular-nums text-zinc-900">
           {value}
         </output>
         <button
           type="button"
           onClick={() => onChange(value + 1)}
           disabled={disabled || value >= max}
-          aria-label={`Tambah ${name}`}
+          aria-label={t('grid.increase', { name })}
           className="rounded-r-lg p-1.5 text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
         >
           <Plus size={14} aria-hidden="true" />

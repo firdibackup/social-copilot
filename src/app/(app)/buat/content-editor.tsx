@@ -1,5 +1,9 @@
 'use client'
 
+import { intlLocale } from '@/i18n/locale-config'
+
+import { useLocale, useTranslations } from 'next-intl'
+
 import { ArrowLeft, LoaderCircle, RefreshCw, SlidersHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -10,6 +14,7 @@ import { CancelGenerationButton } from '@/components/cancel-generation-button'
 import { GenerationProgress } from './generation-progress'
 import { Notice, type NoticeTone } from '@/components/notice'
 import { PostStatusBadge } from '@/components/post-status-badge'
+import { isStorageFull, STORAGE_CLEANUP_HREF, useStorageFull } from '@/components/storage-full'
 import { ThreadsIcon } from '@/components/threads-icon'
 import type { Asset } from '@/lib/assets'
 import { formatCreditShare } from '@/lib/billing-options'
@@ -23,7 +28,7 @@ import {
   type ProductOption,
   type ReferenceOption,
 } from '@/lib/content-options'
-import { DENSITY_ORDER, isTextDensity, TEXT_DENSITIES, type TextDensity } from '@/lib/density-options'
+import { DENSITY_ORDER, isTextDensity, type TextDensity } from '@/lib/density-options'
 import type { Slot } from '@/lib/format'
 import type { Idea } from '@/lib/ideas'
 import type { ContentJob } from '@/lib/content-jobs'
@@ -59,10 +64,10 @@ import { createSaveQueue } from './save-queue'
 const MAX_MEDIA = 10
 const AUTOSAVE_MS = 1000
 const EDITABLE_STATUSES = new Set(['draft', 'scheduled', 'failed', 'cancelled'])
-const FAILED = 'Gagal menghubungi server. Coba lagi.'
-const LOCKED = 'Post ini tidak bisa diubah lagi.'
-const WAIT = 'Tunggu semua slide selesai dibuat.'
-const SHORT = 'Kuota AI tidak cukup. Perpanjang di halaman Langganan.'
+
+
+
+
 const CHIP = 'inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-zinc-50 px-2 py-1 text-xs text-ink-muted'
 const CHIP_SELECT = 'bg-transparent font-medium text-ink focus:outline-none'
 const TOOL_SHADOW = 'shadow-[0_1px_3px_-1px_rgba(0,0,0,0.12)]'
@@ -147,6 +152,18 @@ export function ContentEditor({
   threadItems,
   threadsEditable,
 }: ContentEditorProps) {
+  const t = useTranslations('editor.contentEditor')
+  const densityText = useTranslations('editor.density')
+  const locale = useLocale()
+
+  const SHORT = t('message1')
+
+  const WAIT = t('message2')
+
+  const LOCKED = t('message3')
+
+  const FAILED = t('message4')
+
   const contentCost = (slides: number) => TASK_CREDITS.content + slides * TASK_CREDITS.image
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -183,6 +200,7 @@ export function ContentEditor({
   const [active, setActive] = useState(0)
   const [target, setTarget] = useState<'slide' | 'caption'>('slide')
   const [notice, setNotice] = useState<{ tone: NoticeTone; text: string } | null>(null)
+  const storageFull = useStorageFull()
   const [busy, setBusy] = useState<string | null>(null)
   const [remaking, setRemaking] = useState(false)
   const [cancelling, setCancelling] = useState(false)
@@ -206,7 +224,7 @@ export function ContentEditor({
   const pickerRef = useRef<HTMLDialogElement>(null)
   const short = (cost: number) => credits !== null && cost > credits
   const draft = useScriptText(post ? null : idea, !short(TASK_CREDITS.content_script), density, (text) =>
-    setNotice({ tone: 'error', text: `Skrip gagal disusun: ${text} Anda tetap bisa kirim idenya sebagai topik.` }),
+    setNotice({ tone: 'error', text: t('message5', { v0: text }) }),
     job,
   )
   const read = post ? null : draft.read
@@ -254,7 +272,7 @@ export function ContentEditor({
         setLibrary((current) => [...new Map([...current, ...assets].map((asset) => [asset.id, asset])).values()])
         libraryLoadedAt.current = Date.now()
       } catch {
-        setLibraryError('Foto belum bisa dimuat. Coba lagi.')
+        setLibraryError(t('message6'))
       } finally {
         setLibraryLoading(false)
         libraryRequest.current = null
@@ -272,14 +290,14 @@ export function ContentEditor({
     const postId = job?.post_id ?? post?.id
     if (!postId || cancelling) return
     setCancelling(true)
-    const result = await cancelGeneration(postId, target, id)
+    const result = await cancelGeneration(postId, target, id, locale)
     setCancelling(false)
     if (result.error) setNotice({ tone: 'error', text: result.error })
     else {
       if (target === 'edit' && result.cancelled) cancelledEdit.current = id ?? null
       setNotice({ tone: 'success', text: result.cancelled
-        ? 'Pembuatan dibatalkan. Hasil yang sudah selesai tetap tersimpan.'
-        : 'Proses sudah selesai. Hasil terbaru ditampilkan.' })
+        ? t('message7')
+        : t('message8') })
       router.refresh()
     }
   }
@@ -296,7 +314,7 @@ export function ContentEditor({
     setRetrying(slideId)
     const error = await retrySlideAction(slideId).catch(() => FAILED)
     setRetrying(null)
-    if (error) setNotice({ tone: 'error', text: error })
+    if (error && !storageFull(error)) setNotice({ tone: 'error', text: error })
   }
 
   const [enqueueSave] = useState(createSaveQueue)
@@ -379,7 +397,7 @@ export function ContentEditor({
   /** Photos picked without a post yet become a new draft. */
   async function pickerDone() {
     if (post || media.length === 0) return
-    setBusy('Menyimpan draft…')
+    setBusy(t('message9'))
     const result = await saveContentAction({ postId: null, caption: '', assetIds: media.map((item) => item.assetId) }).catch(
       () => ({ error: FAILED }),
     )
@@ -406,9 +424,9 @@ export function ContentEditor({
   if (!post) {
     const cost = contentCost(newSlides)
     composer = {
-      placeholder: 'Tulis topik atau ide konten…',
+      placeholder: t('message10'),
       cost,
-      blocked: job?.status === 'failed' || job?.status === 'cancelled' ? 'Klik Susun skrip untuk melanjutkan.' : scriptError ?? (short(cost) ? SHORT : null),
+      blocked: job?.status === 'failed' || job?.status === 'cancelled' ? t('message11') : scriptError ?? (short(cost) ? SHORT : null),
       send: async (text, attachment) => {
         if (jobPending) return false
         const submissionKey = requestKey || crypto.randomUUID()
@@ -416,7 +434,7 @@ export function ContentEditor({
         setNotice(null)
         cancelSubmission.current = false
         setSubmitting(true)
-        setBusy(script ? 'Menyusun caption dan visual dari skrip…' : 'Menyusun caption dan rencana slide…')
+        setBusy(script ? t('message12') : t('message13'))
         // The slides follow the account's references, or the design style's examples when it has none; a specific
         // design or footage comes as an attached image. A script keeps each slide's text as written.
         const topic = script
@@ -441,11 +459,11 @@ export function ContentEditor({
         if ('error' in result) {
           setCancelling(false)
           setBusy(null)
-          setNotice({ tone: 'error', text: result.error })
+          if (!storageFull(result.error)) setNotice({ tone: 'error', text: result.error })
           return false
         }
         if (cancelSubmission.current) {
-          const cancelled = await cancelGeneration(result.postId, 'content')
+          const cancelled = await cancelGeneration(result.postId, 'content', undefined, locale)
           setCancelling(false)
           setBusy(null)
           if (cancelled.error) {
@@ -461,12 +479,12 @@ export function ContentEditor({
   } else if (target === 'caption') {
     const cost = TASK_CREDITS.caption_edit
     composer = {
-      placeholder: 'Tulis perubahan untuk caption…',
+      placeholder: t('message14'),
       cost,
       blocked: !editable ? LOCKED : inProgress ? WAIT : short(cost) ? SHORT : null,
       send: async (instruction) => {
         setNotice(null)
-        setBusy('Mengubah caption…')
+        setBusy(t('message15'))
         const result = await editCaptionAction({ caption, instruction }).catch(() => ({ error: FAILED }))
         setBusy(null)
         if ('error' in result) {
@@ -483,7 +501,7 @@ export function ContentEditor({
     const image = current?.kind === 'image' ? current.media : null
     const number = activeIndex + 1
     composer = {
-      placeholder: image ? `Tulis perubahan untuk slide ${number}…` : 'Tulis perubahan untuk slide…',
+      placeholder: image ? t('message16', { v0: number }) : t('message17'),
       cost,
       blocked: !editable
         ? LOCKED
@@ -491,10 +509,10 @@ export function ContentEditor({
           ? WAIT
           : !image
             ? items.length === 0
-              ? 'Tambahkan foto lewat kartu Tambah foto.'
+              ? t('message18')
               : current
-                ? 'Slide ini belum jadi.'
-                : 'Pilih slide yang mau diubah.'
+                ? t('message19')
+                : t('message20')
             : short(cost)
               ? SHORT
               : null,
@@ -502,7 +520,7 @@ export function ContentEditor({
         if (!image) return false
         setNotice(null)
         if (!(await flush())) return false
-        setBusy(`Membuat ulang slide ${number}…`)
+        setBusy(t('message21', { v0: number }))
         setRemaking(true)
         const operationId = crypto.randomUUID()
         setEditOperation(operationId)
@@ -514,7 +532,7 @@ export function ContentEditor({
         setEditOperation(null)
         if (cancelledEdit.current === operationId) { router.refresh(); return false }
         if (error) {
-          setNotice({ tone: 'error', text: error })
+          if (!storageFull(error)) setNotice({ tone: 'error', text: error })
           return false
         }
         router.refresh()
@@ -526,8 +544,8 @@ export function ContentEditor({
   const options = !post ? (
     <>
       {read ? (
-        <span className={CHIP} title="Jumlah slide mengikuti baris Slide di skrip">
-          Skrip <span className="font-medium text-ink">{script ? (script.script.length === 1 ? 'Single post' : `Carousel ${script.script.length} slide`) : 'belum valid'}</span>
+        <span className={CHIP} title={t('message22')}>
+           {t('message23')} <span className="font-medium text-ink">{script ? (script.script.length === 1 ? 'Single post' : t('message24', { v0: script.script.length })) : t('message25')}</span>
         </span>
       ) : (
         <label className={CHIP}>
@@ -548,9 +566,9 @@ export function ContentEditor({
           onChange={(event) => isImageFormat(event.target.value) && setFormat(event.target.value)}
           className={CHIP_SELECT}
         >
-          {Object.entries(IMAGE_FORMATS).map(([key, value]) => (
+          {Object.keys(IMAGE_FORMATS).map((key) => (
             <option key={key} value={key}>
-              {value.label}
+              {key === '1:1' ? t('square') : t('portrait')}
             </option>
           ))}
         </select>
@@ -558,10 +576,9 @@ export function ContentEditor({
       {references.length > 0 && <ReferencePicker references={references} value={referenceId} onChange={setReferenceId} />}
       {products.length > 0 && (
         <label className={CHIP}>
-          Produk
-          <select value={productGroupId} onChange={(event) => setProductGroupId(event.target.value)} className={`${CHIP_SELECT} max-w-40`}>
-            <option value={AUTO_PRODUCT}>Otomatis</option>
-            <option value="">Tanpa</option>
+           {t('message26')} <select value={productGroupId} onChange={(event) => setProductGroupId(event.target.value)} className={`${CHIP_SELECT} max-w-40`}>
+            <option value={AUTO_PRODUCT}>{t('message27')}</option>
+            <option value="">{t('message28')}</option>
             {products.map((product) => (
               <option key={product.id} value={product.id}>
                 {product.label} ({product.imageCount})
@@ -574,19 +591,18 @@ export function ContentEditor({
         className={CHIP}
         title={
           script
-            ? 'Teks mengikuti skrip. Pilihan ini mengatur slide isi saat Susun ulang skrip; hook dan CTA tetap singkat.'
-            : 'Seberapa banyak penjelasan di slide isi atau post satu gambar. Hook dan CTA carousel tetap singkat. Default-nya diatur di Pengaturan.'
+            ? t('message29')
+            : t('message30')
         }
       >
-        Teks
-        <select
+         {t('message31')} <select
           value={density}
           onChange={(event) => isTextDensity(event.target.value) && setDensity(event.target.value)}
           className={CHIP_SELECT}
         >
           {DENSITY_ORDER.map((key) => (
             <option key={key} value={key}>
-              {TEXT_DENSITIES[key].label}
+              {densityText(`${key}.label`)}
             </option>
           ))}
         </select>
@@ -608,9 +624,9 @@ export function ContentEditor({
             type="button"
             onClick={async () => {
               if (!read || await confirmDialog({
-                title: 'Susun ulang skrip?',
-                description: 'Teks di kotak, termasuk perubahan Anda, akan diganti.',
-                confirmLabel: 'Susun ulang',
+                title: t('message32'),
+                description: t('message33'),
+                confirmLabel: t('message34'),
                 tone: 'danger',
               })) void draft.write()
             }}
@@ -618,12 +634,12 @@ export function ContentEditor({
             title={
               short(TASK_CREDITS.content_script)
                 ? SHORT
-                : `AI menulis skrip slide demi slide dari ide ini (≈ ${formatCreditShare(TASK_CREDITS.content_script, planCredits)} kuota)`
+                : t('message35', { v0: formatCreditShare(TASK_CREDITS.content_script, planCredits, locale) })
             }
             className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent-soft disabled:text-ink-soft disabled:hover:bg-transparent"
           >
             {draft.writing ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> : <RefreshCw size={14} aria-hidden="true" />}
-              {job?.status === 'failed' || job?.status === 'cancelled' ? 'Susun skrip' : read ? 'Susun ulang' : 'Susun skrip'}
+              {job?.status === 'failed' || job?.status === 'cancelled' ? t('message36') : read ? t('message34') : t('message36')}
           </button>
         </span>
       )}
@@ -631,8 +647,7 @@ export function ContentEditor({
   ) : editable ? (
     <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
       <span className="flex items-center gap-1">
-        Ubah:
-        <TargetButton active={target === 'slide'} onClick={() => setTarget('slide')}>
+         {t('message37')} <TargetButton active={target === 'slide'} onClick={() => setTarget('slide')}>
           {current ? `Slide ${activeIndex + 1}` : 'Slide'}
         </TargetButton>
         <TargetButton active={target === 'caption'} onClick={() => setTarget('caption')}>
@@ -642,9 +657,9 @@ export function ContentEditor({
     </div>
   ) : null
 
-  const counts = inspectCaption(caption)
+  const counts = inspectCaption(caption, locale)
   const composerCost = post ? (target === 'caption' ? TASK_CREDITS.caption_edit : TASK_CREDITS.slide_edit) : contentCost(newSlides)
-  const username = account.username ?? 'akun_anda'
+  const username = account.username ?? t('message38')
   // Not while an AI request runs: actions run one at a time, so an autosave typed during a slide edit would run
   // after it with the old photo list and drop the new image.
   const captionLocked = locked || busy !== null
@@ -657,17 +672,17 @@ export function ContentEditor({
         onFocus={() => setTarget('caption')}
         readOnly={captionLocked}
         aria-label="Caption"
-        placeholder={captionLocked ? '' : 'Tulis caption, atau minta AI lewat kotak di bawah…'}
+        placeholder={captionLocked ? '' : t('message39')}
         className="block w-full resize-none border-0 bg-transparent p-0 text-[13px] leading-relaxed text-ink [field-sizing:content] placeholder:text-ink-soft read-only:text-ink-muted focus:outline-none"
       />
       <p className="flex flex-wrap gap-x-3 text-[11px] text-ink-muted">
-        <Count value={counts.length} max={CAPTION_MAX_LENGTH} label="karakter" />
+        <Count value={counts.length} max={CAPTION_MAX_LENGTH} label={t('message40')} />
         <Count value={counts.hashtags} max={CAPTION_MAX_HASHTAGS} label="hashtag" />
         <Count value={counts.mentions} max={CAPTION_MAX_MENTIONS} label="mention" />
       </p>
       {undo && caption === undo.after && !captionLocked && (
         <p className="text-xs text-ink-muted">
-          Caption diganti AI.{' '}
+           {t('message41')}{' '}
           <button
             type="button"
             onClick={() => {
@@ -676,13 +691,12 @@ export function ContentEditor({
             }}
             className="font-medium text-ink underline"
           >
-            Urungkan
-          </button>
+             {t('message42')} </button>
         </p>
       )}
     </div>
   ) : (
-    <p className="text-[13px] text-ink-muted">Caption muncul di sini.</p>
+    <p className="text-[13px] text-ink-muted">{t('message43')}</p>
   )
 
   return (
@@ -691,8 +705,7 @@ export function ContentEditor({
         <div className="mx-auto flex max-w-[680px] flex-col gap-4 pb-6">
           <Link href="/buat" className="inline-flex items-center gap-1 text-sm text-ink-muted md:hidden">
             <ArrowLeft size={16} aria-hidden="true" />
-            Semua konten
-          </Link>
+             {t('message44')} </Link>
           {notices}
           {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
 
@@ -708,8 +721,8 @@ export function ContentEditor({
               <button
                 type="button"
                 onClick={() => platformRef.current?.showModal()}
-                aria-label="Pilih platform"
-                title="Pilih platform"
+                aria-label={t('message45')}
+                title={t('message45')}
                 className={`flex size-10 items-center justify-center rounded-xl border border-hairline bg-white text-ink transition-transform hover:scale-105 ${TOOL_SHADOW}`}
               >
                 <SlidersHorizontal size={17} aria-hidden="true" />
@@ -717,7 +730,7 @@ export function ContentEditor({
             )}
             {post && <PostStatusBadge status={post.status} />}
             {(inProgress || remaking) && (
-              <CancelGenerationButton pending={cancelling} label={remaking ? 'Batal gambar' : jobPending ? 'Batal pembuatan' : 'Batal semua gambar'}
+              <CancelGenerationButton pending={cancelling} label={remaking ? t('message46') : jobPending ? t('message47') : t('message48')}
                 onClick={() => editOperation ? void cancel('edit', editOperation) : void cancel(jobPending ? 'content' : 'images')} />
             )}
             {post && editable && <SaveStatus saving={saving} unsaved={unsaved} error={saveError} />}
@@ -737,10 +750,9 @@ export function ContentEditor({
             <>
               {post && !post.threads?.enabled && (
                 <Notice tone="warning">
-                  Threads belum aktif untuk post ini, jadi versi ini belum ikut terbit.{' '}
+                   {t('message49')}{' '}
                   <button type="button" onClick={() => platformRef.current?.showModal()} className="font-medium underline">
-                    Pilih platform
-                  </button>
+                     {t('message45')} </button>
                 </Notice>
               )}
               <ThreadsEditor
@@ -792,47 +804,49 @@ export function ContentEditor({
             maxSlides={MAX_MEDIA}
             empty={
               job?.kind === 'content' && jobPending ? (
-                <GenerationProgress phase="writing" footer="Boleh tutup halaman atau buat konten lain. Proses tetap berjalan." />
+                <GenerationProgress phase="writing" footer={t('message50')} />
               ) : !post && draft.writing ? (
                 <GenerationProgress
                   phase="writing"
                   footer={
                     <span className="flex flex-col items-center gap-2">
-                      Boleh pindah halaman atau buat konten lain. Proses tetap berjalan.
-                      {busy === null && (
+                       {t('message51')} {busy === null && (
                         <button type="button" onClick={openPicker} className="font-medium text-ink underline underline-offset-2 hover:text-accent">
-                          Pakai foto sendiri
-                        </button>
+                           {t('message52')} </button>
                       )}
                     </span>
                   }
                 />
               ) : job?.kind === 'content' && job.status !== 'ready' ? (
                 <span role="status" className="flex flex-col items-center gap-3">
-                  {job.status === 'cancelled' ? 'Pembuatan konten dibatalkan. Draft tetap tersimpan.' : job.error}
+                  {job.status === 'cancelled' ? t('message53') : job.error}
                   {(job.status === 'failed' || job.status === 'cancelled') && (
                     <span className="flex flex-wrap items-center justify-center gap-3">
+                    {isStorageFull(job.error) && (
+                      <Link href={STORAGE_CLEANUP_HREF} className="font-medium text-accent underline underline-offset-2 hover:text-accent-deep">
+                         {t('message54')} </Link>
+                    )}
                     <button type="button" className="underline" onClick={async () => {
                       const error = await retryContentJobAction(job.post_id)
-                      if (error) setNotice({ tone: 'error', text: error })
-                    }}>{job.status === 'cancelled' ? 'Buat lagi' : 'Coba lagi'}</button>
+                      if (error && !storageFull(error)) setNotice({ tone: 'error', text: error })
+                    }}>{job.status === 'cancelled' ? t('message55') : t('message56')}</button>
                     {job.status === 'cancelled' && <DeleteDraftButton id={job.post_id} onError={(text) => setNotice({ tone: 'error', text })} />}
                     </span>
                   )}
                 </span>
               ) : post ? (
-                'Post ini belum punya foto.'
+                t('message57')
               ) : (
                 <span className="flex flex-col items-center gap-3">
                   {draft.writing
-                    ? 'Draft tersimpan. Worker sedang menyusun skrip. Boleh pindah halaman atau buat konten lain.'
+                    ? t('message58')
                     : job?.status === 'cancelled'
-                      ? 'Penyusunan skrip dibatalkan. Klik Susun skrip untuk melanjutkan.'
+                      ? t('message59')
                     : job?.status === 'failed'
                       ? job.error
                     : script
-                      ? `Ubah skrip di kotak bawah bila perlu, lalu kirim: AI membuat caption dan ${script.script.length} slide persis dari teksnya.`
-                      : `Tulis topik di bawah: AI menyusun caption dan ${slideCount} slide sekaligus.`}
+                      ? t('message60', { v0: script.script.length })
+                      : t('message61', { v0: slideCount })}
                   {(job?.status === 'cancelled' || (job?.kind === 'script' && job.status === 'ready' && busy === null)) && (
                     <DeleteDraftButton id={job.post_id} onError={(text) => setNotice({ tone: 'error', text })} />
                   )}
@@ -842,8 +856,7 @@ export function ContentEditor({
                       onClick={openPicker}
                       className="rounded-lg border border-hairline bg-white px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-zinc-50"
                     >
-                      Pakai foto sendiri
-                    </button>
+                       {t('message52')} </button>
                   )}
                 </span>
               )
@@ -863,9 +876,9 @@ export function ContentEditor({
           <div className="mx-auto max-w-[680px]">
             <Composer
               placeholder={composer.placeholder}
-              cost={`${post ? '' : '≈ '}${formatCreditShare(composerCost, planCredits)} kuota`}
+              cost={t('message62', { v0: post ? '' : '≈ ', v1: formatCreditShare(composerCost, planCredits, locale) })}
               blocked={composer.blocked}
-              busyLabel={busy ?? (draft.writing ? 'Menyusun skrip dari ide…' : null)}
+              busyLabel={busy ?? (draft.writing ? t('message63') : null)}
               onCancel={submitting || editOperation || jobPending ? cancelCurrent : undefined}
               cancelling={cancelling}
               text={post ? undefined : draft.text}
@@ -935,6 +948,8 @@ interface PlatformTabsProps {
 
 /** Which version the editor shows. A dot marks the platforms the post goes to. */
 function PlatformTabs({ platform, onSelect, instagramOn, threadsOn }: PlatformTabsProps) {
+  const t = useTranslations('editor.contentEditor')
+
   const tabs = [
     { key: 'instagram' as const, label: 'Instagram', icon: <InstagramIcon width={18} height={18} />, on: instagramOn },
     { key: 'threads' as const, label: 'Threads', icon: <ThreadsIcon size={18} />, on: threadsOn },
@@ -948,7 +963,7 @@ function PlatformTabs({ platform, onSelect, instagramOn, threadsOn }: PlatformTa
           role="tab"
           aria-selected={platform === tab.key}
           onClick={() => onSelect(tab.key)}
-          title={tab.on === false ? `${tab.label}: belum ikut diposting` : tab.label}
+          title={tab.on === false ? t('message64', { v0: tab.label }) : tab.label}
           className={`relative inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium transition-colors ${platform === tab.key ? 'bg-zinc-100 text-ink' : 'text-ink-muted hover:text-ink'}`}
         >
           {tab.icon}
@@ -974,6 +989,8 @@ function TargetButton({ active, onClick, children }: { active: boolean; onClick:
 }
 
 function SaveStatus({ saving, unsaved, error }: { saving: boolean; unsaved: boolean; error: string | null }) {
+  const t = useTranslations('editor.contentEditor')
+
   if (error) {
     return (
       <span role="alert" className="text-xs text-red-700">
@@ -983,15 +1000,16 @@ function SaveStatus({ saving, unsaved, error }: { saving: boolean; unsaved: bool
   }
   return (
     <span role="status" className="text-xs text-ink-muted">
-      {saving ? 'Menyimpan…' : unsaved ? 'Belum tersimpan' : 'Tersimpan'}
+      {saving ? t('message65') : unsaved ? t('message66') : t('message67')}
     </span>
   )
 }
 
 function Count({ value, max, label }: { value: number; max: number; label: string }) {
+  const locale = useLocale()
   return (
     <span className={value > max ? 'font-medium text-red-600' : undefined}>
-      {value.toLocaleString('id-ID')}/{max.toLocaleString('id-ID')} {label}
+      {value.toLocaleString(intlLocale(locale))}/{max.toLocaleString(intlLocale(locale))} {label}
     </span>
   )
 }

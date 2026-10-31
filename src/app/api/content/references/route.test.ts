@@ -3,6 +3,13 @@ import { GET } from './route'
 import { requireAccount } from '@/lib/auth'
 import { listReferences } from '@/lib/brand'
 
+vi.mock('next-intl/server', () => ({
+  getTranslations: async (namespace: string) => {
+    const { createTranslator } = await import('next-intl')
+    const { default: editor } = await import('../../../../../messages/id/editor.json')
+    return createTranslator({ locale: 'id', messages: { editor }, namespace: namespace as 'editor.routereferences' })
+  },
+}))
 vi.mock('@/lib/auth', () => ({ requireAccount: vi.fn() }))
 vi.mock('@/lib/brand', () => ({ listReferences: vi.fn() }))
 

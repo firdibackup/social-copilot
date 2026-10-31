@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { LoaderCircle } from 'lucide-react'
 import Link, { useLinkStatus } from 'next/link'
 import type { ComponentProps, ReactNode } from 'react'
@@ -15,11 +17,12 @@ export function PendingLink({ children, className = '', ...props }: Props) {
 }
 
 function Pending({ children }: { children: ReactNode }) {
+  const t = useTranslations('inbox.pendingLink')
   const { pending } = useLinkStatus()
   return (
     <span aria-busy={pending} className="contents">
       {children}
-      {pending && <><LoaderCircle size={14} className="ml-1 inline animate-spin motion-reduce:animate-none" aria-hidden="true" /><span className="sr-only">Memuat balasan</span></>}
+      {pending && <><LoaderCircle size={14} className="ml-1 inline animate-spin motion-reduce:animate-none" aria-hidden="true" /><span className="sr-only">{t('loadingReplies')}</span></>}
     </span>
   )
 }

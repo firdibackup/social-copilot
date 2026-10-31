@@ -14,7 +14,13 @@ import {
   setAssetTags,
   updateAssetGroup,
 } from './assets'
+import { assertStorageAvailable, FileTooLargeError, StorageFullError } from './storage-quota'
 import { db } from './supabase'
+
+vi.mock('./storage-quota', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./storage-quota')>()),
+  assertStorageAvailable: vi.fn(),
+}))
 
 vi.mock('./supabase', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./supabase')>()),
@@ -70,6 +76,7 @@ const blob = (bytes: number[], size = bytes.length) => {
 describe('createAsset', () => {
   beforeEach(() => {
     vi.mocked(db).mockReset()
+    vi.mocked(assertStorageAvailable).mockReset()
   })
 
   it('rejects a PNG before touching storage', async () => {
@@ -77,9 +84,28 @@ describe('createAsset', () => {
     expect(db).not.toHaveBeenCalled()
   })
 
-  it('rejects a file over 8 MB', async () => {
-    await expect(createAsset('user-1', blob(JPEG_HEADER, 8 * 1024 * 1024 + 1), 1080, 1080)).rejects.toThrow('8 MB')
+  it('rejects a file above the stored-file limit', async () => {
+    await expect(createAsset('user-1', blob(JPEG_HEADER, 2 * 1024 * 1024 + 1), 1080, 1080)).rejects.toBeInstanceOf(FileTooLargeError)
     expect(db).not.toHaveBeenCalled()
+  })
+
+  it('refuses to store when the quota is full', async () => {
+    vi.mocked(assertStorageAvailable).mockRejectedValueOnce(new StorageFullError())
+    const mock = dbMock([{ data: { id: 'asset-1' }, error: null }])
+    vi.mocked(db).mockReturnValue(mock.client as never)
+
+    await expect(createAsset('user-1', blob(JPEG_HEADER), 1080, 1080)).rejects.toBeInstanceOf(StorageFullError)
+    expect(mock.storage.upload).not.toHaveBeenCalled()
+  })
+
+  it('lets a paid slide job store past the quota', async () => {
+    vi.mocked(assertStorageAvailable).mockRejectedValue(new StorageFullError())
+    const mock = dbMock([{ data: { id: 'asset-1' }, error: null }])
+    vi.mocked(db).mockReturnValue(mock.client as never)
+
+    await createAsset('user-1', blob(JPEG_HEADER), 1080, 1080, { origin: 'ai', enforceQuota: false })
+    expect(assertStorageAvailable).not.toHaveBeenCalled()
+    expect(mock.storage.upload).toHaveBeenCalled()
   })
 
   it('rejects impossible dimensions', async () => {

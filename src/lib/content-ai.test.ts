@@ -656,6 +656,12 @@ describe('requests', () => {
   })
 
   describe('planContent', () => {
+    it('threads English through to the planner system prompt', async () => {
+      vi.mocked(chatCompletion).mockResolvedValue(PLAN_ANSWER)
+      await planContent(USER, REQUEST, async () => 'post-1', [], null, null, undefined, undefined, 'en')
+      expect(vi.mocked(chatCompletion).mock.calls[0][0][0].content).toContain('Write all output in English.')
+    })
+
     it('shows the planner an attached image and logs only that there was one', async () => {
       vi.mocked(chatCompletion).mockResolvedValue(PLAN_ANSWER)
 

@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "Analitik",
+    "loading": "Memuat analitik…",
+    "description": "Performa post Instagram dari 90 hari terakhir. Angka dari Instagram bisa terlambat sampai 48 jam.",
+    "neverSynced": "Belum pernah disinkronkan dengan Instagram.",
+    "lastSync": "Terakhir sync {time}: {updated} post diperbarui, {failed} gagal."
+  },
+  "summary": {
+    "label": "Ringkasan",
+    "posts": "Total post",
+    "days": "{count} hari terakhir",
+    "views": "Views",
+    "withMetrics": "Semua post dengan metrik",
+    "interactions": "Interaksi",
+    "interactionNote": "Suka, komentar, share, simpan",
+    "rate": "Engagement rate",
+    "rateNote": "Interaksi / views"
+  },
+  "connection": {
+    "reconnect": "Hubungkan ulang Instagram",
+    "expired": "Token Instagram kedaluwarsa atau dicabut, jadi analitik tidak bisa diperbarui. <link>Hubungkan ulang Instagram</link> dengan @{username}.",
+    "permission": "Analitik butuh izin baru untuk membaca insights. <link>Hubungkan ulang Instagram</link> sekali dan masuk dengan @{username}."
+  },
+  "range": { "label": "Rentang waktu", "days": "{count} hari" },
+  "empty": {
+    "noPosts": "Belum ada post dalam {count} hari terakhir",
+    "noData": "Belum ada data analitik",
+    "published": "Post Instagram akun ini akan muncul di sini setelah dipublikasikan.",
+    "firstSync": "Post dan insights diambil dari Instagram saat sync pertama."
+  },
+  "table": {
+    "post": "Post",
+    "link": "Link",
+    "views": "Views",
+    "reach": "Reach",
+    "likes": "Suka",
+    "comments": "Komentar",
+    "shares": "Share",
+    "saved": "Simpan",
+    "rate": "ER",
+    "noCaption": "Tanpa caption",
+    "fromApp": "Lewat app",
+    "insightsFailed": "Insights gagal: {message}",
+    "openInstagram": "Buka di Instagram"
+  },
+  "media": { "IMAGE": "Foto", "VIDEO": "Video", "CAROUSEL_ALBUM": "Carousel", "REELS": "Reels" },
+  "sync": {
+    "refresh": "Refresh",
+    "pending": "Menyinkronkan post dan insights dari Instagram…",
+    "unreachable": "Gagal menghubungi server. Coba lagi.",
+    "reconnect": "Token Instagram kedaluwarsa atau dicabut. Hubungkan ulang Instagram.",
+    "permission": "Analitik butuh izin membaca insights. Hubungkan ulang Instagram sekali.",
+    "cooldown": "Data baru saja disinkronkan. Refresh bisa dipakai lagi 10 menit setelah sync terakhir.",
+    "rejected": "Instagram menolak: {message}",
+    "unavailable": "Instagram atau database tidak bisa dihubungi. Coba lagi.",
+    "done": "Refresh selesai: {updated} post diperbarui, {failed} gagal."
+  },
+  "errors": {
+    "configuration": "Konfigurasi belum lengkap: {message}.",
+    "database": "Database tidak bisa diakses. Periksa konfigurasi Supabase di .env.local."
+  }
+}

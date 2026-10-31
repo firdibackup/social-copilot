@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+import { LocaleToggle } from '@/components/locale-toggle'
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
@@ -18,13 +20,11 @@ import {
 import {
   POSTS_PER_WEEK_CHOICES,
   REFERRAL_MAX_LENGTH,
-  REFERRAL_OTHER,
   REFERRAL_SOURCES,
   type OnboardingAnswers,
 } from '@/lib/onboarding-options'
 import { saveOnboardingAction } from './actions'
 
-const FAILED = 'Gagal menghubungi server. Coba lagi.'
 const FIELD =
   'block w-full rounded-xl border border-hairline bg-white px-4 py-3 text-base text-ink placeholder:text-ink-soft focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent'
 const PRIMARY =
@@ -36,8 +36,6 @@ type StepId = 'kind' | 'name' | 'description' | 'audience' | 'posts' | 'style' |
 
 interface Step {
   id: StepId
-  title: string
-  hint: string
   /** Lanjut stays off until it is answered. */
   required?: (answers: OnboardingAnswers) => boolean
 }
@@ -45,59 +43,42 @@ interface Step {
 const STEPS: Step[] = [
   {
     id: 'kind',
-    title: 'Akun Instagram ini untuk apa?',
-    hint: 'Supaya gaya bahasa dan ide kontennya pas.',
     required: (answers) => answers.accountKind !== '',
   },
   {
     id: 'name',
-    title: 'Apa nama brand dan bidang usahanya?',
-    hint: 'Nama yang muncul di konten, dan bidangnya dalam beberapa kata.',
     required: (answers) => answers.name.trim() !== '',
   },
   {
     id: 'description',
-    title: 'Ceritakan bisnismu secara singkat.',
-    hint: 'Apa yang dijual atau ditawarkan, dan apa bedanya dengan yang lain. 2–3 kalimat sudah cukup.',
   },
   {
     id: 'audience',
-    title: 'Siapa yang ingin kamu jangkau?',
-    hint: 'Contoh: ibu muda 25–35 tahun di Jabodetabek yang suka masak praktis.',
   },
   {
     id: 'posts',
-    title: 'Berapa kali posting per minggu?',
-    hint: 'Ini jadi jadwal dan kalender kontenmu. Bisa diubah kapan saja di halaman Brand.',
     required: (answers) => answers.postsPerWeek > 0,
   },
   {
     id: 'style',
-    title: 'Gaya desain seperti apa yang kamu mau?',
-    hint: 'Ini hanya acuan font dan layout awal. Jika kamu menambahkan referensi desain atau menghubungkan Instagram, referensi tersebut akan diprioritaskan.',
     required: (answers) => answers.designStyle !== '',
   },
   {
     id: 'fonts',
-    title: 'Pilih font untuk desainmu.',
-    hint: 'Sudah kami sarankan sesuai gaya yang dipilih. Ganti kalau punya font brand sendiri.',
   },
   {
     id: 'referral',
-    title: 'Tahu Carousely dari mana?',
-    hint: 'Satu pertanyaan terakhir, biar kami tahu cara menjangkau orang sepertimu.',
     required: (answers) => answers.referralSource.trim() !== '',
   },
   {
     id: 'done',
-    title: 'Siap! Ini gaya brand-mu.',
-    hint: 'Semua bisa diubah kapan saja di halaman Brand.',
   },
 ]
 
 const primaryColor = (colors: BrandColor[]) => colors.find((color) => color.role === 'utama')?.hex ?? ''
 
 export function Wizard({ initial }: { initial: OnboardingAnswers }) {
+  const t = useTranslations('onboarding')
   const router = useRouter()
   const [answers, setAnswers] = useState<OnboardingAnswers>(initial)
   const [index, setIndex] = useState(0)
@@ -123,7 +104,7 @@ export function Wizard({ initial }: { initial: OnboardingAnswers }) {
   }
 
   async function save(complete: boolean): Promise<string | null> {
-    const result = await saveOnboardingAction(answers, complete).catch(() => ({ error: FAILED }))
+    const result = await saveOnboardingAction(answers, complete).catch(() => ({ error: t('wizard.failed') }))
     if ('error' in result) {
       setError(result.error)
       return null
@@ -163,11 +144,12 @@ export function Wizard({ initial }: { initial: OnboardingAnswers }) {
       <header className="sticky top-0 z-10 border-b border-hairline bg-bg/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-5xl items-center gap-4 px-5">
           <CarouselyLogo />
+          <LocaleToggle variant="landing" className="ml-auto" />
         </div>
         <div
           className="h-0.5 bg-hairline"
           role="progressbar"
-          aria-label="Kemajuan"
+          aria-label={t('wizard.progress')}
           aria-valuemin={1}
           aria-valuemax={STEPS.length}
           aria-valuenow={index + 1}
@@ -185,9 +167,9 @@ export function Wizard({ initial }: { initial: OnboardingAnswers }) {
             {index + 1} / {STEPS.length}
           </p>
           <h1 ref={heading} tabIndex={-1} className="mt-2 text-2xl font-semibold tracking-tight text-ink outline-none sm:text-3xl">
-            {step.title}
+            {t(`steps.${step.id}.title`)}
           </h1>
-          <p className="mt-2 text-ink-muted">{step.hint}</p>
+          <p className="mt-2 text-ink-muted">{t(`steps.${step.id}.hint`)}</p>
 
           <div className="mt-8">
             <StepBody id={step.id} answers={answers} update={update} textareaKeys={textareaKeys} />
@@ -204,7 +186,7 @@ export function Wizard({ initial }: { initial: OnboardingAnswers }) {
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-5 py-3">
             <button type="button" onClick={() => go(index - 1)} disabled={index === 0 || pending} className={GHOST}>
               <ArrowLeft size={16} aria-hidden="true" />
-              Kembali
+              {t('wizard.back')}
             </button>
             <div className="flex items-center gap-3">
               {!last && (
@@ -217,18 +199,18 @@ export function Wizard({ initial }: { initial: OnboardingAnswers }) {
                   disabled={pending}
                   className={GHOST}
                 >
-                  Lewati
+                  {t('wizard.skip')}
                 </button>
               )}
               <button type="submit" disabled={!answered || pending} className={PRIMARY}>
-                {last ? (pending ? 'Menyimpan…' : 'Simpan & hubungkan Instagram') : 'Lanjut'}
+                {last ? (pending ? t('wizard.saving') : t('wizard.saveConnect')) : t('wizard.next')}
                 {last ? <Check size={16} aria-hidden="true" /> : <ArrowRight size={16} aria-hidden="true" />}
               </button>
             </div>
           </div>
           {style && step.id === 'style' && (
             <p className="sr-only" aria-live="polite">
-              Dipilih: {style.label}
+              {t('wizard.selected', { style: t(`styles.${answers.designStyle || 'minimalis'}`) })}
             </p>
           )}
         </footer>
@@ -245,20 +227,21 @@ interface StepBodyProps {
 }
 
 function StepBody({ id, answers, update, textareaKeys }: StepBodyProps) {
+  const t = useTranslations('onboarding')
   const style = designStyleOf(answers.designStyle)
   const primary = primaryColor(answers.colors)
 
   switch (id) {
     case 'kind':
       return (
-        <div role="radiogroup" aria-label="Jenis akun" className="grid gap-3 sm:grid-cols-2">
-          {(Object.entries(ACCOUNT_KINDS) as [AccountKind, (typeof ACCOUNT_KINDS)[AccountKind]][]).map(([kind, option]) => (
+        <div role="radiogroup" aria-label={t('wizard.kind')} className="grid gap-3 sm:grid-cols-2">
+          {(Object.entries(ACCOUNT_KINDS) as [AccountKind, (typeof ACCOUNT_KINDS)[AccountKind]][]).map(([kind]) => (
             <Choice
               key={kind}
               selected={answers.accountKind === kind}
               onSelect={() => update('accountKind', kind)}
-              title={option.label}
-              hint={option.hint}
+              title={t(`kinds.${kind}.label`)}
+              hint={t(`kinds.${kind}.hint`)}
             />
           ))}
         </div>
@@ -267,23 +250,23 @@ function StepBody({ id, answers, update, textareaKeys }: StepBodyProps) {
       return (
         <div className="space-y-4">
           <label className="block space-y-1.5">
-            <span className="text-sm font-medium text-ink">Nama brand</span>
+            <span className="text-sm font-medium text-ink">{t('wizard.name')}</span>
             <input
               autoFocus
               value={answers.name}
               onChange={(event) => update('name', event.target.value)}
               maxLength={BRAND_TEXT_LIMITS.name}
-              placeholder="mis. Kopi Sinar"
+              placeholder={t('wizard.namePlaceholder')}
               className={FIELD}
             />
           </label>
           <label className="block space-y-1.5">
-            <span className="text-sm font-medium text-ink">Bidang usaha</span>
+            <span className="text-sm font-medium text-ink">{t('wizard.category')}</span>
             <input
               value={answers.category}
               onChange={(event) => update('category', event.target.value)}
               maxLength={BRAND_TEXT_LIMITS.category}
-              placeholder="mis. Kedai kopi, skincare lokal, kursus bahasa Inggris"
+              placeholder={t('wizard.categoryPlaceholder')}
               className={FIELD}
             />
           </label>
@@ -292,22 +275,22 @@ function StepBody({ id, answers, update, textareaKeys }: StepBodyProps) {
     case 'description':
       return (
         <TextArea
-          label="Deskripsi bisnis"
+          label={t('wizard.description')}
           value={answers.description}
           onChange={(value) => update('description', value)}
           max={BRAND_TEXT_LIMITS.description}
-          placeholder="mis. Kedai kopi susu gula aren di Bandung. Biji kopi dari petani Garut, harga mahasiswa, buka sampai malam."
+          placeholder={t('wizard.descriptionPlaceholder')}
           onKeyDown={textareaKeys}
         />
       )
     case 'audience':
       return (
         <TextArea
-          label="Target audiens"
+          label={t('wizard.audience')}
           value={answers.audience}
           onChange={(value) => update('audience', value)}
           max={BRAND_TEXT_LIMITS.audience}
-          placeholder="mis. Mahasiswa dan pekerja muda 18–30 tahun di Bandung."
+          placeholder={t('wizard.audiencePlaceholder')}
           onKeyDown={textareaKeys}
           rows={3}
         />
@@ -328,13 +311,13 @@ function StepBody({ id, answers, update, textareaKeys }: StepBodyProps) {
         <div className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <FontSelect
-              label="Font judul"
+              label={t('wizard.headingFont')}
               value={answers.headingFont}
               onChange={(value) => update('headingFont', value)}
               recommended={style?.headingFont ?? DEFAULT_HEADING_FONT}
             />
             <FontSelect
-              label="Font isi"
+              label={t('wizard.bodyFont')}
               value={answers.bodyFont}
               onChange={(value) => update('bodyFont', value)}
               recommended={style?.bodyFont ?? DEFAULT_BODY_FONT}
@@ -346,13 +329,13 @@ function StepBody({ id, answers, update, textareaKeys }: StepBodyProps) {
     }
     case 'posts':
       return (
-        <div role="radiogroup" aria-label="Posting per minggu" className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
+        <div role="radiogroup" aria-label={t('wizard.weekly')} className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
           {POSTS_PER_WEEK_CHOICES.map((count) => (
             <OptionCard
               key={count}
               selected={answers.postsPerWeek === count}
               onSelect={() => update('postsPerWeek', count)}
-              label={`${count} post / minggu`}
+              label={t('wizard.posts', { count })}
             />
           ))}
         </div>
@@ -365,13 +348,14 @@ function StepBody({ id, answers, update, textareaKeys }: StepBodyProps) {
 }
 
 function Summary({ answers }: { answers: OnboardingAnswers }) {
+  const t = useTranslations('onboarding')
   const style = designStyleOf(answers.designStyle) ?? DESIGN_STYLES.minimalis
   const rows: [string, ReactNode][] = [
-    ['Jenis akun', answers.accountKind ? ACCOUNT_KINDS[answers.accountKind].label : '—'],
-    ['Brand', [answers.name, answers.category].filter(Boolean).join(' · ') || '—'],
-    ['Gaya desain', style.label],
-    ['Font', `${answers.headingFont || style.headingFont} · ${answers.bodyFont || style.bodyFont}`],
-    ['Posting', answers.postsPerWeek > 0 ? `${answers.postsPerWeek} post / minggu` : '—'],
+    [t('wizard.kind'), answers.accountKind ? t(`kinds.${answers.accountKind}.label`) : '—'],
+    [t('wizard.brand'), [answers.name, answers.category].filter(Boolean).join(' · ') || '—'],
+    [t('wizard.style'), t(`styles.${answers.designStyle || 'minimalis'}`)],
+    [t('wizard.font'), `${answers.headingFont || style.headingFont} · ${answers.bodyFont || style.bodyFont}`],
+    [t('wizard.posting'), answers.postsPerWeek > 0 ? t('wizard.posts', { count: answers.postsPerWeek }) : '—'],
   ]
   return (
     <div className="space-y-6">
@@ -384,9 +368,7 @@ function Summary({ answers }: { answers: OnboardingAnswers }) {
         ))}
       </dl>
       <p className="text-sm leading-relaxed text-ink-muted">
-        Berikutnya hubungkan Instagram. Kami ambil logo dan beberapa post sebagai contoh layout. Gaya{' '}
-        <span className="font-medium text-ink">{style.label}</span> tetap menentukan font dan kesan desainnya, sedangkan
-        post-mu jadi acuan susunan layout.
+        {t.rich('wizard.summary', { name: t(`styles.${answers.designStyle || 'minimalis'}`), style: (chunks) => <span className="font-medium text-ink">{chunks}</span> })}
       </p>
     </div>
   )
@@ -415,13 +397,14 @@ function Choice({ selected, onSelect, title, hint }: { selected: boolean; onSele
 const isReadySource = (value: string) => (REFERRAL_SOURCES as readonly string[]).includes(value)
 
 function ReferralStep({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const t = useTranslations('onboarding')
   // "Lainnya" stays chosen even while its text is still empty.
   const [other, setOther] = useState(value !== '' && !isReadySource(value))
   const [otherText, setOtherText] = useState(other ? value : '')
 
   return (
     <div className="space-y-4">
-      <div role="radiogroup" aria-label="Sumber" className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-3">
+      <div role="radiogroup" aria-label={t('wizard.source')} className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-3">
         {REFERRAL_SOURCES.map((source) => (
           <OptionCard
             key={source}
@@ -430,7 +413,7 @@ function ReferralStep({ value, onChange }: { value: string; onChange: (value: st
               setOther(false)
               onChange(source)
             }}
-            label={source}
+            label={t(`sources.${source}`)}
           />
         ))}
         <OptionCard
@@ -439,12 +422,12 @@ function ReferralStep({ value, onChange }: { value: string; onChange: (value: st
             setOther(true)
             onChange(otherText)
           }}
-          label={REFERRAL_OTHER}
+          label={t('wizard.other')}
         />
       </div>
       {other && (
         <label className="block animate-fade-in space-y-1.5">
-          <span className="text-sm font-medium text-ink">Dari mana?</span>
+          <span className="text-sm font-medium text-ink">{t('wizard.where')}</span>
           <input
             autoFocus
             value={otherText}
@@ -453,7 +436,7 @@ function ReferralStep({ value, onChange }: { value: string; onChange: (value: st
               onChange(event.target.value)
             }}
             maxLength={REFERRAL_MAX_LENGTH}
-            placeholder="mis. podcast, webinar, iklan…"
+            placeholder={t('wizard.sourcePlaceholder')}
             className={FIELD}
           />
         </label>
@@ -490,6 +473,7 @@ interface TextAreaProps {
 }
 
 function TextArea({ label, value, onChange, max, placeholder, onKeyDown, rows = 4 }: TextAreaProps) {
+  const t = useTranslations('onboarding')
   return (
     <label className="block space-y-1.5">
       <span className="text-sm font-medium text-ink">{label}</span>
@@ -504,7 +488,7 @@ function TextArea({ label, value, onChange, max, placeholder, onKeyDown, rows = 
         className={`${FIELD} resize-none`}
       />
       <span className="flex justify-between text-xs text-ink-soft">
-        <span>Ctrl/⌘ + Enter untuk lanjut</span>
+        <span>{t('wizard.shortcut')}</span>
         <span>
           {Array.from(value).length}/{max}
         </span>

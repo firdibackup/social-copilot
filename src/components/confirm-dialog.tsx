@@ -1,7 +1,8 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { CircleHelp, Info, TriangleAlert } from 'lucide-react'
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode } from 'react'
 
 export interface ConfirmOptions {
   title: string
@@ -12,7 +13,11 @@ export interface ConfirmOptions {
   cancelLabel?: string
   /** danger = destructive red confirm button, warning icon. */
   tone?: 'default' | 'danger'
+  /** Replaces the default question icon; ignored for danger. */
+  icon?: DialogIcon
 }
+
+type DialogIcon = ComponentType<{ size?: number; strokeWidth?: number }>
 
 export interface AlertOptions {
   title: string
@@ -113,6 +118,7 @@ const PRIMARY = `${BUTTON} bg-accent text-white shadow-[0_1px_0_rgb(255_255_255/
 const DANGER = `${BUTTON} bg-red-600 text-white shadow-[0_1px_0_rgb(255_255_255/0.18)_inset,0_1px_2px_rgb(20_21_31/0.12)] hover:bg-red-700 focus-visible:outline-red-600`
 
 function QueuedDialog({ request }: { request: Request }) {
+  const t = useTranslations('common')
   const dialog = useRef<HTMLDialogElement>(null)
   const cancelButton = useRef<HTMLButtonElement>(null)
   const confirmButton = useRef<HTMLButtonElement>(null)
@@ -156,9 +162,9 @@ function QueuedDialog({ request }: { request: Request }) {
     }
   }
 
-  const Icon = danger ? TriangleAlert : isConfirm ? CircleHelp : Info
-  const confirmLabel = isConfirm ? (request.options.confirmLabel ?? 'Lanjutkan') : (request.options.okLabel ?? 'Oke')
-  const cancelLabel = isConfirm ? (request.options.cancelLabel ?? 'Batal') : null
+  const Icon = danger ? TriangleAlert : isConfirm ? (request.options.icon ?? CircleHelp) : Info
+  const confirmLabel = isConfirm ? (request.options.confirmLabel ?? t('dialog.continue')) : (request.options.okLabel ?? t('dialog.ok'))
+  const cancelLabel = isConfirm ? (request.options.cancelLabel ?? t('cancel')) : null
 
   return (
     <dialog

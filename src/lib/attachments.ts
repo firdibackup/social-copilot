@@ -1,6 +1,7 @@
 import 'server-only'
 import { randomUUID } from 'node:crypto'
 import { SlideImageError, toReferenceDataUrl } from './slide-image'
+import { assertStorageAvailable } from './storage-quota'
 import { db } from './supabase'
 
 /**
@@ -42,6 +43,7 @@ export async function readAttachment(value: unknown): Promise<Attachment | { err
 /** Kept for the slides of a new post, which are made later, one request each. */
 export async function saveAttachment(userId: string, attachment: Attachment): Promise<string> {
   const path = `${userId}/lampiran/${randomUUID()}.jpg`
+  await assertStorageAvailable(userId, attachment.bytes.length)
   const { error } = await bucket().upload(path, attachment.bytes, { contentType: 'image/jpeg' })
   if (error) throw new Error(`Supabase Storage: ${error.message}`)
   return path

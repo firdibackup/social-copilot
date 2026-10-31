@@ -1,0 +1,248 @@
+{
+  "faq": {
+    "audienceAnswer": "For small business owners, creators, and social media managers who want to create content and manage Instagram in one place. Start with a simple idea, a product photo, or content you already have.",
+    "demoAnswer": "This preview is an interactive demo with sample data. Trying ideas, viewing schedules, or sending demo replies won't create content or send messages to real Instagram accounts.",
+    "accountAnswer": "Use an Instagram Business or Creator account. Connect through Instagram's official flow in Carousely settings and grant the permissions needed for publishing and messaging.",
+    "startAnswer": "Create an account, choose a subscription in the app, then set up your brand and connect Instagram. You'll see plan details and pricing before you pay.",
+    "aiAnswer": "No. AI output is a starting point for you to review and edit. You decide which content to use and when to schedule it.",
+    "demoQuestion": "Is this preview connected to a real account?",
+    "accountQuestion": "Which Instagram accounts can I connect?",
+    "aiQuestion": "Does AI content get published automatically?",
+    "startQuestion": "How do I get started with Carousely?",
+    "audienceQuestion": "Who is Carousely for?",
+    "subtitle2": "before you start creating.",
+    "subtitle1": "A little more about us",
+    "title": "Still curious?"
+  },
+  "features": {
+    "mimo": {
+      "body": "Have a starting point but not sure what to make? Talk it through with Mimo. Turn a simple topic into ideas, captions, and content concepts that sound like your brand.",
+      "point1": "Start with a chat, not a blank page",
+      "point2": "Turn ideas into drafts you can edit",
+      "point3": "You always have the final say",
+      "link": "Meet Mimo",
+      "title": "Out of ideas?\nCall on Mimo."
+    },
+    "kalender": {
+      "body": "See the big picture in one content calendar. Set dates, check statuses, and plan your publishing without keeping it all in your head.",
+      "point1": "See your whole schedule in one place",
+      "point2": "Publish at the time that works for you",
+      "point3": "Keep track of every post",
+      "link": "Start planning",
+      "title": "One week.\nAll planned out."
+    },
+    "balasan": {
+      "body": "Great content starts conversations. Manage Instagram DMs and get AI help drafting replies, while keeping your personal touch.",
+      "point3": "Review every reply before sending",
+      "point1": "Read conversations in one inbox",
+      "point2": "Draft replies with a little AI help",
+      "link": "Organize your inbox",
+      "title": "New messages.\nReal connections."
+    },
+    "disclaimer": "All preview content is illustrative. Try the buttons and options in each demo.",
+    "subtitle2": "Spend your energy creating, not juggling tabs.",
+    "subtitle1": "One connected workflow.",
+    "title2": "to “it's already live.”",
+    "explore": "Explore Carousely features",
+    "title1": "From “what should I post?”",
+    "repliesTab": "DM replies"
+  },
+  "brand": {
+    "body": "AI helps put it together. You give it personality. Save your brand identity, use your own assets, and edit every draft until it feels just right.",
+    "link": "Bring your brand to Carousely",
+    "canvas": "One brand. Many stories.",
+    "title2": "In every post.",
+    "title1": "Still feels like you."
+  },
+  "inbox": {
+    "reply": "Absolutely! Just find a spot with indirect light. Would you like help picking a plant for your desk?",
+    "incoming": "Hi! Would the plant in your latest post be good for a work desk?",
+    "sent": "Demo reply sent. No real DM was sent.",
+    "review": "Review first. Send when it feels right.",
+    "subtitle": "Instagram conversations",
+    "send": "Try sending a reply",
+    "example": "Sample conversation",
+    "suggestion": "AI reply suggestion",
+    "reset": "Try again"
+  },
+  "mimo": {
+    "plantReply": "How about helping your audience understand what their plants need? Here's a direction:",
+    "coffeeReply": "It's not just about the coffee. Invite your audience to enjoy a little pause in their day.",
+    "plantRequest": "Help me brainstorm a carousel about plant care for beginners.",
+    "coffeeRequest": "Give me cozy coffee shop content ideas that don't feel too salesy.",
+    "plantResult": "Find the light, get watering right, and leave room to grow.",
+    "coffeeResultTitle": "A cup of coffee. A moment just for you.",
+    "coffeeReplyTitle": "Let's tell the story behind a cup of coffee.",
+    "coffeeResult": "From the first aroma to the last conversation.",
+    "plantReplyTitle": "Start with the little things we often forget.",
+    "composer": "Pick an idea above to give it a try",
+    "plantResultTitle": "Your first plant. A new story.",
+    "concept": "Carousel concept · 5 slides",
+    "choose": "Choose a sample conversation",
+    "coffeePrompt": "Coffee shop ideas",
+    "partner": "Your creative partner",
+    "ready": "Ready to make your own",
+    "plantPrompt": "Plant content ideas"
+  },
+  "workflow": {
+    "brandBody": "Save your brand personality, voice, and content assets. Give every idea a shared direction.",
+    "mimoBody": "Start with a topic or assets you already have. Develop, edit, and make them your own.",
+    "scheduleBody": "Review your content, pick a time to publish, and follow the conversations that come next.",
+    "scheduleTitle": "Schedule it. Keep creating.",
+    "subtitle1": "Carousely handles the workflow.",
+    "subtitle2": "The story stays yours.",
+    "title2": "Find your rhythm.",
+    "mimoTitle": "Shape ideas with Mimo",
+    "title1": "Keep your style.",
+    "brandTitle": "Introduce your brand"
+  },
+  "calendar": {
+    "hint": "Pick a post to see its schedule, or try the next week.",
+    "subtitle": "Every idea has its moment.",
+    "purpleTitle": "Small ideas, big impact",
+    "peachTitle": "Time for a little break",
+    "empty": "Room for a new idea",
+    "greenTitle": "Grow at your pace",
+    "previous": "Previous week",
+    "next": "Next week",
+    "title": "Content calendar",
+    "weekView": "Week view",
+    "photo": "Photo",
+    "range": "October {range}, 2026",
+    "mon": "Mon",
+    "tue": "Tue",
+    "wed": "Wed",
+    "thu": "Thu",
+    "fri": "Fri",
+    "feedback": "“{title}” is scheduled for October {day}. This is a sample schedule.",
+    "morning": "9:00 AM",
+    "noon": "12:00 PM",
+    "afternoon": "4:00 PM"
+  },
+  "cta": {
+    "body": "Make room for creativity. Carousely helps with the rest.",
+    "start": "Start with Carousely",
+    "title2": "Shall we make it together?",
+    "title1": "Your next idea."
+  },
+  "hero": {
+    "bottom": "More creating. Less tab-hopping.",
+    "accountNote": "For Instagram Business & Creator accounts",
+    "scheduledAt": "Friday, October 23 · 4:00 PM WIB",
+    "postFooter": "One idea becomes a story.",
+    "mimoBody": "You pick your favorite ideas.",
+    "scheduled": "Your post is scheduled",
+    "trust": "Official API integration",
+    "how": "See how it works",
+    "mimoTitle": "Let Mimo brainstorm.",
+    "start": "Start creating",
+    "behindScenes": "Behind the scenes",
+    "title2": "Content ships.",
+    "explore": "Explore features",
+    "brandStories": "Brand stories",
+    "tips": "Quick tips",
+    "title1": "Ideas flow.",
+    "body": "Your creative partner for Instagram. From ideas to content,<br></br> all the way to publishing. All in Carousely."
+  },
+  "partners": {
+    "subtitle": "Brands creating with Carousely.",
+    "title": "Trusted by our partners"
+  },
+  "dashboard": {
+    "tagline": "Your workspace, more organized.",
+    "navigation": "Illustrative app navigation",
+    "greeting": "Good morning, team Akar",
+    "settings": "Brand settings",
+    "workspace": "Brand workspace",
+    "preview": "Product preview",
+    "create": "Create content",
+    "calendar": "Calendar",
+    "replies": "Replies",
+    "assets": "Assets"
+  },
+  "art": {
+    "peachFooter": "Make room for your next idea.",
+    "purpleFooter": "Creative notes for your day.",
+    "greenFooter": "Small spaces. Big stories.",
+    "greenTitle2": "at your pace.",
+    "peachTitle2": "Then carry on.",
+    "peachTitle1": "Take a break.",
+    "purpleTitle1": "Small ideas,",
+    "greenTitle1": "Grow",
+    "purpleTitle2": "big",
+    "purpleTitle3": "impact."
+  },
+  "footer": {
+    "tagline": "A creative partner for your ideas.",
+    "reducedMotion": "System reduced motion",
+    "privacy": "Privacy policy",
+    "enableMotion": "Enable animations",
+    "pauseMotion": "Pause animations"
+  },
+  "nav": {
+    "skip": "Skip to content",
+    "home": "Carousely home",
+    "mobile": "Mobile navigation",
+    "main": "Main navigation",
+    "start": "Get started",
+    "accountLogin": "Log in to your account",
+    "faq": "FAQ",
+    "workflow": "How it works",
+    "close": "Close menu",
+    "open": "Open menu",
+    "features": "Features",
+    "pricing": "Pricing",
+    "login": "Log in"
+  },
+  "capabilities": {
+    "ideas": "AI ideas & captions",
+    "schedule": "Post scheduling",
+    "inbox": "Instagram inbox",
+    "create": "Content creation"
+  },
+  "demo": {
+    "interactive": "Interactive demo"
+  },
+  "metadata": {
+    "title": "Carousely — Ideas flow. Content ships.",
+    "description": "From your first idea to a published post. Create with Mimo AI, plan your calendar, and manage Instagram replies in one Carousely workspace.",
+    "socialDescription": "Your creative partner for Instagram. Create, schedule, and manage it all in one place."
+  },
+  "pricing": {
+    "title1": "Pick your plan.",
+    "title2": "Start your story.",
+    "subtitle1": "From your first post to a full calendar.",
+    "subtitle2": "Find the right allowance for your brand's rhythm.",
+    "durationLabel": "Plan duration",
+    "months": "{count, plural, one {# month} other {# months}}",
+    "save": "Save {percent}%",
+    "empty": "Plans are being updated. Please check back soon.",
+    "features": {
+      "posts": "±{formattedCount} {count, plural, one {post} other {posts}} each month",
+      "chatbot": "Mimo AI Chatbot",
+      "research": "Instagram + Threads deep research (Threads coming soon)",
+      "creation": "AI ideas, scripts, carousels, images, and captions",
+      "calendar": "Content calendar and scheduling",
+      "accounts": "1 Instagram account + 1 Threads account",
+      "analytics": "Instagram analytics and Auto DM",
+      "support": "Priority 1-on-1 support",
+      "earlyAccess": "Early access to new features"
+    },
+    "descriptions": {
+      "pro": "For creating and scheduling content regularly.",
+      "max": "More room for content creation and research."
+    },
+    "multiplier": "{count}× more AI allowance",
+    "estimate": "An estimated {count}+ posts per month",
+    "review": "Ready for your weekly review.",
+    "perMonth": "/month",
+    "monthly": "Billed monthly",
+    "total": "{amount} total for {count, plural, one {# month} other {# months}}",
+    "noRenewal": "No automatic renewal.",
+    "upfront": "Paid upfront, not in installments.",
+    "choose": "Choose {name}",
+    "paymentNote": "Payments via Mayar · AI allowance renews monthly · Research resets at 00:00 WIB",
+    "estimateNote": "Post estimates depend on content format, slide count, and other AI usage.",
+    "provisional": "Starting prices shown. Availability and current pricing are confirmed before payment."
+  }
+}

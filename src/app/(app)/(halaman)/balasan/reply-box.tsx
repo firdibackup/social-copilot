@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { Notice } from '@/components/notice'
 import { REPLY_MAX_LENGTH } from '@/lib/inbox-rules'
 import { draftDmReply, sendReply } from './actions'
@@ -12,18 +14,18 @@ interface ReplyBoxProps {
 }
 
 export function ReplyBox({ igsid, windowOpen, brand }: ReplyBoxProps) {
+  const t = useTranslations('inbox.replyBox')
   if (!windowOpen) {
     return (
       <Notice tone="warning">
-        Sudah lewat 24 jam sejak pesan terakhir pelanggan, jadi Instagram tidak menerima balasan dari aplikasi. Balas
-        lewat aplikasi Instagram, atau tunggu pelanggan mengirim pesan lagi.
-      </Notice>
+        {t('itSBeenOver24HoursSinceTheCustomer')}
+        </Notice>
     )
   }
 
   return (
     <Composer
-      placeholder="Tulis DM…"
+      placeholder={t('writeADm')}
       maxLength={REPLY_MAX_LENGTH}
       brand={brand}
       send={(text) => sendReply(igsid, text)}

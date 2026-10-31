@@ -1,8 +1,11 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { ImagePlus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useId, useRef, useState, type DragEvent } from 'react'
+import { isStorageFull, showStorageFullDialog } from '@/components/storage-full'
 import { prepareAndUpload } from '@/components/upload-button'
 import type { AssetGroup } from '@/lib/assets'
 import { tagAssetsAction } from './actions'
@@ -17,6 +20,7 @@ interface UploadZoneProps {
 
 /** Drop or pick photos, optionally straight into a product, and have AI tag them afterwards. */
 export function UploadZone({ groups, defaultGroupId, creditCost }: UploadZoneProps) {
+  const t = useTranslations('assets')
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
   const id = useId()
@@ -38,19 +42,25 @@ export function UploadZone({ groups, defaultGroupId, creditCost }: UploadZonePro
     const uploaded: string[] = []
     const errors: string[] = []
     for (const [index, file] of images.entries()) {
-      setProgress(`Mengunggah ${index + 1} dari ${images.length}…`)
+      setProgress(t('uploadZone.text1', { v0: index + 1, v1: images.length }))
       const result = await prepareAndUpload(file, groupId || undefined)
       if ('asset' in result) uploaded.push(result.asset.id)
-      else errors.push(`${file.name}: ${result.error}`)
+      else if (isStorageFull(result.error)) {
+        // The rest would hit the same wall: stop, say it once, and offer the cleanup.
+        const left = images.length - index
+        errors.push(left === 1 ? t('uploadZone.text2', { v0: file.name }) : t('uploadZone.text3', { v0: left }))
+        void showStorageFullDialog((href) => router.push(href))
+        break
+      } else errors.push(`${file.name}: ${result.error}`)
     }
 
     let note: string | null = null
     if (uploaded.length > 0 && autoTag) {
-      setProgress('Membuat tag…')
+      setProgress(t('uploadZone.text4'))
       const data = new FormData()
       for (const assetId of uploaded) data.append('id', assetId)
-      const tagged = await tagAssetsAction(INITIAL_STATE, data).catch(() => ({ error: 'Koneksi terputus.', success: null }))
-      if (tagged.error) note = `Foto tersimpan, tetapi tag belum dibuat: ${tagged.error}`
+      const tagged = await tagAssetsAction(INITIAL_STATE, data).catch(() => ({ error: t('uploadZone.text5'), success: null }))
+      if (tagged.error) note = t('uploadZone.text6', { v0: tagged.error })
     }
     setProgress(null)
     setMessages({ errors, note })
@@ -65,7 +75,7 @@ export function UploadZone({ groups, defaultGroupId, creditCost }: UploadZonePro
 
   const busy = progress !== null
   return (
-    <section aria-label="Unggah foto" className="space-y-2">
+    <section aria-label={t('uploadZone.text7')} className="space-y-2">
       <div
         onDragOver={(event) => {
           event.preventDefault()
@@ -98,12 +108,12 @@ export function UploadZone({ groups, defaultGroupId, creditCost }: UploadZonePro
           className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-deep disabled:opacity-60"
         >
           <ImagePlus size={16} aria-hidden="true" />
-          {progress ?? 'Unggah foto'}
+          {progress ?? t('uploadZone.text7')}
         </button>
-        <p className="hidden text-sm text-ink-muted lg:block">atau tarik foto ke sini.</p>
+        <p className="hidden text-sm text-ink-muted lg:block">{t('uploadZone.text8')}</p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:ml-auto">
           <label htmlFor={`${id}-produk`} className="flex items-center gap-2 text-sm text-ink">
-            <span className="shrink-0">Masukkan ke produk</span>
+            <span className="shrink-0">{t('uploadZone.text9')}</span>
             <select
               id={`${id}-produk`}
               value={groupId}
@@ -111,7 +121,7 @@ export function UploadZone({ groups, defaultGroupId, creditCost }: UploadZonePro
               onChange={(event) => setGroupId(event.target.value)}
               className={`${FIELD} max-w-48 min-h-9`}
             >
-              <option value="">Tidak ada</option>
+              <option value="">{t('uploadZone.text10')}</option>
               {groups.map((group) => (
                 <option key={group.id} value={group.id}>
                   {group.title}
@@ -127,8 +137,7 @@ export function UploadZone({ groups, defaultGroupId, creditCost }: UploadZonePro
               onChange={(event) => setAutoTag(event.target.checked)}
               className="size-4 accent-teal-700"
             />
-            Tag otomatis dengan AI
-            <span className="text-xs text-ink-muted">({creditCost} kredit/foto)</span>
+            {t('uploadZone.text11')}<span className="text-xs text-ink-muted">{t('uploadZone.creditCost', { count: creditCost })}</span>
           </label>
         </div>
       </div>

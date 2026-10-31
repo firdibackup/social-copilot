@@ -1,12 +1,14 @@
 'use client'
 
+import { useLocale, useTranslations } from 'next-intl'
+
 import { ChevronRight, MoreHorizontal, Pause, Pencil, Play, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { confirmDialog } from '@/components/confirm-dialog'
 import { Notice } from '@/components/notice'
 import type { AutoDmRun } from '@/lib/auto-dm'
-import { RUN_STEP_LABELS, type AutoDmRule } from '@/lib/auto-dm-rules'
+import { type AutoDmRule } from '@/lib/auto-dm-rules'
 import { formatShortDateTime } from '@/lib/format'
 import { deleteAutoDmRuleAction, setAutoDmRuleActiveAction } from './auto-dm-actions'
 
@@ -16,13 +18,13 @@ export interface RuleCard {
   run: AutoDmRun | null
 }
 
-const FAILED = 'Gagal menghubungi server. Coba lagi.'
 const MENU_ITEM = 'flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-zinc-50 disabled:opacity-50'
 
 const editRuleHref = (id: string) => `/balasan/auto-dm?id=${id}`
 
 /** "Aturan Auto DM (n)" on the DM tab: every rule with its status and last activity. */
 export function AutoDmRules({ cards, username }: { cards: RuleCard[]; username: string }) {
+  const t = useTranslations('inbox.autoDmRules')
   const [open, setOpen] = useState(true)
   return (
     <section aria-labelledby="aturan-auto-dm" className="scroll-mt-4 space-y-3">
@@ -34,15 +36,15 @@ export function AutoDmRules({ cards, username }: { cards: RuleCard[]; username: 
         className="inline-flex items-center gap-1.5 font-medium text-zinc-900"
       >
         <ChevronRight size={18} aria-hidden="true" className={open ? 'rotate-90' : undefined} />
-        Aturan Auto DM ({cards.length})
+        {t('heading', { count: cards.length })}
       </button>
       {open && (
         <div className="space-y-3">
-          <p className="text-sm text-zinc-500">Komentar berisi kata kunci di post @{username} otomatis dibalas lewat DM.</p>
+          <p className="text-sm text-zinc-500">{t('description', { username })}</p>
           {cards.length === 0 ? (
             <p className="rounded-xl border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500">
-              Belum ada aturan. Klik + Auto DM untuk membuat yang pertama.
-            </p>
+              {t('noRulesYetClickAutoDmToCreateYour')}
+              </p>
           ) : (
             <ul className="space-y-3">
               {cards.map((card) => (
@@ -57,6 +59,7 @@ export function AutoDmRules({ cards, username }: { cards: RuleCard[]; username: 
 }
 
 function RuleCardView({ card }: { card: RuleCard }) {
+  const t = useTranslations('inbox.autoDmRules')
   const { rule, run } = card
   const [error, setError] = useState<string | null>(null)
   return (
@@ -70,18 +73,18 @@ function RuleCardView({ card }: { card: RuleCard }) {
                 rule.isActive ? 'bg-zinc-900 text-white' : 'bg-zinc-200 text-zinc-600'
               }`}
             >
-              {rule.isActive ? 'Aktif' : 'Dijeda'}
+              {rule.isActive ? t('active') : t('paused')}
             </span>
           </p>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
             <strong className="font-semibold text-zinc-900">
-              {rule.matchAny ? 'Semua komentar' : rule.keywords.join(', ')}
+              {rule.matchAny ? t('allComments') : rule.keywords.join(', ')}
             </strong>
-            <span className="text-zinc-500">{rule.mediaId === null ? 'Semua post' : 'Satu post'}</span>
+            <span className="text-zinc-500">{rule.mediaId === null ? t('allPosts') : t('onePost')}</span>
             {rule.opener && (
               <span className="rounded-full border border-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-700">
-                Chat dulu
-              </span>
+                {t('startAChat')}
+                </span>
             )}
           </p>
         </div>
@@ -93,7 +96,7 @@ function RuleCardView({ card }: { card: RuleCard }) {
         </div>
       )}
       <div className="border-t border-zinc-100 bg-zinc-50 px-4 py-3">
-        <p className="text-[11px] font-semibold tracking-[0.06em] text-zinc-500 uppercase">Aktivitas terakhir</p>
+        <p className="text-[11px] font-semibold tracking-[0.06em] text-zinc-500 uppercase">{t('latestActivity')}</p>
         <LastRun run={run} />
       </div>
     </li>
@@ -101,13 +104,15 @@ function RuleCardView({ card }: { card: RuleCard }) {
 }
 
 function LastRun({ run }: { run: AutoDmRun | null }) {
-  if (!run) return <p className="mt-1 text-sm text-zinc-500">Belum ada komentar yang cocok.</p>
-  const who = run.username ? `@${run.username}` : run.source === 'dm' ? 'Seseorang lewat DM' : 'Seseorang'
+  const locale = useLocale()
+  const t = useTranslations('inbox.autoDmRules')
+  if (!run) return <p className="mt-1 text-sm text-zinc-500">{t('noMatchingCommentsYet')}</p>
+  const who = run.username ? `@${run.username}` : run.source === 'dm' ? t('someoneViaDm') : t('someone')
   return (
     <div className="mt-1 space-y-0.5 text-sm">
       <p className="text-zinc-800">
-        {who} · “{run.text}” · <span className={run.step === 'failed' ? 'font-medium text-red-700' : 'font-medium'}>{RUN_STEP_LABELS[run.step]}</span>
-        <span className="text-zinc-500"> · {formatShortDateTime(run.updatedAt)}</span>
+        {who} · “{run.text}” · <span className={run.step === 'failed' ? 'font-medium text-red-700' : 'font-medium'}>{t(`runStep.${run.step}`)}</span>
+        <span className="text-zinc-500"> · {formatShortDateTime(run.updatedAt, locale)}</span>
       </p>
       {run.error && <p className="text-xs text-red-700">{run.error}</p>}
     </div>
@@ -115,6 +120,8 @@ function LastRun({ run }: { run: AutoDmRun | null }) {
 }
 
 function RuleMenu({ rule, onError }: { rule: AutoDmRule; onError: (error: string | null) => void }) {
+  const t = useTranslations('inbox.autoDmRules')
+  const FAILED = t('couldnTReachTheServerTryAgain')
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const menu = useRef<HTMLDivElement>(null)
@@ -146,7 +153,7 @@ function RuleMenu({ rule, onError }: { rule: AutoDmRule; onError: (error: string
     <div ref={menu} className="relative">
       <button
         type="button"
-        aria-label={`Menu aturan ${rule.name}`}
+        aria-label={t('ruleMenu', { name: rule.name })}
         aria-haspopup="menu"
         aria-expanded={open}
         disabled={pending}
@@ -164,28 +171,28 @@ function RuleMenu({ rule, onError }: { rule: AutoDmRule; onError: (error: string
             className={MENU_ITEM}
           >
             {rule.isActive ? <Pause size={15} aria-hidden="true" /> : <Play size={15} aria-hidden="true" />}
-            {rule.isActive ? 'Jedakan' : 'Lanjutkan'}
+            {rule.isActive ? t('pause') : t('resume')}
           </button>
           <Link href={editRuleHref(rule.id)} role="menuitem" className={`${MENU_ITEM} border-y border-zinc-100`}>
             <Pencil size={15} aria-hidden="true" />
-            Ubah
-          </Link>
+            {t('edit')}
+            </Link>
           <button
             type="button"
             role="menuitem"
             onClick={async () => {
               if (await confirmDialog({
-                title: `Hapus aturan "${rule.name}"?`,
-                description: 'Aturan Auto DM ini akan dihapus.',
-                confirmLabel: 'Hapus',
+                title: t('deleteTitle', { name: rule.name }),
+                description: t('thisAutoDmRuleWillBeDeleted'),
+                confirmLabel: t('delete'),
                 tone: 'danger',
               })) void run(() => deleteAutoDmRuleAction(rule.id))
             }}
             className={`${MENU_ITEM} text-red-600`}
           >
             <Trash2 size={15} aria-hidden="true" />
-            Hapus
-          </button>
+            {t('delete')}
+            </button>
         </div>
       )}
     </div>

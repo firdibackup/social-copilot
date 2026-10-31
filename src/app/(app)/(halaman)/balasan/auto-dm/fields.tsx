@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { Check, Plus, X } from 'lucide-react'
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import { LoadingState } from '@/components/loading-state'
@@ -7,20 +9,23 @@ import { ExternalImage } from '@/components/media-image'
 import type { RulePost } from '../auto-dm-actions'
 
 /** Placeholders, shown in the form and, without "cth. ", in an empty preview bubble. */
-export const PLACEHOLDERS = {
-  name: 'cth. Link ebook gratis',
-  keyword: 'Ketik lalu Enter, cth. MAU',
-  variation: 'cth. Cek DM ya! 📩',
-  openerText: 'cth. Mau linknya? Tekan tombol di bawah 👇',
-  openerButton: 'cth. Kirim linknya',
-  followText: 'cth. Follow dulu yuk, habis itu linknya aku kirim 🙌',
-  followButton: 'cth. Sudah follow ✅',
-  mainText: 'Pesan yang dikirim ke yang komentar…',
-  linkText: 'cth. Booking sekarang',
-  linkUrl: 'https://',
-} as const
+export function usePlaceholders() {
+  const t = useTranslations('inbox.placeholders')
+  return {
+    name: t('name'),
+    keyword: t('keyword'),
+    variation: t('variation'),
+    openerText: t('openerText'),
+    openerButton: t('openerButton'),
+    followText: t('followText'),
+    followButton: t('followButton'),
+    mainText: t('mainText'),
+    linkText: t('linkText'),
+    linkUrl: t('linkUrl'),
+  }
+}
 
-export const withoutExample = (placeholder: string) => placeholder.replace(/^cth\. /, '')
+export const withoutExample = (placeholder: string) => placeholder.replace(/^(?:cth\.|e\.g\.) /, '')
 
 export const FIELD =
   'block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none'
@@ -185,6 +190,7 @@ interface TagInputProps {
 
 /** Keywords as chips: Enter adds one, × removes it. The examples show until the first keyword. */
 export function TagInput({ values, onChange, placeholder, maxLength, maxCount, examples }: TagInputProps) {
+  const t = useTranslations('inbox.builderFields')
   const [draft, setDraft] = useState('')
 
   function add(value: string) {
@@ -211,7 +217,7 @@ export function TagInput({ values, onChange, placeholder, maxLength, maxCount, e
             {keyword}
             <button
               type="button"
-              aria-label={`Hapus kata kunci ${keyword}`}
+              aria-label={t('removeKeyword', { keyword })}
               onClick={() => onChange(values.filter((value) => value !== keyword))}
               className="text-zinc-500 hover:text-zinc-900"
             >
@@ -229,15 +235,14 @@ export function TagInput({ values, onChange, placeholder, maxLength, maxCount, e
           }}
           maxLength={maxLength}
           placeholder={values.length === 0 ? placeholder : ''}
-          aria-label="Kata kunci"
+          aria-label={t('keywords')}
           className="min-w-32 flex-1 bg-transparent px-1 py-0.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none"
         />
       </div>
-      <p className={HELPER}>Satu saja yang cocok sudah cukup. Huruf besar-kecil nggak ngaruh.</p>
+      <p className={HELPER}>{t('oneMatchingKeywordIsEnoughCapitalizationDoesnTMatter')}</p>
       {values.length === 0 && (
         <p className="flex flex-wrap items-center gap-1.5 text-xs text-zinc-500">
-          Contoh:
-          {examples.map((example) => (
+           {t('examples')} {examples.map((example) => (
             <button
               key={example}
               type="button"
@@ -262,6 +267,8 @@ interface VariationsProps {
 
 /** Public reply variations; one is picked at random per reply. */
 export function Variations({ values, onChange, maxLength, maxCount }: VariationsProps) {
+  const t = useTranslations('inbox.builderFields')
+  const placeholders = usePlaceholders()
   const replace = (index: number, value: string) => onChange(values.map((item, at) => (at === index ? value : item)))
   return (
     <div className="space-y-2">
@@ -271,14 +278,14 @@ export function Variations({ values, onChange, maxLength, maxCount }: Variations
             value={value}
             onChange={(event) => replace(index, event.target.value)}
             maxLength={maxLength}
-            placeholder={PLACEHOLDERS.variation}
-            aria-label={`Variasi balasan ${index + 1}`}
+            placeholder={placeholders.variation}
+            aria-label={t('variation', { number: index + 1 })}
             className={FIELD}
           />
           {values.length > 1 && (
             <button
               type="button"
-              aria-label={`Hapus variasi ${index + 1}`}
+              aria-label={t('removeVariation', { number: index + 1 })}
               onClick={() => onChange(values.filter((_, at) => at !== index))}
               className="text-zinc-400 hover:text-zinc-900"
             >
@@ -294,10 +301,10 @@ export function Variations({ values, onChange, maxLength, maxCount }: Variations
           className="inline-flex items-center gap-1 text-sm font-medium text-zinc-700 hover:text-zinc-900"
         >
           <Plus size={14} aria-hidden="true" />
-          Tambah variasi
-        </button>
+          {t('addVariation')}
+          </button>
       )}
-      <p className={HELPER}>Kalau ada beberapa variasi, tiap balasan dipilih acak biar nggak keliatan bot.</p>
+      <p className={HELPER}>{t('withMultipleVariationsEachReplyIsPickedAtRandom')}</p>
     </div>
   )
 }
@@ -311,13 +318,14 @@ interface PostPickerProps {
 
 /** The account's newest posts, three a row; one can be chosen. */
 export function PostPicker({ posts, error, selectedId, onSelect }: PostPickerProps) {
+  const t = useTranslations('inbox.builderFields')
   if (error) return <p className="text-sm text-red-700">{error}</p>
-  if (!posts) return <LoadingState variant="gallery" label="Memuat post…" />
-  if (posts.length === 0) return <p className="text-sm text-zinc-500">Belum ada post di akun ini.</p>
+  if (!posts) return <LoadingState variant="gallery" label={t('loadingPosts')} />
+  if (posts.length === 0) return <p className="text-sm text-zinc-500">{t('noPostsOnThisAccountYet')}</p>
   const isListed = selectedId === null || posts.some((post) => post.id === selectedId)
   return (
     <div className="space-y-2">
-      {!isListed && <p className="text-xs text-zinc-500">Post yang dipilih sebelumnya tidak ada di 24 post terbaru.</p>}
+      {!isListed && <p className="text-xs text-zinc-500">{t('thePreviouslySelectedPostIsnTAmongThe24')}</p>}
       <div className="grid max-w-[18rem] grid-cols-3 gap-1.5">
         {posts.map((post) => {
           const selected = post.id === selectedId
@@ -326,7 +334,7 @@ export function PostPicker({ posts, error, selectedId, onSelect }: PostPickerPro
               key={post.id}
               type="button"
               aria-pressed={selected}
-              aria-label={post.caption ? `Post: ${post.caption.slice(0, 60)}` : 'Post tanpa caption'}
+              aria-label={post.caption ? t('postCaption', { caption: post.caption.slice(0, 60) }) : t('postWithoutACaption')}
               onClick={() => onSelect(post.id)}
               className={`relative aspect-square overflow-hidden rounded-md bg-zinc-100 ${
                 selected ? 'ring-2 ring-zinc-900 ring-offset-1' : 'hover:opacity-90'

@@ -1,10 +1,16 @@
+import { createTranslator } from 'next-intl'
+import type { Locale } from '@/i18n/locale-config'
+import idMessages from '../../messages/id/assets.json'
+import en from '../../messages/en/assets.json'
 import 'server-only'
 import { randomUUID } from 'node:crypto'
 import { isAssetCategory, isAssetOrigin, type AssetCategory, type AssetOrigin } from './asset-options'
 import { getConnectedAccountId } from './connection'
 import { describeError } from './errors'
-import { isJpeg, MAX_IMAGE_BYTES } from './image'
+import { isJpeg } from './image'
 import { toReferenceDataUrl } from './slide-image'
+import { assertStorageAvailable, FileTooLargeError } from './storage-quota'
+import { MAX_STORED_BYTES } from './storage-quota-options'
 import { db, unwrap } from './supabase'
 
 const MEDIA_BUCKET = 'media'
@@ -93,12 +99,15 @@ interface AssetGroupRow {
 }
 
 export interface CreateAssetOptions {
+  locale?: Locale
   accountId?: string
   origin?: AssetOrigin
   groupId?: string
   groupPosition?: number
   sourceUrl?: string
   contentHash?: string
+  /** A slide job already paid for may finish even if storage filled after it started. */
+  enforceQuota?: boolean
 }
 
 export interface AssetGroupInput {
@@ -163,6 +172,16 @@ export async function listAssets(userId: string, accountId: string, set?: 'mine'
   return rows.map((row, index) => toAsset(row, urls[index]))
 }
 
+/** The user's assets among `ids`, in the order of `ids`, with view URLs. Missing ones drop out. */
+export async function loadAssetsByIds(userId: string, ids: string[]): Promise<Asset[]> {
+  if (ids.length === 0) return []
+  const rows: AssetRow[] = unwrap(await db().from('assets').select(ASSET_COLUMNS).in('id', ids).eq('user_id', userId))
+  const byId = new Map(rows.map((row) => [row.id, row]))
+  const ordered = ids.flatMap((id) => byId.get(id) ?? [])
+  const urls = await signMediaUrls(ordered.map((row) => row.storage_path))
+  return ordered.map((row, index) => toAsset(row, urls[index]))
+}
+
 /** What Aset shows. Own photos and AI results are read apart, so a pile of slides can't push the owner's photos out. */
 export async function listAssetLibrary(userId: string, accountId: string): Promise<AssetLibrary> {
   const [mine, ai, groups] = await Promise.all([
@@ -200,12 +219,16 @@ export async function createAsset(
   height: number,
   options: CreateAssetOptions = {},
 ): Promise<Asset> {
-  if (file.size === 0 || file.size > MAX_IMAGE_BYTES) throw new InvalidImageError('Ukuran foto harus di bawah 8 MB.')
+  const locale = options.locale ?? 'id'
+  const t = createTranslator({ locale, messages: locale === 'en' ? en : idMessages })
+  if (file.size === 0) throw new InvalidImageError(t('library.text1'))
+  if (file.size > MAX_STORED_BYTES) throw new FileTooLargeError(locale)
   if (![width, height].every((side) => Number.isInteger(side) && side > 0)) {
-    throw new InvalidImageError('Ukuran foto tidak valid.')
+    throw new InvalidImageError(t('library.text2'))
   }
   const bytes = new Uint8Array(await file.arrayBuffer())
-  if (!isJpeg(bytes)) throw new InvalidImageError('File bukan JPEG.')
+  if (!isJpeg(bytes)) throw new InvalidImageError(t('library.text3'))
+  if (options.enforceQuota !== false) await assertStorageAvailable(userId, bytes.length, locale)
 
   const path = `${userId}/${randomUUID()}.jpg`
   const upload = await bucket().upload(path, bytes, { contentType: 'image/jpeg' })
@@ -252,13 +275,15 @@ export async function createAssetGroup(
   userId: string,
   accountId: string,
   input: AssetGroupInput,
+  locale: Locale = 'id',
 ): Promise<string> {
-  if (!isAssetCategory(input.category)) throw new Error('Kategori kelompok tidak valid.')
-  if (!isAssetOrigin(input.origin)) throw new Error('Asal kelompok tidak valid.')
+  const t = createTranslator({ locale, messages: locale === 'en' ? en : idMessages })
+  if (!isAssetCategory(input.category)) throw new Error(t('library.text4'))
+  if (!isAssetOrigin(input.origin)) throw new Error(t('library.text5'))
   const title = input.title.trim()
   const description = input.description.trim()
-  if (!title || title.length > 120) throw new Error('Judul kelompok harus 1–120 karakter.')
-  if (description.length > 500) throw new Error('Deskripsi kelompok maksimal 500 karakter.')
+  if (!title || title.length > 120) throw new Error(t('library.text6'))
+  if (description.length > 500) throw new Error(t('library.text7'))
   const { data, error } = await db().rpc('create_asset_group', {
     p_user_id: userId,
     p_account_id: accountId,
@@ -278,12 +303,14 @@ export async function updateAssetGroup(
   userId: string,
   id: string,
   input: Pick<AssetGroupInput, 'category' | 'title' | 'description'>,
+  locale: Locale = 'id',
 ): Promise<boolean> {
-  if (!isAssetCategory(input.category)) throw new Error('Kategori kelompok tidak valid.')
+  const t = createTranslator({ locale, messages: locale === 'en' ? en : idMessages })
+  if (!isAssetCategory(input.category)) throw new Error(t('library.text4'))
   const title = input.title.trim()
   const description = input.description.trim()
-  if (!title || title.length > 120) throw new Error('Judul kelompok harus 1–120 karakter.')
-  if (description.length > 500) throw new Error('Deskripsi kelompok maksimal 500 karakter.')
+  if (!title || title.length > 120) throw new Error(t('library.text6'))
+  if (description.length > 500) throw new Error(t('library.text7'))
   const rows = unwrap(
     await db()
       .from('asset_groups')
@@ -490,9 +517,10 @@ export async function removeMediaFile(path: string): Promise<void> {
 }
 
 /** Deletes the row first: if a post still uses the photo, the foreign key stops it before the file is gone. */
-export async function deleteAsset(userId: string, id: string): Promise<void> {
+export async function deleteAsset(userId: string, id: string, locale: Locale = 'id'): Promise<void> {
+  const t = createTranslator({ locale, messages: locale === 'en' ? en : idMessages })
   const result = await db().from('assets').delete().eq('id', id).eq('user_id', userId).select('storage_path')
-  if (result.error?.code === FOREIGN_KEY_VIOLATION) throw new AssetInUseError('Foto ini masih dipakai di post.')
+  if (result.error?.code === FOREIGN_KEY_VIOLATION) throw new AssetInUseError(t('library.text8'))
   const rows: Pick<AssetRow, 'storage_path'>[] = unwrap(result)
   if (rows.length === 0) return
 

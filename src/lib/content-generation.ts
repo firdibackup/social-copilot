@@ -21,6 +21,7 @@ import { listTemplatePool } from './templates'
 export async function processContentJob(job: ContentJob): Promise<void> {
   let watch: Awaited<ReturnType<typeof watchGeneration>> | undefined
   try {
+    const language = job.payload.language ?? job.payload.request?.language ?? 'id'
     if (!job.lease) throw new Error('job_not_claimed')
     watch = await watchGeneration(() => contentAttemptActive(job.post_id, job.lease!))
     if (await getConnectedAccountId(job.user_id) !== job.account_id) {
@@ -33,7 +34,7 @@ export async function processContentJob(job: ContentJob): Promise<void> {
       await writeScript(job.user_id, idea, async (script) => {
         await watch!.check()
         unwrap(await db().rpc('finish_script_job', { p_post_id: job.post_id, p_lease: job.lease, p_script: script }))
-      }, job.payload.brief ?? '', brand, watch.signal, job.payload.density)
+      }, job.payload.brief ?? '', brand, watch.signal, job.payload.density, language)
       return
     }
     const request = job.payload.request
@@ -54,7 +55,7 @@ export async function processContentJob(job: ContentJob): Promise<void> {
       await watch!.check()
       return createContentPost(job.user_id, request, plan, references, job.payload.attachmentPath ?? null,
         { postId: job.post_id, lease: job.lease! })
-    }, products, attachment, job.payload.script ?? null, brand, watch.signal)
+    }, products, attachment, job.payload.script ?? null, brand, watch.signal, language)
   } catch (error) {
     if (error instanceof GenerationCancelled) return
     console.error('[worker] draft gagal:', describeError(error))

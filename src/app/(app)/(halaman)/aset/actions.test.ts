@@ -11,6 +11,13 @@ import {
   uploadAsset,
 } from './actions'
 
+vi.mock('next-intl/server', async () => {
+  const { createTranslator } = await import('next-intl')
+  const { idMessages } = await import('@/i18n/messages')
+  return { getTranslations: async (namespace: 'brand' | 'assets') => createTranslator({ locale: 'id', messages: idMessages, namespace }) }
+})
+vi.mock('@/i18n/locale', () => ({ getUserLocale: async () => 'id' }))
+
 vi.mock('next/cache', () => ({ refresh: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ requireAccount: vi.fn(async () => ({ userId: 'user-1', accountId: 'ig-1' })) }))
 vi.mock('@/lib/assets', async (importOriginal) => ({
@@ -136,7 +143,7 @@ describe('tagAssetsAction', () => {
     vi.mocked(tagAssets).mockResolvedValue(2)
 
     expect(await tagAssetsAction(EMPTY, form({ id: [ID_1, ID_2] }))).toEqual({ error: null, success: 'Tag dibuat untuk 2 foto.' })
-    expect(tagAssets).toHaveBeenCalledWith('user-1', 'ig-1', [ID_1, ID_2])
+    expect(tagAssets).toHaveBeenCalledWith('user-1', 'ig-1', [ID_1, ID_2], 'id')
   })
 
   it('shows why AI could not tag', async () => {

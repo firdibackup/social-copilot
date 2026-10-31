@@ -1,9 +1,45 @@
 import { paletteOf } from './palette'
+import { MAX_STORED_BYTES } from './storage-quota-options'
 
-/** Meta's feed limits: JPEG only, at most 8 MB, aspect ratio 4:5 to 1.91:1, at most 1440 px wide. */
+/** Meta's download limit. Stored images are compressed to the smaller storage target below. */
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024
+export const TARGET_STORED_BYTES = MAX_STORED_BYTES - 128 * 1024
 const MAX_WIDTH = 1440
 const JPEG_QUALITY = 0.9
+const MIN_JPEG_QUALITY = 0.6
+const RESIZE_STEPS = 8
+const RESIZE_FACTOR = 0.85
+
+export interface StoredJpegAttempt {
+  width: number
+  height: number
+  quality: number
+}
+
+/** A bounded quality-first encoding plan shared by browser canvas and server sharp pipelines. */
+export function storedJpegAttempts(
+  width: number,
+  height: number,
+  initialQuality: number,
+  instagramRatio = false,
+): StoredJpegAttempt[] {
+  const attempts: StoredJpegAttempt[] = []
+  for (const quality of [initialQuality, 0.8, 0.7, MIN_JPEG_QUALITY]) {
+    if (!attempts.some((attempt) => attempt.quality === quality)) attempts.push({ width, height, quality })
+  }
+
+  let resizedWidth = width
+  let resizedHeight = height
+  for (let step = 0; step < RESIZE_STEPS; step += 1) {
+    resizedWidth = Math.max(1, Math.floor(resizedWidth * RESIZE_FACTOR))
+    const proportionalHeight = Math.max(1, Math.round((height * resizedWidth) / width))
+    resizedHeight = instagramRatio
+      ? Math.max(Math.ceil((resizedWidth * 100) / 191), Math.min(Math.floor((resizedWidth * 5) / 4), proportionalHeight))
+      : proportionalHeight
+    attempts.push({ width: resizedWidth, height: resizedHeight, quality: MIN_JPEG_QUALITY })
+  }
+  return attempts
+}
 
 export interface Fit {
   /** Source crop rectangle. */
@@ -54,6 +90,37 @@ export interface PreparedImage {
   height: number
 }
 
+const PROCESSING_ERROR = 'Foto tidak bisa diproses. Coba foto lain.'
+
+function canvasJpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob | null> {
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality))
+}
+
+async function compressCanvasJpeg(canvas: HTMLCanvasElement, initialQuality: number, instagramRatio = false): Promise<PreparedImage> {
+  const original = document.createElement('canvas')
+  original.width = canvas.width
+  original.height = canvas.height
+  const originalContext = original.getContext('2d')
+  if (!originalContext) throw new Error(PROCESSING_ERROR)
+  originalContext.drawImage(canvas, 0, 0)
+
+  for (const attempt of storedJpegAttempts(original.width, original.height, initialQuality, instagramRatio)) {
+    if (canvas.width !== attempt.width || canvas.height !== attempt.height) {
+      canvas.width = attempt.width
+      canvas.height = attempt.height
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error(PROCESSING_ERROR)
+      context.fillStyle = '#ffffff'
+      context.fillRect(0, 0, attempt.width, attempt.height)
+      context.drawImage(original, 0, 0, attempt.width, attempt.height)
+    }
+    const blob = await canvasJpeg(canvas, attempt.quality)
+    if (!blob) throw new Error(PROCESSING_ERROR)
+    if (blob.size <= TARGET_STORED_BYTES) return { blob, width: canvas.width, height: canvas.height }
+  }
+  throw new Error(PROCESSING_ERROR)
+}
+
 /** Browser only: decodes any image the browser can read and re-encodes it as an Instagram-ready JPEG. */
 export async function toInstagramJpeg(file: File): Promise<PreparedImage> {
   // createImageBitmap applies the EXIF orientation, so phone photos come out upright.
@@ -70,9 +137,7 @@ export async function toInstagramJpeg(file: File): Promise<PreparedImage> {
   context.drawImage(bitmap, fit.sx, fit.sy, fit.sw, fit.sh, 0, 0, fit.width, fit.height)
   bitmap.close()
 
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY))
-  if (!blob) throw new Error('Foto gagal dikonversi ke JPEG')
-  return { blob, width: fit.width, height: fit.height }
+  return compressCanvasJpeg(canvas, JPEG_QUALITY, true)
 }
 
 /**
@@ -102,7 +167,6 @@ export async function toReferenceJpeg(file: File): Promise<PreparedReference> {
   const palette = paletteOf(bitmap)
   bitmap.close()
 
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', REFERENCE_QUALITY))
-  if (!blob) throw new Error('Gambar gagal dikonversi ke JPEG')
+  const { blob } = await compressCanvasJpeg(canvas, REFERENCE_QUALITY)
   return { blob, palette }
 }

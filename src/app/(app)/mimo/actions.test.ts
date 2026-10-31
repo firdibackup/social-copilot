@@ -1,4 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('next-intl/server', async () => {
+  const { createTranslator } = await import('next-intl')
+  const { default: mimo } = await import('../../../../messages/id/mimo.json')
+  return { getTranslations: async (namespace: 'mimo.actions') => createTranslator({ locale: 'id', messages: { mimo }, namespace }) }
+})
+vi.mock('@/i18n/locale', () => ({ getUserLocale: async () => 'id' }))
+
 import { remainingCredits } from '@/lib/ai'
 import { DEFAULT_CATALOG } from '@/lib/billing-catalog-options'
 vi.mock('@/lib/billing-catalog', () => ({ getBillingCatalog: vi.fn(async () => ({ version: 1, catalog: DEFAULT_CATALOG })) }))
@@ -82,13 +90,13 @@ describe('startBulkAction', () => {
       density: 'ringkas',
       brief: expect.stringContaining('Tulis tepat 3 slide.'),
       auto: { request: expect.objectContaining({ topic: 'Judul baru', slides: 3, ideaId: KEY_A, pillarId: 'p-promo', density: 'ringkas', format: '4:5' }) },
-    })
+    }, 'id')
     // A saved script is drawn as it is, with its own slide count.
     expect(enqueueContentJob).toHaveBeenNthCalledWith(2, USER, ACCOUNT, KEY_C, SAVED, 'content', {
       request: expect.objectContaining({ topic: 'Tersimpan', slides: 2, ideaId: SAVED }),
       script: SCRIPT,
       attachmentPath: null,
-    })
+    }, 'id')
     expect(updateBulkCard).toHaveBeenLastCalledWith(USER, ACCOUNT, MESSAGE, BULK, 'starting', {
       state: 'started',
       items: [
@@ -117,10 +125,10 @@ describe('startBulkAction', () => {
     })
     expect(enqueueContentJob).toHaveBeenNthCalledWith(1, USER, ACCOUNT, KEY_A, KEY_A, 'script', expect.objectContaining({
       density: 'padat', auto: { request: expect.objectContaining(settings) },
-    }))
+    }), 'id')
     expect(enqueueContentJob).toHaveBeenNthCalledWith(3, USER, ACCOUNT, KEY_C, SAVED, 'content', expect.objectContaining({
       request: expect.objectContaining(settings), script: SCRIPT,
-    }))
+    }), 'id')
     if (productGroupId === SAVED) expect(listProductGroups).toHaveBeenCalledWith(USER, ACCOUNT)
     else expect(listProductGroups).not.toHaveBeenCalled()
   })
@@ -142,7 +150,7 @@ describe('startBulkAction', () => {
     expect(await startBulkAction(SESSION, MESSAGE, BULK, [], { density: 'padat', productGroupId: 'auto' })).toBeNull()
     expect(enqueueContentJob).toHaveBeenCalledWith(USER, ACCOUNT, KEY_A, KEY_A, 'script', expect.objectContaining({
       density: 'lengkap', auto: { request: expect.objectContaining(settings) },
-    }))
+    }), 'id')
   })
 
   it('keeps approved settings when retrying a plan whose jobs all failed to queue', async () => {
@@ -151,7 +159,7 @@ describe('startBulkAction', () => {
     expect(await startBulkAction(SESSION, MESSAGE, BULK, edits([PLAN[0]]))).toBeNull()
     expect(enqueueContentJob).toHaveBeenCalledWith(USER, ACCOUNT, KEY_A, KEY_A, 'script', expect.objectContaining({
       density: 'lengkap', auto: { request: expect.objectContaining(settings) },
-    }))
+    }), 'id')
   })
 
   it('starts nothing twice: another click already moved the card', async () => {
@@ -170,7 +178,7 @@ describe('startBulkAction', () => {
 
     expect(remainingCredits).not.toHaveBeenCalled()
     expect(enqueueContentJob).toHaveBeenCalledTimes(1)
-    expect(enqueueContentJob).toHaveBeenCalledWith(USER, ACCOUNT, KEY_B, KEY_B, 'script', expect.any(Object))
+    expect(enqueueContentJob).toHaveBeenCalledWith(USER, ACCOUNT, KEY_B, KEY_B, 'script', expect.any(Object), 'id')
     expect(updateBulkCard).toHaveBeenLastCalledWith(USER, ACCOUNT, MESSAGE, BULK, 'starting', expect.objectContaining({
       state: 'started',
       items: [expect.objectContaining({ postId: 'post-a' }), expect.objectContaining({ postId: 'post-1' })],

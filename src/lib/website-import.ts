@@ -2,6 +2,7 @@ import 'server-only'
 import { createHash } from 'node:crypto'
 import { createAsset, findWebsiteAsset, loadAssetBytes } from './assets'
 import { describeError } from './errors'
+import { StorageFullError } from './storage-quota'
 import { fetchImage } from './web-fetch'
 import { toReferenceDataUrl, toWebsiteJpeg } from './slide-image'
 import { readWebsite, type WebsiteFacts, type WebsiteImageCandidate } from './website'
@@ -109,6 +110,10 @@ export async function importWebsiteAssets(userId: string, accountId: string, inp
       imported++
     } catch (error) {
       skipped++
+      if (error instanceof StorageFullError) {
+        warnings.push('Sebagian foto tidak disimpan karena penyimpanan penuh. Bersihkan Aset dulu.')
+        break
+      }
       console.error('[aset] gambar website dilewati:', describeError(error))
     }
   }

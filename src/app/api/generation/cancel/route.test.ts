@@ -3,6 +3,13 @@ import { requireAccount } from '@/lib/auth'
 import { db } from '@/lib/supabase'
 import { POST } from './route'
 
+vi.mock('next-intl/server', () => ({
+  getTranslations: async (namespace: string) => {
+    const { createTranslator } = await import('next-intl')
+    const { default: editor } = await import('../../../../../messages/id/editor.json')
+    return createTranslator({ locale: 'id', messages: { editor }, namespace: namespace as 'editor.routecancel' })
+  },
+}))
 vi.mock('@/lib/auth', () => ({ requireAccount: vi.fn() }))
 vi.mock('@/lib/supabase', async original => ({ ...(await original<typeof import('@/lib/supabase')>()), db: vi.fn() }))
 const rpc = vi.fn()

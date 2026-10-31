@@ -1,4 +1,9 @@
+
+import { getUserLocale } from '@/i18n/locale'
+import { localizeLibraryMessage } from '../brand/localized-errors'
+import { getTranslations } from 'next-intl/server'
 import type { Metadata } from 'next'
+import { IntlMessages } from '@/i18n/client-messages'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
 import { LoadingState } from '@/components/loading-state'
@@ -10,22 +15,26 @@ import { getBrandFields } from '@/lib/brand'
 import { describeError, loadErrorMessage } from '@/lib/errors'
 import { AssetLibraryView } from './asset-library'
 
-export const metadata: Metadata = { title: 'Aset' }
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('assets')
+  return { title: t('metadata.title') }
+}
 
-export default function AsetPage() {
+export default async function AsetPage() {
+  const t = await getTranslations('assets')
   return (
+    <IntlMessages namespaces={['common', 'assets']}>
     <div className="space-y-6">
       <header className="max-w-2xl space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Aset</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">{t('page.text1')}</h1>
         <p className="text-zinc-500">
-          Foto milikmu, dari website, dan hasil AI. Kelompokkan foto per produk agar AI memakai produk yang benar saat
-          membuat konten.
-        </p>
+          {t('page.text2')}</p>
       </header>
-      <Suspense fallback={<LoadingState variant="gallery" label="Memuat foto…" />}>
+      <Suspense fallback={<LoadingState variant="gallery" label={t('page.text3')} />}>
         <AssetGrid />
       </Suspense>
     </div>
+    </IntlMessages>
   )
 }
 
@@ -48,7 +57,7 @@ async function AssetGrid() {
     ;[library, websiteUrl] = await Promise.all([listAssetLibrary(userId, accountId), websiteOf(userId, accountId)])
   } catch (error) {
     console.error('[aset] gagal memuat:', describeError(error))
-    return <Notice tone="warning">{loadErrorMessage(error)}</Notice>
+    return <Notice tone="warning">{localizeLibraryMessage(loadErrorMessage(error), await getUserLocale())}</Notice>
   }
 
   const { catalog } = await getBillingCatalog()

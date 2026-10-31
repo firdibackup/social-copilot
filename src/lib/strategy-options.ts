@@ -1,3 +1,7 @@
+import { createTranslator } from 'next-intl'
+import type { Locale } from '@/i18n/locale-config'
+import id from '../../messages/id/brand.json'
+import en from '../../messages/en/brand.json'
 /** The content strategy on Brand: who the account is, its content pillars and their shares, and its rhythm. */
 import { isObject, lengthOf } from './brand-options'
 
@@ -109,15 +113,16 @@ export function pillarQuota(pillars: Pick<ContentPillar, 'share'>[], count: numb
 const textOf = (value: unknown) => (typeof value === 'string' ? value.replace(/\r\n/g, '\n').trim() : null)
 
 /** Validates what the strategy card sent; the server action's parameter type is only a hint. */
-export function parseStrategy(input: unknown): { strategy: ContentStrategy } | { error: string } {
-  if (!isObject(input)) return { error: 'Strategi tidak valid.' }
+export function parseStrategy(input: unknown, locale: Locale = 'id'): { strategy: ContentStrategy } | { error: string } {
+  const t = createTranslator({ locale, messages: locale === 'en' ? en : id })
+  if (!isObject(input)) return { error: t('strategyValidation.text1') }
   const identity = textOf(input.identity)
   const tone = textOf(input.tone)
-  if (identity === null || tone === null) return { error: 'Strategi tidak valid.' }
-  if (!identity) return { error: 'Isi identitas brand.' }
-  if (lengthOf(identity) > STRATEGY_LIMITS.identity) return { error: `Identitas maksimal ${STRATEGY_LIMITS.identity} karakter.` }
-  if (lengthOf(tone) > STRATEGY_LIMITS.tone) return { error: `Gaya bahasa maksimal ${STRATEGY_LIMITS.tone} karakter.` }
-  if (!isFocus(input.focus)) return { error: 'Pilih fokus saat ini.' }
+  if (identity === null || tone === null) return { error: t('strategyValidation.text1') }
+  if (!identity) return { error: t('strategyValidation.text2') }
+  if (lengthOf(identity) > STRATEGY_LIMITS.identity) return { error: t('strategyValidation.text3', { v0: STRATEGY_LIMITS.identity }) }
+  if (lengthOf(tone) > STRATEGY_LIMITS.tone) return { error: t('strategyValidation.text4', { v0: STRATEGY_LIMITS.tone }) }
+  if (!isFocus(input.focus)) return { error: t('strategyValidation.text5') }
   const postsPerWeek = input.postsPerWeek
   if (
     typeof postsPerWeek !== 'number' ||
@@ -125,36 +130,36 @@ export function parseStrategy(input: unknown): { strategy: ContentStrategy } | {
     postsPerWeek < MIN_POSTS_PER_WEEK ||
     postsPerWeek > MAX_POSTS_PER_WEEK
   ) {
-    return { error: `Frekuensi antara ${MIN_POSTS_PER_WEEK} dan ${MAX_POSTS_PER_WEEK} post per minggu.` }
+    return { error: t('strategyValidation.text6', { v0: MIN_POSTS_PER_WEEK, v1: MAX_POSTS_PER_WEEK }) }
   }
-  if (!Array.isArray(input.pillars)) return { error: 'Strategi tidak valid.' }
+  if (!Array.isArray(input.pillars)) return { error: t('strategyValidation.text1') }
   if (input.pillars.length < MIN_PILLARS || input.pillars.length > MAX_PILLARS) {
-    return { error: `Pilar konten ${MIN_PILLARS} sampai ${MAX_PILLARS}.` }
+    return { error: t('strategyValidation.text7', { v0: MIN_PILLARS, v1: MAX_PILLARS }) }
   }
   const pillars: ContentPillar[] = []
   const ids = new Set<string>()
   for (const item of input.pillars) {
-    if (!isObject(item)) return { error: 'Strategi tidak valid.' }
+    if (!isObject(item)) return { error: t('strategyValidation.text1') }
     const id = item.id
     const name = textOf(item.name)
     const detail = textOf(item.detail)
     const share = item.share
     if (typeof id !== 'string' || !PILLAR_ID.test(id) || ids.has(id) || name === null || detail === null) {
-      return { error: 'Strategi tidak valid.' }
+      return { error: t('strategyValidation.text1') }
     }
-    if (!name) return { error: 'Setiap pilar perlu nama.' }
-    if (lengthOf(name) > STRATEGY_LIMITS.pillarName) return { error: `Nama pilar maksimal ${STRATEGY_LIMITS.pillarName} karakter.` }
+    if (!name) return { error: t('strategyValidation.text8') }
+    if (lengthOf(name) > STRATEGY_LIMITS.pillarName) return { error: t('strategyValidation.text9', { v0: STRATEGY_LIMITS.pillarName }) }
     if (lengthOf(detail) > STRATEGY_LIMITS.pillarDetail) {
-      return { error: `Detail pilar maksimal ${STRATEGY_LIMITS.pillarDetail} karakter.` }
+      return { error: t('strategyValidation.text10', { v0: STRATEGY_LIMITS.pillarDetail }) }
     }
     if (typeof share !== 'number' || !Number.isInteger(share) || share < MIN_SHARE || share > 100) {
-      return { error: `Takaran setiap pilar minimal ${MIN_SHARE}%.` }
+      return { error: t('strategyValidation.text11', { v0: MIN_SHARE }) }
     }
     ids.add(id)
     pillars.push({ id, name, detail, share })
   }
   const total = totalShare(pillars)
-  if (total !== 100) return { error: `Total takaran harus 100% (sekarang ${total}%).` }
+  if (total !== 100) return { error: t('strategyValidation.text12', { v0: total }) }
   return { strategy: { identity, pillars, tone, focus: input.focus, postsPerWeek } }
 }
 

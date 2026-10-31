@@ -1,4 +1,5 @@
 import 'server-only'
+import type { Locale } from '@/i18n/locale-config'
 import { getCurrentPeriod } from './billing'
 import { listNotificationComments, markAllCommentsSeen, setCommentReadState } from './comments'
 import { getConnectedAccountId } from './connection'
@@ -8,7 +9,7 @@ import { summarizeNotifications, type Notification, type NotificationFeed } from
 const INSTAGRAM_REQUIRED: NotificationFeed = { status: 'instagram_required', count: 0, items: [] }
 const SUBSCRIPTION_REQUIRED: NotificationFeed = { status: 'subscription_required', count: 0, items: [] }
 
-export async function getNotificationFeed(userId: string): Promise<NotificationFeed> {
+export async function getNotificationFeed(userId: string, locale: Locale = 'id'): Promise<NotificationFeed> {
   const [accountId, period] = await Promise.all([getConnectedAccountId(userId), getCurrentPeriod(userId)])
   if (!accountId) return INSTAGRAM_REQUIRED
   if (!period) return SUBSCRIPTION_REQUIRED
@@ -16,7 +17,7 @@ export async function getNotificationFeed(userId: string): Promise<NotificationF
     listNotificationConversations(userId, accountId),
     listNotificationComments(userId, accountId),
   ])
-  return { status: 'active', ...summarizeNotifications(conversations, comments) }
+  return { status: 'active', ...summarizeNotifications(conversations, comments, undefined, locale) }
 }
 
 export async function setNotificationReadState(

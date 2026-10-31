@@ -1,5 +1,7 @@
 'use server'
 
+import { getLocale, getTranslations } from 'next-intl/server'
+
 import { refresh } from 'next/cache'
 import { deleteRule, saveRule, setRuleActive } from '@/lib/auto-dm'
 import { parseRuleInput } from '@/lib/auto-dm-rules'
@@ -10,7 +12,6 @@ import { fetchOwnMedia } from '@/lib/instagram'
 import { isUuid } from '@/lib/params'
 import { instagramErrorMessage, type ActionError } from './action-utils'
 
-const NOT_FOUND = 'Aturan tidak ditemukan.'
 /** Posts in the "Satu post" picker. */
 const POST_PICKER_LIMIT = 24
 
@@ -28,17 +29,19 @@ export interface RulePost {
  * action's promise in the browser, which reads as a failure.
  */
 export async function saveAutoDmRuleAction(id: unknown, input: unknown): Promise<ActionError> {
+  const t = await getTranslations('inbox.autoDmActions')
+  const NOT_FOUND = t('ruleNotFound')
   const { userId, accountId } = await requireAccount()
   const ruleId = id === null ? null : isUuid(id) ? id : undefined
   if (ruleId === undefined) return NOT_FOUND
-  const parsed = parseRuleInput(input)
+  const parsed = parseRuleInput(input, await getLocale())
   if ('error' in parsed) return parsed.error
 
   try {
     if (!(await saveRule(userId, accountId, ruleId, parsed.rule))) return NOT_FOUND
   } catch (error) {
     console.error('[auto-dm] aturan gagal disimpan:', describeError(error))
-    return 'Aturan gagal disimpan. Periksa koneksi Supabase.'
+    return t('couldnTSaveTheRuleCheckYourSupabaseConnection')
   }
   refresh()
   return null
@@ -46,26 +49,30 @@ export async function saveAutoDmRuleAction(id: unknown, input: unknown): Promise
 
 /** Jedakan / Lanjutkan. */
 export async function setAutoDmRuleActiveAction(id: unknown, active: unknown): Promise<ActionError> {
+  const t = await getTranslations('inbox.autoDmActions')
+  const NOT_FOUND = t('ruleNotFound')
   const { userId, accountId } = await requireAccount()
   if (!isUuid(id) || typeof active !== 'boolean') return NOT_FOUND
   try {
     if (!(await setRuleActive(userId, accountId, id, active))) return NOT_FOUND
   } catch (error) {
     console.error('[auto-dm] status aturan gagal diubah:', describeError(error))
-    return 'Status aturan gagal diubah. Coba lagi.'
+    return t('couldnTChangeTheRuleSStatusTryAgain')
   }
   refresh()
   return null
 }
 
 export async function deleteAutoDmRuleAction(id: unknown): Promise<ActionError> {
+  const t = await getTranslations('inbox.autoDmActions')
+  const NOT_FOUND = t('ruleNotFound')
   const { userId, accountId } = await requireAccount()
   if (!isUuid(id)) return NOT_FOUND
   try {
     await deleteRule(userId, accountId, id)
   } catch (error) {
     console.error('[auto-dm] aturan gagal dihapus:', describeError(error))
-    return 'Aturan gagal dihapus. Coba lagi.'
+    return t('couldnTDeleteTheRuleTryAgain')
   }
   refresh()
   return null

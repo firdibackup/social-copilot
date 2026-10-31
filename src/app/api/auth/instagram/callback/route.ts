@@ -1,4 +1,6 @@
+import { getTranslations } from 'next-intl/server'
 import { after } from 'next/server'
+import { getUserLocale } from '@/i18n/locale'
 import { currentPeriod, currentUser } from '@/lib/auth'
 import { hasBrandKit, startBrandSync } from '@/lib/brand'
 import { syncNewAccount } from '@/lib/brand-sync'
@@ -12,7 +14,6 @@ import {
 } from '@/lib/connection'
 import { appUrl, settingsUrl } from '@/lib/env'
 import { ConfigError, describeError } from '@/lib/errors'
-import { deleteOtherFacebookConnections } from '@/lib/facebook-connection'
 import { ensureWebhookSubscription } from '@/lib/inbox-sync'
 import { exchangeCodeForToken, exchangeForLongLivedToken, fetchProfile, InstagramApiError } from '@/lib/instagram'
 import { getCompletedAnswers, kitColumnsOf } from '@/lib/onboarding'
@@ -36,18 +37,19 @@ class CallbackFailure extends Error {
 }
 
 /** Only provider/configuration errors reach the browser; never expose database or unexpected errors. */
-function publicErrorDetail(error: unknown, secrets: string[]): string | undefined {
+async function publicErrorDetail(error: unknown, secrets: string[]): Promise<string | undefined> {
   if (!(error instanceof InstagramApiError) && !(error instanceof ConfigError)) return undefined
+  const t = await getTranslations('settings')
   let message = error.message
   for (const secret of [...secrets, process.env.INSTAGRAM_APP_SECRET?.trim() ?? ''].filter(Boolean)) {
-    message = message.replaceAll(secret, '[disembunyikan]').replaceAll(encodeURIComponent(secret), '[disembunyikan]')
+    message = message.replaceAll(secret, t('oauth.hidden')).replaceAll(encodeURIComponent(secret), t('oauth.hidden'))
   }
   // Provider messages can echo request parameters, including credentials in a URL.
-  message = message.replace(/\b(access_token|client_secret|code|state)=([^\s&#]*)/gi, '$1=[disembunyikan]')
+  message = message.replace(/\b(access_token|client_secret|code|state)=([^\s&#]*)/gi, `$1=${t('oauth.hidden')}`)
   const metadata = error instanceof InstagramApiError
-    ? [error.status ? `HTTP ${error.status}` : 'koneksi gagal', error.code !== null ? `kode ${error.code}` : null]
+    ? [error.status ? `HTTP ${error.status}` : t('oauth.connectionFailed'), error.code !== null ? t('oauth.code', { code: error.code }) : null]
         .filter(Boolean).join(', ')
-    : 'konfigurasi'
+    : t('oauth.configuration')
   return `${message.replace(/\s+/g, ' ').trim().slice(0, 600)} (${metadata})`
 }
 
@@ -57,7 +59,7 @@ async function step<T>(code: CallbackErrorCode, run: () => Promise<T>, secrets: 
     return await run()
   } catch (error) {
     const detail = code === 'gagal_token' || code === 'gagal_token_panjang' || code === 'gagal_profil'
-      ? publicErrorDetail(error, secrets)
+      ? await publicErrorDetail(error, secrets)
       : undefined
     console.error(`[instagram] callback ${code}:`, detail ?? describeError(error))
     throw new CallbackFailure(code, detail)
@@ -103,19 +105,20 @@ async function completeLogin(userId: string, params: URLSearchParams): Promise<C
 
 /**
  * After a connection is saved: a different account than before (Hubungkan ulang with another login) takes the
- * place of Putuskan, so the old account's scheduled posts become drafts and its Facebook Page token and Threads
- * connection go; rows without an account join this one; and an account without a brand kit yet starts from the
+ * place of Putuskan, so the old account's scheduled posts become drafts and its Threads connection goes; rows
+ * without an account join this one; and an account without a brand kit yet starts from the
  * onboarding answers and is filled from Instagram once, after the redirect.
  */
 async function switchToAccount(userId: string, previous: string | null, accountId: string): Promise<void> {
   if (previous && previous !== accountId) await draftScheduledPosts(userId, previous)
-  await deleteOtherFacebookConnections(userId, accountId)
   await deleteOtherThreadsConnection(userId, accountId)
   await claimOrphanRows(userId, accountId)
   if (await hasBrandKit(userId, accountId)) return
   const answers = await getCompletedAnswers(userId)
   if (await startBrandSync(userId, accountId, answers ? kitColumnsOf(answers) : {})) {
-    after(() => syncNewAccount(userId, accountId, answers?.postsPerWeek || undefined))
+    // The cookie is unreadable inside after(), so the brand analysis language is taken now.
+    const language = await getUserLocale()
+    after(() => syncNewAccount(userId, accountId, answers?.postsPerWeek || undefined, language))
   }
 }
 

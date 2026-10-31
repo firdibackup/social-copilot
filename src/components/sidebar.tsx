@@ -1,19 +1,20 @@
 'use client'
 
-import { LogOut } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
+import { PiSignOut } from 'react-icons/pi'
 import { signOut } from '@/app/masuk/actions'
 import { InstagramIcon } from './instagram-icon'
+import { LocaleToggle } from './locale-toggle'
 import { ADMIN_ITEM, isActive, NAV_ITEMS, type NavItem } from './nav-items'
 import { ThreadsIcon } from './threads-icon'
 
-const SECTION_LABEL = 'px-3 pb-1.5 text-[11px] font-medium tracking-wide text-ink-muted uppercase'
+const SECTION_LABEL = 'px-3 pb-1 text-[12px] font-medium text-ink-muted'
 const ITEM_CLASS =
-  'group relative flex h-9 items-center gap-3 rounded-lg px-3 text-[14px] font-medium tracking-[-0.01em] transition-colors'
-const ICON_SIZE = 18
-const ICON_STROKE = 1.75
+  'group relative flex items-center gap-3 rounded-[10px] px-3 text-[14px] font-medium tracking-[-0.01em] transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-[-2px]'
+const ICON_SIZE = 19
 
 interface SidebarProps {
   /** Brand logo and name. */
@@ -30,15 +31,16 @@ interface SidebarProps {
 
 /** Desktop only; phones get MobileNav at the bottom instead. */
 export function Sidebar({ workspace, instagramStatus, threadsStatus, credits, account, admin }: SidebarProps) {
+  const t = useTranslations('shell')
   const pathname = usePathname()
 
   return (
-    <aside className="hidden h-dvh w-[228px] shrink-0 flex-col gap-6 overflow-y-auto p-4 md:flex">
+    <aside className="bg-sidebar hidden h-dvh w-[236px] shrink-0 flex-col gap-6 overflow-y-auto p-4 md:flex">
       {workspace}
 
-      <nav aria-label="Navigasi utama">
-        <p className={SECTION_LABEL}>Menu</p>
-        <ul>
+      <nav aria-label={t('navigation')}>
+        <p className={SECTION_LABEL}>{t('menu')}</p>
+        <ul className="space-y-0.5">
           {NAV_ITEMS.map((item) => (
             <li key={item.href}>
               <NavLink item={item} active={isActive(item, pathname)} />
@@ -49,70 +51,83 @@ export function Sidebar({ workspace, instagramStatus, threadsStatus, credits, ac
 
       {admin}
 
-      <section aria-label="Akun terhubung">
-        <p className={SECTION_LABEL}>Connect</p>
-        <Link href="/pengaturan#instagram" className={`${ITEM_CLASS} h-auto items-start py-2 text-ink-muted hover:text-ink`}>
+      <section aria-label={t('connectedAccounts')}>
+        <p className={SECTION_LABEL}>{t('connect')}</p>
+        <Link href="/pengaturan#instagram" className={`${ITEM_CLASS} min-h-10 items-start py-2 text-ink-muted hover:bg-white/70 hover:text-ink`}>
           <InstagramIcon className="mt-0.5 shrink-0" />
           <span className="min-w-0">
-            <span className="block text-ink">Instagram</span>
+            <span className="block text-ink">{t('platforms.instagram')}</span>
             {instagramStatus}
           </span>
         </Link>
-        <Link href="/pengaturan#threads" className={`${ITEM_CLASS} h-auto items-start py-2 text-ink-muted hover:text-ink`}>
+        <Link href="/pengaturan#threads" className={`${ITEM_CLASS} min-h-10 items-start py-2 text-ink-muted hover:bg-white/70 hover:text-ink`}>
           <ThreadsIcon className="mt-0.5 shrink-0" />
           <span className="min-w-0">
-            <span className="block text-ink">Threads</span>
+            <span className="block text-ink">{t('platforms.threads')}</span>
             {threadsStatus}
           </span>
         </Link>
       </section>
 
-      <section aria-label="Kredit AI">
-        <p className={SECTION_LABEL}>Kredit</p>
+      <section aria-label={t('aiCredits')}>
+        <p className={SECTION_LABEL}>{t('credits')}</p>
         {credits}
       </section>
 
-      <form action={signOut} className="mt-auto flex items-center gap-2 border-t border-hairline px-1 pt-4">
-        <span className="min-w-0 flex-1">{account}</span>
-        <button
-          type="submit"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-ink-muted transition-colors hover:bg-white hover:text-ink"
-        >
-          <LogOut size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          Keluar
-        </button>
-      </form>
+      <div className="mt-auto border-t border-[#e3e0f5] px-1 pt-4">
+        <LocaleToggle variant="app" className="mb-3" />
+        <form action={signOut} className="flex items-center gap-2">
+          <span className="min-w-0 flex-1">{account}</span>
+          <button
+            type="submit"
+            data-logout
+            className="inline-flex min-h-11 min-w-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-sm text-ink-muted transition-colors duration-150 hover:bg-white hover:text-ink"
+          >
+            <PiSignOut size={17} aria-hidden="true" />
+            {t('signOut')}
+          </button>
+        </form>
+      </div>
     </aside>
   )
 }
 
 /** The Admin link; the layout renders it only for admins. */
 export function AdminSection() {
+  const t = useTranslations('shell')
   const pathname = usePathname()
   return (
-    <nav aria-label="Admin">
-      <p className={SECTION_LABEL}>Admin</p>
+    <nav aria-label={t('admin')}>
+      <p className={SECTION_LABEL}>{t('admin')}</p>
       <NavLink item={ADMIN_ITEM} active={isActive(ADMIN_ITEM, pathname)} />
     </nav>
   )
 }
 
 function NavLink({ item, active }: { item: NavItem; active: boolean }) {
-  const Icon = item.icon
+  const t = useTranslations('shell')
+  const Icon = (active && item.activeIcon) || item.icon
   return (
     <Link
       href={item.href}
       prefetch={true}
       aria-current={active ? 'page' : undefined}
-      className={`${ITEM_CLASS} ${active ? 'font-semibold text-ink' : 'text-ink-muted hover:text-ink'}`}
+      className={`${ITEM_CLASS} min-h-11 ${active ? 'bg-white font-semibold text-ink shadow-[0_1px_2px_rgb(43_33_160/0.08)]' : 'text-ink-muted hover:bg-white/70 hover:text-ink'}`}
     >
-      {/* The active page gets a dot, not a highlighted row. */}
-      <span
+      {/* The current page: three shrinking slides, the logo's carousel, in its gradient. */}
+      {active && (
+        <span aria-hidden="true" className="absolute top-1/2 left-1 flex -translate-y-1/2 items-center gap-[2px]">
+          <span className="bg-signature h-4 w-[3px] rounded-full" />
+          <span className="bg-signature h-2.5 w-[3px] rounded-full opacity-70" />
+          <span className="bg-signature h-1.5 w-[3px] rounded-full opacity-45" />
+        </span>
+      )}
+      <Icon
+        size={ICON_SIZE}
         aria-hidden="true"
-        className={`absolute top-1/2 -left-0.5 size-1.5 -translate-y-1/2 rounded-full ${active ? 'bg-accent' : 'bg-transparent'}`}
+        className={`shrink-0 ${active ? 'ml-2 text-accent-deep' : 'text-ink-muted group-hover:text-ink'} transition-[margin] duration-150 motion-reduce:transition-none`}
       />
-      <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} className={active ? 'text-ink' : 'text-ink-soft group-hover:text-ink'} />
-      {item.label}
+      <span className="min-w-0 truncate">{t(`nav.${item.labelKey}`)}</span>
     </Link>
   )
 }

@@ -1,3 +1,5 @@
+import { getTranslations } from 'next-intl/server'
+import { IntlMessages } from '@/i18n/client-messages'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
@@ -11,7 +13,10 @@ import { describeError } from '@/lib/errors'
 import { firstValue, type SearchParams } from '@/lib/params'
 import { SubscribePage } from './subscribe-page'
 
-export const metadata: Metadata = { title: 'Berlangganan' }
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('billing.page')
+  return { title: t('title') }
+}
 
 /** Old OAuth callbacks landed here; their results now belong to Pengaturan. */
 const LEGACY_OAUTH = ['ig', 'fb', 'th', 'ig_error', 'fb_error', 'th_error']
@@ -28,18 +33,20 @@ export default function LanggananPage({ searchParams }: { searchParams: Promise<
   )
 }
 
-function SubscribeLoading() {
+async function SubscribeLoading() {
+  const t = await getTranslations('billing.page')
   return (
     <div className="fixed inset-0 overflow-y-auto bg-bg px-5 py-10 sm:py-16">
       <div className="mx-auto max-w-lg space-y-10">
-        <CarouselyLoader label="Menyiapkan pilihan paket…" />
-        <LoadingState variant="form" label="Memuat paket…" />
+        <CarouselyLoader label={t('preparing')} />
+        <LoadingState variant="form" label={t('loading')} />
       </div>
     </div>
   )
 }
 
 async function SubscribeLoader({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const t = await getTranslations('billing.page')
   const userId = await requireUser()
   const params = await searchParams
 
@@ -83,7 +90,7 @@ async function SubscribeLoader({ searchParams }: { searchParams: Promise<SearchP
     return (
       <main className="fixed inset-0 overflow-y-auto bg-bg px-5 py-16">
         <div className="mx-auto max-w-lg">
-          <Notice tone="warning">Pilihan paket belum bisa dimuat. Muat ulang halaman untuk mencoba lagi.</Notice>
+          <Notice tone="warning">{t('failed')}</Notice>
         </div>
       </main>
     )
@@ -91,6 +98,7 @@ async function SubscribeLoader({ searchParams }: { searchParams: Promise<SearchP
 
   const { billing, payments, contact } = data
   return (
+    <IntlMessages namespaces={['common', 'billing', 'settings']}>
     <SubscribePage
       catalog={billing.catalog}
       version={billing.version}
@@ -109,5 +117,6 @@ async function SubscribeLoader({ searchParams }: { searchParams: Promise<SearchP
       syncError={syncError}
       hasPaidBefore={payments.some((payment) => payment.status === 'paid')}
     />
+    </IntlMessages>
   )
 }

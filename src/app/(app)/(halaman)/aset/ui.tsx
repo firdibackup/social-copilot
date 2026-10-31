@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { useState, useTransition } from 'react'
 import { confirmDialog } from '@/components/confirm-dialog'
 import type { AssetActionState } from './actions'
@@ -23,11 +25,11 @@ export function Feedback({ state }: { state: AssetActionState }) {
   )
 }
 
-export function confirmDelete(count: number): Promise<boolean> {
+export function confirmDelete(count: number, t: ReturnType<typeof useTranslations<'assets'>>): Promise<boolean> {
   return confirmDialog({
-    title: count === 1 ? 'Hapus foto ini?' : `Hapus ${count} foto?`,
-    description: 'Foto akan dihapus dari Aset.',
-    confirmLabel: 'Hapus',
+    title: count === 1 ? t('ui.text1') : t('ui.text2', { v0: count }),
+    description: t('ui.text3'),
+    confirmLabel: t('ui.text4'),
     tone: 'danger',
   })
 }
@@ -45,6 +47,7 @@ function toFormData(fields: Fields): FormData {
 
 /** Runs one of the Aset actions outside a form, keeping the last answer for <Feedback>. */
 export function useAssetAction() {
+  const t = useTranslations('assets')
   const [pending, startTransition] = useTransition()
   const [state, setState] = useState<AssetActionState>(INITIAL_STATE)
 
@@ -54,7 +57,7 @@ export function useAssetAction() {
       try {
         result = await action(INITIAL_STATE, fields instanceof FormData ? fields : toFormData(fields))
       } catch {
-        result = { error: 'Koneksi terputus. Coba lagi.', success: null }
+        result = { error: t('ui.text5'), success: null }
       }
       setState(result)
       onDone?.(result)

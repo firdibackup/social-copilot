@@ -1,0 +1,331 @@
+{
+  "save": "Simpan",
+  "cancel": "Batal",
+  "delete": "Hapus",
+  "loading": "Memuat…",
+  "localeToggleLabel": "Bahasa",
+  "indonesian": "Bahasa Indonesia",
+  "english": "English",
+  "postStatus": {
+    "draft": "Draft",
+    "scheduled": "Terjadwal",
+    "publishing": "Sedang terbit",
+    "published": "Terbit",
+    "failed": "Gagal",
+    "cancelled": "Dibatalkan"
+  },
+  "cancelling": "Membatalkan…",
+  "dialog": {
+    "continue": "Lanjutkan",
+    "ok": "Oke"
+  },
+  "preparingCarousely": "Menyiapkan Carousely…",
+  "late": {
+    "title": "Jadwal sudah lewat tetapi belum diproses. Pastikan worker berjalan (npm run worker).",
+    "label": "Terlambat"
+  },
+  "platform": {
+    "both": "Instagram dan {threads}"
+  },
+  "loadingPage": "Memuat halaman…",
+  "checkout": {
+    "nameRequired": "Isi nama untuk tagihan.",
+    "whatsappRequired": "Isi nomor WhatsApp yang aktif.",
+    "whatsappInvalid": "Nomor WhatsApp tidak valid. Contoh: 0812 3456 7890.",
+    "title": "Data pemesan",
+    "name": "Nama",
+    "whatsapp": "Nomor WhatsApp",
+    "hint": "Untuk konfirmasi pembayaran dan bantuan jika ada kendala.",
+    "nameMax": "Nama maksimal {max} karakter."
+  },
+  "grid": {
+    "imageError": "Gambar tidak bisa dibaca browser. Ubah ke JPG atau PNG dulu.",
+    "close": "Tutup",
+    "reading": "Membaca gambar dan mencari potongan…",
+    "title": "Potong gambar grid",
+    "closeGrid": "Tutup potong grid",
+    "columns": "Kolom",
+    "rows": "Baris",
+    "selectAll": "Pilih semua",
+    "clear": "Kosongkan",
+    "undetected": "Grid tidak terdeteksi, atur kolom dan baris.",
+    "limitReached": "Batas potongan tercapai",
+    "added": "Sudah ditambahkan",
+    "notReady": "Gambar belum siap",
+    "reset": "Kembali ke {cols}×{rows}",
+    "selected": "{count} dari {total} dipilih",
+    "manual": "Grid diatur manual: {cols}×{rows}.",
+    "detected": "Terdeteksi grid {cols}×{rows}.",
+    "limit": "Maksimal {count} potongan sekali tambah.",
+    "alt": "Gambar grid {name}",
+    "tile": "Potongan {count}",
+    "tileLabel": "Potongan {count}{suffix}",
+    "decrease": "Kurangi {name}",
+    "count": "Jumlah {name}",
+    "increase": "Tambah {name}",
+    "addedSuffix": ", sudah ditambahkan",
+    "pickHint": "Klik potongan untuk memilih atau melewatinya."
+  },
+  "slots": {
+    "failed": "Gagal menghubungi server. Coba lagi.",
+    "weekdays": {
+      "mon": "Sen",
+      "tue": "Sel",
+      "wed": "Rab",
+      "thu": "Kam",
+      "fri": "Jum",
+      "sat": "Sab",
+      "sun": "Min"
+    },
+    "scheduleHint": "Mengubah jadwal di sini tidak memengaruhi post yang sudah terjadwal.",
+    "defaultHint": " Sekarang mengikuti target frekuensi di Brand.",
+    "time": "Jam",
+    "add": "Tambah jam",
+    "perWeek": "Posting per minggu",
+    "presetHint": "Menyusun ulang slot secara merata. Ini mengatur kalender, bukan jumlah konten yang dibuat AI.",
+    "saving": "Menyimpan…",
+    "saved": "Tersimpan",
+    "exists": "Jam {time} sudah ada di tabel.",
+    "row": "Jam baris {row}",
+    "remove": "Hapus jam {time}",
+    "posts": "{count, plural, other {# post}}",
+    "count": "<n>{count}</n> slot posting per minggu.",
+    "saveError": "Slot gagal disimpan. Coba lagi.",
+    "maxTimes": "Maksimal {max} jam per hari.",
+    "duplicate": "Jam {time} muncul dua kali.",
+    "invalid": "Slot tidak valid."
+  },
+  "upload": {
+    "formatError": "Format tidak bisa dibaca browser. Ubah ke JPG atau PNG dulu.",
+    "interrupted": "Unggahan terputus. Coba lagi.",
+    "button": "Unggah foto",
+    "progress": "Mengunggah {current} dari {total}…",
+    "fileNotSaved": "{name} belum tersimpan.",
+    "photosNotSaved": "{count} foto belum tersimpan."
+  },
+  "storage": {
+    "title": "Penyimpanan penuh",
+    "noSpace": "File baru belum bisa disimpan sampai ada ruang lagi.",
+    "cleanup": "Bersihkan di Aset",
+    "later": "Nanti",
+    "hint": "Hapus file yang tidak dipakai, terutama <b>gambar hasil AI</b> yang tidak masuk ke post mana pun. Kami sudah memilihkannya untukmu di Aset."
+  },
+  "design": {
+    "styles": {
+      "minimalis": {
+        "label": "Minimalis Modern",
+        "summary": "Bersih, banyak ruang kosong, tipografi jadi pusat perhatian.",
+        "suits": "Edukasi, jasa profesional, produk premium yang tenang.",
+        "samples": {
+          "cover": {
+            "label": "Panduan praktis",
+            "title": "Konten Rapi, Pesan Lebih Sampai",
+            "copy": "Mulai dari satu ide yang jelas."
+          },
+          "isi": {
+            "label": "01 · Fokus",
+            "title": "Satu slide, satu pesan",
+            "copy": "Ruang kosong membantu pembaca menangkap inti."
+          },
+          "cta": {
+            "label": "Langkah berikutnya",
+            "title": "Siap merapikan kontenmu?",
+            "copy": "Simpan panduan ini →"
+          }
+        }
+      },
+      "bold": {
+        "label": "Bold Kreatif",
+        "summary": "Warna berani, huruf besar, blok warna, kontras tinggi.",
+        "suits": "Kreator, brand anak muda, promo dan konten viral.",
+        "samples": {
+          "cover": {
+            "label": "Stop scroll",
+            "title": "Ide Bagus Harus Terlihat!",
+            "copy": "Geser buat lihat caranya →"
+          },
+          "isi": {
+            "label": "01",
+            "title": "Buka dengan kejutan",
+            "copy": "Pakai satu kalimat yang langsung menantang."
+          },
+          "cta": {
+            "label": "Giliran kamu",
+            "title": "Bikin Kontenmu Menonjol",
+            "copy": "Coba sekarang →"
+          }
+        }
+      },
+      "elegan": {
+        "label": "Elegan Premium",
+        "summary": "Serif mewah, warna kalem, kesan eksklusif.",
+        "suits": "Fashion, kecantikan, perhiasan, hotel, kuliner fine dining.",
+        "samples": {
+          "cover": {
+            "label": "THE EDIT",
+            "title": "Detail Kecil, Kesan Berkelas",
+            "copy": "Panduan membangun citra premium."
+          },
+          "isi": {
+            "label": "01 · Detail",
+            "title": "Kurasi, bukan dekorasi",
+            "copy": "Pilih elemen yang punya alasan untuk hadir."
+          },
+          "cta": {
+            "label": "Discover more",
+            "title": "Temukan gaya khas brand Anda",
+            "copy": "Mulai eksplorasi"
+          }
+        }
+      },
+      "ceria": {
+        "label": "Ceria & Playful",
+        "summary": "Warna pastel cerah, bentuk membulat, ilustrasi lucu.",
+        "suits": "Produk anak, makanan ringan, hobi, komunitas santai.",
+        "samples": {
+          "cover": {
+            "label": "Yuk, belajar!",
+            "title": "Bikin Ide Jadi Seru",
+            "copy": "Geser untuk mulai ✦"
+          },
+          "isi": {
+            "label": "01",
+            "title": "Mulai dari yang kamu suka",
+            "copy": "Ide ringan lebih mudah dikembangkan."
+          },
+          "cta": {
+            "label": "Sampai sini!",
+            "title": "Saatnya Coba Sendiri",
+            "copy": "Ayo mulai →"
+          }
+        }
+      },
+      "editorial": {
+        "label": "Editorial Majalah",
+        "summary": "Seperti halaman majalah: foto kuat, grid rapi, judul besar.",
+        "suits": "Media, opini, lifestyle, personal brand.",
+        "samples": {
+          "cover": {
+            "label": "ISSUE 01 · INSIGHT",
+            "title": "Cara Baru Melihat Kebiasaan Lama",
+            "copy": "Catatan untuk hidup yang lebih sadar."
+          },
+          "isi": {
+            "label": "01 · Perspektif",
+            "title": "Yang luput dari perhatian",
+            "copy": "Perubahan besar sering bermula dari observasi kecil."
+          },
+          "cta": {
+            "label": "End note",
+            "title": "Apa yang ingin kamu ubah?",
+            "copy": "Bagikan perspektifmu →"
+          }
+        }
+      },
+      "profesional": {
+        "label": "Profesional Korporat",
+        "summary": "Rapi, terpercaya, warna biru/navy, data dan ikon.",
+        "suits": "B2B, keuangan, konsultan, kesehatan, pendidikan formal.",
+        "samples": {
+          "cover": {
+            "label": "BUSINESS BRIEF",
+            "title": "Keputusan Lebih Tepat dengan Data",
+            "copy": "Tiga langkah membaca peluang."
+          },
+          "isi": {
+            "label": "01 · Analisis",
+            "title": "Mulai dari indikator utama",
+            "copy": "Bandingkan tren, bukan satu angka terpisah."
+          },
+          "cta": {
+            "label": "Konsultasi",
+            "title": "Siap menyusun langkah berikutnya?",
+            "copy": "Hubungi tim kami →"
+          }
+        }
+      },
+      "natural": {
+        "label": "Natural & Organik",
+        "summary": "Warna tanah, tekstur kertas, daun, nuansa hangat.",
+        "suits": "Produk alami, kopi, kesehatan, wellness, F&B rumahan.",
+        "samples": {
+          "cover": {
+            "label": "SLOW LIVING NOTE",
+            "title": "Kebiasaan Baik Tumbuh Perlahan",
+            "copy": "Mulai dari hal kecil setiap hari."
+          },
+          "isi": {
+            "label": "01 · Bertumbuh",
+            "title": "Beri ruang untuk proses",
+            "copy": "Konsistensi lebih penting dari kesempurnaan."
+          },
+          "cta": {
+            "label": "A gentle reminder",
+            "title": "Mulai dengan satu langkah",
+            "copy": "Simpan untuk nanti"
+          }
+        }
+      },
+      "tech": {
+        "label": "Tech Modern",
+        "summary": "Latar gelap, aksen neon, grid futuristis.",
+        "suits": "Teknologi, aplikasi, gaming, crypto, digital marketing.",
+        "samples": {
+          "cover": {
+            "label": "SYSTEM UPDATE",
+            "title": "Kerja Cepat Tanpa Alur Rumit",
+            "copy": "Optimalkan proses digitalmu."
+          },
+          "isi": {
+            "label": "01 · AUTOMATE",
+            "title": "Hilangkan kerja berulang",
+            "copy": "Biarkan sistem menangani tugas rutin."
+          },
+          "cta": {
+            "label": "READY TO START?",
+            "title": "Upgrade Cara Kerjamu",
+            "copy": "Mulai sekarang →"
+          }
+        }
+      }
+    },
+    "fonts": {
+      "Plus Jakarta Sans": "modern & lokal",
+      "Inter": "bersih & mudah dibaca",
+      "DM Sans": "modern & ramah",
+      "Manrope": "premium & minimalis",
+      "Sora": "tech & futuristis",
+      "Space Grotesk": "tech & editorial",
+      "Outfit": "ceria & geometris",
+      "Rubik": "ramah & tegas",
+      "Nunito Sans": "hangat & santai",
+      "Roboto": "netral & informatif",
+      "Open Sans": "jelas & profesional",
+      "Lato": "humanis & profesional",
+      "Poppins": "bold & populer",
+      "Montserrat": "korporat & tegas",
+      "Playfair Display": "mewah & editorial",
+      "DM Serif Display": "editorial & berkarakter",
+      "Fraunces": "organik & ekspresif",
+      "Lora": "hangat & elegan",
+      "Merriweather": "tepercaya & mudah dibaca",
+      "Libre Baskerville": "klasik & premium"
+    },
+    "roles": {
+      "isi": "Isi",
+      "cta": "CTA",
+      "cover": "Cover"
+    },
+    "more": "Lihat selengkapnya",
+    "title": "Gaya desain",
+    "auto": "Otomatis",
+    "recommended": " (disarankan)",
+    "other": "Lainnya",
+    "previewHeading": "Konten yang bikin berhenti scroll",
+    "previewBody": "Ini contoh teks isi slide: jelas, rapi, dan enak dibaca di layar HP.",
+    "previous": "Contoh sebelumnya — {style}",
+    "next": "Contoh berikutnya — {style}",
+    "follow": "Ikuti gaya ({font})",
+    "suits": "Cocok: {suits}"
+  }
+}

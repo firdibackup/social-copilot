@@ -1,4 +1,5 @@
 import 'server-only'
+import type { Locale } from '@/i18n/locale-config'
 import { AiLimitError } from './ai'
 import { getCurrentPeriod } from './billing'
 import {
@@ -193,7 +194,7 @@ export async function getMessage(userId: string, sessionId: string, id: string):
 const FOUND_LIMIT = 5
 
 /** Posts and ideas of the account whose title (or a post's caption) has the words, newest first. */
-export async function findContent(userId: string, accountId: string, query: string): Promise<StatusItem[]> {
+export async function findContent(userId: string, accountId: string, query: string, locale: Locale = 'id'): Promise<StatusItem[]> {
   const pattern = searchPattern(query)
   if (!pattern) return []
   const [posts, ideas] = await Promise.all([
@@ -217,7 +218,7 @@ export async function findContent(userId: string, accountId: string, query: stri
   const postRows = unwrap(posts) as { id: string; title: string; caption: string; status: PostStatus }[]
   const ideaRows = unwrap(ideas) as { id: string; title: string; script: unknown }[]
   return [
-    ...postRows.map((row): StatusItem => ({ kind: 'post', id: row.id, title: postLabel(row), status: STATUS_LABELS[row.status] })),
+    ...postRows.map((row): StatusItem => ({ kind: 'post', id: row.id, title: postLabel(row, locale), status: STATUS_LABELS[row.status] })),
     ...ideaRows.map(
       (row): StatusItem => ({
         kind: 'idea',

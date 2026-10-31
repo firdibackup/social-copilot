@@ -1,5 +1,7 @@
 'use server'
 
+import { getLocale, getTranslations } from 'next-intl/server'
+
 import { refresh } from 'next/cache'
 import { logAdminAction } from '@/lib/admin'
 import { requireAdmin } from '@/lib/auth'
@@ -19,10 +21,12 @@ const failed = (error: string): FormState => ({ error, success: null })
  * `expiresAt` (datetime-local, WIB, optional), `planIds` and `months` (repeated, optional), `couponId` for edits.
  */
 export async function couponAction(_previous: FormState, formData: FormData): Promise<FormState> {
+  const t = await getTranslations('admin')
+
   const admin = await requireAdmin()
   const intent = String(formData.get('intent') ?? '') as CouponIntent
   const couponId = String(formData.get('couponId') ?? '')
-  if (intent !== 'create' && !isUuid(couponId)) return failed('Kupon tidak ditemukan.')
+  if (intent !== 'create' && !isUuid(couponId)) return failed(t('kupon_actions.couponNotFound'))
 
   let message: string
   try {
@@ -34,12 +38,12 @@ export async function couponAction(_previous: FormState, formData: FormData): Pr
           code: formData.get('code'), percent: formData.get('percent'), maxUses: formData.get('maxUses'),
           active: formData.get('active'), expiresAt: formData.get('expiresAt'),
           planIds: formData.getAll('planIds'), months: formData.getAll('months'),
-        }, { planIds: catalog.plans.map((plan) => plan.id), months: catalog.durations.map((duration) => duration.months) })
+        }, { planIds: catalog.plans.map((plan) => plan.id), months: catalog.durations.map((duration) => duration.months) }, new Date(), await getLocale())
         const id = intent === 'create' ? await createCoupon(admin.id, input) : (await updateCoupon(couponId, input), couponId)
         await logAdminAction(admin, intent === 'create' ? 'create_coupon' : 'update_coupon', null, {
           couponId: id, ...input, expiresAt: input.expiresAt?.toISOString() ?? null,
         })
-        message = intent === 'create' ? `Kupon ${input.code} dibuat.` : `Kupon ${input.code} disimpan.`
+        message = intent === 'create' ? t('kupon_actions.couponCreated', { v0: input.code }) : t('kupon_actions.couponSaved', { v0: input.code })
         break
       }
       case 'activate':
@@ -47,21 +51,21 @@ export async function couponAction(_previous: FormState, formData: FormData): Pr
         const active = intent === 'activate'
         await setCouponActive(couponId, active)
         await logAdminAction(admin, 'toggle_coupon', null, { couponId, active })
-        message = active ? 'Kupon diaktifkan.' : 'Kupon dinonaktifkan.'
+        message = active ? t('kupon_actions.couponActivated') : t('kupon_actions.couponDeactivated')
         break
       }
       case 'delete':
         await deleteCoupon(couponId)
         await logAdminAction(admin, 'delete_coupon', null, { couponId })
-        message = 'Kupon dihapus.'
+        message = t('kupon_actions.couponDeleted')
         break
       default:
-        return failed('Aksi tidak dikenal.')
+        return failed(t('kupon_actions.unknownAction'))
     }
   } catch (error) {
     if (error instanceof CouponError) return failed(error.message)
     console.error('[admin] aksi kupon gagal:', describeError(error))
-    return failed('Aksi kupon gagal. Sudah menjalankan migrasi kupon?')
+    return failed(t('kupon_actions.couponActionFailedHaveYouRunThe'))
   }
   refresh()
   return { error: null, success: message }

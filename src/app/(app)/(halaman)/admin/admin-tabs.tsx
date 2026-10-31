@@ -1,23 +1,27 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-
-const TABS = [
-  { href: '/admin', label: 'Ringkasan' },
-  { href: '/admin/pengguna', label: 'Pengguna' },
-  { href: '/admin/pembayaran', label: 'Pembayaran' },
-  { href: '/admin/kupon', label: 'Kupon' },
-  { href: '/admin/template', label: 'Template' },
-  { href: '/admin/pengaturan', label: 'Pengaturan' },
-]
 
 const activeTab = (href: string, pathname: string) => (href === '/admin' ? pathname === href : pathname.startsWith(href))
 
 export function AdminTabs() {
+  const t = useTranslations('admin')
+
+  const TABS = [
+  { href: '/admin', label: t('admin_tabs.overview') },
+  { href: '/admin/pengguna', label: t('admin_tabs.users') },
+  { href: '/admin/pembayaran', label: t('admin_tabs.payments') },
+  { href: '/admin/kupon', label: t('admin_tabs.coupon') },
+  { href: '/admin/template', label: t('admin_tabs.templates') },
+  { href: '/admin/pengaturan', label: t('admin_tabs.settings') },
+]
+
   const pathname = usePathname()
   return (
-    <nav aria-label="Bagian admin" className="flex gap-1 border-b border-zinc-200">
+    <nav aria-label={t('admin_tabs.adminSections')} className="flex gap-1 border-b border-zinc-200">
       {TABS.map((tab) => {
         const active = activeTab(tab.href, pathname)
         return (

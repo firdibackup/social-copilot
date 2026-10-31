@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { LoaderCircle, Sparkles, X } from 'lucide-react'
 import { useLayoutEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
@@ -7,10 +9,14 @@ import { alertDialog } from '@/components/confirm-dialog'
 import { deleteIdeaAction, generateIdeasAction, generateScriptAction } from './content-actions'
 import { saveBeforeNavigation } from './use-save-before-navigation'
 
-const FAILED = 'Gagal menghubungi server. Coba lagi.'
+
 
 /** Enqueue before navigation: clicking an idea creates its durable draft exactly once. */
 export function OpenIdeaButton({ id, ready, className, children }: { id: string; ready: boolean; className: string; children: ReactNode }) {
+  const t = useTranslations('editor.ideaButtons')
+
+  const FAILED = t('message1')
+
   const router = useRouter()
   const lock = useRef(false)
   const [pending, setPending] = useState(false)
@@ -38,7 +44,7 @@ export function OpenIdeaButton({ id, ready, className, children }: { id: string;
       lock.current = false
       setPending(false)
     }}>
-      {pending ? <span role="status" className="text-sm">Menyimpan draft…</span> : children}
+      {pending ? <span role="status" className="text-sm">{t('message2')}</span> : children}
     </button>
     {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
   </>
@@ -46,6 +52,10 @@ export function OpenIdeaButton({ id, ready, className, children }: { id: string;
 
 /** Ten new ideas from the brand kit. */
 export function FindIdeasButton() {
+  const t = useTranslations('editor.ideaButtons')
+
+  const FAILED = t('message1')
+
   const button = useRef<HTMLButtonElement>(null)
   const scrollTop = useRef<number | null>(null)
   const [pending, startTransition] = useTransition()
@@ -81,7 +91,7 @@ export function FindIdeasButton() {
         ) : (
           <Sparkles size={14} aria-hidden="true" />
         )}
-        {pending ? 'Mencari ide…' : 'Cari ide'}
+        {pending ? t('message3') : t('message4')}
       </button>
       {error && (
         <p role="alert" className="mt-1 max-w-[240px] text-right text-xs text-red-700">
@@ -93,19 +103,23 @@ export function FindIdeasButton() {
 }
 
 export function DeleteIdeaButton({ id, hide, restore }: { id: string; hide: () => void; restore: () => void }) {
+  const t = useTranslations('editor.ideaButtons')
+
+  const FAILED = t('message1')
+
   const [pending, startTransition] = useTransition()
 
   return (
     <button
       type="button"
-      aria-label="Hapus ide"
+      aria-label={t('message5')}
       disabled={pending}
       onClick={() => startTransition(async () => {
         hide()
         const error = await deleteIdeaAction(id).catch(() => FAILED)
         if (error) {
           restore()
-          await alertDialog({ title: 'Ide tidak dapat dihapus', description: error, tone: 'danger' })
+          await alertDialog({ title: t('message6'), description: error, tone: 'danger' })
         }
       })}
       className="absolute top-1/2 right-0 -translate-y-1/2 rounded-md p-1.5 text-ink-soft opacity-0 transition-opacity group-hover:opacity-100 hover:bg-zinc-100 hover:text-ink focus-visible:opacity-100 disabled:opacity-40"

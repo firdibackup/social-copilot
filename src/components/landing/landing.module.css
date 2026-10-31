@@ -27,6 +27,7 @@
 .navCta { display: inline-flex; align-items: center; gap: 13px; border: 1px solid var(--lp-line); border-radius: 9px; padding: 10px 17px; background: #fff; color: var(--lp-ink); font-weight: 600; transition: border-color .2s, background .2s; }
 .navCta:hover { border-color: var(--lp-primary); background: #f6f4ff; }
 .menuToggle { display: none; background: none; border: 0; padding: 10px; }
+.mobileLocaleToggle { display: none; }
 .hero { position: relative; padding-top: 51px; background: #f6f4ff; background-image: radial-gradient(ellipse at 50% 0%, #fff 10%, #f6f4ff 70%); border-bottom: 1px solid #ede9fb; }
 .heroCopy { position: relative; text-align: center; z-index: 4; padding: 0 24px; }
 .trustBadge { display: inline-flex; align-items: center; gap: 8px; margin: 0 auto 26px; padding: 6px 14px 6px 11px; border: 1px solid #e4e1ec; border-radius: 999px; background: #f7f7f9; color: #3d3a48; font-size: 13px; font-weight: 500; line-height: 1.2; box-shadow: 0 1px 2px #2a1f4a0a; }
@@ -306,6 +307,8 @@
   .mobileMenu { position: absolute; top: calc(100% - 5px); left: 16px; right: 16px; display: flex; flex-direction: column; background: white; box-shadow: 0 16px 30px -12px #42335c40; border: 1px solid var(--lp-line); border-radius: 10px; padding: 10px; }
   .mobileMenu a { padding: 12px 14px; font-size: 14px; }
   .mobileMenu a:hover { background: #f6f4ff; }
+  .desktopLocaleToggle { display: none; }
+  .mobileLocaleToggle { display: inline-flex; align-self: flex-start; margin: 10px 14px 6px; }
   .hero { padding-top: 43px; }
   .hero h1 { font-size: clamp(54px, 10.2vw, 76px); letter-spacing: -.04em; }
   .heroCopy p { font-size: 15px; max-width: 39ch; line-height: 1.7; margin: 22px auto; }

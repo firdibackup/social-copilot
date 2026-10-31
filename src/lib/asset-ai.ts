@@ -1,4 +1,5 @@
 import 'server-only'
+import { languagePrompt, type Locale } from './ai-language'
 import { AiOutputError, quote, readJson, runLogged, snippetOf } from './ai'
 import { cleanTags } from './asset-options'
 import { loadOwnPhotos, setAssetTags } from './assets'
@@ -43,12 +44,12 @@ export function visualBatches<T extends { dataUrl: string }>(items: T[]): T[][] 
   return batches
 }
 
-export function buildTagMessages(photos: TagPhoto[]): ChatMessage[] {
+export function buildTagMessages(photos: TagPhoto[], language: Locale = 'id'): ChatMessage[] {
   const parts: ContentPart[] = [
     {
       type: 'text',
       text: [
-        TAG_INSTRUCTION,
+        languagePrompt(TAG_INSTRUCTION, language),
         'Gunakan ID persis seperti yang diberikan. Setiap ID harus muncul tepat sekali.',
         'Format JSON: {"tags":{"<id>":["…"]}}',
       ].join('\n'),
@@ -59,7 +60,7 @@ export function buildTagMessages(photos: TagPhoto[]): ChatMessage[] {
     parts.push({ type: 'image_url', image_url: { url: photo.dataUrl } })
   }
   return [
-    { role: 'system', content: SYSTEM },
+    { role: 'system', content: languagePrompt(SYSTEM, language) },
     { role: 'user', content: parts },
   ]
 }
@@ -86,7 +87,7 @@ export async function saveTags(userId: string, tags: Map<string, string[]>): Pro
  * Tags the account's own photos among `assetIds` (AI results are skipped), one request per batch, charged per photo
  * (tagCost). Returns how many got tags; a failed batch throws after the earlier ones were saved.
  */
-export async function tagAssets(userId: string, accountId: string, assetIds: string[]): Promise<number> {
+export async function tagAssets(userId: string, accountId: string, assetIds: string[], language: Locale = 'id'): Promise<number> {
   const photos = await loadOwnPhotos(userId, accountId, assetIds)
   const prepared: TagPhoto[] = await Promise.all(
     photos.map(async (photo) => ({ id: photo.id, product: photo.product, dataUrl: await toReferenceDataUrl(photo.bytes) })),
@@ -99,7 +100,7 @@ export async function tagAssets(userId: string, accountId: string, assetIds: str
       'asset_tags',
       { assetIds: ids, count: ids.length },
       async () => {
-        const tags = parseTags(await chatCompletion(buildTagMessages(batch)), ids)
+        const tags = parseTags(await chatCompletion(buildTagMessages(batch, language)), ids)
         await saveTags(userId, tags)
         return Object.fromEntries(tags)
       },

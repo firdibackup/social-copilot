@@ -109,3 +109,12 @@ describe('deleteDraftAction', () => {
     log.mockRestore()
   })
 })
+
+vi.mock('next-intl/server', () => ({
+  getLocale: async () => 'id',
+  getTranslations: async (namespace: string) => {
+    const { createTranslator } = await import('next-intl')
+    const { default: editor } = await import('../../../../messages/id/editor.json')
+    return createTranslator({ locale: 'id', messages: { editor }, namespace: namespace as 'editor' })
+  },
+}))

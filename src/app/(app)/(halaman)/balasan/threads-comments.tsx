@@ -1,9 +1,9 @@
+import { getLocale, getTranslations } from 'next-intl/server'
 import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { PendingLink } from './pending-link'
 import { formatListTime, formatShortDateTime } from '@/lib/format'
 import {
   COMMENT_DAYS,
-  commenterName,
   isCommentUnanswered,
   summarizePosts,
   threadComments,
@@ -59,13 +59,13 @@ export async function loadThreadsComments(
 
 const firstLine = (text: string) => text.split('\n', 1)[0].trim()
 
-function toView(reply: StoredThreadsReply): CommentView {
+function toView(reply: StoredThreadsReply, locale: import('@/i18n/locale-config').Locale, anonymous: string): CommentView {
   return {
     commentId: reply.commentId,
-    name: commenterName(reply),
+    name: reply.username ? `@${reply.username}` : anonymous,
     text: reply.text,
     at: reply.createdAt.toISOString(),
-    atLabel: formatShortDateTime(reply.createdAt),
+    atLabel: formatShortDateTime(reply.createdAt, locale),
     isHidden: reply.isHidden,
     isFromOwner: reply.isFromOwner,
     isUnanswered: isCommentUnanswered(reply),
@@ -83,24 +83,26 @@ interface ThreadsCommentsProps {
   now: Date
 }
 
-export function ThreadsComments({ data, filter, brand, now }: ThreadsCommentsProps) {
+export async function ThreadsComments({ data, filter, brand, now }: ThreadsCommentsProps) {
+  const t = await getTranslations('inbox.threadsComments')
+  const locale = await getLocale()
   if (data.view === 'post') {
     const threads = threadComments(data.replies)
     return (
-      <section aria-label="Balasan post Threads" className="space-y-3">
+      <section aria-label={t('threadsPostReplies')} className="space-y-3">
         <MarkThreadsPostSeen mediaId={data.mediaId} />
         <PendingLink
           href={commentsHref(filter, undefined, 'threads')}
           className="inline-flex items-center gap-1 text-sm text-zinc-600 hover:text-zinc-900"
         >
           <ArrowLeft size={16} aria-hidden="true" />
-          Semua post Threads
-        </PendingLink>
+          {t('allThreadsPosts')}
+          </PendingLink>
         <div className={`${CARD} flex items-start gap-3 p-4`}>
           <PostThumbnail post={data.post} size="size-16" />
           <div className="min-w-0 flex-1 space-y-1">
             <p className="line-clamp-3 text-sm whitespace-pre-line text-zinc-900">
-              {data.post?.caption || <span className="text-zinc-400">Tanpa teks</span>}
+              {data.post?.caption || <span className="text-zinc-400">{t('noText')}</span>}
             </p>
             {data.post?.permalink && (
               <a
@@ -109,23 +111,22 @@ export function ThreadsComments({ data, filter, brand, now }: ThreadsCommentsPro
                 rel="noreferrer"
                 className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-zinc-900"
               >
-                Buka di Threads
-                <ExternalLink size={12} aria-hidden="true" />
+                 {t('openOnThreads')} <ExternalLink size={12} aria-hidden="true" />
               </a>
             )}
           </div>
         </div>
         {threads.length === 0 ? (
           <p className="rounded-xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500">
-            Belum ada balasan tersimpan untuk post ini.
-          </p>
+            {t('noSavedRepliesForThisPostYet')}
+            </p>
         ) : (
           <ul className={`${CARD} divide-y divide-zinc-100`}>
             {threads.map(({ comment, replies }) => (
               <CommentItem
                 key={comment.commentId}
-                comment={toView(comment)}
-                replies={replies.map(toView)}
+                comment={toView(comment, locale, t('instagramUser'))}
+                replies={replies.map((reply) => toView(reply, locale, t('instagramUser')))}
                 brand={brand}
                 platform="threads"
               />
@@ -140,8 +141,8 @@ export function ThreadsComments({ data, filter, brand, now }: ThreadsCommentsPro
     return (
       <p className="rounded-xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500">
         {filter === 'belum'
-          ? `Tidak ada balasan Threads yang menunggu dibalas di post ${COMMENT_DAYS} hari terakhir.`
-          : `Belum ada balasan di post Threads ${COMMENT_DAYS} hari terakhir.`}
+          ? t('noneWaiting', { days: COMMENT_DAYS })
+          : t('noneRecent', { days: COMMENT_DAYS })}
       </p>
     )
   }
@@ -153,23 +154,23 @@ export function ThreadsComments({ data, filter, brand, now }: ThreadsCommentsPro
             <PostThumbnail post={row.post} />
             <span className="min-w-0 flex-1 space-y-0.5">
               <span className={`block truncate text-sm text-zinc-900 ${row.unread > 0 ? 'font-semibold' : 'font-medium'}`}>
-                {(row.post && firstLine(row.post.caption)) || 'Post Threads tanpa teks'}
+                {(row.post && firstLine(row.post.caption)) || t('threadsPostWithoutText')}
               </span>
               <span className="flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
                 <span>
-                  {row.total - row.unanswered}/{row.total} dibales
+                  {t('answeredCount', { answered: row.total - row.unanswered, total: row.total })}
                 </span>
-                {row.unanswered > 0 && <span className="font-medium text-accent-deep">{row.unanswered} belum dibales</span>}
+                {row.unanswered > 0 && <span className="font-medium text-accent-deep">{t('unansweredCount', { count: row.unanswered })}</span>}
                 {row.unread > 0 && (
                   <span className="inline-flex items-center gap-1 font-medium text-blue-600">
                     <span className="size-2 rounded-full bg-blue-500" aria-hidden="true" />
-                    {row.unread} baru
+                    {t('newCount', { count: row.unread })}
                   </span>
                 )}
               </span>
             </span>
             <time dateTime={row.lastCommentAt.toISOString()} className="shrink-0 self-start text-xs text-zinc-500">
-              {formatListTime(row.lastCommentAt, now)}
+              {formatListTime(row.lastCommentAt, now, locale)}
             </time>
           </PendingLink>
         </li>

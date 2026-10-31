@@ -444,6 +444,13 @@ describe('answerChat', () => {
     ])
   })
 
+  it('passes the UI language to Mimo rather than reading request cookies', async () => {
+    vi.mocked(chatWithTools).mockResolvedValue({ content: 'Let’s plan your posts.', toolCalls: [] })
+    const reply = await answerChat(request({ language: 'en' }))
+    expect(reply.content).toBe('Let’s plan your posts.')
+    expect(vi.mocked(chatWithTools).mock.calls[0][0][0].content).toContain('Write all output in English.')
+  })
+
   it('cuts an unexpectedly long model answer to what chat_messages can store', async () => {
     vi.mocked(chatWithTools).mockResolvedValue({ content: 'a'.repeat(25_000), toolCalls: [] })
 
@@ -461,7 +468,7 @@ describe('answerChat', () => {
     vi.mocked(chatWithTools).mockResolvedValueOnce(call('schedule_content', { topic: 'kopi' }))
       .mockResolvedValueOnce({ content: 'Tunggu gambar selesai.', toolCalls: [] })
     const reply = await answerChat(request())
-    expect(discoverScheduleRefs).toHaveBeenCalledWith(USER, 'account-1', 'kopi')
+    expect(discoverScheduleRefs).toHaveBeenCalledWith(USER, 'account-1', 'kopi', 'id')
     expect(reply.parts).toEqual([expect.objectContaining({ type: 'schedule', items: [ref] })])
     expect(JSON.stringify(reply.parts)).not.toContain('processing')
     expect(JSON.stringify(vi.mocked(chatWithTools).mock.calls[1][0].at(-1))).toContain('Tunggu gambar.')

@@ -1,7 +1,8 @@
 'use server'
 
+import { getTranslations } from 'next-intl/server'
+
 import { refresh } from 'next/cache'
-import { aiErrorMessage } from '@/lib/ai'
 import { requireAccount } from '@/lib/auth'
 import { MissingCommentsPermissionError, syncComments } from '@/lib/comment-sync'
 import {
@@ -20,29 +21,27 @@ import { describeError } from '@/lib/errors'
 import { canPrivateReply, COMMENT_MAX_LENGTH } from '@/lib/inbox-rules'
 import { deleteComment, replyToComment, sendPrivateReply, setCommentHidden } from '@/lib/instagram'
 import { draftReply, REPLY_CONTEXT_MESSAGES, type ReplyChannel } from '@/lib/reply-ai'
-import { instagramErrorMessage, text, type ActionError, type DraftResult, type SyncState } from './action-utils'
+import { inboxAiError, instagramErrorMessage, text, type ActionError, type DraftResult, type SyncState } from './action-utils'
 
 const NUMERIC_ID = /^\d+$/
-const NOT_FOUND = 'Komentar tidak ditemukan.'
-const MISSING_PERMISSION = 'Komentar butuh izin baru dari Instagram. Hubungkan ulang Instagram sekali.'
-const PRIVATE_REPLY_CLOSED =
-  'Komentar ini sudah dibalas lewat DM, atau sudah lewat 7 hari. Instagram hanya menerima satu DM per komentar dalam 7 hari.'
 
 const commentIdOf = (value: unknown) => (typeof value === 'string' && NUMERIC_ID.test(value) ? value : null)
 
 /** Opening the Komentar tab and Muat ulang: pulls comments of the last 30 days' posts, at most every 10 minutes. */
 export async function syncCommentsAction(): Promise<SyncState> {
+  const t = await getTranslations('inbox.commentActions')
+  const MISSING_PERMISSION = t('commentsNeedNewPermissionsFromInstagramReconnectInstagramOnce')
   const { userId, accountId } = await requireAccount()
   let result: SyncState
   try {
     const synced = await syncComments(userId, accountId)
-    if (synced === 'cooldown') return { status: 'cooldown', message: 'Komentar baru saja ditarik dari Instagram.' }
+    if (synced === 'cooldown') return { status: 'cooldown', message: t('commentsWereJustFetchedFromInstagram') }
     result = {
       status: 'done',
       message:
         synced.failed > 0
-          ? `Komentar dari ${synced.posts} post ditarik; ${synced.failed} post gagal dibaca.`
-          : `Komentar dari ${synced.posts} post ditarik.`,
+          ? t('syncPartial', { posts: synced.posts, failed: synced.failed })
+          : t('synced', { posts: synced.posts }),
     }
   } catch (error) {
     result = {
@@ -70,11 +69,13 @@ export async function markPostSeenAction(mediaId: unknown): Promise<void> {
 }
 
 export async function replyToCommentAction(commentId: unknown, reply: unknown): Promise<ActionError> {
+  const t = await getTranslations('inbox.commentActions')
+  const NOT_FOUND = t('commentNotFound')
   const { userId, accountId } = await requireAccount()
   const id = commentIdOf(commentId)
   const message = text(reply)
-  if (!message) return 'Tulis balasan dulu.'
-  if (message.length > COMMENT_MAX_LENGTH) return `Balasan komentar maksimal ${COMMENT_MAX_LENGTH} karakter.`
+  if (!message) return t('writeAReplyFirst')
+  if (message.length > COMMENT_MAX_LENGTH) return t('replyLimit', { max: COMMENT_MAX_LENGTH })
 
   let comment
   let replyId: string
@@ -100,13 +101,15 @@ export async function replyToCommentAction(commentId: unknown, reply: unknown): 
 }
 
 export async function setCommentHiddenAction(commentId: unknown, hidden: unknown): Promise<ActionError> {
+  const t = await getTranslations('inbox.commentActions')
+  const NOT_FOUND = t('commentNotFound')
   const { userId, accountId } = await requireAccount()
   const id = commentIdOf(commentId)
   if (typeof hidden !== 'boolean') return NOT_FOUND
   try {
     const comment = id ? await getComment(userId, accountId, id) : null
     if (!comment) return NOT_FOUND
-    if (comment.isFromOwner) return 'Komentar milikmu sendiri tidak bisa disembunyikan.'
+    if (comment.isFromOwner) return t('youCanTHideYourOwnComments')
     await setCommentHidden((await getPublishingAccount(userId)).accessToken, comment.commentId, hidden)
     await setCommentHiddenRow(userId, comment.commentId, hidden).catch((error: unknown) =>
       console.error('[balasan] komentar diubah tapi status lokal gagal disimpan:', describeError(error)),
@@ -119,6 +122,8 @@ export async function setCommentHiddenAction(commentId: unknown, hidden: unknown
 }
 
 export async function deleteCommentAction(commentId: unknown): Promise<ActionError> {
+  const t = await getTranslations('inbox.commentActions')
+  const NOT_FOUND = t('commentNotFound')
   const { userId, accountId } = await requireAccount()
   const id = commentIdOf(commentId)
   try {
@@ -137,11 +142,15 @@ export async function deleteCommentAction(commentId: unknown): Promise<ActionErr
 
 /** Balas lewat DM: Instagram's private reply, once per comment and within 7 days of it. */
 export async function privateReplyAction(commentId: unknown, reply: unknown): Promise<ActionError> {
+  const t = await getTranslations('inbox.commentActions')
+  const PRIVATE_REPLY_CLOSED =
+  t('thisCommentAlreadyReceivedADmOrIsOver')
+  const NOT_FOUND = t('commentNotFound')
   const { userId, accountId } = await requireAccount()
   const id = commentIdOf(commentId)
   const message = text(reply)
-  if (!message) return 'Tulis DM dulu.'
-  if (message.length > REPLY_MAX_LENGTH) return `DM maksimal ${REPLY_MAX_LENGTH} karakter.`
+  if (!message) return t('writeADmFirst')
+  if (message.length > REPLY_MAX_LENGTH) return t('dmLimit', { max: REPLY_MAX_LENGTH })
 
   let comment
   let sent
@@ -166,6 +175,8 @@ export async function privateReplyAction(commentId: unknown, reply: unknown): Pr
 
 /** ✨ AI under a comment: a public reply (`comment`) or a private one (`comment_dm`). Sends nothing. */
 export async function draftCommentReply(commentId: unknown, channel: unknown, draft: unknown): Promise<DraftResult> {
+  const t = await getTranslations('inbox.commentActions')
+  const NOT_FOUND = t('commentNotFound')
   const { userId, accountId } = await requireAccount()
   const id = commentIdOf(commentId)
   const kind: ReplyChannel | null = channel === 'comment' || channel === 'comment_dm' ? channel : null
@@ -192,6 +203,6 @@ export async function draftCommentReply(commentId: unknown, channel: unknown, dr
     return { draft: reply }
   } catch (error) {
     console.error('[balasan] draf AI komentar gagal:', describeError(error))
-    return { error: aiErrorMessage(error) }
+    return { error: await inboxAiError(error) }
   }
 }

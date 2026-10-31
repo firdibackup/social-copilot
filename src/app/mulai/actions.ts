@@ -1,5 +1,6 @@
 'use server'
 
+import { getTranslations, getLocale } from 'next-intl/server'
 import { currentPeriod, requireUser } from '@/lib/auth'
 import { getConnectedAccountId } from '@/lib/connection'
 import { describeError } from '@/lib/errors'
@@ -13,9 +14,10 @@ export type OnboardingResult = { error: string } | { next: string }
  * back to the app when an account is connected already. Without it, the answers are kept for a later visit.
  */
 export async function saveOnboardingAction(input: unknown, complete: unknown): Promise<OnboardingResult> {
+  const t = await getTranslations('onboarding.page')
   const userId = await requireUser()
   if (!(await currentPeriod(userId))) return { next: '/langganan' }
-  const parsed = parseAnswers(input)
+  const parsed = parseAnswers(input, await getLocale())
   if ('error' in parsed) return parsed
   try {
     await saveOnboarding(userId, parsed.answers, complete === true)
@@ -23,6 +25,6 @@ export async function saveOnboardingAction(input: unknown, complete: unknown): P
     return { next: (await getConnectedAccountId(userId)) ? '/kalender' : '/pengaturan?baru=1#instagram' }
   } catch (error) {
     console.error('[mulai] jawaban gagal disimpan:', describeError(error))
-    return { error: 'Jawaban gagal disimpan. Coba lagi.' }
+    return { error: t('saveFailed') }
   }
 }
