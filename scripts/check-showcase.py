@@ -28,6 +28,7 @@ assert showcase.count('layoutId={`') == 2
 assert 'setClosing(true)' in showcase and 'setActive(null)' in showcase
 assert 'motionEnabled ? 140 : 0' in showcase
 assert "event.key === 'Escape'" in showcase
+assert "stage.current?.dataset.open !== 'true'" in showcase
 assert 'clearTimeout' in showcase and '.focus({ preventScroll: true })' in showcase
 assert '@media(max-width: 767px)' in css
 assert 'scroll-snap-type: x mandatory' in css

@@ -73,7 +73,7 @@ export function ContentShowcase({ motionEnabled }: { motionEnabled: boolean }) {
   const stage = useRef<HTMLDivElement>(null)
   const scrollLeft = useRef(0)
   const close = useCallback(() => {
-    if (timer.current !== null) return
+    if (timer.current !== null || stage.current?.dataset.open !== 'true') return
     setClosing(true)
     timer.current = setTimeout(() => {
       timer.current = null
