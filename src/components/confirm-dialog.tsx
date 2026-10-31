@@ -52,7 +52,8 @@ function subscribe(listener: () => void) {
 }
 
 const getSnapshot = () => queue
-const getServerSnapshot = (): readonly Request[] => []
+const serverSnapshot: readonly Request[] = []
+const getServerSnapshot = () => serverSnapshot
 
 function enqueue(request: Request) {
   queue = [...queue, request]
