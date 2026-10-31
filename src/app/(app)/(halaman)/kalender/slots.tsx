@@ -3,11 +3,10 @@
 import { CalendarClock, ChevronDown, Layers, Plus, X } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useRef, useState, useTransition } from 'react'
-import { InstagramIcon } from '@/components/instagram-icon'
 import { MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
+import { PlatformBadge } from '@/components/platform-badge'
 import { SlotEditor } from '@/components/slot-editor'
-import { ThreadsIcon } from '@/components/threads-icon'
 import type { PostingSlot } from '@/lib/schedule-slots'
 import { fillSlotAction } from './actions'
 
@@ -171,8 +170,7 @@ export function SlotPicker({ drafts }: { drafts: DraftCard[] }) {
                     <span className="mt-2 flex items-center gap-1.5 text-xs text-ink-muted">
                       <Layers size={12} aria-hidden="true" />
                       {picking === draft.id ? 'Menjadwalkan…' : `${draft.slideCount} slide · ${slot?.time ?? ''}`}
-                      {draft.instagram && <InstagramIcon width={12} height={12} />}
-                      {draft.threads && <ThreadsIcon size={12} />}
+                      <PlatformBadge instagram={draft.instagram} threads={draft.threads} />
                     </span>
                   </span>
                   {draft.coverUrl ? (

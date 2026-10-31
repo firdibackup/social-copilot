@@ -29,6 +29,12 @@
 .menuToggle { display: none; background: none; border: 0; padding: 10px; }
 .hero { position: relative; padding-top: 51px; background: #f6f4ff; background-image: radial-gradient(ellipse at 50% 0%, #fff 10%, #f6f4ff 70%); border-bottom: 1px solid #ede9fb; }
 .heroCopy { position: relative; text-align: center; z-index: 4; padding: 0 24px; }
+.trustBadge { display: inline-flex; align-items: center; gap: 8px; margin: 0 auto 26px; padding: 6px 14px 6px 11px; border: 1px solid #e4e1ec; border-radius: 999px; background: #f7f7f9; color: #3d3a48; font-size: 13px; font-weight: 500; line-height: 1.2; box-shadow: 0 1px 2px #2a1f4a0a; }
+.trustShield { flex: none; color: #16a34a; }
+.trustDivider { width: 1px; height: 16px; margin: 0 4px; background: #d9d5e3; }
+.trustLogos { display: inline-flex; align-items: center; gap: 10px; color: #1c1b22; }
+.trustLogos svg { flex: none; display: block; fill: url(#trust-logo-gradient); }
+.trustLogos .trustGradientDefs { position: absolute; width: 0; height: 0; overflow: hidden; }
 .hero h1 { margin: 0; font-size: clamp(58px, 6.9vw, 96px); line-height: 1.01; font-weight: 700; letter-spacing: -.04em; color: #302650; }
 .heroCopy p { color: #656078; font-size: 17px; line-height: 1.75; margin: 24px auto 25px; }
 .heroActions { display: flex; align-items: center; justify-content: center; gap: 13px; }
@@ -307,6 +313,8 @@
   .heroActions { gap: 9px; }
   .primaryButton, .secondaryButton { padding: 12px 15px; font-size: 12px; gap: 9px; min-height: 47px; }
   .heroNote { font-size: 10px; margin-top: 16px; }
+  .trustBadge { font-size: 12px; gap: 7px; margin-bottom: 20px; padding: 5px 12px 5px 9px; }
+  .trustLogos { gap: 8px; }
   .heroStage { margin-top: 76px; padding: 0 22px; }
   .dashboardBody { grid-template-columns: 1fr; min-height: auto; }
   .demoSidebar { display: none; }

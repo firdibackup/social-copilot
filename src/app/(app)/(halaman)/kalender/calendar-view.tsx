@@ -1,12 +1,11 @@
 import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react'
 import Link from 'next/link'
 import { connection } from 'next/server'
-import { InstagramIcon } from '@/components/instagram-icon'
 import { CalendarPeriodLink } from './calendar-period-link'
 import { MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
+import { PlatformBadge } from '@/components/platform-badge'
 import { LateBadge, PostStatusBadge, STATUS_DOT_CLASS } from '@/components/post-status-badge'
-import { ThreadsIcon } from '@/components/threads-icon'
 import { requireAccount } from '@/lib/auth'
 import { getStrategy } from '@/lib/brand'
 import {
@@ -211,19 +210,19 @@ function ViewLink({ href, active, label }: { href: string; active: boolean; labe
   )
 }
 
-/** Where the post goes. Kalender's month cells only mark Threads; Instagram is every post's default. */
+/** Where the post goes: Instagram, Threads, or one stacked badge for both; plus its Story. */
 function PlatformMarks({ post, compact = false }: { post: Post; compact?: boolean }) {
   const threads = post.threads?.enabled ? post.threads : null
   const story = post.instagramEnabled && post.story?.enabled ? post.story : null
   return (
-    <span className="inline-flex shrink-0 items-center gap-0.5">
-      {post.instagramEnabled && !compact && <InstagramIcon width={11} height={11} className="text-zinc-400" />}
-      {threads && (
-        <span title={`Threads: ${THREADS_STATUS[threads.status]}`} className="inline-flex">
-          <ThreadsIcon size={11} className={THREADS_TONE[threads.status]} />
-          <span className="sr-only">Threads {THREADS_STATUS[threads.status]}</span>
-        </span>
-      )}
+    <span className="inline-flex shrink-0 items-center gap-1">
+      <PlatformBadge
+        instagram={post.instagramEnabled}
+        threads={threads !== null}
+        threadsTone={threads ? THREADS_TONE[threads.status] : undefined}
+        threadsStatus={threads ? THREADS_STATUS[threads.status] : undefined}
+        size={compact ? 'sm' : 'md'}
+      />
       {story && (
         <span
           title={`Story: ${THREADS_STATUS[story.status]}`}

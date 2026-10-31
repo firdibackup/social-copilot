@@ -11,8 +11,9 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useId, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, MotionConfig, motion, useReducedMotion, useScroll, useTransform } from 'framer-motion'
-import { ArrowDown, ArrowUpRight, CalendarDays, Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ImageIcon, Layers3, Menu, MessageCircle, MousePointer2, Paperclip, Pause, Play, Plus, Send, Settings2, Sparkles, WandSparkles, X } from 'lucide-react'
+import { ArrowDown, ArrowUpRight, CalendarDays, Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ImageIcon, Layers3, Menu, MessageCircle, MousePointer2, Paperclip, Pause, Play, Plus, Send, Settings2, ShieldCheck, Sparkles, WandSparkles, X } from 'lucide-react'
 import { CarouselyLogo } from '@/components/brand-mark'
+import { InstagramFillIcon, MetaFillIcon, ThreadsFillIcon } from '@/components/brand-icons'
 import { InstagramIcon } from '@/components/instagram-icon'
 import { MimoMascot } from '@/components/mimo-mascot'
 import styles from './landing.module.css'
@@ -108,6 +109,26 @@ function Hero({ motionEnabled }: { motionEnabled: boolean }) {
   return <section className={styles.hero} ref={target} aria-labelledby="hero-title">
     <div className={styles.heroCopy}>
       <motion.div initial={false} animate={motionEnabled ? { y: [12, 0] } : { y: 0 }} transition={{ duration: .65 }}>
+        <div className={styles.trustBadge}>
+          <ShieldCheck size={16} strokeWidth={2.2} className={styles.trustShield} aria-hidden="true" />
+          <span>Integrasi API resmi</span>
+          <span className={styles.trustDivider} aria-hidden="true" />
+          <span className={styles.trustLogos} role="img" aria-label="Meta, Instagram, Threads">
+            {/* The Carousely mark's sweep, violet through blue to aqua, shared by the three logos. */}
+            <svg width="0" height="0" aria-hidden="true" className={styles.trustGradientDefs}>
+              <defs>
+                <linearGradient id="trust-logo-gradient" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#c04dff" />
+                  <stop offset="45%" stopColor="#4f46ff" />
+                  <stop offset="100%" stopColor="#22c9e6" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <MetaFillIcon size={18} />
+            <InstagramFillIcon size={16} />
+            <ThreadsFillIcon size={16} />
+          </span>
+        </div>
         <h1 id="hero-title">Ide jalan.<br />Konten tayang.</h1>
         <p>Partner kreatif untuk Instagram kamu. Dari ide, bikin konten,<br className={styles.desktopBreak} /> sampai jadwal tayang. Beres di Carousely.</p>
         <div className={styles.heroActions}><Link href="/daftar" className={styles.primaryButton}>Mulai bikin konten <ArrowUpRight size={19} /></Link><a href="#fitur" className={styles.secondaryButton}><Play size={14} fill="currentColor" /> Lihat cara kerjanya</a></div>
