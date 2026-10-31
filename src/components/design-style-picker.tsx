@@ -19,6 +19,16 @@ function MiniCarousel({ id, palette }: { id: DesignStyleId; palette: Palette }) 
   const heading = { fontFamily: FONT_FAMILY[style.headingFont], color: palette.ink }
   const body = { fontFamily: FONT_FAMILY[style.bodyFont], color: palette.ink }
   const roleName = sample.role === 'isi' ? 'Isi' : sample.role === 'cta' ? 'CTA' : 'Cover'
+  const composition = {
+    minimal: <><span className="absolute left-5 top-5 h-px w-10" style={{ background: palette.accent }} /><span className="absolute bottom-5 left-5 h-10 w-10 border-l border-b opacity-30" style={{ borderColor: palette.ink }} /></>,
+    blocks: <><span className="absolute -right-4 top-8 h-24 w-24 rotate-12" style={{ background: palette.accent }} /><span className="absolute bottom-5 left-5 h-8 w-20 -rotate-3 opacity-70" style={{ background: palette.ink }} /></>,
+    frame: <><span className="absolute inset-3 border opacity-40" style={{ borderColor: palette.accent }} /><span className="absolute inset-x-12 bottom-8 h-px" style={{ background: palette.accent }} /></>,
+    bubbles: <><span className="absolute -right-4 top-6 h-24 w-24 rounded-full opacity-60" style={{ background: palette.accent }} /><span className="absolute bottom-8 left-4 h-12 w-12 rotate-12 rounded-2xl opacity-25" style={{ background: palette.ink }} /><span className="absolute right-6 bottom-8 text-xl">✦</span></>,
+    magazine: <><span className="absolute inset-x-0 bottom-0 h-[42%] opacity-25" style={{ background: palette.ink }} /><span className="absolute left-5 top-4 text-[7px] tracking-widest" style={body}>VOL. 01</span><span className="absolute right-5 top-4 h-12 w-px" style={{ background: palette.accent }} /></>,
+    data: <><span className="absolute inset-x-5 bottom-8 h-16 rounded-md opacity-10" style={{ background: palette.accent }} /><span className="absolute bottom-11 left-8 h-6 w-2" style={{ background: palette.accent }} /><span className="absolute bottom-11 left-[3.25rem] h-10 w-2 opacity-60" style={{ background: palette.accent }} /><span className="absolute bottom-11 left-[4.5rem] h-8 w-2 opacity-35" style={{ background: palette.accent }} /></>,
+    botanical: <><span className="absolute -right-8 bottom-5 h-32 w-20 rotate-12 rounded-[100%_0] opacity-20" style={{ background: palette.accent }} /><span className="absolute -left-6 bottom-12 h-20 w-14 -rotate-12 rounded-[0_100%] opacity-15" style={{ background: palette.ink }} /></>,
+    grid: <><span className="absolute inset-0 opacity-15" style={{ backgroundImage: `linear-gradient(${palette.accent} 1px, transparent 1px), linear-gradient(90deg, ${palette.accent} 1px, transparent 1px)`, backgroundSize: '18px 18px' }} /><span className="absolute bottom-7 left-5 h-12 w-20 border opacity-50" style={{ borderColor: palette.accent }} /></>,
+  }[style.motif]
 
   function move(event: React.MouseEvent, direction: number) {
     event.stopPropagation()
@@ -31,9 +41,7 @@ function MiniCarousel({ id, palette }: { id: DesignStyleId; palette: Palette }) 
         className="relative mx-auto aspect-[4/5] w-full max-w-52 overflow-hidden rounded-lg border border-black/5 shadow-sm"
         style={{ background: palette.background }}
       >
-        <div className="absolute inset-x-0 top-0 h-1" style={{ background: palette.accent }} />
-        <div className="absolute -right-8 bottom-12 h-28 w-28 rounded-full opacity-20" style={{ background: palette.accent }} />
-        <div className="absolute bottom-0 left-0 h-24 w-2/3 rounded-tr-[4rem] opacity-10" style={{ background: palette.ink }} />
+        {composition}
         <div className={`absolute inset-0 flex p-5 ${sample.role === 'cta' ? 'items-center text-center' : 'flex-col'}`}>
           <div className={sample.role === 'cta' ? 'w-full' : ''}>
             <p className="mb-3 text-[8px] font-bold uppercase tracking-[0.18em]" style={{ ...body, color: palette.accent }}>

@@ -39,6 +39,8 @@ export interface DesignStyle {
   summary: string
   /** Hardcoded copy used to demonstrate the three carousel roles in the picker. */
   samples: readonly { role: SlideRole; label: string; title: string; copy: string }[]
+  /** A distinct CSS composition used by the hardcoded preview. */
+  motif: 'minimal' | 'blocks' | 'frame' | 'bubbles' | 'magazine' | 'data' | 'botanical' | 'grid'
   /** Who it suits, in Indonesian. */
   suits: string
   headingFont: FontName
@@ -53,6 +55,7 @@ export interface DesignStyle {
 
 export const DESIGN_STYLES = {
   minimalis: {
+    motif: 'minimal',
     label: 'Minimalis Modern',
     summary: 'Bersih, banyak ruang kosong, tipografi jadi pusat perhatian.',
     samples: [
@@ -75,6 +78,7 @@ export const DESIGN_STYLES = {
     },
   },
   bold: {
+    motif: 'blocks',
     label: 'Bold Kreatif',
     summary: 'Warna berani, huruf besar, blok warna, kontras tinggi.',
     samples: [
@@ -96,6 +100,7 @@ export const DESIGN_STYLES = {
     },
   },
   elegan: {
+    motif: 'frame',
     label: 'Elegan Premium',
     summary: 'Serif mewah, warna kalem, kesan eksklusif.',
     samples: [
@@ -117,6 +122,7 @@ export const DESIGN_STYLES = {
     },
   },
   ceria: {
+    motif: 'bubbles',
     label: 'Ceria & Playful',
     summary: 'Warna pastel cerah, bentuk membulat, ilustrasi lucu.',
     samples: [
@@ -138,6 +144,7 @@ export const DESIGN_STYLES = {
     },
   },
   editorial: {
+    motif: 'magazine',
     label: 'Editorial Majalah',
     summary: 'Seperti halaman majalah: foto kuat, grid rapi, judul besar.',
     samples: [
@@ -159,6 +166,7 @@ export const DESIGN_STYLES = {
     },
   },
   profesional: {
+    motif: 'data',
     label: 'Profesional Korporat',
     summary: 'Rapi, terpercaya, warna biru/navy, data dan ikon.',
     samples: [
@@ -180,6 +188,7 @@ export const DESIGN_STYLES = {
     },
   },
   natural: {
+    motif: 'botanical',
     label: 'Natural & Organik',
     summary: 'Warna tanah, tekstur kertas, daun, nuansa hangat.',
     samples: [
@@ -201,6 +210,7 @@ export const DESIGN_STYLES = {
     },
   },
   tech: {
+    motif: 'grid',
     label: 'Tech Modern',
     summary: 'Latar gelap, aksen neon, grid futuristis.',
     samples: [

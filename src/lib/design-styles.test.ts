@@ -17,6 +17,7 @@ describe('style recipes', () => {
       expect(style.samples.map((sample) => sample.role)).toEqual(['cover', 'isi', 'cta'])
       expect(style.samples.every((sample) => sample.label && sample.title && sample.copy)).toBe(true)
     }
+    expect(new Set(STYLES.map((style) => style.motif)).size).toBe(STYLES.length)
   })
 })
 
