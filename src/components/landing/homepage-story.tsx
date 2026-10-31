@@ -3,9 +3,10 @@
 import { useTranslations } from 'next-intl'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { motion, useMotionValueEvent, useScroll, useTransform, type MotionValue } from 'framer-motion'
-import { ArrowUpRight, Check, ChevronLeft, ChevronRight, Pause, Play, Send, ShieldCheck, Sparkles } from 'lucide-react'
+import { ArrowUpRight, Check, ChevronLeft, ChevronRight, Pause, Play, Send, Sparkles } from 'lucide-react'
+import { InstagramFillIcon, MetaFillIcon, ThreadsFillIcon } from '@/components/brand-icons'
 import { InstagramIcon } from '@/components/instagram-icon'
 import { MimoMascot } from '@/components/mimo-mascot'
 import styles from './homepage-story.module.css'
@@ -24,12 +25,16 @@ function Cover({ index, className = '', priority = false }: { index: number; cla
 }
 
 export function GalleryHero({ motionEnabled }: { motionEnabled: boolean }) {
+  const instagramGradient = useId()
   const t = useTranslations('landing.story')
   const labels = useCoverLabels()
   const [paused, setPaused] = useState(false)
   return <section className={styles.hero} aria-labelledby="hero-title">
     <div className={styles.heroCopy}>
-      <span className={styles.eyebrow}><ShieldCheck size={16} /> {t('hero.trust')} <span>·</span> Instagram & Threads</span>
+      <span className={styles.eyebrow}>
+        <svg width={0} height={0} aria-hidden="true" style={{ position: 'absolute' }}><defs><linearGradient id={instagramGradient} x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stopColor="#feda75" /><stop offset="35%" stopColor="#fa7e1e" /><stop offset="65%" stopColor="#d62976" /><stop offset="100%" stopColor="#4f5bd5" /></linearGradient></defs></svg>
+        <MetaFillIcon size={20} style={{ color: '#0866ff' }} /> {t('hero.trust')} <span>·</span> <InstagramFillIcon size={16} style={{ fill: `url(#${instagramGradient})` }} /> Instagram <span>&</span> <ThreadsFillIcon size={16} style={{ color: '#000' }} /> Threads
+      </span>
       <h1 id="hero-title">{t('hero.title1')}<br /><span>{t('hero.title2')}</span></h1>
       <p>{t('hero.body1')}<br />{t('hero.body2')}<br className={styles.desktopBreak} /> {t('hero.body3')}</p>
       <div className={styles.actions}><Link href="/daftar" className={styles.primary}>{t('start')} <ArrowUpRight size={18} /></Link><a href="#fitur" className={styles.secondary}>{t('hero.explore')} <span>↓</span></a></div>
