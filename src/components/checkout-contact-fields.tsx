@@ -95,7 +95,7 @@ export function CheckoutContactFields({ contact, disabled, className = '' }: { c
           className={`${INPUT} tabular-nums ${errors.whatsapp ? INVALID : VALID}`}
         />
         {errors.whatsapp && <p id={`${ids.whatsapp}-error`} className="mt-1.5 text-xs font-medium text-red-700">{errors.whatsapp}</p>}
-        <p id={`${ids.whatsapp}-hint`} className="mt-1.5 text-xs text-ink-muted text-pretty">Untuk konfirmasi pembayaran dan bantuan jika ada kendala. Tidak untuk promosi.</p>
+        <p id={`${ids.whatsapp}-hint`} className="mt-1.5 text-xs text-ink-muted text-pretty">Untuk konfirmasi pembayaran dan bantuan jika ada kendala.</p>
       </div>
     </fieldset>
   )
