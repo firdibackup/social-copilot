@@ -1,8 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useState } from 'react'
-import { Check, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { DESIGN_STYLE_IDS, DESIGN_STYLES, FONT_CHOICES, type DesignStyleId, type FontName } from '@/lib/design-styles'
 import { FONT_FAMILY, fontFamilyOf } from './font-previews'
 
@@ -12,61 +11,23 @@ interface Palette {
   accent: string
 }
 
-/** Three hardcoded examples make the layout choice visible without spending an image generation request. */
-function MiniCarousel({ id, palette }: { id: DesignStyleId; palette: Palette }) {
-  const [index, setIndex] = useState(0)
+/** Generated cover plus real fonts make the style choice visible. */
+function CoverPreview({ id, palette }: { id: DesignStyleId; palette: Palette }) {
   const style = DESIGN_STYLES[id]
-  const sample = style.samples[index]
+  const sample = style.sample
   const heading = { fontFamily: FONT_FAMILY[style.headingFont], color: palette.ink }
   const body = { fontFamily: FONT_FAMILY[style.bodyFont], color: palette.ink }
-  const roleName = sample.role === 'isi' ? 'Isi' : sample.role === 'cta' ? 'CTA' : 'Cover'
-
-  function move(event: React.MouseEvent, direction: number) {
-    event.stopPropagation()
-    setIndex((current) => (current + direction + style.samples.length) % style.samples.length)
-  }
 
   return (
-    <div>
-      <div
-        className="relative mx-auto aspect-[4/5] w-full max-w-52 overflow-hidden rounded-lg border border-black/5 shadow-sm"
-        style={{ background: palette.background }}
-      >
-        <Image src={sample.image} alt="" fill sizes="208px" className="object-cover" />
-        <div className={`absolute inset-0 bg-gradient-to-b ${id === 'tech' ? 'from-black/75 via-black/25' : 'from-white/65 via-white/25'} to-transparent`} aria-hidden="true" />
-        <div className={`absolute inset-0 flex p-5 ${sample.role === 'cta' ? 'items-center text-center' : 'flex-col'}`}>
-          <div className={sample.role === 'cta' ? 'w-full' : ''}>
-            <p className="mb-3 text-[8px] font-bold uppercase tracking-[0.18em]" style={{ ...body, color: palette.accent }}>
-              {sample.label}
-            </p>
-            <p className={`font-bold leading-[0.98] ${sample.role === 'cover' ? 'text-[22px]' : 'text-[18px]'}`} style={heading}>
-              {sample.title}
-            </p>
-            <p className="mt-3 text-[9px] leading-snug opacity-75" style={body}>
-              {sample.copy}
-            </p>
-            {sample.role === 'cta' && (
-              <span className="mt-4 inline-block rounded-full px-3 py-1.5 text-[8px] font-bold" style={{ background: palette.accent, color: palette.background }}>
-                Lihat selengkapnya
-              </span>
-            )}
-          </div>
-        </div>
-        <span className="absolute bottom-3 right-3 rounded-full bg-black/10 px-2 py-0.5 text-[8px] font-semibold" style={body}>
-          {roleName} · {index + 1}/3
-        </span>
-        <button type="button" aria-label={`Contoh sebelumnya — ${style.label}`} onClick={(event) => move(event, -1)} className="absolute left-2 top-1/2 rounded-full bg-white/80 p-1 text-zinc-700 shadow-sm opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100">
-          <ChevronLeft size={13} aria-hidden="true" />
-        </button>
-        <button type="button" aria-label={`Contoh berikutnya — ${style.label}`} onClick={(event) => move(event, 1)} className="absolute right-2 top-1/2 rounded-full bg-white/80 p-1 text-zinc-700 shadow-sm opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100">
-          <ChevronRight size={13} aria-hidden="true" />
-        </button>
+    <div className="relative mx-auto aspect-[4/5] w-full max-w-52 overflow-hidden rounded-lg border border-black/5 shadow-sm" style={{ background: palette.background }}>
+      <Image src={sample.image} alt="" fill sizes="208px" className="object-cover" />
+      <div className={`absolute inset-0 bg-gradient-to-b ${id === 'tech' ? 'from-black/75 via-black/25' : 'from-white/65 via-white/25'} to-transparent`} aria-hidden="true" />
+      <div className="absolute inset-0 flex flex-col p-5">
+        <p className="mb-3 text-[8px] font-bold uppercase tracking-[0.18em]" style={{ ...body, color: palette.accent }}>{sample.label}</p>
+        <p className="text-[22px] font-bold leading-[0.98]" style={heading}>{sample.title}</p>
+        <p className="mt-3 text-[9px] leading-snug opacity-75" style={body}>{sample.copy}</p>
       </div>
-      <div className="mt-2 flex justify-center gap-1" aria-hidden="true">
-        {style.samples.map((item, itemIndex) => (
-          <span key={item.role} className="h-1 rounded-full transition-all" style={{ width: itemIndex === index ? 18 : 5, background: itemIndex === index ? palette.accent : `${palette.ink}30` }} />
-        ))}
-      </div>
+      <span className="absolute bottom-3 right-3 rounded-full bg-black/10 px-2 py-0.5 text-[8px] font-semibold" style={body}>Cover</span>
     </div>
   )
 }
@@ -93,7 +54,7 @@ export function DesignStylePicker({ value, onChange, palette, large = false }: D
               selected ? 'border-accent ring-1 ring-accent' : 'border-hairline hover:border-zinc-300'
             }`}
           >
-            <MiniCarousel id={id} palette={{ ...style.preview, ...palette }} />
+            <CoverPreview id={id} palette={{ ...style.preview, ...palette }} />
             <label className="block cursor-pointer space-y-0.5 rounded-md focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
               <input
                 type="radio"

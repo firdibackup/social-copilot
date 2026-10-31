@@ -12,15 +12,12 @@ describe('style recipes', () => {
     }
   })
 
-  it('shows distinct cover, inner and CTA examples for every style', () => {
-    for (const style of STYLES) {
-      expect(style.samples.map((sample) => sample.role)).toEqual(['cover', 'isi', 'cta'])
-      expect(style.samples.every((sample) => sample.label && sample.title && sample.copy)).toBe(true)
-    }
-    const images = STYLES.flatMap((style) => style.samples.map((sample) => sample.image))
-    expect(images).toHaveLength(24)
-    expect(new Set(images).size).toBe(24)
-    expect(images.every((image) => image.startsWith('/design-styles/') && image.endsWith('.webp'))).toBe(true)
+  it('shows one distinct cover example for every style', () => {
+    const images = STYLES.map((style) => style.sample.image)
+    expect(STYLES.every((style) => style.sample.label && style.sample.title && style.sample.copy)).toBe(true)
+    expect(images).toHaveLength(8)
+    expect(new Set(images).size).toBe(8)
+    expect(images.every((image) => image.endsWith('-cover.webp'))).toBe(true)
   })
 })
 
