@@ -123,6 +123,41 @@
 .dmBubble { margin: 15px 0 0 35px; padding: 15px; border-radius: 12px 12px 2px 12px; background: #6558f5; color: white; font-size: 12px; }
 .dmBubble small { font-size: 8px; display: flex; gap: 6px; align-items: center; margin-top: 12px; }
 .disclaimer { text-align: center; color: #81758c; padding: 22px; margin: 0; font-size: 11px; }
+.showcase { max-width: 1160px; margin: auto; padding: 64px 24px 80px; text-align: center; }
+.showcase h2 { margin-top: 18px; }
+.showcase > p { color: #6c6579; font-size: 14px; line-height: 1.7; margin: 18px auto 0; max-width: 65ch; }
+.showcase > .showcaseNote { font-size: 12px; margin-top: 10px; }
+.folders { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: 24px; padding: 60px 12px 20px; }
+.folder { min-width: 0; text-align: left; --sleeve: #e5dfff; --ink: #392d68; }
+.folder:nth-child(2) { --sleeve: #f3d5bd; --ink: #653c27; }
+.folder:nth-child(3) { --sleeve: #d8e8db; --ink: #2c503a; }
+.folder:nth-child(4) { --sleeve: #343049; --ink: #f0eaff; }
+.folder summary { position: relative; display: block; height: 310px; cursor: pointer; list-style: none; border-radius: 20px; transform: rotate(-2deg); }
+.folder:nth-child(even) summary { transform: translateY(16px) rotate(1.5deg); }
+.folder summary::-webkit-details-marker { display: none; }
+.folder summary:focus-visible { outline: 3px solid #6558f5; outline-offset: 8px; }
+.folderPeek { position: absolute; inset: 12px 22px 35px; max-width: 200px; margin-inline: auto; }
+.folderPeek img { position: absolute; width: 100%; height: auto; border: 5px solid white; border-radius: 10px; box-shadow: 0 5px 18px #30265020; transition: transform .3s; }
+.folderPeek img:nth-child(1) { transform: translate(12px, -16px) rotate(5deg); }
+.folderPeek img:nth-child(2) { transform: translate(5px, -9px) rotate(1.5deg); }
+.folderPeek img:nth-child(3) { transform: rotate(-3deg); }
+.folderSleeve { position: absolute; inset: 100px 0 0; z-index: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 18px; padding: 25px 22px; border-radius: 10px 22px 22px 22px; background: var(--sleeve); color: var(--ink); box-shadow: 0 12px 24px -16px #30265060; }
+.folderSleeve::before { content: ''; position: absolute; top: -14px; left: 0; width: 45%; height: 20px; border-radius: 12px 18px 0 0; background: var(--sleeve); }
+.folderSleeve > span { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; }
+.folderSleeve strong { font-size: 24px; line-height: 1.15; letter-spacing: -.03em; }
+.folderSleeve small { font-size: 11px; }
+.folderClose, .folder[open] .folderOpen { display: none; }
+.folder[open] .folderClose { display: inline; }
+.folder[open] .folderPeek img:last-child, .folder summary:focus-visible .folderPeek img:last-child { transform: translateY(-32px) rotate(-5deg); }
+.folderContents { display: grid; gap: 18px; padding-top: 38px; }
+.folderContents figure { margin: 0; padding: 6px; border: 1px solid #e5e0ec; border-radius: 12px; background: white; }
+.folderContents img { display: block; width: 100%; height: auto; border-radius: 7px; }
+.folderContents figcaption { padding: 9px 5px 5px; color: #62596f; font-size: 12px; }
+@media(hover: hover) { .folder summary:hover .folderPeek img:last-child { transform: translateY(-32px) rotate(-5deg); } }
+@media(min-width: 761px) and (max-width: 1000px) { .folders { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 50px 32px; } }
+@media(max-width: 760px) { .showcase { padding: 48px 0; } .showcase > h2, .showcase > p, .showcase > .eyebrow { margin-inline: 24px; } .folders { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; padding: 54px 24px 30px; gap: 28px; } .folder { flex: 0 0 min(78vw, 300px); scroll-snap-align: center; } }
+.showcase[data-motion='false'] .folderPeek img { transition: none; }
+@media(prefers-reduced-motion: reduce) { .folderPeek img { transition: none; } }
 @media(min-width: 1500px) { .gallery figure { width: 220px; } }
 @media(max-width: 1000px) { .chapter { gap: 35px; } .schedulePost img { width: 95px; } .toolSteps { flex-wrap: wrap; } }
 @media(max-width: 760px) {

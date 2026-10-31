@@ -246,6 +246,19 @@
     "provisional": "Starting prices shown. Availability and current pricing are confirmed before payment."
   },
   "story": {
+    "showcase": {
+      "eyebrow": "CONTENT INSPIRATION",
+      "title": "Open a folder. Find your next idea.",
+      "subtitle": "20 sample designs across different industries. Open a folder to explore each cover up close.",
+      "disclaimer": "Dummy content for inspiration, not work or campaigns for RE/MAX or SUME.",
+      "beauty": "Beauty & wellness",
+      "living": "Food & experiences",
+      "spaces": "Spaces & everyday life",
+      "business": "Business & services",
+      "count": "5 examples",
+      "open": "Open folder",
+      "close": "Close folder"
+    },
     "covers": {
       "label0": "Skincare",
       "label1": "Haircare",

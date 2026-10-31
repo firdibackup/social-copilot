@@ -45,6 +45,33 @@ export function GalleryHero({ motionEnabled }: { motionEnabled: boolean }) {
   </section>
 }
 
+const showcaseFolders = [
+  { key: 'beauty', covers: [0, 1, 11, 14, 17] },
+  { key: 'living', covers: [2, 3, 4, 15, 18] },
+  { key: 'spaces', covers: [5, 10, 12, 13, 19] },
+  { key: 'business', covers: [6, 7, 8, 9, 16] },
+] as const
+
+export function ContentShowcase({ motionEnabled }: { motionEnabled: boolean }) {
+  const t = useTranslations('landing.story.showcase')
+  const labels = useCoverLabels()
+  return <section id="konten" className={styles.showcase} data-motion={motionEnabled} aria-labelledby="showcase-title" aria-describedby="showcase-disclaimer">
+    <span className={styles.eyebrow}>{t('eyebrow')}</span>
+    <h2 id="showcase-title">{t('title')}</h2>
+    <p>{t('subtitle')}</p>
+    <p id="showcase-disclaimer" className={styles.showcaseNote}>{t('disclaimer')}</p>
+    <div className={styles.folders}>
+      {showcaseFolders.map(({ key, covers }) => <details className={styles.folder} key={key}>
+        <summary>
+          <span className={styles.folderPeek} aria-hidden="true">{covers.slice(0, 3).map(index => <Cover key={names[index]} index={index} />)}</span>
+          <span className={styles.folderSleeve}><span>Carousely <span aria-hidden="true">↗</span></span><strong>{t(key)}</strong><small>{t('count')} · <span className={styles.folderOpen}>{t('open')}</span><span className={styles.folderClose}>{t('close')}</span></small></span>
+        </summary>
+        <div className={styles.folderContents}>{covers.map(index => <figure key={names[index]}><Cover index={index} /><figcaption>{labels[index]}</figcaption></figure>)}</div>
+      </details>)}
+    </div>
+  </section>
+}
+
 function useChapters() {
   const t = useTranslations('landing.story')
   return [

@@ -246,6 +246,19 @@
     "provisional": "Harga awal ditampilkan. Ketersediaan dan harga terbaru dikonfirmasi sebelum pembayaran."
   },
   "story": {
+    "showcase": {
+      "eyebrow": "INSPIRASI KONTEN",
+      "title": "Buka folder. Temukan idemu.",
+      "subtitle": "20 contoh desain untuk berbagai bidang. Buka folder untuk melihat setiap cover lebih dekat.",
+      "disclaimer": "Konten dummy untuk inspirasi, bukan karya atau kampanye RE/MAX maupun SUME.",
+      "beauty": "Cantik & sehat",
+      "living": "Rasa & pengalaman",
+      "spaces": "Ruang & keseharian",
+      "business": "Bisnis & layanan",
+      "count": "5 contoh",
+      "open": "Buka folder",
+      "close": "Tutup folder"
+    },
     "covers": {
       "label0": "Perawatan kulit",
       "label1": "Perawatan rambut",

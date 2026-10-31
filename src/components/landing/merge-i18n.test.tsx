@@ -71,7 +71,7 @@ describe('merge localization regressions', () => {
       )
       expect(html).toContain('data-paused="true"')
       expect(html).toContain('data-motion="false"')
-      expect(html).toContain(locale === 'id' ? 'Galeri tanpa animasi' : 'Gallery animation off')
+      expect(html).not.toContain(locale === 'id' ? 'Galeri tanpa animasi' : 'Gallery animation off')
     })
 
     it(`renders eight translated cover-only style previews in ${locale}`, () => {

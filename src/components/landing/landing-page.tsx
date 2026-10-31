@@ -9,7 +9,7 @@ import { MotionConfig, motion, useScroll, useTransform } from 'framer-motion'
 import { ArrowUpRight, CircleHelp, Layers3, Menu, Pause, Play, Plus, Send, Sparkles, X } from 'lucide-react'
 import { CarouselyLogo } from '@/components/brand-mark'
 import styles from './landing.module.css'
-import { GalleryHero, ProductJourney } from './homepage-story'
+import { ContentShowcase, GalleryHero, ProductJourney } from './homepage-story'
 
 function BotanicalArt({ light = false }: { light?: boolean }) {
   return (
@@ -83,6 +83,7 @@ export function LandingPage({ pricing }: { pricing: ReactNode }) {
     <main id="main-content"><GalleryHero motionEnabled={motionEnabled} />
       <ProductJourney motionEnabled={motionEnabled} />
       <section className={styles.partners} aria-labelledby="partners-title"><h2 id="partners-title">{t('partners.title')}</h2><p>{t('partners.subtitle')}</p><div>{partners.map(({ name, ...logo }) => <span key={name}><Image {...logo} alt={name} /></span>)}</div></section>
+      <ContentShowcase motionEnabled={motionEnabled} />
       <Workflow motionEnabled={motionEnabled} />
       <section className={styles.brandSection} aria-labelledby="brand-title"><div className={styles.brandCanvas}><div className={styles.brandCanvasTop}><span className={styles.miniAvatar}>a.</span><span>{t('brand.canvas')}</span><Layers3 size={19} /></div><div className={styles.brandPosts}>{(['green', 'purple', 'peach'] as const).map((variant, index) => <motion.div key={variant} initial={false} whileInView={motionEnabled ? { rotate: index === 0 ? -7 : index === 2 ? 7 : 0, y: index === 1 ? -15 : 0 } : undefined} viewport={{ once: true, amount: .5 }} transition={{ duration: .7, delay: index * .1 }}><ContentArt variant={variant} /></motion.div>)}</div></div><div className={styles.brandText}><h2 id="brand-title">{t('brand.title1')}<br />{t('brand.title2')}</h2><p>{t('brand.body')}</p><Link href="/daftar" className={styles.textLink}>{t('brand.link')} <ArrowUpRight size={18} /></Link></div></section>
       {pricing}
