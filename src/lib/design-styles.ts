@@ -37,6 +37,8 @@ export interface DesignStyle {
   label: string
   /** One line for the owner, in Indonesian. */
   summary: string
+  /** Hardcoded copy used to demonstrate the three carousel roles in the picker. */
+  samples: readonly { role: SlideRole; label: string; title: string; copy: string }[]
   /** Who it suits, in Indonesian. */
   suits: string
   headingFont: FontName
@@ -53,6 +55,11 @@ export const DESIGN_STYLES = {
   minimalis: {
     label: 'Minimalis Modern',
     summary: 'Bersih, banyak ruang kosong, tipografi jadi pusat perhatian.',
+    samples: [
+      { role: 'cover', label: 'Panduan praktis', title: 'Konten Rapi, Pesan Lebih Sampai', copy: 'Mulai dari satu ide yang jelas.' },
+      { role: 'isi', label: '01 · Fokus', title: 'Satu slide, satu pesan', copy: 'Ruang kosong membantu pembaca menangkap inti.' },
+      { role: 'cta', label: 'Langkah berikutnya', title: 'Siap merapikan kontenmu?', copy: 'Simpan panduan ini →' },
+    ],
     suits: 'Edukasi, jasa profesional, produk premium yang tenang.',
     headingFont: 'Plus Jakarta Sans',
     bodyFont: 'Inter',
@@ -70,6 +77,11 @@ export const DESIGN_STYLES = {
   bold: {
     label: 'Bold Kreatif',
     summary: 'Warna berani, huruf besar, blok warna, kontras tinggi.',
+    samples: [
+      { role: 'cover', label: 'Stop scroll', title: 'Ide Bagus Harus Terlihat!', copy: 'Geser buat lihat caranya →' },
+      { role: 'isi', label: '01', title: 'Buka dengan kejutan', copy: 'Pakai satu kalimat yang langsung menantang.' },
+      { role: 'cta', label: 'Giliran kamu', title: 'Bikin Kontenmu Menonjol', copy: 'Coba sekarang →' },
+    ],
     suits: 'Kreator, brand anak muda, promo dan konten viral.',
     headingFont: 'Poppins',
     bodyFont: 'DM Sans',
@@ -86,6 +98,11 @@ export const DESIGN_STYLES = {
   elegan: {
     label: 'Elegan Premium',
     summary: 'Serif mewah, warna kalem, kesan eksklusif.',
+    samples: [
+      { role: 'cover', label: 'THE EDIT', title: 'Detail Kecil, Kesan Berkelas', copy: 'Panduan membangun citra premium.' },
+      { role: 'isi', label: '01 · Detail', title: 'Kurasi, bukan dekorasi', copy: 'Pilih elemen yang punya alasan untuk hadir.' },
+      { role: 'cta', label: 'Discover more', title: 'Temukan gaya khas brand Anda', copy: 'Mulai eksplorasi' },
+    ],
     suits: 'Fashion, kecantikan, perhiasan, hotel, kuliner fine dining.',
     headingFont: 'Playfair Display',
     bodyFont: 'Manrope',
@@ -102,6 +119,11 @@ export const DESIGN_STYLES = {
   ceria: {
     label: 'Ceria & Playful',
     summary: 'Warna pastel cerah, bentuk membulat, ilustrasi lucu.',
+    samples: [
+      { role: 'cover', label: 'Yuk, belajar!', title: 'Bikin Ide Jadi Seru', copy: 'Geser untuk mulai ✦' },
+      { role: 'isi', label: '01', title: 'Mulai dari yang kamu suka', copy: 'Ide ringan lebih mudah dikembangkan.' },
+      { role: 'cta', label: 'Sampai sini!', title: 'Saatnya Coba Sendiri', copy: 'Ayo mulai →' },
+    ],
     suits: 'Produk anak, makanan ringan, hobi, komunitas santai.',
     headingFont: 'Outfit',
     bodyFont: 'DM Sans',
@@ -118,6 +140,11 @@ export const DESIGN_STYLES = {
   editorial: {
     label: 'Editorial Majalah',
     summary: 'Seperti halaman majalah: foto kuat, grid rapi, judul besar.',
+    samples: [
+      { role: 'cover', label: 'ISSUE 01 · INSIGHT', title: 'Cara Baru Melihat Kebiasaan Lama', copy: 'Catatan untuk hidup yang lebih sadar.' },
+      { role: 'isi', label: '01 · Perspektif', title: 'Yang luput dari perhatian', copy: 'Perubahan besar sering bermula dari observasi kecil.' },
+      { role: 'cta', label: 'End note', title: 'Apa yang ingin kamu ubah?', copy: 'Bagikan perspektifmu →' },
+    ],
     suits: 'Media, opini, lifestyle, personal brand.',
     headingFont: 'DM Serif Display',
     bodyFont: 'Inter',
@@ -134,6 +161,11 @@ export const DESIGN_STYLES = {
   profesional: {
     label: 'Profesional Korporat',
     summary: 'Rapi, terpercaya, warna biru/navy, data dan ikon.',
+    samples: [
+      { role: 'cover', label: 'BUSINESS BRIEF', title: 'Keputusan Lebih Tepat dengan Data', copy: 'Tiga langkah membaca peluang.' },
+      { role: 'isi', label: '01 · Analisis', title: 'Mulai dari indikator utama', copy: 'Bandingkan tren, bukan satu angka terpisah.' },
+      { role: 'cta', label: 'Konsultasi', title: 'Siap menyusun langkah berikutnya?', copy: 'Hubungi tim kami →' },
+    ],
     suits: 'B2B, keuangan, konsultan, kesehatan, pendidikan formal.',
     headingFont: 'Montserrat',
     bodyFont: 'Inter',
@@ -150,6 +182,11 @@ export const DESIGN_STYLES = {
   natural: {
     label: 'Natural & Organik',
     summary: 'Warna tanah, tekstur kertas, daun, nuansa hangat.',
+    samples: [
+      { role: 'cover', label: 'SLOW LIVING NOTE', title: 'Kebiasaan Baik Tumbuh Perlahan', copy: 'Mulai dari hal kecil setiap hari.' },
+      { role: 'isi', label: '01 · Bertumbuh', title: 'Beri ruang untuk proses', copy: 'Konsistensi lebih penting dari kesempurnaan.' },
+      { role: 'cta', label: 'A gentle reminder', title: 'Mulai dengan satu langkah', copy: 'Simpan untuk nanti' },
+    ],
     suits: 'Produk alami, kopi, kesehatan, wellness, F&B rumahan.',
     headingFont: 'Fraunces',
     bodyFont: 'DM Sans',
@@ -166,6 +203,11 @@ export const DESIGN_STYLES = {
   tech: {
     label: 'Tech Modern',
     summary: 'Latar gelap, aksen neon, grid futuristis.',
+    samples: [
+      { role: 'cover', label: 'SYSTEM UPDATE', title: 'Kerja Cepat Tanpa Alur Rumit', copy: 'Optimalkan proses digitalmu.' },
+      { role: 'isi', label: '01 · AUTOMATE', title: 'Hilangkan kerja berulang', copy: 'Biarkan sistem menangani tugas rutin.' },
+      { role: 'cta', label: 'READY TO START?', title: 'Upgrade Cara Kerjamu', copy: 'Mulai sekarang →' },
+    ],
     suits: 'Teknologi, aplikasi, gaming, crypto, digital marketing.',
     headingFont: 'Space Grotesk',
     bodyFont: 'Inter',

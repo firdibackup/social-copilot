@@ -11,6 +11,13 @@ describe('style recipes', () => {
       }
     }
   })
+
+  it('shows distinct cover, inner and CTA examples for every style', () => {
+    for (const style of STYLES) {
+      expect(style.samples.map((sample) => sample.role)).toEqual(['cover', 'isi', 'cta'])
+      expect(style.samples.every((sample) => sample.label && sample.title && sample.copy)).toBe(true)
+    }
+  })
 })
 
 describe('styleForBrand', () => {

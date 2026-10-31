@@ -1,6 +1,7 @@
 'use client'
 
-import { Check } from 'lucide-react'
+import { useState } from 'react'
+import { Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { DESIGN_STYLE_IDS, DESIGN_STYLES, FONT_CHOICES, type DesignStyleId, type FontName } from '@/lib/design-styles'
 import { FONT_FAMILY, fontFamilyOf } from './font-previews'
 
@@ -10,39 +11,61 @@ interface Palette {
   accent: string
 }
 
-/** A tiny cover and inner slide in the style, so the owner sees the difference instead of reading it. */
+/** Three hardcoded examples make the layout choice visible without spending an image generation request. */
 function MiniCarousel({ id, palette }: { id: DesignStyleId; palette: Palette }) {
+  const [index, setIndex] = useState(0)
   const style = DESIGN_STYLES[id]
+  const sample = style.samples[index]
   const heading = { fontFamily: FONT_FAMILY[style.headingFont], color: palette.ink }
   const body = { fontFamily: FONT_FAMILY[style.bodyFont], color: palette.ink }
-  const slide = 'relative aspect-[4/5] flex-1 overflow-hidden rounded-md border border-black/5'
+  const roleName = sample.role === 'isi' ? 'Isi' : sample.role === 'cta' ? 'CTA' : 'Cover'
+
+  function move(event: React.MouseEvent, direction: number) {
+    event.stopPropagation()
+    setIndex((current) => (current + direction + style.samples.length) % style.samples.length)
+  }
+
   return (
-    <div className="flex gap-1.5" aria-hidden="true">
-      <div className={slide} style={{ background: palette.background }}>
-        <span className="absolute left-2 top-2 h-1 w-4 rounded-full" style={{ background: palette.accent }} />
-        <p className="absolute inset-x-2 top-1/3 text-[13px] font-bold leading-tight" style={heading}>
-          5 Cara Mulai
-        </p>
-        <span className="absolute bottom-2 right-2 text-[9px]" style={{ ...body, color: palette.accent }}>
-          geser →
-        </span>
-      </div>
-      <div className={slide} style={{ background: palette.background }}>
-        <span className="absolute left-2 top-2 text-[9px] font-bold" style={{ ...heading, color: palette.accent }}>
-          01
-        </span>
-        <p className="absolute inset-x-2 top-6 text-[10px] font-bold leading-tight" style={heading}>
-          Kenali audiens
-        </p>
-        <div className="absolute inset-x-2 top-11 space-y-1">
-          {[100, 85, 92].map((width) => (
-            <span
-              key={width}
-              className="block h-[3px] rounded-full opacity-40"
-              style={{ width: `${width}%`, background: palette.ink }}
-            />
-          ))}
+    <div>
+      <div
+        className="relative mx-auto aspect-[4/5] w-full max-w-52 overflow-hidden rounded-lg border border-black/5 shadow-sm"
+        style={{ background: palette.background }}
+      >
+        <div className="absolute inset-x-0 top-0 h-1" style={{ background: palette.accent }} />
+        <div className="absolute -right-8 bottom-12 h-28 w-28 rounded-full opacity-20" style={{ background: palette.accent }} />
+        <div className="absolute bottom-0 left-0 h-24 w-2/3 rounded-tr-[4rem] opacity-10" style={{ background: palette.ink }} />
+        <div className={`absolute inset-0 flex p-5 ${sample.role === 'cta' ? 'items-center text-center' : 'flex-col'}`}>
+          <div className={sample.role === 'cta' ? 'w-full' : ''}>
+            <p className="mb-3 text-[8px] font-bold uppercase tracking-[0.18em]" style={{ ...body, color: palette.accent }}>
+              {sample.label}
+            </p>
+            <p className={`font-bold leading-[0.98] ${sample.role === 'cover' ? 'text-[22px]' : 'text-[18px]'}`} style={heading}>
+              {sample.title}
+            </p>
+            <p className="mt-3 text-[9px] leading-snug opacity-75" style={body}>
+              {sample.copy}
+            </p>
+            {sample.role === 'cta' && (
+              <span className="mt-4 inline-block rounded-full px-3 py-1.5 text-[8px] font-bold" style={{ background: palette.accent, color: palette.background }}>
+                Lihat selengkapnya
+              </span>
+            )}
+          </div>
         </div>
+        <span className="absolute bottom-3 right-3 rounded-full bg-black/10 px-2 py-0.5 text-[8px] font-semibold" style={body}>
+          {roleName} · {index + 1}/3
+        </span>
+        <button type="button" aria-label={`Contoh sebelumnya — ${style.label}`} onClick={(event) => move(event, -1)} className="absolute left-2 top-1/2 rounded-full bg-white/80 p-1 text-zinc-700 shadow-sm opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100">
+          <ChevronLeft size={13} aria-hidden="true" />
+        </button>
+        <button type="button" aria-label={`Contoh berikutnya — ${style.label}`} onClick={(event) => move(event, 1)} className="absolute right-2 top-1/2 rounded-full bg-white/80 p-1 text-zinc-700 shadow-sm opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100">
+          <ChevronRight size={13} aria-hidden="true" />
+        </button>
+      </div>
+      <div className="mt-2 flex justify-center gap-1" aria-hidden="true">
+        {style.samples.map((item, itemIndex) => (
+          <span key={item.role} className="h-1 rounded-full transition-all" style={{ width: itemIndex === index ? 18 : 5, background: itemIndex === index ? palette.accent : `${palette.ink}30` }} />
+        ))}
       </div>
     </div>
   )
@@ -64,26 +87,30 @@ export function DesignStylePicker({ value, onChange, palette, large = false }: D
         const style = DESIGN_STYLES[id]
         const selected = value === id
         return (
-          <button
+          <div
             key={id}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            onClick={() => onChange(id)}
-            className={`group relative space-y-3 rounded-xl border bg-white p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+            className={`group relative space-y-3 rounded-xl border bg-white p-3 text-left transition-colors ${
               selected ? 'border-accent ring-1 ring-accent' : 'border-hairline hover:border-zinc-300'
             }`}
           >
             <MiniCarousel id={id} palette={{ ...style.preview, ...palette }} />
-            <div className="space-y-0.5">
-              <p className="flex items-center justify-between gap-2 text-sm font-semibold text-ink">
+            <label className="block cursor-pointer space-y-0.5 rounded-md focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
+              <input
+                type="radio"
+                name="design-style"
+                value={id}
+                checked={selected}
+                onChange={() => onChange(id)}
+                className="sr-only"
+              />
+              <span className="flex items-center justify-between gap-2 text-sm font-semibold text-ink">
                 {style.label}
                 {selected && <Check size={16} className="text-accent" aria-hidden="true" />}
-              </p>
-              <p className="text-xs leading-relaxed text-ink-muted">{style.summary}</p>
-              {large && <p className="text-xs leading-relaxed text-ink-soft">Cocok: {style.suits}</p>}
-            </div>
-          </button>
+              </span>
+              <span className="block text-xs leading-relaxed text-ink-muted">{style.summary}</span>
+              {large && <span className="block text-xs leading-relaxed text-ink-soft">Cocok: {style.suits}</span>}
+            </label>
+          </div>
         )
       })}
     </div>
