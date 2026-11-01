@@ -446,5 +446,23 @@
       "replay": "Replay demo",
       "next": "Continue demo"
     }
+  },
+  "onboarding": {
+    "title1": "Social media",
+    "title2": "for",
+    "word0": "motorbike workshops",
+    "word1": "beauty clinics",
+    "word2": "boarding houses",
+    "word3": "hardware stores",
+    "word4": "factories",
+    "word5": "coffee shops",
+    "body": "Carousely creates on-brand carousels, captions, and a posting schedule, starting from just your Instagram username.",
+    "placeholder": "@yourusername",
+    "cta": "Try 3 free credits",
+    "submitting": "Getting ready…",
+    "note": "3 free credits · 1 post = 3 credits · no card needed",
+    "login": "Already have an account? Log in",
+    "handleSpace": "This is your Instagram username, not your brand name. Usernames have no spaces, e.g. @kopikita",
+    "handleInvalid": "Instagram usernames may only contain letters, numbers, dots (.) and underscores (_), up to 30 characters."
   }
 }

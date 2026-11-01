@@ -49,8 +49,8 @@
 .openingPin { position: sticky; top: 0; height: 100vh; height: 100svh; min-height: 480px; isolation: isolate; }
 .openingCopy { --k: clamp(0, calc((var(--sp) - .03) * 5), 1); position: absolute; inset: auto 24px 10%; text-align: center; opacity: calc(1 - var(--k)); transform: translateY(calc(var(--k) * -70px)); filter: blur(calc(var(--k) * 10px)); }
 .openingCopy[aria-hidden='true'] { pointer-events: none; }
-.openingCopy h1 { font-size: clamp(38px, 5.5vw, 78px); line-height: 1.06; letter-spacing: -.055em; font-weight: 650; margin: 22px 0; }
-.openingCopy h1 span { color: #6558f5; }
+.opening .openingCopy h2 { font-size: clamp(38px, 5.5vw, 78px); line-height: 1.06; letter-spacing: -.055em; font-weight: 650; margin: 22px 0; }
+.opening .openingCopy h2 span { color: #6558f5; }
 .openingCopy > p { max-width: 58ch; margin-inline: auto; color: #6c6579; font-size: 16px; line-height: 1.8; }
 .openingStage { position: absolute; inset: 0; display: grid; place-items: center; padding: 84px 24px 60px; pointer-events: none; }
 .openingChat { --k: clamp(0, calc((var(--sp) - .17) * 6), 1); width: min(780px, 100%); background: white; border: 1px solid #e3deeb; border-radius: 24px; overflow: hidden; box-shadow: 0 40px 90px -35px #3c2d6540; opacity: var(--k); transform: translateY(calc((1 - var(--k)) * 90px)) scale(calc(.93 + var(--k) * .07)); }
@@ -113,7 +113,7 @@
 @media(max-width: 600px) {
  .openingCopy { inset-inline: 18px; bottom: 12%; filter: none; }
  .openingCopy > p { font-size: 13px; }
- .openingCopy h1 { font-size: clamp(34px, 9vw, 48px); }
+ .opening .openingCopy h2 { font-size: clamp(34px, 9vw, 48px); }
  .openingCopy .actions { gap: 8px; }
  .openingCopy .primary, .openingCopy .secondary { font-size: 11px; padding: 10px 12px; }
  .openingStage { padding: 166px 12px 60px; }
@@ -142,7 +142,7 @@
 @media(max-height: 700px) {
  .openingPin { min-height: 0; }
  .openingCopy { top: 82px; bottom: 64px; overflow-y: auto; }
- .openingCopy h1 { font-size: clamp(28px, 6vw, 44px); margin: 10px 0; }
+ .opening .openingCopy h2 { font-size: clamp(28px, 6vw, 44px); margin: 10px 0; }
  .openingCopy > p { font-size: 12px; line-height: 1.5; }
  .openingCopy .actions { margin-top: 12px; }
  .openingStage { padding: 82px 12px 64px; min-height: 0; grid-template-rows: minmax(0, 1fr); }

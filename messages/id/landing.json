@@ -446,5 +446,23 @@
       "replay": "Ulangi demo",
       "next": "Lanjutkan demo"
     }
+  },
+  "onboarding": {
+    "title1": "Sosial Media",
+    "title2": "untuk",
+    "word0": "bengkel motor",
+    "word1": "klinik kecantikan",
+    "word2": "kos-kosan",
+    "word3": "toko bangunan",
+    "word4": "pabrik",
+    "word5": "coffee shop",
+    "body": "Carousely bantu bikin carousel, caption, dan jadwal posting yang sesuai brand-mu, cukup dari username Instagram.",
+    "placeholder": "@usernamekamu",
+    "cta": "Coba 3 kredit gratis",
+    "submitting": "Menyiapkan…",
+    "note": "Gratis 3 kredit · 1 konten = 3 kredit · tanpa kartu",
+    "login": "Sudah punya akun? Masuk",
+    "handleSpace": "Ini username Instagram, bukan nama brand. Username tidak pakai spasi, contoh: @kopikita",
+    "handleInvalid": "Username Instagram hanya boleh huruf, angka, titik (.) dan garis bawah (_), maksimal 30 karakter."
   }
 }

@@ -145,7 +145,7 @@ export function ProductJourney({ motionEnabled }: { motionEnabled: boolean }) {
     <div className={styles.openingPin}>
       <div ref={copy} className={styles.openingCopy} inert={animated && p > .08} aria-hidden={animated && p > .08}>
         <span className={styles.eyebrow}>{t('hero.trust')} · Instagram & Threads</span>
-        <h1 id="hero-title">{t('opening.title1')}<br /><span>{t('opening.title2')}</span></h1>
+        <h2 id="hero-title">{t('opening.title1')}<br /><span>{t('opening.title2')}</span></h2>
         <p>{t('opening.body')}</p>
         <div className={styles.actions}><Link href="/daftar" className={styles.primary}>{t('start')} <ArrowUpRight size={18} /></Link><button type="button" className={styles.secondary} onClick={advance}>{t('hero.explore')} ↓</button></div>
       </div>
