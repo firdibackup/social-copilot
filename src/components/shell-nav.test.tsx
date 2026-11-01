@@ -53,7 +53,8 @@ describe('app shell navigation', () => {
       }
       expect(html).toContain(catalogs[locale].shell.platforms.instagram)
       expect(html).toContain(catalogs[locale].shell.platforms.threads)
-      expect(html).toContain(`aria-label="${catalogs[locale].common.localeToggleLabel}"`)
+      // The language control moved to the header, beside the notification bell; the rail no longer duplicates it.
+      expect(html).not.toContain(`aria-label="${catalogs[locale].common.localeToggleLabel}"`)
     })
 
     it(`keeps app locale targets at 44px without changing landing sizing in ${locale}`, () => {
@@ -62,9 +63,13 @@ describe('app shell navigation', () => {
       expect(app).toContain(`aria-label="${catalogs[locale].common.indonesian}"`)
       expect(app).toContain(`aria-label="${catalogs[locale].common.english}"`)
       expect(app.match(/aria-pressed="true"/g)).toHaveLength(1)
+      expect(app).toContain(`aria-label="${catalogs[locale].common.localeToggleLabel}"`)
+      // A segmented control: no pipe separator between the options.
+      expect(app).not.toContain('|')
       const landing = render(locale, <LocaleToggle variant="landing" />)
       expect(landing).not.toContain('min-h-11')
-      expect(landing.match(/px-1.5 py-1/g)).toHaveLength(2)
+      expect(landing.match(/h-8 min-w-10/g)).toHaveLength(2)
+      expect(landing.match(/aria-pressed="true"/g)).toHaveLength(1)
     })
 
     it(`keeps the phone bar to six truncating items in ${locale}`, () => {

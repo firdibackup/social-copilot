@@ -68,10 +68,11 @@ export default async function AppLayout({ children }: AppLayoutProps) {
           <header className="flex h-14 shrink-0 items-center gap-2 border-b border-hairline px-4 md:px-5">
             <Breadcrumb />
             <div className="ml-auto flex shrink-0 items-center gap-1">
+              {/* The language control lives here on every screen size, beside the notification bell. */}
+              <LocaleToggle variant="app" className="mr-1" />
               <NotificationBell />
-              {/* The sidebar's language control, Langganan and Keluar, which the phone's bottom bar has no room for. */}
+              {/* Admin, Langganan and Keluar from the sidebar, which the phone's bottom bar has no room for. */}
               <div className="flex items-center gap-1 md:hidden">
-                <LocaleToggle variant="app" />
                 <Suspense fallback={null}>
                   <AdminNav phone />
                 </Suspense>

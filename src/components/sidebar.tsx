@@ -7,7 +7,6 @@ import type { ReactNode } from 'react'
 import { PiSignOut } from 'react-icons/pi'
 import { signOut } from '@/app/masuk/actions'
 import { InstagramIcon } from './instagram-icon'
-import { LocaleToggle } from './locale-toggle'
 import { ADMIN_ITEM, isActive, NAV_ITEMS, type NavItem } from './nav-items'
 import { ThreadsIcon } from './threads-icon'
 
@@ -75,7 +74,6 @@ export function Sidebar({ workspace, instagramStatus, threadsStatus, credits, ac
       </section>
 
       <div className="mt-auto border-t border-[#e3e0f5] px-1 pt-4">
-        <LocaleToggle variant="app" className="mb-3" />
         <form action={signOut} className="flex items-center gap-2">
           <span className="min-w-0 flex-1">{account}</span>
           <button

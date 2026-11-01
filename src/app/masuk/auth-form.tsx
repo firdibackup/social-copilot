@@ -1,7 +1,6 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { LocaleToggle } from '@/components/locale-toggle'
 import Link from 'next/link'
 import { useActionState, type ReactNode } from 'react'
 import { CarouselyLogo } from '@/components/brand-mark'
@@ -20,7 +19,6 @@ export function AuthCard({ title, description, children }: { title: string; desc
   return (
     <main className="flex min-h-screen items-center justify-center bg-bg px-4 py-10">
       <div className="w-full max-w-sm space-y-6">
-        <div className="flex justify-end"><LocaleToggle variant="landing" /></div>
         <header className="space-y-2 text-center">
           <CarouselyLogo size={36} className="justify-center" />
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">{title}</h1>
