@@ -1,0 +1,121 @@
+/* Mimo's scroll tour (mimo-tour.tsx). The engine writes every transform per frame; this file only sets up the layers. */
+
+.layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  z-index: 45;
+  pointer-events: none;
+  visibility: hidden;
+  will-change: transform;
+}
+
+.mascot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 200px;
+  height: 200px;
+  transform-origin: 50% 50%;
+  transform: translate(-50%, -50%) scale(0);
+  will-change: transform;
+  pointer-events: auto;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.mascot :global(.mimo-mascot) {
+  display: block;
+  filter: drop-shadow(0 14px 22px rgb(101 88 245 / 0.38)) drop-shadow(0 3px 6px rgb(48 38 80 / 0.12));
+}
+
+/* The engine eases the eyes itself; a CSS transition on top would lag behind. */
+.mascot :global(.face) {
+  transition: none;
+}
+
+.slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: 240px;
+  --tail-y: 24px;
+  will-change: transform;
+}
+
+.bubble {
+  position: relative;
+  max-width: 240px;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid #ede9fb;
+  border-radius: 14px;
+  box-shadow:
+    0 12px 32px -8px rgb(101 88 245 / 0.28),
+    0 2px 6px rgb(48 38 80 / 0.06);
+  color: #302650;
+  font-size: 14px;
+  line-height: 1.4;
+  font-weight: 500;
+  text-wrap: pretty;
+  opacity: 0;
+  transform: scale(0.6);
+  transform-origin: 0 var(--tail-y);
+  transition:
+    transform 0.12s ease-in,
+    opacity 0.12s ease-in;
+}
+
+.bubble[data-open] {
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.2s ease-out;
+}
+
+.slot[data-side="left"] .bubble {
+  transform-origin: 100% var(--tail-y);
+}
+
+/* The tail: a small rotated square pointing back at Mimo. */
+.bubble::before {
+  content: "";
+  position: absolute;
+  top: var(--tail-y);
+  left: -6px;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  background: #fff;
+  border-left: 1px solid #ede9fb;
+  border-bottom: 1px solid #ede9fb;
+  border-radius: 0 0 0 2px;
+  transform: rotate(45deg);
+}
+
+.slot[data-side="left"] .bubble::before {
+  left: auto;
+  right: -6px;
+  transform: rotate(-135deg);
+}
+
+/* The element Mimo "presses" at the middle of a stop; only while the tour is on the page. */
+:global(body):has(.layer) :global([data-tour-pressed]) {
+  transform: scale(0.86) !important;
+  filter: brightness(1.25);
+  transition:
+    transform 0.15s,
+    filter 0.15s;
+}
+
+/* Phones: Mimo still flies and presses, but without the speech bubble (the feature cards show the same line). */
+@media (max-width: 759px) {
+  .slot {
+    display: none;
+  }
+}

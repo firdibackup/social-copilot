@@ -50,8 +50,6 @@ describe('merge localization regressions', () => {
       )
       expect(html).toContain(catalogs[locale].landing.story.opening.title1)
       expect(html).toContain('data-orbit-hero')
-      expect(html).toContain('data-orbit-toggle')
-      expect(html).toContain(`aria-label="${catalogs[locale].landing.footer.pauseMotion}"`)
       expect(html).not.toContain('data-opening-chat')
       expect(html).not.toContain('data-mascot')
       expect(html).toContain(`aria-label="${catalogs[locale].common.localeToggleLabel}"`)
@@ -66,20 +64,20 @@ describe('merge localization regressions', () => {
     it(`retains static reduced-motion orbit rendering in ${locale}`, () => {
       const html = renderToStaticMarkup(
         <NextIntlClientProvider locale={locale} messages={catalogs[locale]} timeZone="Asia/Jakarta" onError={failOnTranslationError}>
-          <OrbitHero paused={false} reduceMotion={true} onTogglePause={() => undefined} />
+          <OrbitHero paused={false} reduceMotion={true} />
         </NextIntlClientProvider>,
       )
-      const { opening, orbit } = catalogs[locale].landing.story
+      const { opening } = catalogs[locale].landing.story
       expect(html).toContain(opening.title1)
       expect(html).toContain(opening.title2)
       expect(html).toContain(opening.body)
-      expect(html).toContain(orbit.showcase)
+      expect(html).toContain(catalogs[locale].landing.trial.cta)
+      // Reduced motion: no gooey filter on the word, and no entrance animation hook.
+      expect(html).toContain('data-gooey="false"')
+      expect(html).toContain('data-motion="false"')
       expect(html).toContain('data-orbit-stage')
       expect(html).toContain('data-paused="true"')
       expect(html).toContain('data-pause-reason="reduced"')
-      const control = html.match(/<button\b[^>]*data-orbit-toggle[^>]*>/)?.[0] ?? ''
-      expect(control).toContain('disabled=""')
-      expect(control).toContain(`aria-label="${catalogs[locale].landing.footer.reducedMotion}"`)
       expect(html).not.toContain('data-opening-chat')
       expect(html).not.toContain('data-mascot')
     })

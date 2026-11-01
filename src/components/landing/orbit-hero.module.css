@@ -2,6 +2,10 @@
    a step) drifting very slowly, one turn per 160s. Mobile/compact shows a
    static upper-arc framing in a clipped panel above the copy. */
 @property --orbit-spin { syntax: '<angle>'; inherits: true; initial-value: 0deg; }
+/* Registered so the card frame can spring on hover without touching the orbit transform. */
+@property --zoom { syntax: '<number>'; inherits: false; initial-value: 1; }
+/* 0 = tilted toward the ring's centre, 1 = facing the viewer (hover). Inherited by the frame. */
+@property --flat { syntax: '<number>'; inherits: true; initial-value: 0; }
 
 .hero {
   --ink: #302650;
@@ -10,6 +14,7 @@
   --ch: calc(var(--cw) * 1.25);
   --ring-gap: 22px;
   --r: var(--fit-r, calc(var(--cw) * 3.5));
+  --persp: 700px;
   position: relative;
   height: clamp(600px, calc(100svh - 90px), 1000px);
   overflow: hidden;
@@ -34,20 +39,39 @@
   top: calc(var(--ch) / -2);
   width: var(--cw);
   height: var(--ch);
+  transform: rotate(var(--turn)) translateY(calc(var(--r) * -1)) rotate(calc(var(--turn) * -1)) scale(var(--zoom, 1));
+  /* --zoom is its own registered property, so the frame springs without fighting
+     the orbit's rotating transform; the photo zooms a little more inside it. */
+  transition: --zoom .5s cubic-bezier(.34, 1.56, .64, 1), --flat .5s cubic-bezier(.22, 1, .36, 1);
+}
+/* The card box stays upright for layout and hit-testing; only the frame leans in 3D,
+   turned toward the ring's centre from wherever the drift has carried it. */
+.frame {
+  --k: calc(1 - var(--flat));
+  display: block;
+  width: 100%;
+  height: 100%;
   padding: 3px;
+  overflow: hidden;
   border-radius: 13px;
   background: #fff;
-  box-shadow: 0 1px 2px #2c1f5a14, 0 14px 28px -14px #2c1f5a59;
-  transform: rotate(var(--turn)) translateY(calc(var(--r) * -1)) rotate(calc(var(--turn) * -1));
+  box-shadow: 0 1px 2px #2c1f5a14, 0 18px 32px -14px #2c1f5a66;
+  transform: perspective(var(--persp)) rotateX(calc(cos(var(--turn)) * -10deg * var(--k))) rotateY(calc(sin(var(--turn)) * -14deg * var(--k))) rotate(calc(sin(var(--turn)) * 5deg * var(--k)));
+  transition: box-shadow .35s ease;
 }
-.card img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 9px; user-select: none; }
+.frame img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 9px; user-select: none; transition: transform .5s cubic-bezier(.34, 1.56, .64, 1); }
+.card:hover { --zoom: 1.08; --flat: 1; z-index: 4; }
+.card:hover .frame { box-shadow: 0 2px 4px #2c1f5a1f, 0 24px 46px -16px #2c1f5a80; }
+.card:hover img { transform: scale(1.08); }
+.card:active { --zoom: 1.03; }
+.card:active img { transform: scale(1.04); }
 
 .copy {
   position: absolute;
   z-index: 2;
   left: 50%;
   top: 50%;
-  width: min(540px, calc(100% - 48px));
+  width: min(620px, calc(100% - 48px));
   transform: translate(-50%, -50%);
   text-align: center;
 }
@@ -59,40 +83,45 @@
 .brands { display: inline-flex; align-items: center; gap: 9px; color: #514867; }
 .brand { display: inline-flex; }
 .srOnly { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-.hero .copy h2 { margin: 0; font-size: clamp(40px, min(3.74vw, 5.94svh), 53px); line-height: 1.04; letter-spacing: -.045em; font-weight: 650; color: var(--ink); text-wrap: balance; }
-.hero .copy h2 span { color: #6558f5; }
-.copy p { margin: 16px auto 0; max-width: 40ch; color: var(--muted); font-size: 15px; line-height: 1.65; text-wrap: pretty; }
-.actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 24px; }
-.primary, .secondary { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 12px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; transition: background .2s, border-color .2s, transform .2s; }
-.primary { background: #6558f5; color: #fff; box-shadow: 0 6px 16px -6px #6558f580; }
-.primary:hover { background: #5145d8; transform: translateY(-1px); }
-.secondary { background: #ffffffd9; color: #463b60; border: 1px solid #ddd7ee; }
-.secondary:hover { background: #fff; border-color: #6558f5; }
-.primary:focus-visible, .secondary:focus-visible, .toggle:focus-visible { outline: 2px solid #6558f5; outline-offset: 3px; }
+.hero .copy h1 { margin: 0; font-size: clamp(40px, min(3.74vw, 5.94svh), 53px); line-height: 1.06; letter-spacing: -.045em; font-weight: 650; color: var(--ink); text-wrap: balance; }
+/* "untuk <word>" never wraps: the copy box keeps one height while words change, so the ring never re-fits mid-cycle. */
+.titleLine { display: inline-flex; align-items: baseline; justify-content: center; gap: .25em; white-space: nowrap; }
+.body { margin: 16px auto 0; max-width: 42ch; color: var(--muted); font-size: 15px; line-height: 1.65; text-wrap: pretty; }
 
-.toggle {
-  position: absolute;
-  z-index: 3;
-  right: 24px;
-  bottom: 24px;
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border: 1px solid #ddd7ee;
-  border-radius: 50%;
-  background: #ffffffe6;
-  color: #463b60;
-  box-shadow: 0 6px 16px -10px #2c1f5a66;
-  backdrop-filter: blur(6px);
-  cursor: pointer;
-  transition: color .2s, border-color .2s, transform .2s, opacity .2s;
-}
-.toggle:hover:not(:disabled) { color: #6558f5; border-color: #6558f5; }
-.toggle:active:not(:disabled) { transform: scale(.94); }
-.toggle:disabled { cursor: not-allowed; opacity: .55; box-shadow: none; }
-.primary:active { transform: translateY(0); background: #4a3fc9; }
-.secondary:active { background: #f6f4ff; }
+/* Step-in entrance: blur + rise, staggered down the copy (same motion as the trial form's original hero). */
+@keyframes step-in { from { opacity: 0; transform: translateY(14px) scale(.98); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
+.hero[data-motion='true'] .step { animation: step-in .52s cubic-bezier(.22, 1, .36, 1) both; }
+.hero[data-motion='true'] .copy > h1 { animation-delay: .08s; }
+.hero[data-motion='true'] .copy > .body { animation-delay: .16s; }
+.hero[data-motion='true'] .copy > .form { animation-delay: .24s; }
+.hero[data-motion='true'] .copy > .note { animation-delay: .3s; }
+/* Covers arrive out of a blur, one after another. Individual transform properties keep the 3D lean intact. */
+@keyframes frame-in { from { opacity: 0; scale: .9; filter: blur(8px); } to { opacity: 1; scale: 1; filter: blur(0); } }
+.hero[data-motion='true'] .frame { animation: frame-in .7s cubic-bezier(.22, 1, .36, 1) calc(.2s + var(--i) * 45ms) both; }
+.hero[data-motion='true'] .outer .frame { animation-delay: calc(.32s + var(--i) * 45ms); }
+
+/* Instagram trial: one pill, username in, free credits out. */
+.form { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 500px; margin: 26px auto 0; padding: 6px; border-radius: 999px; background: #fff;
+  box-shadow: inset 0 0 0 1px #e7e2f6, 0 1px 2px #2c1f5a0d, 0 16px 34px -16px #2c1f5a40; transition: box-shadow .25s ease; }
+.form:focus-within { box-shadow: inset 0 0 0 1px #c9c1f5, 0 1px 2px #2c1f5a0d, 0 18px 40px -14px #6558f559; }
+.field { position: relative; flex: 1; min-width: 0; }
+.field input { width: 100%; min-height: 46px; border: 0; outline: 0; background: transparent; font: inherit; font-size: 16px; padding: 10px 42px 10px 18px; color: var(--ink); }
+.field input::placeholder { color: #9a93ad; }
+.ig { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: #b4aec4; pointer-events: none; }
+.cta { display: inline-flex; align-items: center; justify-content: center; gap: 9px; flex: none; min-height: 46px; border: 0; border-radius: 999px; padding: 11px 22px; background: #6558f5; color: #fff; font: inherit; font-size: 15px; font-weight: 650; cursor: pointer; box-shadow: 0 6px 16px -6px #6558f580; transition: background .2s, transform .2s ease, box-shadow .2s ease; }
+.cta:hover:not(:disabled) { background: #5145d8; transform: translateY(-1px); box-shadow: 0 10px 22px -8px #6558f599; }
+.cta:active:not(:disabled) { transform: scale(.98); background: #4a3fc9; }
+.cta:disabled { cursor: progress; }
+.cta:focus-visible, .field input:focus-visible { outline: 2px solid #6558f5; outline-offset: 3px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner { width: 15px; height: 15px; border-radius: 50%; border: 2px solid #ffffff59; border-top-color: #fff; animation: spin .8s linear infinite; }
+/* Terms by default, the validation hint when needed; two lines are reserved so the copy box never resizes. */
+.note { min-height: 3em; max-width: 46ch; margin: 12px auto 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); text-wrap: balance; }
+.note[data-error] { color: #b4233c; }
+
+@keyframes confetti { 0% { opacity: 0; transform: translateY(-12vh) rotate(0); } 15% { opacity: 1; } 100% { opacity: 0; transform: translateY(64vh) rotate(300deg); } }
+.confetti { position: absolute; inset: 0; z-index: 3; pointer-events: none; overflow: hidden; }
+.confetti i { position: absolute; top: 0; left: var(--x); width: 7px; height: 11px; border-radius: 2px; background: var(--c); animation: confetti 1.6s cubic-bezier(.22, 1, .36, 1) var(--d) both; }
 
 
 @keyframes orbit-drift { to { --orbit-spin: 360deg; } }
@@ -104,8 +133,11 @@
     --cw: min(73px, 17.5vw, calc(var(--ph) / 5.15));
     --ring-gap: 10px;
     --r: calc(var(--cw) * 2.5);
+    --persp: 420px;
     height: auto;
     overflow: visible;
+    /* A fading wider word can briefly poke past the edge mid-morph; never let it scroll the page sideways. */
+    overflow-x: clip;
     padding: 8px 16px 52px;
     background: #fff;
     border-bottom: 0;
@@ -116,17 +148,19 @@
      bottom softly clipped. */
   .outer { --r: calc(var(--cw) * 2.5 + var(--ch) + var(--ring-gap)); }
   .camera { top: calc(var(--cw) * 2.5 + var(--ch) * 1.5 + var(--ring-gap) + 14px); }
-  .card { padding: 2px; border-radius: 8px; box-shadow: 0 1px 1px #2c1f5a12, 0 8px 14px -8px #2c1f5a59; }
-  .card img { border-radius: 5px; }
+  .frame { padding: 2px; border-radius: 8px; box-shadow: 0 1px 1px #2c1f5a12, 0 8px 14px -8px #2c1f5a59; }
+  .frame img { border-radius: 5px; }
   .copy { position: relative; left: auto; top: auto; transform: none; width: auto; max-width: 520px; margin: 32px auto 0; }
   .badge { margin-bottom: 14px; padding: 5px 11px 5px 9px; font-size: 12.5px; }
-  .hero .copy h2 { font-size: clamp(33px, 9.24vw, 48px); }
-  .copy p { font-size: 14px; margin-top: 14px; }
-  .actions { margin-top: 22px; }
-  .toggle { top: calc(8px + var(--ph) - 56px); bottom: auto; right: max(28px, calc(50% - 360px + 12px)); width: 44px; height: 44px; }
+  /* 8vw keeps both lines ("Otomasi Social Mediamu", "untuk klinik kecantikan") on one line each from 320px up. */
+  .hero .copy h1 { font-size: clamp(24px, 8vw, 44px); }
+  .body { font-size: 14px; margin-top: 14px; }
+  .form { margin-top: 22px; }
 }
-@media (max-width: 420px) {
-  .actions { flex-direction: column; align-items: stretch; }
+@media (max-width: 479px) {
+  .form { flex-direction: column; align-items: stretch; gap: 6px; border-radius: 24px; }
+  .field input { text-align: center; padding: 10px 40px; }
+  .cta { width: 100%; }
 }
 @media (max-height: 639px) and (min-width: 600px) {
   .copy { margin-top: 24px; }
@@ -136,7 +170,8 @@
    paint before hydration; the data attribute covers the JS-reported state. */
 @media (prefers-reduced-motion: reduce) {
   .camera { animation: none; }
-  .primary, .secondary, .toggle { transition: none; }
-  .primary:hover, .toggle:active:not(:disabled) { transform: none; }
+  .card, .frame, .frame img, .form, .cta { transition: none; }
+  .cta:hover:not(:disabled) { transform: none; }
+  .hero .step, .hero .frame, .confetti i { animation: none !important; }
 }
 .stage[data-pause-reason='reduced'] .camera { animation: none; }

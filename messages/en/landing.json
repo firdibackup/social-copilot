@@ -297,7 +297,6 @@
       "play": "Play gallery",
       "pause": "Pause gallery"
     },
-    "start": "Get started with Carousely",
     "chapters": {
       "schedule": {
         "label": "Calendar & scheduling",
@@ -412,14 +411,11 @@
       "disclaimer": "Interactive simulations with illustrative data. No actual research, publishing, or DM sending takes place.",
       "guide": "Mimo guide"
     },
-    "orbit": {
-      "showcase": "See sample content"
-    },
     "opening": {
       "apiBadge": "Official API integration",
-      "title1": "Automate Your Own",
-      "title2": "Social Media",
-      "body": "Tell Mimo your idea. Review the slides, then create a carousel ready for your review and schedule.",
+      "title1": "Automate Social Media",
+      "title2": "for",
+      "body": "Enter your Instagram username. Carousely learns your feed’s style, then makes on-brand carousels, captions, and a posting schedule.",
       "prompt": "Create a promo carousel for studio.kamu café. Show our favourite coffee and cosy space, then invite people to visit.",
       "demo": "Simulation · not a live chat",
       "connected": "Carousely connected",
@@ -451,22 +447,186 @@
       "next": "Continue demo"
     }
   },
-  "onboarding": {
-    "title1": "Social media",
-    "title2": "for",
-    "word0": "motorbike workshops",
-    "word1": "beauty clinics",
-    "word2": "boarding houses",
-    "word3": "hardware stores",
-    "word4": "factories",
-    "word5": "coffee shops",
-    "body": "Carousely creates on-brand carousels, captions, and a posting schedule, starting from just your Instagram username.",
+  "trial": {
+    "label": "Instagram username",
     "placeholder": "@yourusername",
     "cta": "Try 3 free credits",
     "submitting": "Getting ready…",
     "note": "3 free credits · 1 post = 3 credits · no card needed",
-    "login": "Already have an account? Log in",
     "handleSpace": "This is your Instagram username, not your brand name. Usernames have no spaces, e.g. @kopikita",
-    "handleInvalid": "Instagram usernames may only contain letters, numbers, dots (.) and underscores (_), up to 30 characters."
+    "handleInvalid": "Instagram usernames may only contain letters, numbers, dots (.) and underscores (_), up to 30 characters.",
+    "word0": "small businesses",
+    "word1": "coffee shops",
+    "word2": "beauty clinics",
+    "word3": "motorbike shops",
+    "word4": "hardware stores",
+    "word5": "boarding houses",
+    "word6": "factories"
+  },
+  "featureTour": {
+    "eyebrow": "Meet the features",
+    "title": "One place for everything your content needs",
+    "subtitle": "Try it right here. Everything is clickable, just like in the dashboard.",
+    "hello": "Hi, I'm Mimo! Keep scrolling and I'll show you around Carousely.",
+    "cta": "Seen it all? Start for free, I'll be waiting inside!",
+    "sneak": "Mimo says",
+    "count": "{current} of {total}",
+    "steps": {
+      "chat": {
+        "kicker": "Mimo chat",
+        "title": "Just chat, and it becomes content",
+        "body": "Describe your idea in plain words. Mimo builds the whole carousel, from cover to closing slide, in your brand style.",
+        "say": "Type your idea and I'll make the carousel right here."
+      },
+      "schedule": {
+        "kicker": "Auto-scheduling",
+        "title": "Carousels ready, posted for you",
+        "body": "Finished carousels line up in a queue. Carousely puts each one at this week’s busiest time and posts it to Instagram automatically, no manual posting.",
+        "say": "Tap Auto-schedule and I'll put every carousel at its best time and post it for you."
+      },
+      "design": {
+        "kicker": "AI design",
+        "title": "We study your Instagram, then design for you",
+        "body": "Carousely reads your Instagram feed: its colors, fonts and visual style. Then it redoes your old posts so they match, and adds brand-new design ideas. You just swipe to approve.",
+        "say": "Tap Analyze, I'll study your Instagram and make new designs. Then just swipe!"
+      },
+      "autodm": {
+        "kicker": "Auto DM",
+        "title": "A comment comes in, the DM replies itself",
+        "body": "Set a rule like “comment LINK, send a DM”. When someone comments, Carousely replies to the comment, invites them to the DMs, then sends the link as soon as they answer. All automatic, around the clock.",
+        "say": "Watch: someone comments “LINK”, I reply and send the link by DM. Try typing it yourself too!"
+      },
+      "analytics": {
+        "kicker": "Analytics",
+        "title": "See which posts are really working",
+        "body": "Track reach, engagement and new followers across every account. Switch the date range to see the trend.",
+        "say": "Switch the date range and I'll show you which posts are climbing."
+      }
+    },
+    "chat": {
+      "title": "Chat with Mimo",
+      "online": "Ready to help",
+      "you": "You",
+      "mimo": "Mimo",
+      "placeholder": "Type your idea…",
+      "send": "Send",
+      "typing": "Mimo is typing…",
+      "intro": "Hi! What should we create today?",
+      "prompt1": "A carousel with 5 productive morning tips",
+      "prompt2": "An end-of-month discount promo",
+      "reply1": "Done! Here's your carousel:",
+      "reply2": "Got it, here's the promo version:",
+      "review": "Open draft",
+      "carouselLabel": "Finished carousel, {count} slides. Scroll to see them all.",
+      "slideAlt": "Slide {n} of {total}",
+      "ready": "{count} slides · ready to schedule",
+      "seatHint": "I'm right here. Pick an idea below or type your own."
+    },
+    "schedule": {
+      "title": "Auto-post schedule",
+      "week": "Auto-post on",
+      "drafts": "Carousels ready to schedule",
+      "hint": "Tap Auto-schedule, or drag a carousel onto any day.",
+      "button": "Auto-schedule",
+      "working": "Scheduling…",
+      "done": "Every carousel is scheduled and will post automatically.",
+      "scheduled": "“{title}” posts automatically on {day}, {time}",
+      "existing": "Your body sends small signals, already live",
+      "liveBadge": "Live",
+      "autoBadge": "auto-post",
+      "draft1": "Busy isn’t loyal",
+      "draft2": "Pricey isn’t right",
+      "draft3": "Not just hard training",
+      "draft4": "Calm trips",
+      "reset": "Start over",
+      "selectedHint": "Pick a day for “{title}”",
+      "dropOn": "Schedule on {day}"
+    },
+    "design": {
+      "title": "Design studio",
+      "handle": "akarstudio",
+      "handleAt": "@akarstudio",
+      "feedLabel": "Last {count} posts",
+      "feedAlt": "Instagram feed with {count} posts being analyzed",
+      "kitTitle": "Your brand kit",
+      "kitEmpty": "I'll read your feed first, then make designs that all match.",
+      "analyze": "Analyze Instagram",
+      "scanning": "Reading post {done} of {total}…",
+      "colors": "Colors",
+      "font": "Font",
+      "fontName": "Elegant serif",
+      "tone": "Style",
+      "tones": {
+        "a": "Warm",
+        "b": "Natural",
+        "c": "Minimal"
+      },
+      "remake": "Redone",
+      "fresh": "New design",
+      "madeAlt": "Design {n} of {total}, {kind}",
+      "madeStatus": "{count} new designs ready. Swipe right to approve, left to skip.",
+      "deckLabel": "New designs, swipe to approve",
+      "swipeHint": "Swipe right to approve, left to skip.",
+      "yes": "Approve",
+      "no": "Skip",
+      "approve": "Approve design",
+      "skip": "Skip design",
+      "approved": "Approved, added to the auto-post schedule.",
+      "skipped": "Skipped.",
+      "queueLabel": "Scheduled",
+      "queueEmpty": "None yet",
+      "queued": "{count} scheduled",
+      "done": "All done! {count} designs added to the auto-post schedule.",
+      "again": "Analyze again"
+    },
+    "autodm": {
+      "title": "Auto DM",
+      "when": "Comment",
+      "then": "Send link by DM",
+      "on": "On",
+      "off": "Off",
+      "toggle": "Auto DM rule",
+      "post": "Your post",
+      "brand": "akarstudio",
+      "caption": "Want the free template? Comment {keyword}!",
+      "user": "nadia.rn",
+      "userName": "Nadia",
+      "comment": "{keyword} please 🙏",
+      "publicReply": "Sent it to your DMs 💜",
+      "inbox": "Direct messages",
+      "live": "Live now",
+      "prompt": "Hi {name}! Thanks for the comment 💜 Type {keyword} here and I’ll send you the link.",
+      "auto": "Automatic",
+      "typing": "akarstudio is typing…",
+      "dm": "Here you go, {name}! The free template is ready to use.",
+      "linkButton": "Open link",
+      "sent": "Sent automatically",
+      "message": "Message…",
+      "typeKeyword": "Type {keyword}…",
+      "send": "Send",
+      "offNote": "The rule is off, so the comment gets no reply and no DM.",
+      "empty": "No comments yet.",
+      "emptyDm": "The automatic conversation shows up here.",
+      "count": "{count} DMs sent",
+      "simulate": "Play conversation",
+      "replay": "Play again",
+      "hint": "Every comment with {keyword} gets an instant DM.",
+      "tryIt": "Your turn: type {keyword} in the DM box."
+    },
+    "analytics": {
+      "title": "Analytics",
+      "ranges": {
+        "d7": "7 days",
+        "d30": "30 days",
+        "d90": "90 days"
+      },
+      "reach": "Reach",
+      "engagement": "Engagement",
+      "followers": "New followers",
+      "chart": "Reach per period",
+      "top": "Top post",
+      "topPost": "5 productive morning tips"
+    },
+    "start": "Start for free"
   }
 }

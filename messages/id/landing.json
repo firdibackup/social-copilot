@@ -297,7 +297,6 @@
       "play": "Putar galeri",
       "pause": "Jeda galeri"
     },
-    "start": "Mulai dengan Carousely",
     "chapters": {
       "schedule": {
         "label": "Kalender & penjadwalan",
@@ -412,14 +411,11 @@
       "disclaimer": "Simulasi interaktif dengan data ilustrasi. Tidak melakukan riset, publikasi, atau pengiriman DM sungguhan.",
       "guide": "Panduan Mimo"
     },
-    "orbit": {
-      "showcase": "Lihat contoh konten"
-    },
     "opening": {
       "apiBadge": "Integrasi API resmi",
       "title1": "Otomasi Social Mediamu",
-      "title2": "Sendiri",
-      "body": "Ceritakan idemu ke Mimo. Cek susunan slide, lalu buat carousel yang siap kamu review dan jadwalkan.",
+      "title2": "untuk",
+      "body": "Tulis username Instagram-mu. Carousely pelajari gaya feed-mu, lalu bikin carousel, caption, dan jadwal posting yang sesuai brand.",
       "prompt": "Bikinin carousel promo untuk kafe studio.kamu. Ceritakan kopi favorit dan suasana nyaman, lalu ajak orang mampir.",
       "demo": "Simulasi · bukan chat langsung",
       "connected": "Carousely terhubung",
@@ -451,22 +447,186 @@
       "next": "Lanjutkan demo"
     }
   },
-  "onboarding": {
-    "title1": "Sosial Media",
-    "title2": "untuk",
-    "word0": "bengkel motor",
-    "word1": "klinik kecantikan",
-    "word2": "kos-kosan",
-    "word3": "toko bangunan",
-    "word4": "pabrik",
-    "word5": "coffee shop",
-    "body": "Carousely bantu bikin carousel, caption, dan jadwal posting yang sesuai brand-mu, cukup dari username Instagram.",
+  "trial": {
+    "label": "Username Instagram",
     "placeholder": "@usernamekamu",
     "cta": "Coba 3 kredit gratis",
     "submitting": "Menyiapkan…",
     "note": "Gratis 3 kredit · 1 konten = 3 kredit · tanpa kartu",
-    "login": "Sudah punya akun? Masuk",
     "handleSpace": "Ini username Instagram, bukan nama brand. Username tidak pakai spasi, contoh: @kopikita",
-    "handleInvalid": "Username Instagram hanya boleh huruf, angka, titik (.) dan garis bawah (_), maksimal 30 karakter."
+    "handleInvalid": "Username Instagram hanya boleh huruf, angka, titik (.) dan garis bawah (_), maksimal 30 karakter.",
+    "word0": "UMKM",
+    "word1": "coffee shop",
+    "word2": "klinik kecantikan",
+    "word3": "bengkel motor",
+    "word4": "toko bangunan",
+    "word5": "kos-kosan",
+    "word6": "pabrik"
+  },
+  "featureTour": {
+    "eyebrow": "Kenalan sama fiturnya",
+    "title": "Satu tempat buat semua urusan kontenmu",
+    "subtitle": "Coba langsung di bawah. Semua bisa diklik, persis seperti di dashboard.",
+    "hello": "Hai, aku Mimo! Scroll terus, aku tunjukin fitur Carousely.",
+    "cta": "Udah lihat semuanya? Yuk mulai gratis, aku tunggu di dalam!",
+    "sneak": "Kata Mimo",
+    "count": "{current} dari {total}",
+    "steps": {
+      "chat": {
+        "kicker": "Chat Mimo",
+        "title": "Ngobrol, lalu jadi konten",
+        "body": "Ceritakan idemu dengan bahasa sehari-hari. Mimo langsung membuat carousel lengkap, dari cover sampai slide penutup, sesuai gaya brand kamu.",
+        "say": "Ketik idemu, aku langsung bikinin carousel-nya di sini."
+      },
+      "schedule": {
+        "kicker": "Jadwal otomatis",
+        "title": "Carousel siap, terbit sendiri",
+        "body": "Carousel yang sudah jadi masuk antrean. Carousely menaruhnya di jam paling ramai minggu ini dan memposting otomatis ke Instagram, kamu tidak perlu posting manual.",
+        "say": "Klik Jadwalkan otomatis, aku taruh semua carousel di jam terbaik dan posting sendiri."
+      },
+      "design": {
+        "kicker": "Desain AI",
+        "title": "Instagram kamu dipelajari, desainnya jadi sendiri",
+        "body": "Carousely membaca feed Instagram kamu: warna, font, dan gaya visualnya. Lalu postingan lama dibuat ulang supaya seragam, plus ide desain baru. Kamu tinggal swipe untuk setuju.",
+        "say": "Klik Analisis, aku pelajari Instagram kamu lalu bikin desain baru. Tinggal swipe!"
+      },
+      "autodm": {
+        "kicker": "Auto DM",
+        "title": "Komentar masuk, DM langsung dibalas",
+        "body": "Buat aturan seperti “komentar LINK, kirim DM”. Begitu ada yang komentar, Carousely membalas komentarnya, mengajak lanjut di DM, lalu mengirim link begitu mereka membalas. Semuanya otomatis, 24 jam.",
+        "say": "Lihat langsung: ada yang komentar “LINK”, aku balas dan kirim link-nya lewat DM. Coba ketik sendiri juga!"
+      },
+      "analytics": {
+        "kicker": "Analitik",
+        "title": "Tahu konten mana yang paling jalan",
+        "body": "Pantau jangkauan, interaksi, dan pengikut baru dari semua akun. Ganti rentang waktu untuk melihat trennya.",
+        "say": "Ganti rentang waktunya, aku tunjukin konten mana yang lagi naik."
+      }
+    },
+    "chat": {
+      "title": "Chat dengan Mimo",
+      "online": "Siap bantu",
+      "you": "Kamu",
+      "mimo": "Mimo",
+      "placeholder": "Tulis idemu…",
+      "send": "Kirim",
+      "typing": "Mimo sedang menulis…",
+      "intro": "Hai! Mau bikin konten apa hari ini?",
+      "prompt1": "Carousel 5 tips pagi produktif",
+      "prompt2": "Promo diskon akhir bulan",
+      "reply1": "Siap! Carousel-nya sudah jadi:",
+      "reply2": "Oke, ini versi promonya:",
+      "review": "Lihat draf",
+      "carouselLabel": "Hasil carousel, {count} slide. Geser untuk melihat.",
+      "slideAlt": "Slide {n} dari {total}",
+      "ready": "{count} slide · siap dijadwalkan",
+      "seatHint": "Aku di sini. Pilih ide di bawah atau ketik sendiri."
+    },
+    "schedule": {
+      "title": "Jadwal auto-post",
+      "week": "Auto-post aktif",
+      "drafts": "Carousel siap dijadwalkan",
+      "hint": "Klik Jadwalkan otomatis, atau seret carousel ke hari yang kamu mau.",
+      "button": "Jadwalkan otomatis",
+      "working": "Menjadwalkan…",
+      "done": "Semua carousel terjadwal dan akan terbit otomatis.",
+      "scheduled": "“{title}” terbit otomatis {day}, {time}",
+      "existing": "Tubuh sering memberi sinyal kecil, sudah tayang",
+      "liveBadge": "Tayang",
+      "autoBadge": "auto-post",
+      "draft1": "Ramai belum tentu balik",
+      "draft2": "Skincare belum tentu cocok",
+      "draft3": "Latihan bukan satu-satunya",
+      "draft4": "Liburan tenang",
+      "reset": "Ulangi",
+      "selectedHint": "Pilih hari untuk “{title}”",
+      "dropOn": "Jadwalkan ke {day}"
+    },
+    "design": {
+      "title": "Studio desain",
+      "handle": "akarstudio",
+      "handleAt": "@akarstudio",
+      "feedLabel": "{count} postingan terakhir",
+      "feedAlt": "Feed Instagram dengan {count} postingan yang dianalisis",
+      "kitTitle": "Brand kit kamu",
+      "kitEmpty": "Aku baca feed kamu dulu, baru bikin desain yang seragam.",
+      "analyze": "Analisis Instagram",
+      "scanning": "Membaca postingan {done} dari {total}…",
+      "colors": "Warna",
+      "font": "Font",
+      "fontName": "Serif elegan",
+      "tone": "Gaya",
+      "tones": {
+        "a": "Hangat",
+        "b": "Natural",
+        "c": "Minimalis"
+      },
+      "remake": "Dibuat ulang",
+      "fresh": "Desain baru",
+      "madeAlt": "Desain {n} dari {total}, {kind}",
+      "madeStatus": "{count} desain baru siap. Geser kanan untuk setuju, kiri untuk lewati.",
+      "deckLabel": "Desain baru, geser untuk menyetujui",
+      "swipeHint": "Geser kanan untuk setuju, kiri untuk lewati.",
+      "yes": "Setuju",
+      "no": "Lewati",
+      "approve": "Setujui desain",
+      "skip": "Lewati desain",
+      "approved": "Disetujui, masuk jadwal otomatis.",
+      "skipped": "Dilewati.",
+      "queueLabel": "Masuk jadwal",
+      "queueEmpty": "Belum ada",
+      "queued": "{count} masuk jadwal",
+      "done": "Selesai! {count} desain masuk jadwal otomatis.",
+      "again": "Analisis ulang"
+    },
+    "autodm": {
+      "title": "Auto DM",
+      "when": "Komentar",
+      "then": "Kirim link via DM",
+      "on": "Aktif",
+      "off": "Mati",
+      "toggle": "Aturan auto DM",
+      "post": "Postingan kamu",
+      "brand": "akarstudio",
+      "caption": "Mau template gratisnya? Komen {keyword} ya!",
+      "user": "nadia.rn",
+      "userName": "Nadia",
+      "comment": "{keyword} kak 🙏",
+      "publicReply": "Sudah aku kirim ke DM ya 💜",
+      "inbox": "Pesan langsung",
+      "live": "Sedang berlangsung",
+      "prompt": "Hai {name}! Makasih udah komen 💜 Ketik {keyword} di sini kalau mau link-nya aku kirim.",
+      "auto": "Otomatis",
+      "typing": "akarstudio sedang mengetik…",
+      "dm": "Ini dia, {name}! Template gratisnya bisa langsung dipakai.",
+      "linkButton": "Buka link",
+      "sent": "Terkirim otomatis",
+      "message": "Kirim pesan…",
+      "typeKeyword": "Ketik {keyword}…",
+      "send": "Kirim",
+      "offNote": "Aturan mati, komentar tidak dibalas dan DM tidak dikirim.",
+      "empty": "Belum ada komentar.",
+      "emptyDm": "Percakapan otomatis akan muncul di sini.",
+      "count": "{count} DM terkirim",
+      "simulate": "Putar percakapan",
+      "replay": "Putar ulang",
+      "hint": "Setiap komentar berisi {keyword} langsung dibalas lewat DM.",
+      "tryIt": "Giliran kamu: ketik {keyword} di kolom DM."
+    },
+    "analytics": {
+      "title": "Analitik",
+      "ranges": {
+        "d7": "7 hari",
+        "d30": "30 hari",
+        "d90": "90 hari"
+      },
+      "reach": "Jangkauan",
+      "engagement": "Interaksi",
+      "followers": "Pengikut baru",
+      "chart": "Jangkauan per periode",
+      "top": "Paling jalan",
+      "topPost": "5 tips pagi produktif"
+    },
+    "start": "Mulai gratis"
   }
 }

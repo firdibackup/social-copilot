@@ -2,11 +2,13 @@
 
 import { useTranslations } from 'next-intl'
 import Image from 'next/image'
-import Link from 'next/link'
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { ArrowUpRight, Pause, Play, ShieldCheck } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useId, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import { ShieldCheck } from 'lucide-react'
 import { InstagramFillIcon, MetaFillIcon, ThreadsFillIcon } from '@/components/brand-icons'
 import { names } from './homepage-story'
+import { handleIssue, trialHref } from './instagram-handle'
+import { GooeyFilter, MorphWord } from './morph-word'
 import styles from './orbit-hero.module.css'
 
 // Brand names are proper nouns, so they stay untranslated; screen readers hear
@@ -17,6 +19,9 @@ const platforms = [
   { name: 'Threads', Icon: ThreadsFillIcon },
 ] as const
 
+/** Audiences the headline cycles through ("… untuk UMKM", "… untuk coffee shop"). */
+const WORDS = ['word0', 'word1', 'word2', 'word3', 'word4', 'word5', 'word6'] as const
+
 // Two concentric rings, alternating covers between them. The outer ring is
 // staggered by half a step so its cards sit in the inner ring's gaps. Both
 // drift together very slowly (CSS); React only flips the play state.
@@ -26,11 +31,20 @@ const rings = [
   { id: 'outer', offset: step / 2, covers: names.filter((_, index) => index % 2 === 1) },
 ] as const
 
-export function OrbitHero({ paused, reduceMotion, onTogglePause }: { paused: boolean; reduceMotion: boolean; onTogglePause: () => void }) {
+export function OrbitHero({ paused, reduceMotion }: { paused: boolean; reduceMotion: boolean }) {
   const t = useTranslations('landing')
+  const opening = useTranslations('landing.story.opening')
+  const trial = useTranslations('landing.trial')
+  const router = useRouter()
+  const noteId = useId()
   const ref = useRef<HTMLElement>(null)
   const [offscreen, setOffscreen] = useState(false)
   const [hidden, setHidden] = useState(false)
+  const [value, setValue] = useState('')
+  const [touched, setTouched] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [confetti, setConfetti] = useState(false)
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([])
   useEffect(() => {
     const node = ref.current
     if (!node) return
@@ -54,40 +68,72 @@ export function OrbitHero({ paused, reduceMotion, onTogglePause }: { paused: boo
     if (copy) resize.observe(copy)
     resize.observe(node)
     fit()
-    return () => { observer.disconnect(); resize.disconnect(); document.removeEventListener('visibilitychange', onVisibility) }
+    const pending = timers.current
+    return () => { observer.disconnect(); resize.disconnect(); document.removeEventListener('visibilitychange', onVisibility); pending.forEach(clearTimeout) }
   }, [])
   const reason = reduceMotion ? 'reduced' : paused ? 'user' : hidden ? 'hidden' : offscreen ? 'offscreen' : 'running'
   const stopped = reason !== 'running'
-  const label = reduceMotion ? t('footer.reducedMotion') : paused ? t('footer.enableMotion') : t('footer.pauseMotion')
-  return <section ref={ref} id="fitur" data-orbit-hero className={styles.hero} aria-labelledby="hero-title">
+  const motion = !reduceMotion && !paused
+  // The entrance (blur step-in, covers fading in) keys off reduced motion only, so pausing and
+  // resuming the page never replays it.
+  const words = WORDS.map(key => trial(key))
+  const issue = handleIssue(value)
+  const error = touched && issue ? trial(issue === 'space' ? 'handleSpace' : 'handleInvalid') : null
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    setTouched(true)
+    if (issue || submitting) return
+    const href = trialHref(value)
+    if (!motion) { router.push(href); return }
+    setSubmitting(true)
+    timers.current.push(setTimeout(() => setConfetti(true), 450))
+    timers.current.push(setTimeout(() => router.push(href), 1100))
+  }
+  return <section ref={ref} id="fitur" data-orbit-hero data-motion={!reduceMotion} className={styles.hero} aria-labelledby="hero-title"
+    data-tour-stop="hello" data-tour-grow data-tour-anchor="[data-orbit-badge]" data-tour-side="right" data-tour-face="happy" data-tour-fx="elastic" data-tour-say={t('featureTour.hello')}>
+    <GooeyFilter />
     <div className={styles.stage} data-orbit-stage data-paused={stopped} data-pause-reason={reason}>
       <div className={styles.camera} data-orbit-camera aria-hidden="true">
         {rings.map(ring => <div key={ring.id} className={`${styles.ring} ${styles[ring.id]}`} data-orbit-ring={ring.id}>
-          {ring.covers.map((name, slot) => <span key={name} className={styles.card} data-orbit-card style={{ '--a': `${slot * step + ring.offset}deg` } as CSSProperties}>
-            <Image src={`/covers/${name}.webp`} alt="" width={1122} height={1402} sizes="320px" loading="eager" fetchPriority={name === names[0] ? 'high' : undefined} unoptimized draggable={false} />
+          {ring.covers.map((name, slot) => <span key={name} className={styles.card} data-orbit-card style={{ '--a': `${slot * step + ring.offset}deg`, '--i': slot } as CSSProperties}>
+            <span className={styles.frame}>
+              <Image src={`/covers/${name}.webp`} alt="" width={1122} height={1402} sizes="320px" loading="eager" fetchPriority={name === names[0] ? 'high' : undefined} unoptimized draggable={false} />
+            </span>
           </span>)}
         </div>)}
       </div>
     </div>
     <div className={styles.copy} data-orbit-copy>
-      <div className={styles.badge} data-orbit-badge>
+      <div className={`${styles.badge} ${styles.step}`} data-orbit-badge>
         <ShieldCheck className={styles.shield} size={16} strokeWidth={2.2} aria-hidden="true" />
-        <span>{t('story.opening.apiBadge')}</span>
+        <span>{opening('apiBadge')}</span>
         <span className={styles.divider} aria-hidden="true" />
         <span className={styles.brands}>
           {platforms.map(({ name, Icon }, index) => <span key={name} className={styles.brand}><Icon size={15} /><span className={styles.srOnly}>{index ? `, ${name}` : `: ${name}`}</span></span>)}
         </span>
       </div>
-      <h2 id="hero-title">{t('story.opening.title1')}<br /><span>{t('story.opening.title2')}</span></h2>
-      <p>{t('story.opening.body')}</p>
-      <div className={styles.actions}>
-        <Link href="/daftar" className={styles.primary}>{t('story.start')} <ArrowUpRight size={18} aria-hidden="true" /></Link>
-        <a href="#konten" className={styles.secondary}>{t('story.orbit.showcase')}</a>
-      </div>
+      <h1 id="hero-title" className={styles.step}>
+        {opening('title1')}<br />
+        <span className={styles.titleLine}>{opening('title2')} <MorphWord words={words} animate={!stopped} crossfade={reduceMotion && !offscreen && !hidden} /></span>
+        <span className={styles.srOnly}>{words.join(', ')}</span>
+      </h1>
+      <p className={`${styles.body} ${styles.step}`}>{opening('body')}</p>
+      <form className={`${styles.form} ${styles.step}`} onSubmit={submit} noValidate data-orbit-trial>
+        <div className={styles.field}>
+          <input type="text" inputMode="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={100}
+            value={value} onChange={event => setValue(event.target.value)} onBlur={() => setTouched(true)}
+            placeholder={trial('placeholder')} aria-label={trial('label')} aria-invalid={!!error || undefined} aria-describedby={noteId} />
+          <InstagramFillIcon className={styles.ig} size={18} aria-hidden="true" />
+        </div>
+        <button type="submit" className={styles.cta} disabled={submitting} aria-busy={submitting}>
+          {submitting && <span className={styles.spinner} aria-hidden="true" />}{submitting ? trial('submitting') : trial('cta')}
+        </button>
+      </form>
+      {/* One status line: the trial terms, swapped for the validation hint when needed. Its height is
+          reserved in CSS so a hint never resizes the copy box (which would re-fit and jump the ring). */}
+      <p id={noteId} className={`${styles.note} ${styles.step}`} data-error={!!error || undefined} role="status">{error ?? trial('note')}</p>
     </div>
-    {/* System reduced motion always wins, so the local toggle would do nothing: disable it and say why. */}
-    <button type="button" className={styles.toggle} data-orbit-toggle disabled={reduceMotion} aria-pressed={reduceMotion ? undefined : paused} aria-label={label} title={label} onClick={onTogglePause}>
-      {paused && !reduceMotion ? <Play size={16} aria-hidden="true" /> : <Pause size={16} aria-hidden="true" />}
-    </button>
+    {confetti && <div className={styles.confetti} aria-hidden="true">{Array.from({ length: 16 }, (_, i) =>
+      <i key={i} style={{ '--x': `${(i * 37) % 100}%`, '--d': `${(i % 6) * 0.06}s`, '--c': ['#6558f5', '#302650', '#3fe0b5', '#ffb86b'][i % 4] } as CSSProperties} />)}</div>}
   </section>
 }

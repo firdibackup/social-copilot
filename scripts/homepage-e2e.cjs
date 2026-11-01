@@ -70,7 +70,10 @@ async function geometry(page) {
 }
 
 async function sampleCycle(page, label, record) {
-  const local = page.locator('[data-orbit-toggle]')
+  // The hero has no local toggle; the footer motion control is the one user pause.
+  const footer = page.locator('footer button[aria-pressed]')
+  // Click in place: scrolling to the footer would push the hero offscreen and sample the wrong frame.
+  const local = { click: () => footer.evaluate(button => button.click()) }
   await local.click()
   await paused(page, true)
   await page.waitForFunction(() => document.querySelector('[data-orbit-stage]').getAnimations({ subtree: true }).every(a => a.playState === 'paused' || a.playState === 'finished'))
@@ -114,13 +117,12 @@ async function sampleCycle(page, label, record) {
 }
 
 async function interactions(page, record) {
-  const local = page.locator('[data-orbit-toggle]')
   const footer = page.locator('footer button[aria-pressed]')
-  // Local pause is the same user state exposed by the existing footer.
-  await local.click()
+  await footer.click()
+  await top(page)
   await paused(page, true)
   assert.equal(await footer.getAttribute('aria-pressed'), 'true')
-  const times = () => page.locator('[data-orbit-stage]').evaluate(stage => stage.getAnimations({ subtree: true }).map(a => a.currentTime))
+  const times = () => page.locator('[data-orbit-stage]').evaluate(stage => stage.getAnimations({ subtree: true }).filter(a => a.effect.getTiming().iterations === Infinity).map(a => a.currentTime))
   const before = await times()
   await page.waitForTimeout(120)
   assert.deepEqual(await times(), before, 'User pause must freeze animations')
@@ -128,13 +130,15 @@ async function interactions(page, record) {
   assert.equal(await footer.getAttribute('aria-pressed'), 'false')
   await top(page)
   await paused(page, false)
-  await footer.click()
-  await top(page)
-  await paused(page, true)
-  await local.click()
-  await paused(page, false)
 
-  await page.locator('[data-orbit-copy] a[href="#konten"]').click()
+  // Trial form: a handle with a space is explained, not submitted.
+  const trial = page.locator('[data-orbit-trial]')
+  await trial.locator('input').fill('kopi kita')
+  await trial.locator('button[type="submit"]').click()
+  assert.equal(await trial.locator('input').getAttribute('aria-invalid'), 'true')
+  assert.equal(new URL(page.url()).pathname, '/')
+
+  await page.evaluate(() => { location.hash = '#konten' })
   await page.waitForURL(u => u.hash === '#konten')
   await page.waitForFunction(() => {
     const r = document.querySelector('#konten').getBoundingClientRect()
@@ -169,10 +173,11 @@ async function interactions(page, record) {
   assert.deepEqual((await geometry(page)).collisions, [], 'Reduced-motion composition overlaps copy')
   await noOverflow(page)
   await page.screenshot({ path: path.join(out, `${record.name}-reduced-motion.png`) })
-  // Follow the actual registration link, without filling/submitting any account form.
-  await page.locator('[data-orbit-copy] a[href="/daftar"]').click()
-  await page.waitForURL(u => u.pathname === '/daftar')
-  record.interactions = 'local/footer pause, offscreen, showcase anchor/folder/Escape, reduced motion + reload, registration navigation; mobile menu at 390px'
+  // The trial form carries the handle to sign-up; no account form is filled or submitted.
+  await page.locator('[data-orbit-trial] input').fill('@kopi.kita')
+  await page.locator('[data-orbit-trial] button[type="submit"]').click()
+  await page.waitForURL(u => u.pathname === '/daftar' && u.searchParams.get('instagram') === 'kopi.kita')
+  record.interactions = 'footer pause, trial validation, offscreen, showcase anchor/folder/Escape, reduced motion + reload, trial → /daftar?instagram=; mobile menu at 390px'
 }
 
 ;(async () => {
@@ -206,7 +211,7 @@ async function interactions(page, record) {
           const opening = JSON.parse(fs.readFileSync(path.join(__dirname, `../messages/${locale}/landing.json`), 'utf8')).story.opening
           const normalize = text => text.replace(/\s+/g, ' ').trim()
           record.heroTitle = normalize(await page.locator('[data-orbit-hero] #hero-title').innerText())
-          assert.equal(record.heroTitle, normalize(`${opening.title1} ${opening.title2}`), 'Hero title must match the requested language catalog')
+          assert.ok(record.heroTitle.startsWith(normalize(`${opening.title1} ${opening.title2}`)), 'Hero title must match the requested language catalog')
           assert.equal(await page.locator('[data-orbit-hero]#fitur').count(), 1)
           assert.equal(await page.locator('[data-opening-chat], [data-mascot]').count(), 0)
           const cards = page.locator('[data-orbit-card]')

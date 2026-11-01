@@ -10,8 +10,9 @@ import { ArrowUpRight, CircleHelp, Layers3, Menu, Pause, Play, Plus, Send, Spark
 import { CarouselyLogo } from '@/components/brand-mark'
 import styles from './landing.module.css'
 import { ContentShowcase } from './homepage-story'
-import { OnboardingHero } from './onboarding-hero'
 import { OrbitHero } from './orbit-hero'
+import { FeatureTour } from './feature-tour'
+import { MimoTour } from './mimo-tour'
 
 function BotanicalArt({ light = false }: { light?: boolean }) {
   return (
@@ -83,8 +84,8 @@ export function LandingPage({ pricing }: { pricing: ReactNode }) {
       {menuOpen && <nav id="landing-mobile-menu" className={styles.mobileMenu} aria-label={t('nav.mobile')} onKeyDown={(event) => { if (event.key === 'Escape') { setMenuOpen(false); document.querySelector<HTMLButtonElement>(`.${styles.menuToggle}`)?.focus() } }}><a href="#fitur" onClick={() => setMenuOpen(false)}>{t('nav.features')}</a><a href="#cara-kerja" onClick={() => setMenuOpen(false)}>{t('nav.workflow')}</a><a href="#harga" onClick={() => setMenuOpen(false)}>{t('nav.pricing')}</a><a href="#faq" onClick={() => setMenuOpen(false)}>{t('nav.faq')}</a><Link href="/masuk">{t('nav.accountLogin')}</Link><LocaleToggle variant="landing" className={styles.mobileLocaleToggle} /></nav>}
     </header>
     <main id="main-content">
-      <OnboardingHero motionEnabled={motionEnabled} crossfade={reduceMotion} />
-      <OrbitHero paused={paused} reduceMotion={reduceMotion} onTogglePause={() => setPaused(value => !value)} />
+      <OrbitHero paused={paused} reduceMotion={reduceMotion} />
+      <FeatureTour motionEnabled={motionEnabled} />
       <section className={styles.partners} aria-labelledby="partners-title"><h2 id="partners-title">{t('partners.title')}</h2><p>{t('partners.subtitle')}</p><div>{partners.map(({ name, ...logo }) => <span key={name}><Image {...logo} alt={name} /></span>)}</div></section>
       <ContentShowcase motionEnabled={motionEnabled} />
       <Workflow motionEnabled={motionEnabled} />
@@ -94,5 +95,6 @@ export function LandingPage({ pricing }: { pricing: ReactNode }) {
       <section className={styles.finalCta} aria-labelledby="cta-title"><div className={styles.ctaIllustration} aria-hidden="true"><BotanicalArt light /></div><div><h2 id="cta-title">{t('cta.title1')}<br />{t('cta.title2')}</h2><p>{t('cta.body')}</p><Link href="/daftar" className={styles.ctaButton}>{t('cta.start')} <ArrowUpRight size={20} /></Link></div><svg className={styles.ctaSpark} viewBox="0 0 100 100" aria-hidden="true"><path d="M50 3v94M3 50h94M17 17l66 66M17 83l66-66" stroke="currentColor" strokeWidth="9" /></svg></section>
     </main>
     <footer className={styles.footer}><div><CarouselyLogo size={29} /><p>{t('footer.tagline')}</p></div><div className={styles.footerLinks}><Link href="/privasi">{t('footer.privacy')}</Link><Link href="/masuk">{t('nav.login')}</Link><button type="button" aria-pressed={paused} onClick={() => setPaused(!paused)}>{paused || reduceMotion ? <Play size={14} /> : <Pause size={14} />}{reduceMotion ? t('footer.reducedMotion') : paused ? t('footer.enableMotion') : t('footer.pauseMotion')}</button></div><span className={styles.copyright}>© 2026 Carousely</span></footer>
+    <MimoTour enabled={motionEnabled} />
   </div></MotionConfig>
 }

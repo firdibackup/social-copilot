@@ -19,14 +19,13 @@ hero = read('src/components/landing/orbit-hero.tsx')
 landing = read('src/components/landing/landing-page.tsx')
 css = read('src/components/landing/orbit-hero.module.css')
 
-for hook in ('hero', 'stage', 'camera', 'ring', 'card', 'copy', 'toggle'):
+for hook in ('hero', 'stage', 'camera', 'ring', 'card', 'copy', 'trial'):
     assert f'data-orbit-{hook}' in hero, f'Missing orbit {hook} hook'
 assert 'data-paused' in hero, 'Expose effective motion state for runtime QA'
 assert re.search(r'id=[\'"]fitur[\'"]', hero)
-assert re.search(r'href=[\'"]/daftar[\'"]', hero)
-assert re.search(r'href=[\'"]#konten[\'"]', hero)
-assert '<h1' not in hero, 'OnboardingHero owns the page h1'
-assert len(re.findall(r'<h2 id="hero-title"', hero)) == 1
+assert 'trialHref(' in hero, 'Hero trial form must route through trialHref (/daftar?instagram=…)'
+assert len(re.findall(r'<h1 id="hero-title"', hero)) == 1, 'The orbit hero owns the page h1'
+assert 'OnboardingHero' not in landing, 'The old onboarding hero is retired'
 for obsolete in ('data-opening-chat', 'data-mascot', 'ProductJourney'):
     assert obsolete not in hero + showcase + landing, f'Obsolete opening: {obsolete}'
 assert not re.search(r'\b(fetch|XMLHttpRequest|WebSocket)\s*\(', hero)
@@ -55,6 +54,8 @@ for name in names:
 catalogs = [json.loads(read(f'messages/{locale}/landing.json')) for locale in ('id', 'en')]
 for data in catalogs:
     story = data['story']
+    for key in ('cta', 'placeholder', 'label', 'note', 'handleSpace', 'handleInvalid', 'word0'):
+        assert data['trial'][key].strip(), f'Missing trial copy: {key}'
     for key in ('title1', 'title2', 'body'):
         assert story['opening'][key].strip(), f'Missing opening copy: {key}'
     for key in ('beauty', 'living', 'spaces', 'business', 'disclaimer', 'open', 'close', 'count'):
@@ -63,5 +64,6 @@ for data in catalogs:
         assert story['covers'][f'label{index}'].strip()
     assert '{category}' in story['covers']['alt']
 assert set(catalogs[0]['story']['opening']) == set(catalogs[1]['story']['opening'])
+assert set(catalogs[0]['trial']) == set(catalogs[1]['trial'])
 assert set(catalogs[0]['story']['showcase']) == set(catalogs[1]['story']['showcase'])
 print('PASS: orbit hooks/routes, retired chat, four-by-five showcase, 20 WebP assets, bilingual copy contracts (not runtime proof)')

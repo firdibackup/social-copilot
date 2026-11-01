@@ -29,26 +29,28 @@ function coverSources(html: string) {
 
 // These are SSR contracts only: geometry, lifecycle and animation need browser QA.
 describe.each(['id', 'en'] as const)('homepage story (%s)', locale => {
-  it('opens with a bilingual orbit hero and real conversion destinations', () => {
+  it('opens with the orbit hero: one page h1, cycling audiences and the Instagram trial form', () => {
     const html = renderLanding(locale)
     const hero = html.match(/<section\b[^>]*\bdata-orbit-hero(?:="[^"]*")?[^>]*>[\s\S]*?<\/section>/)?.[0] ?? ''
     expect(hero).not.toBe('')
     expect(hero).toContain('id="fitur"')
     expect(html.match(/<h1\b/g)).toHaveLength(1)
-    expect(hero).not.toContain('<h1')
-    expect(hero).toMatch(/<h2\b[^>]*id="hero-title"/)
-    for (const text of Object.values({
-      title1: catalogs[locale].landing.story.opening.title1,
-      title2: catalogs[locale].landing.story.opening.title2,
-      body: catalogs[locale].landing.story.opening.body,
-    })) expect(hero).toContain(text)
+    expect(hero).toMatch(/<h1\b[^>]*id="hero-title"/)
+    const { opening } = catalogs[locale].landing.story
+    const trial = catalogs[locale].landing.trial
+    for (const text of [opening.title1, opening.title2, opening.body, trial.word0, trial.cta, trial.note]) expect(hero).toContain(text)
+    // Every audience is in the h1 for screen readers, even though only one is painted at a time.
+    const title = hero.match(/<h1\b[\s\S]*?<\/h1>/)?.[0] ?? ''
+    expect(title).toContain(Object.entries(trial).filter(([key]) => /^word\d$/.test(key)).map(([, word]) => word).join(', '))
+    expect(hero).toContain('id="carousely-threshold"')
+    const form = hero.match(/<form\b[^>]*data-orbit-trial[\s\S]*?<\/form>/)?.[0] ?? ''
+    expect(form).toMatch(/<input\b[^>]*aria-label="[^"]+"[^>]*placeholder="@|<input\b[^>]*placeholder="@[^>]*aria-label="[^"]+"/)
+    expect(form).toMatch(/<button\b[^>]*type="submit"/)
+    expect(html).not.toContain('onboarding-title')
     for (const hook of ['data-orbit-stage', 'data-orbit-camera', 'data-orbit-ring', 'data-orbit-copy']) {
       expect(hero).toContain(hook)
     }
     expect(hero).toMatch(/<[^>]*data-orbit-stage[^>]*data-paused="(?:true|false)"|<[^>]*data-paused="(?:true|false)"[^>]*data-orbit-stage/)
-    expect(hero).toMatch(/<button\b[^>]*data-orbit-toggle/)
-    expect(hero).toMatch(/<a\b[^>]*href="\/daftar"/)
-    expect(hero).toMatch(/<a\b[^>]*href="#konten"/)
     expect(html).toContain('id="konten"')
     expect(html.indexOf('id="partners-title"')).toBeGreaterThan(html.indexOf('data-orbit-hero'))
     expect(html).not.toContain('data-opening-chat')
