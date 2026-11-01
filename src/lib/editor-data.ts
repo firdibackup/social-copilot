@@ -1,7 +1,7 @@
 import 'server-only'
 import { getPlan } from './app-settings'
 import { getBillingCatalog } from './billing-catalog'
-import { remainingCredits } from './ai'
+import { remainingCredits, trialCredits } from './ai'
 import { listProductGroups } from './assets'
 import type { AccountScope } from './auth'
 import { getBrandKit, listReferenceOptions } from './brand'
@@ -24,14 +24,14 @@ const DAY_MS = 86_400_000
 
 /** Independent of the selected draft. The browser reuses this for five minutes. */
 export async function loadEditorSupport({ userId, accountId }: AccountScope) {
-  const [instagram, kit, products, references, balance, legacyPlan, threads, defaultDensity, billing] = await Promise.all([
+  const [instagram, kit, products, references, balance, trial, legacyPlan, threads, defaultDensity, billing] = await Promise.all([
     getConnection(userId), getBrandKit(userId, accountId), listProductGroups(userId, accountId), listReferenceOptions(userId, accountId),
-    remainingCredits(userId).catch(() => null), getPlan(),
+    remainingCredits(userId).catch(() => null), trialCredits(userId).catch(() => null), getPlan(),
     getThreadsConnection(userId, accountId).catch(logAndNull),
     getDensityDefault(userId, accountId).catch(() => DEFAULT_DENSITY),
     getBillingCatalog(),
   ])
-  return { instagram, kit: { logoUrl: kit.logoUrl }, products, references, credits: balance?.remaining ?? null,
+  return { instagram, kit: { logoUrl: kit.logoUrl }, products, references, credits: balance?.remaining ?? null, trial,
     plan: balance?.period.plan ?? legacyPlan, rates: billing.catalog.rates, threads, defaultDensity }
 }
 

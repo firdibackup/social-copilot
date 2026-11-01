@@ -1,7 +1,7 @@
 'use server'
 
 import { getTranslations, getLocale } from 'next-intl/server'
-import { currentPeriod, requireUser } from '@/lib/auth'
+import { requireUser } from '@/lib/auth'
 import { getConnectedAccountId } from '@/lib/connection'
 import { describeError } from '@/lib/errors'
 import { saveOnboarding } from '@/lib/onboarding'
@@ -16,7 +16,6 @@ export type OnboardingResult = { error: string } | { next: string }
 export async function saveOnboardingAction(input: unknown, complete: unknown): Promise<OnboardingResult> {
   const t = await getTranslations('onboarding.page')
   const userId = await requireUser()
-  if (!(await currentPeriod(userId))) return { next: '/langganan' }
   const parsed = parseAnswers(input, await getLocale())
   if ('error' in parsed) return parsed
   try {

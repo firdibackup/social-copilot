@@ -1,5 +1,7 @@
 import { intlLocale, type Locale } from '@/i18n/locale-config'
 import type { LoggedTask } from './ai'
+import idCommon from '../../messages/id/common.json'
+import enCommon from '../../messages/en/common.json'
 
 /** The one plan. Credits are the period's AI allowance: of 10,000, a 5-slide post (103 credits) is about 1%. */
 export interface Plan {
@@ -51,6 +53,21 @@ export const TASK_CREDITS: Record<LoggedTask, number> = {
   deep_search: 0,
   chat_summary: 0,
 }
+
+/** One-time free credits for a user who has never paid or whose period ended. They never reset. */
+export const TRIAL_CREDITS = 3
+
+/** Mimo messages a user without a paid period may send, in total. */
+export const TRIAL_CHAT_MESSAGES = 3
+
+/**
+ * What the trial covers, and at what price: one new AI carousel (its images ride on it, as for a paid post), and
+ * Mimo's answers to the trial's messages. Every other task needs a subscription.
+ */
+export const TRIAL_TASKS: Partial<Record<LoggedTask, number>> = { content: 3, content_slide: 0, chat: 0, chat_summary: 0 }
+
+/** The answer to anything the trial doesn't cover or has used up; the client opens the upgrade dialog on it. */
+export const trialLimitMessage = (locale: Locale = 'id') => (locale === 'en' ? enCommon : idCommon).trial.limit
 
 /** A new post with `slides` images: its caption and plan plus every image. */
 export const contentCost = (slides: number, rates = { ...TASK_CREDITS, image: IMAGE_CREDITS }) => rates.content + slides * rates.image

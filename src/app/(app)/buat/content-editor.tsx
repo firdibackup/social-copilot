@@ -95,6 +95,8 @@ interface ContentEditorProps {
   hasLogo: boolean
   /** Credits left in the period; null when they couldn't be read (the server still checks). */
   credits: number | null
+  /** Free credits left on the trial; null for a paying user. */
+  trial: number | null
   /** The plan's credits per period, which costs are shown as a share of. */
   planCredits: number
   rates: BillingCatalog['rates']
@@ -140,6 +142,7 @@ export function ContentEditor({
   references,
   hasLogo,
   credits,
+  trial,
   planCredits,
   rates: TASK_CREDITS,
   slot,
@@ -223,8 +226,10 @@ export function ContentEditor({
   const [includeLogo, setIncludeLogo] = useState(false)
   const pickerRef = useRef<HTMLDialogElement>(null)
   const short = (cost: number) => credits !== null && cost > credits
-  const draft = useScriptText(post ? null : idea, !short(TASK_CREDITS.content_script), density, (text) =>
-    setNotice({ tone: 'error', text: t('message5', { v0: text }) }),
+  // The trial covers only a new carousel: scripts, edits and captions open the upgrade dialog from the server's answer.
+  const draft = useScriptText(post ? null : idea, trial === null && !short(TASK_CREDITS.content_script), density, (text) => {
+    if (!storageFull(text)) setNotice({ tone: 'error', text: t('message5', { v0: text }) })
+  },
     job,
   )
   const read = post ? null : draft.read
@@ -488,7 +493,7 @@ export function ContentEditor({
         const result = await editCaptionAction({ caption, instruction }).catch(() => ({ error: FAILED }))
         setBusy(null)
         if ('error' in result) {
-          setNotice({ tone: 'error', text: result.error })
+          if (!storageFull(result.error)) setNotice({ tone: 'error', text: result.error })
           return false
         }
         setUndo({ before: caption, after: result.caption })
@@ -876,7 +881,7 @@ export function ContentEditor({
           <div className="mx-auto max-w-[680px]">
             <Composer
               placeholder={composer.placeholder}
-              cost={t('message62', { v0: post ? '' : '≈ ', v1: formatCreditShare(composerCost, planCredits, locale) })}
+              cost={trial !== null ? t('trialCost', { left: trial }) : t('message62', { v0: post ? '' : '≈ ', v1: formatCreditShare(composerCost, planCredits, locale) })}
               blocked={composer.blocked}
               busyLabel={busy ?? (draft.writing ? t('message63') : null)}
               onCancel={submitting || editOperation || jobPending ? cancelCurrent : undefined}

@@ -97,7 +97,7 @@ export function EditorWorkspace({ initial }: { initial: EditorInitial }) {
   if (!detail.data || !support.data) return <LoadingState variant="editor" className="h-full" label={t('message17')} />
   const data = detail.data
   const { post, slides, idea, threadItems } = data
-  const { instagram, kit, products, references, credits, plan, threads, defaultDensity } = support.data
+  const { instagram, kit, products, references, credits, trial, plan, threads, defaultDensity } = support.data
   const density = data.job?.kind === 'script' ? data.job.payload.density ?? DEFAULT_DENSITY : defaultDensity
   const now = new Date()
   const queue = data.queue.flatMap((slot) => { const picked = pickedSlot(slot.value, now, locale); return picked ? [picked] : [] })
@@ -165,6 +165,7 @@ export function EditorWorkspace({ initial }: { initial: EditorInitial }) {
           references={references}
           hasLogo={kit.logoUrl !== null}
           credits={credits}
+          trial={trial}
           planCredits={plan.credits}
           rates={support.data!.rates}
           slot={kalenderSlot ?? daySlot ?? queue[0] ?? suggestedSlot(now, locale)}

@@ -213,13 +213,6 @@ describe('GET /api/auth/instagram/callback', () => {
     expect(consumeOAuthState).not.toHaveBeenCalled()
   })
 
-  it('sends a user without an active subscription to Langganan, without touching the state', async () => {
-    vi.mocked(currentPeriod).mockResolvedValue(null)
-
-    expect(redirectTarget(await callback('code=abc&state=s1')).path).toBe('http://localhost:3000/langganan')
-    expect(consumeOAuthState).not.toHaveBeenCalled()
-  })
-
   it('refuses an Instagram account another user already connected', async () => {
     vi.mocked(saveConnection).mockRejectedValue(new AccountTakenError('taken'))
 

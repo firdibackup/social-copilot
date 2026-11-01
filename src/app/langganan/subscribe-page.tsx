@@ -293,8 +293,9 @@ function PlanCard({ plan, checked, onSelect }: { plan: CatalogPlan; checked: boo
         </span>
       </span>
 
-      {(plan.prioritySupport || plan.earlyAccess) && (
+      {(plan.prioritySupport || plan.earlyAccess || plan.id === 'max') && (
         <span className="mt-3 block space-y-2 text-sm text-ink">
+          {plan.id === 'max' && <span className="flex items-center gap-2.5"><Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />{t('priority')}</span>}
           {plan.prioritySupport && <span className="flex items-center gap-2.5"><Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />{t('support')}</span>}
           {plan.earlyAccess && <span className="flex items-center gap-2.5"><Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />{t('earlyAccess')}</span>}
         </span>

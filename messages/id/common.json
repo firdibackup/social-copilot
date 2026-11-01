@@ -327,5 +327,14 @@
     "next": "Contoh berikutnya — {style}",
     "follow": "Ikuti gaya ({font})",
     "suits": "Cocok: {suits}"
+  },
+  "trial": {
+    "limit": "Kredit gratis kamu habis (sisa 0). Upgrade ke Pro atau Max untuk lanjut.",
+    "title": "Kredit gratis kamu habis",
+    "left": "Sisa kredit gratis: 0. Trial berisi 3 kredit (1 konten = 3 kredit) dan 3 pesan Mimo, sekali saja. Edit slide, caption, skrip, dan fitur AI lain butuh langganan. Hasil dan riwayatmu tetap bisa dibuka.",
+    "pro": "Untuk rutin membuat dan menjadwalkan konten",
+    "max": "Kredit lebih banyak · Prioritas proses",
+    "upgrade": "Lihat paket",
+    "later": "Nanti"
   }
 }

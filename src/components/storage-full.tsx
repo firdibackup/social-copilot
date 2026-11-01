@@ -5,6 +5,7 @@ import { HardDrive } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { STORAGE_FULL_CODE, storageFullMessage } from '@/lib/storage-quota-options'
 import { confirmDialog } from './confirm-dialog'
+import { isTrialLimit, showUpgradeDialog } from './upgrade-dialog'
 
 /** Where the dialog sends the owner: Aset with the cleanup suggestions open. */
 export const STORAGE_CLEANUP_HREF = '/aset?bersihkan=1'
@@ -49,12 +50,16 @@ export async function showStorageFullDialog(navigate: (href: string) => void): P
 }
 
 /**
- * For components: returns a check that opens the dialog when `error` is the storage-full answer, and says whether
- * it did, so the caller can skip its own inline message.
+ * For components: returns a check that opens the dialog when `error` is the storage-full answer, or the upgrade
+ * dialog when it is the free trial's limit, and says whether it did, so the caller can skip its own inline message.
  */
 export function useStorageFull(): (error: unknown) => boolean {
   const router = useRouter()
   return (error) => {
+    if (isTrialLimit(error)) {
+      void showUpgradeDialog((href) => router.push(href))
+      return true
+    }
     if (!isStorageFull(error)) return false
     void showStorageFullDialog((href) => router.push(href))
     return true

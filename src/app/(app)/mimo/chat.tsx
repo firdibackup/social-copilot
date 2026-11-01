@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Notice } from '@/components/notice'
+import { isTrialLimit, showUpgradeDialog } from '@/components/upgrade-dialog'
 import { MimoMascot } from '@/components/mimo-mascot'
 import {
   pdfPlaceholder,
@@ -140,6 +141,7 @@ export function MimoChat({ sessionId, messages, products, defaultDensity }: Mimo
       const body = (await response.json().catch(() => null)) as { error?: string } | null
       if (here()) {
         setPending(null)
+        if (isTrialLimit(body?.error)) void showUpgradeDialog((href) => router.push(href))
         setError(body?.error ?? t('failed'))
         unlock()
         return false

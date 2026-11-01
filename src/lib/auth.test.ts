@@ -42,11 +42,11 @@ describe('requireActiveUser', () => {
     await expect(requireActiveUser()).resolves.toBe('user-1')
   })
 
-  it('sends a user without an active period to Langganan', async () => {
+  it('lets a user without a paid period in on the free trial', async () => {
     session.userId = 'user-2'
     vi.mocked(getCurrentPeriod).mockResolvedValue(null)
 
-    await expect(requireActiveUser()).rejects.toThrow('REDIRECT /langganan')
+    await expect(requireActiveUser()).resolves.toBe('user-2')
   })
 
   it('sends a visitor without a session to sign in', async () => {
@@ -64,12 +64,12 @@ describe('requireActiveUser', () => {
     await expect(requireActiveUser()).rejects.toThrow('REDIRECT /mulai')
   })
 
-  it('prioritizes the payment redirect when both checks fail', async () => {
+  it('sends a trial user who has not finished the onboarding to /mulai', async () => {
     session.userId = 'user-5'
     vi.mocked(getCurrentPeriod).mockResolvedValue(null)
     vi.mocked(isOnboarded).mockResolvedValue(false)
 
-    await expect(requireActiveUser()).rejects.toThrow('REDIRECT /langganan')
+    await expect(requireActiveUser()).rejects.toThrow('REDIRECT /mulai')
   })
 
   it('lets the user through when the onboarding status cannot be read', async () => {

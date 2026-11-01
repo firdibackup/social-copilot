@@ -1,6 +1,7 @@
 import 'server-only'
 import { getPlan, textModel } from './app-settings'
 import { creditsUsed, getCurrentPeriod, type Period } from './billing'
+import { TRIAL_CREDITS, TRIAL_TASKS, trialLimitMessage } from './billing-options'
 import { getBillingCatalog } from './billing-catalog'
 import { getAccountBrandContext, getBrandContext } from './brand'
 import { lengthOf, truncate, type BrandContext } from './brand-options'
@@ -76,6 +77,12 @@ export class AiLimitError extends Error {
   override name = 'AiLimitError'
 }
 
+/** The free trial doesn't cover this, or is used up. Its message is what the client opens the upgrade dialog on. */
+export class TrialLimitError extends AiLimitError {
+  override name = 'TrialLimitError'
+  constructor() { super(trialLimitMessage()) }
+}
+
 /** Every kind of 9Router request; each costs TASK_CREDITS of the period's plan credits (getPlan()). */
 export type LoggedTask =
   | 'content'
@@ -126,9 +133,17 @@ export interface Credits {
 /** Credits left in the user's current period. A count that can't be read throws, so AI stops rather than runs free. */
 export async function remainingCredits(userId: string): Promise<Credits> {
   const period = await getCurrentPeriod(userId)
-  if (!period) throw new AiLimitError('Langganan tidak aktif. Aktifkan di halaman Langganan untuk memakai AI.')
+  if (!period) throw new TrialLimitError()
   const [plan, used] = await Promise.all([period.plan ?? getPlan(), creditsUsed(userId, period.start)])
   return { remaining: Math.max(0, plan.credits - used), period }
+}
+
+/** Free credits left for a user without a paid period, or null for a paying user. */
+export async function trialCredits(userId: string): Promise<number | null> {
+  if (await getCurrentPeriod(userId)) return null
+  const used: unknown = unwrap(await db().rpc('trial_credits_used', { p_user: userId }))
+  if (typeof used !== 'number') throw new Error('Supabase: kredit gratis tidak terbaca; sudah menjalankan migrasi free trial?')
+  return Math.max(0, TRIAL_CREDITS - used)
 }
 
 export const quotaSpentMessage = (period: Period) =>
@@ -170,16 +185,25 @@ export async function runLogged<T>(
 ): Promise<T> {
   const model = options.model ?? (await textModel())
   const rates = options.unmetered ? null : (await getBillingCatalog()).catalog.rates
-  const cost = options.unmetered ? 0 : (options.cost ?? (task === 'content' && options.units !== undefined
+  let cost = options.unmetered ? 0 : (options.cost ?? (task === 'content' && options.units !== undefined
     ? rates!.content + options.units * rates!.image
     : rates![task] * (options.units ?? 1)))
   if (!Number.isSafeInteger(cost) || cost < 0) throw new Error('Biaya kredit tidak valid.')
   let reservation: string | null = null
-  if (!options.unmetered) {
-    const { remaining, period } = await remainingCredits(userId)
-    if (cost > remaining) throw new AiLimitError(quotaSpentMessage(period))
+  const period = options.unmetered ? null : await getCurrentPeriod(userId)
+  if (!options.unmetered && !period) {
+    // The trial: a fixed price per covered task, from its own one-time allowance.
+    const price = TRIAL_TASKS[task]
+    if (price === undefined) throw new TrialLimitError()
+    cost = price
     if (cost > 0) {
-      const plan = period.plan ?? await getPlan()
+      reservation = unwrap(await db().rpc('reserve_trial_credits', { p_user: userId, p_allowance: TRIAL_CREDITS, p_cost: cost })) as string | null
+      if (!reservation) throw new TrialLimitError()
+    }
+  } else if (period) {
+    const [plan, used] = await Promise.all([period.plan ?? getPlan(), creditsUsed(userId, period.start)])
+    if (cost > plan.credits - used) throw new AiLimitError(quotaSpentMessage(period))
+    if (cost > 0) {
       reservation = unwrap(await db().rpc('reserve_ai_credits', {
         p_user: userId, p_since: period.start.toISOString(), p_until: period.end.toISOString(), p_allowance: plan.credits, p_cost: cost,
       })) as string | null

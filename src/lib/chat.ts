@@ -1,6 +1,7 @@
 import 'server-only'
 import type { Locale } from '@/i18n/locale-config'
-import { AiLimitError } from './ai'
+import { AiLimitError, TrialLimitError } from './ai'
+import { TRIAL_CHAT_MESSAGES } from './billing-options'
 import { getCurrentPeriod } from './billing'
 import {
   DAILY_LIMITS,
@@ -50,7 +51,13 @@ const toMessage = (row: MessageRow): ChatMessageView => ({
 /** Atomically reserves one daily slot. The counter, unlike the audit log, must never fail open. */
 export async function reserveDailyUsage(userId: string, task: LimitedTask): Promise<string> {
   const period = await getCurrentPeriod(userId)
-  if (!period) throw new AiLimitError('Langganan tidak aktif. Buka halaman Langganan.')
+  if (!period) {
+    // The trial: TRIAL_CHAT_MESSAGES messages in total, never reset; no research.
+    if (task !== 'chat') throw new TrialLimitError()
+    const reserved = unwrap(await db().rpc('reserve_trial_chat', { p_user_id: userId, p_limit: TRIAL_CHAT_MESSAGES }))
+    if (typeof reserved !== 'string') throw new TrialLimitError()
+    return reserved
+  }
   const limit = period.plan ? (task === 'chat' ? period.plan.chatDaily : period.plan.researchDaily) : DAILY_LIMITS[task]
   if (limit < 1) throw new AiLimitError(`Fitur ${task === 'chat' ? 'chat' : 'riset'} tidak tersedia pada paket ini.`)
   const reserved = unwrap(

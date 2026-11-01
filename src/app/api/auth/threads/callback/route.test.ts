@@ -60,12 +60,6 @@ describe('Threads OAuth callback', () => {
     expect(consumeOAuthState).not.toHaveBeenCalled()
   })
 
-  it('sends a user without a subscription to Langganan', async () => {
-    vi.mocked(currentPeriod).mockResolvedValue(null)
-
-    expect(redirectTarget(await callback('code=abc&state=s1')).path).toBe('/langganan')
-  })
-
   it.each([
     ['a refused login', 'error=access_denied&state=s1', 'ditolak'],
     ['a missing code', 'state=s1', 'state_tidak_valid'],

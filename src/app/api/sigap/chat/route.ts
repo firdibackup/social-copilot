@@ -2,7 +2,7 @@ import { getTranslations } from 'next-intl/server'
 import { getUserLocale, type Locale } from '@/i18n/locale'
 import { after } from 'next/server'
 import { aiErrorMessage, AiLimitError } from '@/lib/ai'
-import { currentPeriod, currentUser } from '@/lib/auth'
+import { currentUser } from '@/lib/auth'
 import { addMessage, createSession, getSession, loadHistory, reserveDailyUsage, type ChatSession } from '@/lib/chat'
 import { answerChat, persistableParts, summarizeChat, type UserTurn } from '@/lib/chat-ai'
 import {
@@ -71,7 +71,6 @@ export async function POST(request: Request): Promise<Response> {
   const locale = await getUserLocale()
   const user = await currentUser()
   if (!user) return refuse(401, t('sessionExpired'))
-  if (!(await currentPeriod(user.id))) return refuse(403, t('subscription'))
   const accountId = await getConnectedAccountId(user.id)
   if (!accountId) return refuse(409, t('connect'))
   const userId = user.id

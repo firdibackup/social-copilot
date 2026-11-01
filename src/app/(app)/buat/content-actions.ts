@@ -5,12 +5,13 @@ import { getLocale } from 'next-intl/server'
 import { getTranslations } from 'next-intl/server'
 
 import { refresh } from 'next/cache'
-import { aiErrorMessage, loadBrandContext, runLogged } from '@/lib/ai'
+import { aiErrorMessage, loadBrandContext, runLogged, trialCredits } from '@/lib/ai'
 import { imageModel } from '@/lib/app-settings'
 import { deleteAsset, loadAssetBytes } from '@/lib/assets'
 import { readAttachment, removeAttachment, saveAttachment } from '@/lib/attachments'
 import { requireAccount } from '@/lib/auth'
 import { lengthOf } from '@/lib/brand-options'
+import { TRIAL_TASKS, trialLimitMessage } from '@/lib/billing-options'
 import { CAPTION_MAX_LENGTH } from '@/lib/caption'
 import { editCaption, reviseSlide, suggestIdeas } from '@/lib/content-ai'
 import { enqueueContentJob, getContentJob } from '@/lib/content-jobs'
@@ -95,6 +96,9 @@ export async function createContentAction(input: unknown): Promise<CreateResult>
       .eq('account_id', accountId).eq(request.ideaId ? 'idea_id' : 'request_key', request.ideaId ?? requestKey).maybeSingle()) as
       { post_id: string; kind: string } | null
     if (existing?.kind === 'content') return { postId: existing.post_id }
+    // The worker charges the trial atomically; this only spares a draft that could never be made.
+    const trial = await trialCredits(userId)
+    if (trial !== null && trial < TRIAL_TASKS.content!) return { error: trialLimitMessage(locale) }
     const attachment = await readAttachment(isObject(input) ? input.attachment : null)
     if (attachment && 'error' in attachment) return attachment
     const attachmentPath = attachment ? await saveAttachment(userId, attachment) : null

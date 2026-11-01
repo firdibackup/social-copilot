@@ -152,7 +152,8 @@
     "message66": "Not saved yet",
     "message67": "Saved",
     "square": "Square 1:1",
-    "portrait": "Portrait 4:5"
+    "portrait": "Portrait 4:5",
+    "trialCost": "Free: {left} credits left · 1 post = 3 credits"
   },
   "contentList": {
     "message1": "{v0}-slide carousel",

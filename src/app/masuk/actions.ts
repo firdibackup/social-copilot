@@ -74,7 +74,7 @@ export async function signUp(_previous: AuthState, formData: FormData): Promise<
   }
   // Without auto confirm, Supabase would wait for an email link; there is no SMTP to send one.
   if (!data.session) return { error: t('createdInactive'), email }
-  redirect('/langganan')
+  redirect('/mulai')
 }
 
 export async function signOut(): Promise<void> {

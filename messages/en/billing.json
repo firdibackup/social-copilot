@@ -52,7 +52,8 @@
     "activeTerm": "Active for {count, plural, one {# month} other {# months}} from payment confirmation. Your allowance resets monthly.",
     "posts": "±{count} posts",
     "proDescription": "For regularly creating and scheduling content.",
-    "maxDescription": "More room for content creation and research."
+    "maxDescription": "More room for content creation and research.",
+    "priority": "Priority processing"
   },
   "page": {
     "title": "Subscribe",

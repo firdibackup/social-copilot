@@ -10,9 +10,10 @@ import {
   remainingCredits,
   runLogged,
   snippetOf,
+  TrialLimitError,
 } from './ai'
 import { creditsUsed, getCurrentPeriod } from './billing'
-import { contentCost } from './billing-options'
+import { contentCost, trialLimitMessage } from './billing-options'
 import { getBrandContext } from './brand'
 import type { BrandContext } from './brand-options'
 import { ConfigError } from './errors'
@@ -251,14 +252,45 @@ describe('with a period', () => {
       expect(database.inserted).toEqual([])
     })
 
-    it('refuses without an active subscription', async () => {
-      vi.mocked(getCurrentPeriod).mockResolvedValue(null)
-      const ask = vi.fn(async () => 'ok')
+    describe('on the free trial (no paid period)', () => {
+      beforeEach(() => {
+        vi.mocked(getCurrentPeriod).mockResolvedValue(null)
+        database.rpc.mockClear()
+      })
 
-      const error = await failure(runLogged(USER, 'caption_edit', {}, ask))
+      it('refuses a task the trial does not cover, before reserving or asking', async () => {
+        const ask = vi.fn(async () => 'ok')
 
-      expect(aiErrorMessage(error)).toContain('Langganan tidak aktif')
-      expect(ask).not.toHaveBeenCalled()
+        for (const task of ['caption_edit', 'slide_edit', 'content_script', 'deep_search'] as const) {
+          const error = await failure(runLogged(USER, task, {}, ask))
+          expect(error).toBeInstanceOf(TrialLimitError)
+          expect(aiErrorMessage(error)).toBe(trialLimitMessage())
+        }
+        expect(ask).not.toHaveBeenCalled()
+        expect(database.rpc).not.toHaveBeenCalled()
+      })
+
+      it('charges a new carousel 3 trial credits, whatever its slides cost on a plan', async () => {
+        await expect(runLogged(USER, 'content', {}, async () => 'ok', { units: 5 })).resolves.toBe('ok')
+
+        expect(database.rpc).toHaveBeenCalledWith('reserve_trial_credits', { p_user: USER, p_allowance: 3, p_cost: 3 })
+        expect(database.rpc).toHaveBeenCalledWith('settle_ai_credits', { p_id: 'reservation-1', p_user: USER, p_success: true })
+        expect(rows()).toEqual([expect.objectContaining({ credits: 3, status: 'ok' })])
+      })
+
+      it('stops when the trial credits are already spent', async () => {
+        database.rpc.mockResolvedValueOnce({ data: null as unknown as string, error: null })
+        const ask = vi.fn(async () => 'ok')
+
+        await expect(runLogged(USER, 'content', {}, ask, { units: 5 })).rejects.toBeInstanceOf(TrialLimitError)
+        expect(ask).not.toHaveBeenCalled()
+      })
+
+      it('runs the free parts of the trial (slide images, chat) without a reservation', async () => {
+        await expect(runLogged(USER, 'content_slide', {}, async () => 'ok')).resolves.toBe('ok')
+        await expect(runLogged(USER, 'chat', {}, async () => 'ok')).resolves.toBe('ok')
+        expect(database.rpc).not.toHaveBeenCalled()
+      })
     })
 
     it('refuses to ask when the credit count cannot be read', async () => {

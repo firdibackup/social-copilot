@@ -152,7 +152,8 @@
     "message66": "Belum tersimpan",
     "message67": "Tersimpan",
     "square": "Persegi 1:1",
-    "portrait": "Portrait 4:5"
+    "portrait": "Portrait 4:5",
+    "trialCost": "Gratis: sisa {left} kredit · 1 konten = 3 kredit"
   },
   "contentList": {
     "message1": "Carousel {v0} slide",

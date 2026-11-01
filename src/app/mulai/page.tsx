@@ -1,12 +1,11 @@
 import { getTranslations } from 'next-intl/server'
 import { IntlMessages } from '@/i18n/client-messages'
 import type { Metadata } from 'next'
-import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import { CarouselyLoader } from '@/components/brand-mark'
 import { LoadingState } from '@/components/loading-state'
 import { Notice } from '@/components/notice'
-import { currentPeriod, requireUser } from '@/lib/auth'
+import { requireUser } from '@/lib/auth'
 import { ConfigError, describeError } from '@/lib/errors'
 import { getOnboarding } from '@/lib/onboarding'
 import type { OnboardingAnswers } from '@/lib/onboarding-options'
@@ -18,8 +17,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * The onboarding wizard, full screen and outside the (app) group: requireActiveUser sends a paying user here until
- * it is finished or skipped, so this page needs only the payment, not the finished wizard.
+ * The onboarding wizard, full screen and outside the (app) group: requireActiveUser sends every user here until it is
+ * finished or skipped. A user without a paid period starts on the free trial.
  */
 export default function MulaiPage() {
   return (
@@ -44,7 +43,6 @@ async function OnboardingLoading() {
 async function WizardLoader() {
   const t = await getTranslations('onboarding.page')
   const userId = await requireUser()
-  if (!(await currentPeriod(userId))) redirect('/langganan')
   let answers: OnboardingAnswers
   try {
     answers = await getOnboarding(userId)

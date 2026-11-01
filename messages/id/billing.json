@@ -52,7 +52,8 @@
     "activeTerm": "Aktif {count} bulan sejak pembayaran dikonfirmasi. Kuota diperbarui setiap bulan.",
     "posts": "±{count} post",
     "proDescription": "Untuk rutin membuat dan menjadwalkan konten.",
-    "maxDescription": "Lebih banyak ruang untuk produksi dan riset konten."
+    "maxDescription": "Lebih banyak ruang untuk produksi dan riset konten.",
+    "priority": "Prioritas proses"
   },
   "page": {
     "title": "Berlangganan",

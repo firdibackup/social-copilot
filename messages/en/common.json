@@ -327,5 +327,14 @@
     "next": "Next example — {style}",
     "follow": "Follow style ({font})",
     "suits": "Best for: {suits}"
+  },
+  "trial": {
+    "limit": "Your free credits are used up (0 left). Upgrade to Pro or Max to continue.",
+    "title": "Your free credits are used up",
+    "left": "Free credits left: 0. The trial has 3 credits (1 post = 3 credits) and 3 Mimo messages, once. Editing slides, captions, scripts, and other AI features need a subscription. Your results and history stay available.",
+    "pro": "For creating and scheduling content regularly",
+    "max": "More credits · Priority processing",
+    "upgrade": "See plans",
+    "later": "Later"
   }
 }
