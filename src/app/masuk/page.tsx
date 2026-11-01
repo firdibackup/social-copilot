@@ -7,7 +7,7 @@ import { AuthCard, AuthForm } from './auth-form'
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('auth.form')
-  return { title: t('login') }
+  return { title: t('login'), robots: { index: false, follow: true } }
 }
 
 interface MasukPageProps {

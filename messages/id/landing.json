@@ -3,7 +3,7 @@
     "audienceAnswer": "Untuk pemilik UMKM, kreator, dan pengelola media sosial yang ingin menyiapkan konten serta mengelola Instagram dari satu tempat. Kamu bisa mulai dari ide sederhana, foto produk, atau bahan konten yang sudah ada.",
     "demoAnswer": "Preview ini adalah demo interaktif dengan data ilustrasi. Mencoba ide, melihat jadwal, atau mengirim balasan di demo tidak membuat konten maupun mengirim pesan ke akun Instagram sungguhan.",
     "accountAnswer": "Gunakan akun Instagram Business atau Creator. Hubungkan akun melalui alur resmi Instagram di pengaturan Carousely dan berikan izin yang diperlukan untuk fitur publikasi serta pesan.",
-    "startAnswer": "Buat akun, ikuti proses langganan di aplikasi, lalu lengkapi brand dan hubungkan Instagram kamu. Informasi paket dan biaya tersedia pada langkah langganan sebelum pembayaran.",
+    "startAnswer": "Buat akun gratis, hubungkan Instagram, lalu lengkapi brand kamu. Akun baru mendapat 3 kredit gratis (1 konten = 3 kredit) dan 3 pesan Mimo untuk mencoba. Setelah itu pilih paket Pro atau Max untuk lanjut.",
     "aiAnswer": "Tidak. Hasil AI adalah bahan kerja yang bisa kamu tinjau dan edit. Kamu tetap menentukan konten mana yang dipakai dan kapan konten dijadwalkan untuk tayang.",
     "demoQuestion": "Apakah preview di halaman ini terhubung ke akun asli?",
     "accountQuestion": "Akun Instagram apa yang bisa dihubungkan?",
@@ -204,9 +204,10 @@
     "interactive": "Demo interaktif"
   },
   "metadata": {
-    "title": "Carousely — Ide jalan, konten tayang.",
-    "description": "Dari ide pertama sampai konten tayang. Buat konten bersama AI Mimo, atur kalender, dan kelola balasan Instagram dalam satu workspace Carousely.",
-    "socialDescription": "Teman kerja untuk konten Instagram kamu. Bikin, jadwalkan, dan kelola dari satu tempat."
+    "title": "Carousely — Aplikasi AI Carousel & Jadwal Posting Instagram",
+    "description": "Bikin carousel, caption, dan jadwal posting Instagram otomatis dengan AI. Cocok untuk UMKM & kreator. Coba gratis 3 kredit, tanpa kartu.",
+    "socialDescription": "Konten Instagram dibuat AI, tayang otomatis. Carousel, caption, jadwal posting, dan auto DM dalam satu workspace.",
+    "ogAlt": "Carousely: konten Instagram dibuat AI dan tayang otomatis"
   },
   "pricing": {
     "title1": "Pilih paketnya.",
@@ -280,7 +281,7 @@
       "label17": "Kebugaran",
       "label18": "Pernikahan",
       "label19": "Brand UMKM",
-      "alt": "Contoh desain carousel {category}"
+      "alt": "Contoh desain carousel Instagram {category} buatan Carousely"
     },
     "hero": {
       "trust": "Integrasi API resmi",

@@ -55,7 +55,7 @@ describe('proxy', () => {
   })
 
   it('lets visitors without a session reach sign in, the privacy page and the webhook', async () => {
-    for (const path of ['/masuk', '/daftar', '/privasi', '/auth/callback?code=google-code', '/api/webhooks/instagram']) {
+    for (const path of ['/masuk', '/daftar', '/privasi', '/auth/callback?code=google-code', '/api/webhooks/instagram', '/robots.txt', '/sitemap.xml']) {
       const response = await visit(path)
       expect(response.headers.get('location'), path).toBeNull()
       expect(response.headers.get('x-middleware-next'), path).toBe('1')

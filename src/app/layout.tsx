@@ -5,6 +5,7 @@ import { DialogHost } from "@/components/confirm-dialog";
 import { Suspense } from "react";
 import { getUserLocale } from "@/i18n/locale";
 import { IntlMessages } from "@/i18n/client-messages";
+import { siteUrl } from "@/lib/site";
 import "./globals.css";
 
 /** The brand face, for headings only; body and UI text use the system (San Francisco) stack in globals.css. */
@@ -17,6 +18,8 @@ const bricolage = Bricolage_Grotesque({
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('shell');
   return {
+  metadataBase: siteUrl(),
+  applicationName: "Carousely",
   title: { default: "Carousely", template: "%s · Carousely" },
   description: t('description'),
   };

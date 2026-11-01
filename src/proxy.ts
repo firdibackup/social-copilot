@@ -4,6 +4,8 @@ import { parseAdminEmails } from './lib/admin-options'
 
 /** Meta's DM webhook and Mayar's payment webhook: they send no cookies, so they skip the session round trip. */
 const WEBHOOKS = new Set(['/api/webhooks/instagram', '/api/webhooks/mayar'])
+/** Crawler files: public, and never worth a session round trip. */
+const SEO_FILES = new Set(['/robots.txt', '/sitemap.xml'])
 /** Pages reachable without a session: sign in and up, and the privacy page Meta links to. */
 const PUBLIC_PATHS = new Set(['/masuk', '/daftar', '/privasi', '/auth/callback'])
 /** Signed-in users who open these go to the app instead. */
@@ -26,7 +28,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.rewrite(new URL(`/api/auth/instagram/callback${search}`, request.url))
   }
   // The marketing page needs no session or auth-server round trip.
-  if (pathname === '/' || WEBHOOKS.has(pathname)) return NextResponse.next()
+  if (pathname === '/' || WEBHOOKS.has(pathname) || SEO_FILES.has(pathname)) return NextResponse.next()
 
   // The response that carries refreshed session cookies. setAll replaces it, so only the last one is returned.
   let response = NextResponse.next({ request })

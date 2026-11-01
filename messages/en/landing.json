@@ -3,7 +3,7 @@
     "audienceAnswer": "For small business owners, creators, and social media managers who want to create content and manage Instagram in one place. Start with a simple idea, a product photo, or content you already have.",
     "demoAnswer": "This preview is an interactive demo with sample data. Trying ideas, viewing schedules, or sending demo replies won't create content or send messages to real Instagram accounts.",
     "accountAnswer": "Use an Instagram Business or Creator account. Connect through Instagram's official flow in Carousely settings and grant the permissions needed for publishing and messaging.",
-    "startAnswer": "Create an account, choose a subscription in the app, then set up your brand and connect Instagram. You'll see plan details and pricing before you pay.",
+    "startAnswer": "Create a free account, connect Instagram, and set up your brand. New accounts get 3 free credits (1 post = 3 credits) and 3 Mimo messages to try it out. After that, choose Pro or Max to keep going.",
     "aiAnswer": "No. AI output is a starting point for you to review and edit. You decide which content to use and when to schedule it.",
     "demoQuestion": "Is this preview connected to a real account?",
     "accountQuestion": "Which Instagram accounts can I connect?",
@@ -204,9 +204,10 @@
     "interactive": "Interactive demo"
   },
   "metadata": {
-    "title": "Carousely — Ideas flow. Content ships.",
-    "description": "From your first idea to a published post. Create with Mimo AI, plan your calendar, and manage Instagram replies in one Carousely workspace.",
-    "socialDescription": "Your creative partner for Instagram. Create, schedule, and manage it all in one place."
+    "title": "Carousely — AI Instagram Carousel Maker & Post Scheduler",
+    "description": "Create Instagram carousels, captions, and a posting schedule with AI. Built for small businesses and creators. Try 3 free credits, no card.",
+    "socialDescription": "Instagram content made by AI, published automatically. Carousels, captions, scheduling, and auto DM in one workspace.",
+    "ogAlt": "Carousely: Instagram content made by AI, published automatically"
   },
   "pricing": {
     "title1": "Pick your plan.",
@@ -280,7 +281,7 @@
       "label17": "Fitness",
       "label18": "Weddings",
       "label19": "Small business brands",
-      "alt": "Example carousel design for {category}"
+      "alt": "Example Instagram carousel design for {category}, made with Carousely"
     },
     "hero": {
       "trust": "Official API integration",

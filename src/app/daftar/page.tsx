@@ -5,7 +5,7 @@ import { AuthCard, AuthForm } from '../masuk/auth-form'
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('auth.form')
-  return { title: t('signup') }
+  return { title: t('signup'), robots: { index: false, follow: true } }
 }
 
 export default async function DaftarPage() {
