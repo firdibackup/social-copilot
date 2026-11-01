@@ -205,7 +205,7 @@ async function interactions(page, record) {
           assert.equal(record.documentLanguage, locale, 'Requested locale must reach the document, not silently fall back')
           const opening = JSON.parse(fs.readFileSync(path.join(__dirname, `../messages/${locale}/landing.json`), 'utf8')).story.opening
           const normalize = text => text.replace(/\s+/g, ' ').trim()
-          record.heroTitle = normalize(await page.locator('[data-orbit-hero] h1').innerText())
+          record.heroTitle = normalize(await page.locator('[data-orbit-hero] #hero-title').innerText())
           assert.equal(record.heroTitle, normalize(`${opening.title1} ${opening.title2}`), 'Hero title must match the requested language catalog')
           assert.equal(await page.locator('[data-orbit-hero]#fitur').count(), 1)
           assert.equal(await page.locator('[data-opening-chat], [data-mascot]').count(), 0)

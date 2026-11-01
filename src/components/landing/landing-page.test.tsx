@@ -35,7 +35,8 @@ describe.each(['id', 'en'] as const)('homepage story (%s)', locale => {
     expect(hero).not.toBe('')
     expect(hero).toContain('id="fitur"')
     expect(html.match(/<h1\b/g)).toHaveLength(1)
-    expect(hero).toContain('<h1')
+    expect(hero).not.toContain('<h1')
+    expect(hero).toMatch(/<h2\b[^>]*id="hero-title"/)
     for (const text of Object.values({
       title1: catalogs[locale].landing.story.opening.title1,
       title2: catalogs[locale].landing.story.opening.title2,

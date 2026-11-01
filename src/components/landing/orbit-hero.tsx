@@ -78,7 +78,7 @@ export function OrbitHero({ paused, reduceMotion, onTogglePause }: { paused: boo
           {platforms.map(({ name, Icon }, index) => <span key={name} className={styles.brand}><Icon size={15} /><span className={styles.srOnly}>{index ? `, ${name}` : `: ${name}`}</span></span>)}
         </span>
       </div>
-      <h1 id="hero-title">{t('story.opening.title1')}<br /><span>{t('story.opening.title2')}</span></h1>
+      <h2 id="hero-title">{t('story.opening.title1')}<br /><span>{t('story.opening.title2')}</span></h2>
       <p>{t('story.opening.body')}</p>
       <div className={styles.actions}>
         <Link href="/daftar" className={styles.primary}>{t('story.start')} <ArrowUpRight size={18} aria-hidden="true" /></Link>

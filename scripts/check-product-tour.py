@@ -25,7 +25,8 @@ assert 'data-paused' in hero, 'Expose effective motion state for runtime QA'
 assert re.search(r'id=[\'"]fitur[\'"]', hero)
 assert re.search(r'href=[\'"]/daftar[\'"]', hero)
 assert re.search(r'href=[\'"]#konten[\'"]', hero)
-assert len(re.findall(r'<h1\b', hero)) == 1
+assert '<h1' not in hero, 'OnboardingHero owns the page h1'
+assert len(re.findall(r'<h2 id="hero-title"', hero)) == 1
 for obsolete in ('data-opening-chat', 'data-mascot', 'ProductJourney'):
     assert obsolete not in hero + showcase + landing, f'Obsolete opening: {obsolete}'
 assert not re.search(r'\b(fetch|XMLHttpRequest|WebSocket)\s*\(', hero)
