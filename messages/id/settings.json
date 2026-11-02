@@ -287,5 +287,23 @@
     "nameRequired": "Isi nama untuk tagihan.",
     "nameLength": "Nama maksimal {max} karakter.",
     "whatsappInvalid": "Nomor WhatsApp tidak valid. Contoh: 0812 3456 7890."
+  },
+  "delete_account": {
+    "title": "Hapus akun",
+    "description": "Akun ini ditutup dan datanya disimpan sebagai arsip, bukan dihapus. Kamu langsung keluar. Kalau nanti masuk lagi, kamu mulai dari akun baru yang kosong.",
+    "consequenceConnections": "Koneksi Instagram dan Threads diputus dan token aksesnya dihapus.",
+    "consequenceScheduled": "Post terjadwal kembali jadi draft dan tidak akan diterbitkan.",
+    "consequenceArchive": "Brand, konten, aset, dan riwayat disimpan sebagai arsip dan tidak bisa dibuka lagi dari aplikasi.",
+    "consequenceFresh": "Masuk lagi dengan email atau akun Google yang sama membuat akun baru yang kosong. Isi akun lama tidak ikut kembali.",
+    "activePlan": "Langganan yang masih berjalan ikut berakhir dan tidak pindah ke akun baru. Kalau memenuhi <refund>syarat refund</refund>, ajukan refund sebelum menghapus akun.",
+    "learnMore": "Selengkapnya di <link>kebijakan Hapus Data</link>.",
+    "open": "Hapus akun…",
+    "dialogTitle": "Hapus akun ini?",
+    "confirmLabel": "Ketik {email} untuk konfirmasi",
+    "submit": "Hapus akun",
+    "pending": "Menghapus akun…",
+    "cancel": "Batal",
+    "mismatch": "Email tidak cocok. Ketik email akun ini persis.",
+    "failed": "Akun gagal dihapus. Coba lagi, atau hubungi {email}."
   }
 }

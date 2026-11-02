@@ -11,12 +11,13 @@ import { ScheduleSettings } from './schedule-settings'
 import { StorySettings } from './story-settings'
 import { ThreadsSettings } from './threads-settings'
 import Link from 'next/link'
-import { currentOnboarded, requireUser } from '@/lib/auth'
+import { currentOnboarded, currentUser, requireUser } from '@/lib/auth'
 import { getCurrentPeriod, syncPendingPayments } from '@/lib/billing'
 import { describeError } from '@/lib/errors'
 import { Notice } from '@/components/notice'
 import { BillingSettings } from './billing-settings'
 import { InactiveConnections } from './inactive-connections'
+import { DeleteAccount } from './delete-account'
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('settings')
@@ -43,7 +44,7 @@ async function Settings({ searchParams }: PengaturanPageProps) {
     syncError = true
     console.error('[pengaturan] cek pembayaran:', describeError(error))
   })
-  const [period, onboarded] = await Promise.all([getCurrentPeriod(userId), currentOnboarded(userId)])
+  const [period, onboarded, user] = await Promise.all([getCurrentPeriod(userId), currentOnboarded(userId), currentUser()])
   return (
     <div className="max-w-2xl space-y-6">
       <header className="space-y-1">
@@ -75,6 +76,7 @@ async function Settings({ searchParams }: PengaturanPageProps) {
         <DensitySettings />
       </Suspense>
       </>}
+      <DeleteAccount email={user?.email ?? ''} hasActivePlan={period !== null} />
     </div>
   )
 }

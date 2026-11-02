@@ -34,5 +34,7 @@ async function SignInForm({ searchParams }: MasukPageProps) {
   const next = firstValue(params.next)
   const oauthError = firstValue(params.error) === 'google'
     ? t('oauthIncomplete') : undefined
-  return <AuthForm mode="masuk" next={next ? safeNext(next) : undefined} oauthError={oauthError} />
+  // Hapus akun lands here once the account is archived.
+  const notice = firstValue(params.akun) === 'dihapus' ? t('accountDeleted') : undefined
+  return <AuthForm mode="masuk" next={next ? safeNext(next) : undefined} oauthError={oauthError} notice={notice} />
 }

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AdminError, adjustCredits, deleteUser, endSubscription, grantDays, listUnfinishedPayments, markPaymentReminded, resetCredits, setBanned, setPassword } from './admin'
+import { AdminError, adjustCredits, deleteUser, endSubscription, getAdminOverview, grantDays, listAdminUsers, listUnfinishedPayments, markPaymentReminded, resetCredits, setBanned, setPassword } from './admin'
 import { reminderMessage } from './payment-followup-options'
 import { grantFreePeriod } from './billing'
 
@@ -201,6 +201,29 @@ describe('deleteUser', () => {
 
     expect(fake.storage.remove).toHaveBeenCalledWith([`${USER}/a.jpg`, `${USER}/refs/b.png`])
     expect(inserts('admin_log')[0]).toMatchObject({ action: 'delete_user', target_email: 'budi@example.com' })
+  })
+})
+
+describe('archived accounts', () => {
+  beforeEach(() => {
+    fake.auth.listUsers.mockResolvedValue({ data: { users: [
+      { id: 'u1', email: 'budi@example.com', created_at: '2026-10-01T00:00:00Z' },
+      { id: 'u2', email: 'x@deleted.invalid', created_at: '2026-10-02T00:00:00Z', deleted_at: '2026-10-20T00:00:00Z' },
+    ] }, error: null })
+    const current = (userId: string) => ({ user_id: userId, active_until: '2026-12-01', period_start: '2026-10-01', period_end: '2026-12-01', credits_used: 0 })
+    fake.rpc.mockImplementation(async (name: string) => ok(name === 'billing_admin_overview' ? [current('u1'), current('u2')] : []))
+  })
+
+  it('leaves soft-deleted users out of the list', async () => {
+    fake.results.push(ok([]))
+    expect((await listAdminUsers()).map((user) => user.id)).toEqual(['u1'])
+  })
+
+  it('counts neither them nor their paid period in the overview', async () => {
+    fake.results.push(ok([]), ok([]))
+    const overview = await getAdminOverview()
+    expect(overview.users).toBe(1)
+    expect(overview.activeUsers).toBe(1)
   })
 })
 

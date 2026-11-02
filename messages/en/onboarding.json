@@ -22,7 +22,7 @@
     },
     "style": {
       "title": "What design style do you want?",
-      "hint": "This is just a starting point for fonts and layouts. If you add design references or connect Instagram, those references will take priority."
+      "hint": "This is just a <b>starting point for fonts and layouts</b>. If you add <b>design references</b> or <b>connect Instagram</b>, those references will <b>take priority</b>."
     },
     "fonts": {
       "title": "Choose your design fonts.",

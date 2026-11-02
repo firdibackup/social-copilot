@@ -336,5 +336,26 @@
     "max": "More credits · Priority processing",
     "upgrade": "See plans",
     "later": "Later"
+  },
+  "site": {
+    "footerNav": "Site navigation",
+    "legalNav": "Legal documents",
+    "tagline": "A work partner for your ideas.",
+    "company": "Carousely",
+    "product": "Product",
+    "legal": "Legal",
+    "features": "Features",
+    "pricing": "Pricing",
+    "contact": "Contact",
+    "workflow": "How it works",
+    "faq": "FAQ",
+    "login": "Log in",
+    "signup": "Sign up",
+    "privacy": "Privacy",
+    "terms": "Terms",
+    "refund": "Refund",
+    "deletion": "Delete Data",
+    "address": "Address and contact",
+    "copyright": "© {year} Carousely"
   }
 }

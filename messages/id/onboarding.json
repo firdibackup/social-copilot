@@ -22,7 +22,7 @@
     },
     "style": {
       "title": "Gaya desain seperti apa yang kamu mau?",
-      "hint": "Ini hanya acuan font dan layout awal. Jika kamu menambahkan referensi desain atau menghubungkan Instagram, referensi tersebut akan diprioritaskan."
+      "hint": "Ini hanya <b>acuan font dan layout awal</b>. Jika kamu menambahkan <b>referensi desain</b> atau <b>menghubungkan Instagram</b>, referensi tersebut akan <b>diprioritaskan</b>."
     },
     "fonts": {
       "title": "Pilih font untuk desainmu.",

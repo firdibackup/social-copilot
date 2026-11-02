@@ -1,49 +1,392 @@
 {
-  "privacy": {
-    "paragraph1": "Kebijakan Privasi {app}",
-    "paragraph2": "Berlaku sejak {date}.",
-    "paragraph3": "{app} adalah layanan bagi pemilik akun Instagram Business atau Creator untuk menjadwalkan konten, membalas pesan langsung (DM) dan komentar, serta membuat draf konten dengan bantuan AI, melalui API resmi Meta. Setiap pengguna mendaftar dengan email dan password, lalu menghubungkan satu akun Instagram miliknya. Pengelola layanan adalah {app}, yang bisa dihubungi di <emailLink>{email}</emailLink>.",
-    "paragraph4": "Data yang diproses",
-    "paragraph5": "<strong>Akun pengguna:</strong> alamat email dan password. Password disimpan dalam bentuk hash oleh sistem login, tidak pernah dalam bentuk aslinya.",
-    "paragraph6": "<strong>Akun Instagram pengguna:</strong> ID akun, username, jenis akun, izin yang disetujui, masa berlaku token, dan token akses. Token disimpan terenkripsi (AES-256-GCM).",
-    "paragraph7": "<strong>Profil Instagram saat pertama terhubung:</strong> untuk mengisi brand kit, {app} membaca nama, bio, foto profil, dan caption hingga 12 post terbaru akun yang terhubung. Foto profil disimpan sebagai logo brand dan gambar 3 post terbaru disalin sebagai referensi desain. Semuanya bisa diubah atau dihapus di halaman Brand.",
-    "paragraph8": "<strong>Konten pengguna:</strong> foto, caption, dan jadwal post, ide konten, serta ID dan tautan post yang sudah terbit, beserta catatan kegagalan penerbitan.",
-    "paragraph9": "<strong>Statistik post:</strong> untuk halaman Analitik, {app} membaca post akun yang terhubung dari 90 hari terakhir (ID, jenis, caption, tautan, gambar mini, waktu terbit) beserta insights-nya: views, reach, suka, komentar, share, simpan, dan total interaksi. Hanya angka terbaru yang disimpan; post yang dihapus dari Instagram ikut dihapus pada sinkronisasi berikutnya.",
-    "paragraph10": "<strong>Pesan langsung:</strong> kalau Anda mengirim DM ke akun Instagram yang terhubung dengan {app}, Meta meneruskan ke layanan ini ID Instagram Anda yang khusus untuk akun tersebut, username, nama, dan tautan foto profil Anda, ID pesan, isi pesan teks, dan waktunya. Tautan foto profil dibaca ulang paling sering tiap 3 hari dan hanya dipakai untuk menampilkan avatar di kotak masuk. Lampiran seperti foto dan video tidak disimpan. Pesan pemilik akun dalam percakapan itu, baik yang dikirim lewat {app} maupun langsung dari aplikasi Instagram, juga disimpan agar percakapan bisa dibaca utuh, beserta kapan pemilik terakhir membukanya. DM tidak disimpan selama langganan pemilik akun tidak aktif.",
-    "paragraph11": "<strong>Komentar post:</strong> kalau Anda berkomentar di post akun yang terhubung dengan {app}, layanan ini menyimpan ID komentar, ID post, ID dan username Instagram Anda, isi komentar, waktunya, komentar yang dibalasnya, dan apakah komentar disembunyikan. Komentar diterima dari Meta saat ditulis dan ditarik ulang dari post 30 hari terakhir saat pemilik membuka halaman Balasan, agar pemilik bisa membaca, membalas (di kolom komentar atau sekali lewat DM), menyembunyikan, atau menghapusnya. Komentar yang dihapus dari Instagram ikut dihapus pada penarikan berikutnya.",
-    "paragraph12": "<strong>Referensi brand dan Aset website:</strong> isi hingga 11 halaman website brand, gambar yang pengguna pilih untuk diimpor ke Aset, serta post publik akun bisnis atau kreator Instagram lain yang dipilih sebagai referensi desain, beserta nama akun dan tautannya. Nama, bio, dan jumlah pengikut akun lain itu hanya ditampilkan saat dicari dan tidak disimpan.",
-    "paragraph13": "<strong>Riwayat permintaan AI:</strong> isi yang dikirim ke AI dan hasilnya, model, status, durasi, dan kredit yang terpakai. Disimpan untuk menghitung kuota dan menelusuri masalah.",
-    "paragraph14": "<strong>Pembayaran:</strong> nominal, status, tautan pembayaran Mayar, dan periode langganan.",
-    "paragraph15": "<strong>Cookie:</strong> cookie sesi login agar Anda tetap masuk dan cookie preferensi `locale` untuk menyimpan bahasa pilihan Anda (ID/EN). {app} tidak memakai cookie iklan, pelacak, atau analitik pihak ketiga.",
-    "paragraph16": "Untuk apa data dipakai",
-    "paragraph17": "Data hanya dipakai untuk menjalankan fitur bagi pengguna pemiliknya: menerbitkan post terjadwal, menampilkan dan membalas DM dan komentar, memberi tahu pemilik ada pesan atau komentar baru, menampilkan performa post, serta membuat draf caption dan gambar. Data satu pengguna tidak bisa dilihat pengguna lain. Setiap DM dan balasan komentar dikirim oleh pemilik akun sendiri. {app} tidak mengirim pesan massal atau pesan yang tidak diminta.",
-    "paragraph18": "Dengan siapa data dibagikan",
-    "paragraph19": "<strong>Meta (Instagram):</strong> untuk menerbitkan post, mengambil profil dan statistik post, membaca komentar, mengirim balasan DM dan komentar, serta menyembunyikan atau menghapus komentar atas perintah pemilik akun.",
-    "paragraph20": "<strong>Mayar:</strong> email dan nominal tagihan, untuk memproses pembayaran langganan. Data kartu atau rekening Anda diproses Mayar dan tidak pernah sampai ke {app}.",
-    "paragraph21": "<strong>Penyedia AI melalui 9Router:</strong> topik, caption, informasi brand, isi website brand, username, nama, bio, dan caption Instagram pengguna, gambar referensi, serta gambar produk atau website yang dipilih untuk katalog atau konten dikirim untuk membuat draf. Isi DM dan komentar (hingga 10 pesan terakhir, beserta caption post untuk komentar) dikirim hanya saat pemilik akun menekan tombol AI untuk membuat draf balasan, tanpa ID atau foto profil pengirim.",
-    "paragraph22": "Data tidak dijual dan tidak dipakai untuk iklan.",
-    "paragraph23": "Penyimpanan dan keamanan",
-    "paragraph24": "Data disimpan di database dan penyimpanan file Supabase yang dikelola {app}. Dashboard hanya bisa dibuka setelah login, setiap permintaan hanya membaca data milik pengguna yang login, database tidak bisa diakses publik, dan file hanya dibuka lewat tautan bertanda tangan yang kedaluwarsa dalam 1 jam.",
-    "paragraph25": "Admin {app} bisa melihat email pengguna, tanggal daftar dan login terakhir, username Instagram yang terhubung, status langganan, riwayat pembayaran, serta jumlah dan status permintaan AI (tanpa isinya), untuk dukungan pelanggan dan penagihan. Admin bisa mengatur ulang password, menangguhkan, atau menghapus akun, dan setiap tindakan itu dicatat.",
-    "paragraph26": "Berapa lama data disimpan",
-    "paragraph27": "Token akses dihapus saat pengguna memutus koneksi. Koneksi tetap bisa diputus saat langganan tidak aktif, dari halaman Pengaturan. Data lain disimpan selama akun pengguna ada, atau sampai dihapus atas permintaan (lihat <deletionLink>Penghapusan Data</deletionLink>). Catatan tindakan admin, termasuk email akun yang terkena tindakan itu, tetap disimpan setelah akun dihapus sebagai jejak audit.",
-    "paragraph28": "Pengguna hanya menghubungkan akun Instagram miliknya sendiri atau akun yang berhak ia kelola, dan bertanggung jawab atas konten serta balasan yang diterbitkan.",
-    "paragraph29": "Pemakaian mengikuti Ketentuan Platform Meta, Ketentuan Penggunaan Instagram, dan Pedoman Komunitas Instagram. Spam, pesan massal, dan pesan yang tidak diminta dilarang.",
-    "paragraph30": "Harga, masa aktif, dan kuota mengikuti paket yang dipilih pada ringkasan pembayaran.",
-    "paragraph31": "Pembayaran yang sudah diterima tidak dapat dikembalikan, kecuali layanan tidak bisa dipakai karena kesalahan dari pihak {app}.",
-    "paragraph32": "Layanan disediakan apa adanya, tanpa jaminan apa pun.",
-    "paragraph33": "Perubahan kebijakan dan ketentuan diumumkan dengan memperbarui halaman ini dan tanggal berlakunya.",
-    "paragraph34": "<strong>Pengguna {app}</strong> yang ingin menghapus akun beserta seluruh datanya (koneksi, post, foto, DM, komentar, brand kit, riwayat AI, dan riwayat pembayaran):",
-    "paragraph35": "Kirim email ke <deleteLink>{email}</deleteLink> dengan subjek “Hapus data” dari alamat email akun Anda.",
-    "paragraph36": "Akun dan datanya dihapus paling lambat 30 hari setelah email diterima, lalu Anda mendapat konfirmasi.",
-    "paragraph37": "Akses aplikasi juga bisa dicabut kapan saja: putuskan koneksi di Pengaturan (atau di Langganan saat langganan tidak aktif), lalu hapus {app} di Instagram (Pengaturan dan aktivitas → Izin situs web → Aplikasi dan situs web).",
-    "paragraph38": "<strong>Pengirim DM dan komentar:</strong> kalau Anda pernah mengirim DM atau berkomentar di akun yang dikelola dengan {app} dan ingin datanya dihapus, kirim email ke alamat yang sama dengan subjek “Hapus data” dan sertakan username Instagram Anda. Percakapan, pesan, dan komentar Anda dihapus paling lambat 30 hari setelah email diterima. Anda juga bisa meminta salinan data Anda lewat email yang sama.",
-    "title": "Kebijakan Privasi",
+  "layout": {
+    "updated": "Terakhir diperbarui: {date}",
+    "date": "1 November 2026",
     "contents": "Isi halaman",
-    "terms": "Ketentuan Layanan",
-    "deletion": "Penghapusan Data",
-    "date": "19 Oktober 2026",
     "planPrice": "Paket {name}: {price} per bulan sebelum diskon durasi, dibayar di muka melalui Mayar. Tidak ada perpanjangan otomatis: akses berhenti di akhir periode sampai diperpanjang, dan post terjadwal tidak diterbitkan selama langganan tidak aktif.",
-    "planCredits": "Paket {name} memberi kuota AI {credits} kredit per bulan, termasuk untuk pembelian beberapa bulan. Sisa kuota tidak terbawa ke bulan berikutnya. Ketentuan pembelian disimpan saat checkout."
+    "planCredits": "Paket {name} memberi kuota AI {credits} kredit per bulan, termasuk untuk pembelian beberapa bulan. Sisa kuota tidak terbawa ke bulan berikutnya. Ketentuan pembelian disimpan saat checkout.",
+    "planFallback": "Harga, masa aktif, dan kuota mengikuti paket yang dipilih pada ringkasan pembayaran."
+  },
+  "privacy": {
+    "title": "Kebijakan Privasi",
+    "intro": [
+      "{app} adalah layanan untuk pemilik akun Instagram Business atau Creator: membuat konten dengan bantuan AI, menjadwalkan dan menerbitkan post ke Instagram dan Threads, serta membalas DM dan komentar, melalui API resmi Meta. Pengguna mendaftar dengan email dan password atau dengan akun Google, lalu menghubungkan satu akun Instagram miliknya.",
+      "Kebijakan ini menjelaskan data apa yang kami proses, untuk apa, dengan siapa dibagikan, dan bagaimana Anda mengendalikannya. Kebijakan ini adalah bagian dari <terms>Syarat & Ketentuan</terms>. Pertanyaan bisa dikirim ke <mail>{email}</mail>."
+    ],
+    "sections": [
+      {
+        "id": "data",
+        "title": "Data yang kami proses",
+        "blocks": [
+          [
+            "<b>Akun pengguna:</b> alamat email dan password. Password disimpan dalam bentuk hash oleh sistem login, tidak pernah dalam bentuk aslinya. Jika Anda masuk dengan Google, kami menerima nama dan alamat email akun Google Anda.",
+            "<b>Akun Instagram dan Threads:</b> ID akun, username, jenis akun, izin yang disetujui, masa berlaku token, dan token akses. Token disimpan terenkripsi (AES-256-GCM).",
+            "<b>Profil Instagram saat pertama terhubung:</b> untuk mengisi brand kit, {app} membaca nama, bio, foto profil, dan caption hingga 12 post terbaru akun yang terhubung. Foto profil disimpan sebagai logo brand dan gambar 3 post terbaru disalin sebagai referensi desain. Semuanya bisa diubah atau dihapus di halaman Brand.",
+            "<b>Konten pengguna:</b> foto, caption, slide, dan jadwal post, ide konten, aset yang diunggah, serta ID dan tautan post yang sudah terbit, beserta catatan kegagalan penerbitan.",
+            "<b>Statistik post:</b> untuk halaman Analitik, {app} membaca post akun yang terhubung dari 90 hari terakhir (ID, jenis, caption, tautan, gambar mini, waktu terbit) beserta insights-nya: views, reach, suka, komentar, share, simpan, dan total interaksi. Hanya angka terbaru yang disimpan; post yang dihapus dari Instagram atau Threads ikut dihapus pada sinkronisasi berikutnya.",
+            "<b>Pesan langsung:</b> kalau Anda mengirim DM ke akun Instagram yang terhubung dengan {app}, Meta meneruskan ke layanan ini ID Instagram Anda yang khusus untuk akun tersebut, username, nama, dan tautan foto profil Anda, ID pesan, isi pesan teks, dan waktunya. Tautan foto profil dibaca ulang paling sering tiap 3 hari dan hanya dipakai untuk menampilkan avatar di kotak masuk. Lampiran seperti foto dan video tidak disimpan. Pesan pemilik akun dalam percakapan itu, baik yang dikirim lewat {app} maupun langsung dari aplikasi Instagram, juga disimpan agar percakapan bisa dibaca utuh, beserta kapan pemilik terakhir membukanya. DM tidak disimpan selama langganan pemilik akun tidak aktif.",
+            "<b>Komentar dan balasan:</b> kalau Anda berkomentar di post Instagram atau membalas post Threads akun yang terhubung dengan {app}, layanan ini menyimpan ID komentar, ID post, ID dan username Anda, isi komentar, waktunya, komentar yang dibalasnya, dan apakah komentar disembunyikan. Komentar diterima dari Meta saat ditulis dan ditarik ulang dari post 30 hari terakhir saat pemilik membuka halaman Balasan, agar pemilik bisa membaca, membalas, menyembunyikan, atau menghapusnya. Komentar yang dihapus di platform ikut dihapus pada penarikan berikutnya.",
+            "<b>Referensi brand dan Aset website:</b> isi hingga 11 halaman website brand, gambar yang pengguna pilih untuk diimpor ke Aset, serta post publik akun bisnis atau kreator Instagram lain yang dipilih sebagai referensi desain, beserta nama akun dan tautannya. Nama, bio, dan jumlah pengikut akun lain itu hanya ditampilkan saat dicari dan tidak disimpan.",
+            "<b>Percakapan dengan Mimo:</b> pesan Anda dan jawaban asisten AI Mimo, serta gambar yang Anda lampirkan. Isi file PDF hanya dibaca saat itu dan tidak disimpan; di riwayat hanya tertulis nama filenya.",
+            "<b>Riwayat permintaan AI:</b> isi yang dikirim ke AI dan hasilnya, model, status, durasi, dan kredit yang terpakai. Disimpan untuk menghitung kuota dan menelusuri masalah.",
+            "<b>Pembayaran:</b> nama dan nomor WhatsApp pemesan, nominal, status, tautan pembayaran Mayar, kupon yang dipakai, dan periode langganan.",
+            "<b>Cookie:</b> cookie sesi login agar Anda tetap masuk dan cookie preferensi `locale` untuk menyimpan bahasa pilihan Anda (ID/EN). {app} tidak memakai cookie iklan, pelacak, atau analitik pihak ketiga."
+          ]
+        ]
+      },
+      {
+        "title": "Untuk apa data dipakai",
+        "blocks": [
+          "Data hanya dipakai untuk menjalankan fitur bagi pengguna pemiliknya: membuat draf konten, menerbitkan post terjadwal, menampilkan dan membalas DM dan komentar, memberi tahu pemilik ada pesan atau komentar baru, menampilkan performa post, memproses pembayaran, dan memberi dukungan pelanggan.",
+          "Data satu pengguna tidak bisa dilihat pengguna lain. Setiap DM dan balasan komentar dikirim oleh pemilik akun sendiri. {app} tidak mengirim pesan massal atau pesan yang tidak diminta."
+        ]
+      },
+      {
+        "title": "Dengan siapa data dibagikan",
+        "blocks": [
+          [
+            "<b>Meta (Instagram dan Threads):</b> untuk menerbitkan post, mengambil profil dan statistik post, membaca komentar, mengirim balasan DM dan komentar, serta menyembunyikan atau menghapus komentar atas perintah pemilik akun.",
+            "<b>Mayar:</b> nama, email, nomor WhatsApp, dan nominal tagihan, untuk memproses pembayaran langganan. Data kartu atau rekening Anda diproses Mayar dan tidak pernah sampai ke {app}.",
+            "<b>Penyedia AI melalui 9Router:</b> topik, caption, informasi brand, isi website brand, username, nama, bio, dan caption Instagram pengguna, gambar referensi, pesan Mimo beserta lampirannya, serta gambar produk atau website yang dipilih untuk katalog atau konten dikirim untuk membuat draf. Isi DM dan komentar (hingga 10 pesan terakhir, beserta caption post untuk komentar) dikirim hanya saat pemilik akun menekan tombol AI untuk membuat draf balasan, tanpa ID atau foto profil pengirim.",
+            "<b>Apify:</b> username atau kata kunci yang Anda cari di fitur riset kompetitor Mimo, untuk membaca profil Instagram publik yang cocok.",
+            "<b>Supabase:</b> penyedia database, login, dan penyimpanan file tempat seluruh data {app} disimpan."
+          ],
+          "Data tidak dijual dan tidak dipakai untuk iklan."
+        ]
+      },
+      {
+        "title": "Penyimpanan dan keamanan",
+        "blocks": [
+          "Dashboard hanya bisa dibuka setelah login, setiap permintaan hanya membaca data milik pengguna yang login, database tidak bisa diakses publik, dan file hanya dibuka lewat tautan bertanda tangan yang kedaluwarsa dalam 1 jam.",
+          "Admin {app} bisa melihat email pengguna, tanggal daftar dan login terakhir, username Instagram yang terhubung, status langganan, riwayat pembayaran, serta jumlah dan status permintaan AI (tanpa isinya), untuk dukungan pelanggan dan penagihan. Admin bisa mengatur ulang password, menangguhkan, atau menghapus akun, dan setiap tindakan itu dicatat."
+        ]
+      },
+      {
+        "title": "Berapa lama data disimpan",
+        "blocks": [
+          [
+            "Token akses dihapus saat Anda memutus koneksi di Pengaturan, juga saat langganan tidak aktif.",
+            "Data lain disimpan selama akun Anda aktif.",
+            "Saat Anda menghapus akun, akun ditutup dan datanya diarsipkan: tidak lagi bisa dibuka dari aplikasi dan tidak dipakai untuk fitur apa pun. Arsip dihapus permanen atas permintaan Anda. Rinciannya ada di <deletion>Penghapusan Data</deletion>.",
+            "Catatan transaksi disimpan selama 10 tahun sesuai kewajiban perpajakan. Catatan tindakan admin, termasuk email akun yang terkena tindakan itu, disimpan sebagai jejak audit."
+          ]
+        ]
+      },
+      {
+        "title": "Hak Anda",
+        "blocks": [
+          "Sesuai Undang-Undang Nomor 27 Tahun 2022 tentang Pelindungan Data Pribadi, Anda berhak meminta salinan data Anda, memperbaiki data yang keliru, menarik persetujuan, dan meminta data Anda dihapus. Kirim permintaan ke <mail>{email}</mail> dari alamat email akun Anda. Kami membalas dalam 3×24 jam dan menyelesaikannya paling lambat 30 hari."
+        ]
+      },
+      {
+        "id": "ketentuan",
+        "title": "Ketentuan layanan",
+        "blocks": [
+          "Ketentuan pemakaian, harga, dan langganan ada di <terms>Syarat & Ketentuan</terms>. Syarat pengembalian dana ada di <refund>Kebijakan Refund</refund>."
+        ]
+      },
+      {
+        "id": "hapus-data",
+        "title": "Penghapusan data",
+        "blocks": [
+          "Akun bisa dihapus kapan saja dari <settings>Pengaturan</settings>, dan data juga bisa diminta dihapus permanen lewat email. Pengirim DM dan komentar juga bisa meminta datanya dihapus. Semua caranya ada di halaman <deletion>Penghapusan Data</deletion>."
+        ]
+      },
+      {
+        "title": "Perubahan kebijakan",
+        "blocks": [
+          "Perubahan diumumkan dengan memperbarui halaman ini dan tanggal di atas. Untuk perubahan penting, kami juga memberi tahu lewat email atau dashboard."
+        ]
+      },
+      {
+        "title": "Kontak",
+        "blocks": [
+          { "contact": true }
+        ]
+      }
+    ]
+  },
+  "terms": {
+    "title": "Syarat & Ketentuan",
+    "intro": [
+      "Selamat datang di {app}. Dengan membuat akun atau memakai layanan {app} (“Layanan”), Anda menyetujui Syarat & Ketentuan ini (“Syarat”). Pemakaian Layanan juga tunduk pada <privacy>Kebijakan Privasi</privacy> dan <refund>Kebijakan Refund</refund>. Bacalah ketiganya sebelum memakai Layanan."
+    ],
+    "sections": [
+      {
+        "title": "Tentang Layanan",
+        "blocks": [
+          "{app} membantu pelaku usaha dan kreator membuat dan mengelola konten media sosial dengan bantuan AI. Fitur saat ini meliputi:",
+          [
+            "Pembuat konten carousel, caption, dan gambar dengan AI, sesuai brand kit Anda.",
+            "Penjadwal yang menerbitkan post ke akun Instagram (feed dan Story) dan Threads yang Anda hubungkan.",
+            "Kotak masuk untuk membaca dan membalas DM serta komentar.",
+            "Analitik untuk metrik post yang tersedia lewat API resmi platform.",
+            "Mimo, asisten AI untuk ide, riset, dan perencanaan konten."
+          ],
+          "Kami dapat menambah, mengubah, atau menghapus fitur. Perubahan penting kami umumkan lebih dulu.",
+          "{app} adalah alat. Kami <b>tidak menjamin</b> jangkauan, engagement, jumlah pengikut, penjualan, atau hasil bisnis tertentu. Performa konten di platform sosial ditentukan oleh algoritma platform, kualitas konten, dan faktor lain di luar kendali kami."
+        ]
+      },
+      {
+        "title": "Akun pengguna",
+        "blocks": [
+          [
+            "Anda harus berusia minimal 18 tahun atau sudah cakap hukum.",
+            "Anda bertanggung jawab menjaga kerahasiaan login dan atas semua aktivitas di akun Anda. Beri tahu kami segera jika Anda mencurigai akses tanpa izin.",
+            "Berikan informasi yang benar saat mendaftar dan saat membayar.",
+            "Hubungkan hanya akun Instagram dan Threads milik Anda sendiri atau yang berhak Anda kelola. Anda bertanggung jawab atas konten serta balasan yang diterbitkan.",
+            "Satu akun {app} untuk satu orang atau satu usaha. Jangan berbagi login dengan pihak lain."
+          ]
+        ]
+      },
+      {
+        "title": "Konten Anda dan hasil AI",
+        "blocks": [
+          [
+            "<b>Kepemilikan:</b> konten yang Anda unggah atau buat dengan {app} tetap milik Anda (“Konten Anda”).",
+            "<b>Izin terbatas untuk {app}:</b> Anda mengizinkan kami menyimpan, memproses, dan mengirim Konten Anda sebatas yang diperlukan untuk menjalankan Layanan, termasuk meneruskannya ke platform sosial atas perintah Anda dan ke penyedia AI untuk membuat draf.",
+            "<b>Hasil AI:</b> Anda boleh memakai hasil AI untuk keperluan komersial setelah Anda memeriksa, menyunting, dan menyetujuinya. Anda bertanggung jawab atas isi yang Anda terbitkan, termasuk klaim produk, aturan iklan sektoral (misalnya BPOM untuk kosmetik, makanan, dan obat, atau OJK untuk produk keuangan), dan hak kekayaan intelektual atas merek, logo, dan gambar pihak lain."
+          ],
+          "Kami tidak menjamin hasil AI selalu akurat, orisinal, atau bebas pelanggaran hak pihak lain. Selalu periksa sebelum menerbitkan."
+        ]
+      },
+      {
+        "title": "Pemakaian yang dilarang",
+        "blocks": [
+          "Anda tidak boleh memakai {app} untuk:",
+          [
+            "Melanggar hukum Indonesia atau hukum yang berlaku bagi Anda.",
+            "Membuat atau menyebarkan konten yang mendorong kekerasan, ujaran kebencian, pelecehan, atau diskriminasi.",
+            "Menyebarkan hoaks, penipuan, atau skema investasi bodong.",
+            "Melanggar hak kekayaan intelektual, privasi, atau hak publisitas pihak lain.",
+            "Melanggar Ketentuan Platform Meta, Ketentuan Penggunaan Instagram dan Threads, atau Pedoman Komunitas Instagram. Spam, pesan massal, dan pesan yang tidak diminta dilarang.",
+            "Mengakali kuota atau kredit, menyalahgunakan Layanan secara otomatis, atau mengganggu keamanan Layanan."
+          ],
+          "Pelanggaran dapat membuat akun ditangguhkan atau ditutup dan, untuk pelanggaran serius, dilaporkan ke pihak berwenang."
+        ]
+      },
+      {
+        "id": "langganan",
+        "title": "Langganan, kredit, dan pembayaran",
+        "blocks": [
+          "Akun baru bisa mencoba {app} gratis dengan kredit uji coba sekali pakai dan beberapa pesan Mimo, tanpa kartu. Setelah itu, fitur berbayar memakai langganan dengan ketentuan berikut:",
+          { "plans": true },
+          [
+            "Langganan bisa dibayar di muka untuk beberapa bulan sekaligus dengan potongan harga yang tertera saat checkout.",
+            "Pembayaran dalam Rupiah melalui Mayar. Akses aktif setelah pembayaran terkonfirmasi dan berlaku sampai akhir periode yang dibayar.",
+            "Harga dapat berubah. Perubahan tidak memengaruhi periode yang sudah dibayar, karena ketentuan pembelian disimpan saat checkout.",
+            "Pengembalian dana diatur dalam <refund>Kebijakan Refund</refund>, yang menjadi bagian dari Syarat ini."
+          ]
+        ]
+      },
+      {
+        "title": "Penghentian",
+        "blocks": [
+          [
+            "<b>Oleh Anda:</b> Anda dapat menghapus akun kapan saja dari <settings>Pengaturan</settings>. Akun ditutup dan datanya diarsipkan sesuai <deletion>Penghapusan Data</deletion>. Langganan yang masih berjalan ikut berakhir.",
+            "<b>Oleh kami:</b> kami dapat menangguhkan atau menutup akun yang melanggar Syarat ini, membahayakan Layanan atau pengguna lain, atau atas perintah otoritas yang sah. Untuk pelanggaran ringan, kami memberi tahu dan memberi kesempatan memperbaiki lebih dulu."
+          ]
+        ]
+      },
+      {
+        "title": "Penafian",
+        "blocks": [
+          "Layanan disediakan “sebagaimana adanya” dan “sebagaimana tersedia”. Layanan bergantung pada API pihak ketiga seperti Meta, sehingga kami tidak menjamin Layanan selalu tersedia tanpa gangguan atau bebas dari kesalahan.",
+          "Penafian ini tidak mengurangi hak konsumen yang dilindungi Undang-Undang Nomor 8 Tahun 1999 tentang Perlindungan Konsumen dan Undang-Undang Nomor 27 Tahun 2022 tentang Pelindungan Data Pribadi."
+        ]
+      },
+      {
+        "title": "Batasan tanggung jawab",
+        "blocks": [
+          "Sejauh diizinkan hukum, total tanggung jawab {app} atas klaim apa pun terkait Layanan dibatasi sebesar total biaya yang Anda bayarkan kepada kami dalam 12 bulan sebelum klaim. {app} tidak bertanggung jawab atas kerugian tidak langsung, seperti kehilangan keuntungan atau peluang bisnis.",
+          "Batasan ini tidak berlaku untuk kerugian akibat kelalaian berat atau kesengajaan {app}, atau pelanggaran kewajiban pelindungan data pribadi."
+        ]
+      },
+      {
+        "title": "Hukum yang berlaku dan sengketa",
+        "blocks": [
+          "Syarat ini tunduk pada hukum Republik Indonesia. Sengketa diselesaikan lebih dulu secara musyawarah dalam 30 hari sejak pemberitahuan tertulis. Jika musyawarah gagal, sengketa diselesaikan di Pengadilan Negeri Jakarta Selatan."
+        ]
+      },
+      {
+        "title": "Perubahan Syarat",
+        "blocks": [
+          "Kami dapat mengubah Syarat ini. Untuk perubahan penting, kami memberi tahu lewat email atau dashboard paling lambat 14 hari sebelum berlaku. Jika Anda tidak setuju, Anda dapat berhenti memakai Layanan dan menghapus akun."
+        ]
+      },
+      {
+        "title": "Kontak",
+        "blocks": [
+          { "contact": true }
+        ]
+      }
+    ]
+  },
+  "refund": {
+    "title": "Kebijakan Refund",
+    "intro": [
+      "Kebijakan ini berlaku untuk semua pembayaran langganan {app} (paket Pro dan Max, satu bulan maupun bayar di muka untuk beberapa bulan) dan merupakan bagian dari <terms>Syarat & Ketentuan</terms>."
+    ],
+    "sections": [
+      {
+        "title": "Coba gratis dulu",
+        "blocks": [
+          "Setiap akun baru mendapat kredit uji coba gratis tanpa kartu, cukup untuk membuat konten pertama dan mencoba Mimo. Kami sarankan memakainya sebelum membayar, agar Anda tahu {app} cocok untuk usaha Anda."
+        ]
+      },
+      {
+        "title": "Garansi pembelian pertama: 7 hari",
+        "blocks": [
+          "Jika {app} ternyata tidak cocok, ajukan refund dalam 7 hari sejak pembayaran pertama Anda. Kami kembalikan seluruh jumlah yang dibayar, selama dalam periode itu:",
+          [
+            "kredit AI yang terpakai tidak lebih dari 10% kuota bulan pertama, dan",
+            "belum ada post yang diterbitkan atau dijadwalkan lewat {app}."
+          ],
+          "Lebih dari itu, bulan yang sedang berjalan dianggap sudah terpakai. Garansi ini berlaku sekali untuk setiap pengguna. Setelah dana kembali, akses berbayar berakhir."
+        ]
+      },
+      {
+        "title": "Paket 3, 6, atau 12 bulan",
+        "blocks": [
+          "Bulan-bulan penuh yang belum terpakai dikembalikan prorata, dihitung dari tanggal permintaan kami terima. Bulan yang sedang berjalan tidak dikembalikan.",
+          "Nilainya dihitung dari harga per bulan yang benar-benar Anda bayar, yaitu total pembayaran setelah diskon durasi dan kupon dibagi jumlah bulan."
+        ]
+      },
+      {
+        "title": "Tidak ada penagihan otomatis",
+        "blocks": [
+          "{app} tidak pernah menagih otomatis. Setiap periode baru hanya dimulai jika Anda membayarnya sendiri, jadi tidak ada perpanjangan yang tertagih tanpa sepengetahuan Anda."
+        ]
+      },
+      {
+        "title": "Kesalahan pembayaran dan gangguan layanan",
+        "blocks": [
+          [
+            "<b>Tertagih dua kali</b> untuk pesanan yang sama: kelebihannya kami kembalikan seluruhnya.",
+            "<b>Sudah membayar tetapi paket tidak aktif</b> karena kesalahan sistem kami: paket kami aktifkan, atau dana kami kembalikan seluruhnya jika Anda memilih itu.",
+            "<b>Layanan tidak bisa dipakai</b> karena kesalahan dari pihak {app} selama lebih dari 3 hari berturut-turut: hari yang hilang kami ganti dengan perpanjangan masa aktif, atau kami kembalikan prorata.",
+            "<b>Pembayaran yang masuk setelah akun dihapus</b>, misalnya dari tautan pembayaran lama: kami kembalikan seluruhnya."
+          ]
+        ]
+      },
+      {
+        "title": "Cara mengajukan",
+        "blocks": [
+          "Kirim email ke <refundMail>{email}</refundMail> dari alamat email akun Anda dengan subjek “Permintaan Refund”. Sertakan nomor pembayaran dari bukti pembayaran Mayar dan alasan singkat. Kami jawab paling lambat 2 hari kerja.",
+          "Jika akun sudah Anda hapus, kirim dari alamat email yang sama dengan akun tersebut. Data pembayarannya masih tersimpan di arsip."
+        ]
+      },
+      {
+        "title": "Proses dan waktu",
+        "blocks": [
+          "Dana dikembalikan melalui Mayar ke metode pembayaran semula paling lambat 7 hari kerja setelah disetujui. Bank atau penerbit e-wallet mungkin perlu beberapa hari lagi untuk menampilkannya. Jika metode semula tidak mendukung pengembalian, dana ditransfer ke rekening bank atas nama pemesan.",
+          "Setelah refund disetujui, akses berbayar untuk periode yang dikembalikan berakhir, beserta kredit AI periode tersebut."
+        ]
+      },
+      {
+        "title": "Yang tidak dikembalikan",
+        "blocks": [
+          [
+            "Bulan yang sedang berjalan, di luar garansi pembelian pertama.",
+            "Kredit AI yang sudah terpakai.",
+            "Periode gratis atau tambahan kredit yang diberikan tanpa pembayaran, termasuk lewat kupon 100%.",
+            "Akun yang ditangguhkan atau ditutup karena melanggar <terms>Syarat & Ketentuan</terms>."
+          ]
+        ]
+      },
+      {
+        "title": "Kontak",
+        "blocks": [
+          { "contact": true }
+        ]
+      }
+    ]
+  },
+  "deletion": {
+    "title": "Penghapusan Data",
+    "intro": [
+      "Anda berhak meminta penghapusan data pribadi Anda dari {app} kapan saja, sesuai Undang-Undang Nomor 27 Tahun 2022 tentang Pelindungan Data Pribadi. Halaman ini menjelaskan apa yang terjadi saat Anda menghapus akun dan cara meminta data dihapus permanen."
+    ],
+    "sections": [
+      {
+        "id": "dasbor",
+        "title": "Hapus akun dari dashboard",
+        "blocks": [
+          { "ol": [
+            "Masuk ke akun {app} Anda.",
+            "Buka <settings>Pengaturan</settings>, lalu gulir ke bagian <b>Hapus akun</b> di paling bawah.",
+            "Klik <b>Hapus akun</b>, ketik alamat email akun Anda, lalu konfirmasi."
+          ] },
+          "Akun langsung ditutup dan Anda dikeluarkan dari semua sesi. Saat itu juga:",
+          [
+            "Koneksi Instagram, Facebook, dan Threads diputus dan token aksesnya dihapus.",
+            "Post terjadwal kembali menjadi draf dan tidak akan diterbitkan. Pembuatan konten AI yang masih berjalan dihentikan.",
+            "Tagihan yang belum dibayar ditutup. Langganan yang masih berjalan ikut berakhir.",
+            "Email dan login Google Anda dilepas dari akun lama. Jika nanti Anda masuk lagi dengan email atau akun Google yang sama, Anda mendapat akun baru yang kosong. Isi akun lama tidak ikut kembali."
+          ]
+        ]
+      },
+      {
+        "id": "arsip",
+        "title": "Data yang diarsipkan",
+        "blocks": [
+          "Menghapus akun dari dashboard <b>tidak langsung menghapus</b> isi akun. Data berikut disimpan sebagai arsip:",
+          [
+            "Brand kit, referensi desain, dan aset beserta filenya.",
+            "Post, draf, ide konten, dan riwayat penerbitan.",
+            "DM, komentar, dan balasan yang tersimpan.",
+            "Percakapan dengan Mimo dan riwayat permintaan AI.",
+            "Riwayat pembayaran dan catatan akun (email, username Instagram dan Threads, tanggal penghapusan)."
+          ],
+          "Arsip tidak bisa dibuka dari aplikasi, tidak dipakai untuk fitur apa pun, dan tidak dikirim ke penyedia AI. Arsip hanya dipakai untuk memproses refund, menjawab sengketa pembayaran, memenuhi kewajiban hukum, atau menjalankan permintaan Anda. Jika Anda ingin arsip juga dihapus, ajukan penghapusan permanen."
+        ]
+      },
+      {
+        "id": "permanen",
+        "title": "Minta penghapusan permanen",
+        "blocks": [
+          "Kirim email ke <deleteMail>{email}</deleteMail> dari alamat email akun Anda, sebelum atau sesudah akun dihapus, dengan subjek “Permintaan Penghapusan Data”. Sertakan:",
+          [
+            "alamat email akun, dan",
+            "username Instagram yang pernah terhubung (opsional, mempercepat verifikasi)."
+          ],
+          "Kami mengonfirmasi penerimaan permintaan dalam 3×24 jam dan menyelesaikan penghapusan paling lambat 30 hari. Akun, isi akun, dan seluruh filenya dihapus permanen, kecuali data pada bagian “Yang tetap disimpan” di bawah. Setelah selesai, Anda mendapat konfirmasi lewat email."
+        ]
+      },
+      {
+        "id": "pengirim",
+        "title": "Pengirim DM dan komentar",
+        "blocks": [
+          "Kalau Anda pernah mengirim DM atau berkomentar di akun yang dikelola dengan {app} dan ingin datanya dihapus, kirim email ke <deleteMail>{email}</deleteMail> dengan subjek “Permintaan Penghapusan Data” dan sertakan username Instagram atau Threads Anda. Percakapan, pesan, dan komentar Anda dihapus paling lambat 30 hari setelah email diterima. Anda juga bisa meminta salinan data Anda lewat email yang sama."
+        ]
+      },
+      {
+        "id": "disimpan",
+        "title": "Yang tetap disimpan",
+        "blocks": [
+          "Setelah penghapusan permanen, sebagian data tetap kami simpan karena kewajiban hukum atau keperluan yang sah:",
+          [
+            "<b>Catatan transaksi:</b> nominal, tanggal, dan identitas pembayar disimpan 10 tahun sesuai kewajiban perpajakan.",
+            "<b>Catatan tindakan admin:</b> termasuk email akun yang terkena tindakan, sebagai jejak audit.",
+            "<b>Catatan permintaan penghapusan:</b> email, tanggal permintaan, dan tanggal selesai, untuk membuktikan permintaan sudah dijalankan.",
+            "<b>Salinan cadangan:</b> cadangan database terenkripsi di penyedia infrastruktur kami (Supabase) terhapus sendiri mengikuti siklus pencadangannya, paling lama 30 hari."
+          ]
+        ]
+      },
+      {
+        "id": "cabut-akses",
+        "title": "Mencabut akses tanpa menghapus akun",
+        "blocks": [
+          "Anda bisa mencabut akses {app} ke akun sosial Anda tanpa menghapus akun {app}: putuskan koneksi di <settings>Pengaturan</settings>, lalu hapus {app} di Instagram (Pengaturan dan aktivitas → Izin situs web → Aplikasi dan situs web). Data akun tetap ada dan kembali terlihat jika akun yang sama dihubungkan lagi."
+        ]
+      },
+      {
+        "title": "Pertanyaan?",
+        "blocks": [
+          "Hubungi kami di <mail>{email}</mail> atau <phoneLink>{phone}</phoneLink> jika Anda punya pertanyaan atau butuh bantuan dengan permintaan penghapusan.",
+          { "contact": true }
+        ]
+      }
+    ]
   }
 }

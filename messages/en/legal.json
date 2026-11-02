@@ -1,49 +1,392 @@
 {
-  "privacy": {
-    "paragraph1": "Privacy Policy for {app}",
-    "paragraph2": "Effective from {date}.",
-    "paragraph3": "{app} is a service for Instagram Business or Creator account owners to schedule content, reply to direct messages (DMs) and comments, and draft content with AI assistance through Meta’s official API. Each user signs up with an email and password, then connects one Instagram account they own. The service is operated by {app}, which can be contacted at <emailLink>{email}</emailLink>.",
-    "paragraph4": "Data we process",
-    "paragraph5": "<strong>User account:</strong> email address and password. The login system stores passwords as hashes, never in their original form.",
-    "paragraph6": "<strong>Your Instagram account:</strong> account ID, username, account type, approved permissions, token expiry, and access token. Tokens are stored encrypted (AES-256-GCM).",
-    "paragraph7": "<strong>Instagram profile on first connection:</strong> to populate your brand kit, {app} reads the connected account’s name, bio, profile photo, and captions from up to 12 recent posts. The profile photo is saved as your brand logo, and images from the 3 most recent posts are copied as design references. You can change or delete all of these on the Brand page.",
-    "paragraph8": "<strong>User content:</strong> photos, captions, post schedules, content ideas, and IDs and links for published posts, along with records of publishing failures.",
-    "paragraph9": "<strong>Post statistics:</strong> for the Analytics page, {app} reads posts from the connected account from the last 90 days (ID, type, caption, link, thumbnail, and publication time) along with their insights: views, reach, likes, comments, shares, saves, and total interactions. Only the latest figures are stored; posts deleted from Instagram are removed on the next sync.",
-    "paragraph10": "<strong>Direct messages:</strong> if you send a DM to an Instagram account connected to {app}, Meta forwards your Instagram ID scoped to that account, username, name, profile photo link, message ID, text content, and timestamp to this service. Profile photo links are refreshed no more than once every 3 days and are used only to display inbox avatars. Attachments such as photos and videos are not stored. The account owner’s messages in the conversation, whether sent through {app} or directly through Instagram, are also stored so the conversation can be read in full, along with when the owner last opened it. DMs are not stored while the account owner’s subscription is inactive.",
-    "paragraph11": "<strong>Post comments:</strong> if you comment on a post from an account connected to {app}, the service stores the comment ID, post ID, your Instagram ID and username, comment text, timestamp, the comment it replies to, and whether it is hidden. Comments are received from Meta when posted and fetched again from posts from the last 30 days when the owner opens the Replies page, so the owner can read, reply (in comments or once via DM), hide, or delete them. Comments deleted from Instagram are removed on the next fetch.",
-    "paragraph12": "<strong>Brand references and website Assets:</strong> content from up to 11 pages of the brand’s website, images the user selects to import into Assets, and public posts from other Instagram business or creator accounts selected as design references, along with their account names and links. Those other accounts’ names, bios, and follower counts are displayed only during search and are not stored.",
-    "paragraph13": "<strong>AI request history:</strong> content sent to AI and its results, model, status, duration, and credits used. This is stored to calculate usage and troubleshoot issues.",
-    "paragraph14": "<strong>Payments:</strong> amount, status, Mayar payment link, and subscription period.",
-    "paragraph15": "<strong>Cookies:</strong> login session cookies to keep you signed in and a `locale` preference cookie to remember your chosen language (ID/EN). {app} does not use advertising, tracking, or third-party analytics cookies.",
-    "paragraph16": "How we use data",
-    "paragraph17": "Data is used only to provide features to the user who owns it: publishing scheduled posts, displaying and replying to DMs and comments, notifying the owner of new messages or comments, showing post performance, and drafting captions and images. One user’s data cannot be viewed by another user. Every DM and comment reply is sent by the account owner themselves. {app} does not send bulk or unsolicited messages.",
-    "paragraph18": "Who we share data with",
-    "paragraph19": "<strong>Meta (Instagram):</strong> to publish posts, retrieve profiles and post statistics, read comments, send DM and comment replies, and hide or delete comments at the account owner’s request.",
-    "paragraph20": "<strong>Mayar:</strong> your email and invoice amount, to process subscription payments. Mayar processes your card or bank account details; these never reach {app}.",
-    "paragraph21": "<strong>AI providers through 9Router:</strong> topics, captions, brand information, brand website content, the user’s Instagram username, name, bio and captions, reference images, and product or website images selected for the catalog or content are sent to generate drafts. DM and comment content (up to the last 10 messages, plus the post caption for comments) is sent only when the account owner presses the AI button to draft a reply, without the sender’s ID or profile photo.",
-    "paragraph22": "Data is not sold or used for advertising.",
-    "paragraph23": "Storage and security",
-    "paragraph24": "Data is stored in Supabase databases and file storage managed by {app}. The dashboard requires login, every request reads only the signed-in user’s data, the database is not publicly accessible, and files are accessed only through signed links that expire after 1 hour.",
-    "paragraph25": "{app} admins can view users’ emails, sign-up and last-login dates, connected Instagram usernames, subscription status, payment history, and AI request counts and statuses (but not their content) for customer support and billing. Admins can reset passwords, suspend accounts, or delete accounts, and each action is logged.",
-    "paragraph26": "How long we keep data",
-    "paragraph27": "Access tokens are deleted when the user disconnects their account. You can still disconnect from the Settings page while your subscription is inactive. Other data is kept for as long as the user account exists or until deleted on request (see <deletionLink>Data Deletion</deletionLink>). Admin action records, including the affected account’s email, are retained after account deletion as an audit trail.",
-    "paragraph28": "Users may connect only Instagram accounts they own or are authorized to manage, and are responsible for the content and replies they publish.",
-    "paragraph29": "Use is subject to the Meta Platform Terms, Instagram Terms of Use, and Instagram Community Guidelines. Spam, bulk messages, and unsolicited messages are prohibited.",
-    "paragraph30": "Prices, active periods, and allowances follow the plan selected in the payment summary.",
-    "paragraph31": "Payments received are non-refundable unless the service is unusable due to a fault on {app}’s part.",
-    "paragraph32": "The service is provided as is, without any warranties.",
-    "paragraph33": "Changes to this policy and these terms are announced by updating this page and its effective date.",
-    "paragraph34": "<strong>{app} users</strong> who wish to delete their account and all its data (connections, posts, photos, DMs, comments, brand kit, AI history, and payment history):",
-    "paragraph35": "Email <deleteLink>{email}</deleteLink> with the subject “Hapus data” from your account’s email address.",
-    "paragraph36": "Your account and data will be deleted within 30 days of receiving the email, and you will receive confirmation.",
-    "paragraph37": "You can also revoke app access anytime: disconnect in Settings (or Subscription while your subscription is inactive), then remove {app} in Instagram (Settings and activity → Website permissions → Apps and websites).",
-    "paragraph38": "<strong>DM senders and commenters:</strong> if you have sent a DM or commented on an account managed with {app} and want your data deleted, email the same address with the subject “Hapus data” and include your Instagram username. Your conversations, messages, and comments will be deleted within 30 days of receiving the email. You can also request a copy of your data at the same email address.",
-    "title": "Privacy Policy",
+  "layout": {
+    "updated": "Last updated: {date}",
+    "date": "1 November 2026",
     "contents": "On this page",
-    "terms": "Terms of Service",
-    "deletion": "Data Deletion",
-    "date": "October 19, 2026",
-    "planPrice": "{name} plan: {price} per month before duration discounts, paid in advance through Mayar. There is no automatic renewal: access stops at the end of the period until renewed, and scheduled posts are not published while the subscription is inactive.",
-    "planCredits": "The {name} plan includes {credits} AI credits per month, including for multi-month purchases. Unused credits do not roll over to the next month. Purchase terms are saved at checkout."
+    "planPrice": "{name} plan: {price} per month before the duration discount, paid in advance through Mayar. There is no automatic renewal: access stops at the end of the period until you renew, and scheduled posts are not published while the subscription is inactive.",
+    "planCredits": "The {name} plan includes {credits} AI credits per month, also when you buy several months at once. Unused credits do not carry over to the next month. The purchase terms are saved at checkout.",
+    "planFallback": "Price, active period and credits follow the plan chosen in the payment summary."
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "intro": [
+      "{app} is a service for owners of Instagram Business or Creator accounts: creating content with AI assistance, scheduling and publishing posts to Instagram and Threads, and replying to DMs and comments, through Meta’s official API. Users sign up with an email and password or with a Google account, then connect one Instagram account they own.",
+      "This policy explains what data we process, what for, who we share it with, and how you control it. It is part of the <terms>Terms & Conditions</terms>. Questions can be sent to <mail>{email}</mail>."
+    ],
+    "sections": [
+      {
+        "id": "data",
+        "title": "Data we process",
+        "blocks": [
+          [
+            "<b>User account:</b> email address and password. The password is stored as a hash by the sign-in system, never in its original form. If you sign in with Google, we receive your Google account’s name and email address.",
+            "<b>Instagram and Threads accounts:</b> account ID, username, account type, granted permissions, token expiry and access token. Tokens are stored encrypted (AES-256-GCM).",
+            "<b>Instagram profile on first connection:</b> to fill in the brand kit, {app} reads the name, bio, profile picture and the captions of up to 12 recent posts of the connected account. The profile picture is saved as the brand logo and the images of the 3 most recent posts are copied as design references. All of it can be changed or deleted on the Brand page.",
+            "<b>User content:</b> photos, captions, slides and post schedules, content ideas, uploaded assets, and the IDs and links of published posts, along with records of failed publishing.",
+            "<b>Post statistics:</b> for the Analytics page, {app} reads the connected account’s posts from the last 90 days (ID, type, caption, link, thumbnail, publish time) with their insights: views, reach, likes, comments, shares, saves and total interactions. Only the latest numbers are kept; posts deleted from Instagram or Threads are removed at the next sync.",
+            "<b>Direct messages:</b> if you send a DM to an Instagram account connected to {app}, Meta forwards to this service your Instagram ID specific to that account, your username, name and profile picture link, the message ID, the text of the message and its time. The profile picture link is refreshed at most every 3 days and is only used to show an avatar in the inbox. Attachments such as photos and videos are not stored. The account owner’s messages in that conversation, whether sent through {app} or directly from the Instagram app, are stored too so the conversation can be read in full, along with when the owner last opened it. DMs are not stored while the account owner’s subscription is inactive.",
+            "<b>Comments and replies:</b> if you comment on an Instagram post or reply to a Threads post of an account connected to {app}, this service stores the comment ID, post ID, your ID and username, the comment text, its time, the comment it replies to, and whether it is hidden. Comments are received from Meta when written and pulled again from posts of the last 30 days when the owner opens the Replies page, so the owner can read, reply to, hide or delete them. Comments deleted on the platform are removed at the next pull.",
+            "<b>Brand references and website Assets:</b> the content of up to 11 pages of the brand’s website, images the user chooses to import into Assets, and public posts of other Instagram business or creator accounts chosen as design references, with the account name and link. The name, bio and follower count of those other accounts are only shown while searching and are not stored.",
+            "<b>Conversations with Mimo:</b> your messages and the answers of the AI assistant Mimo, and images you attach. The content of PDF files is only read at that moment and not stored; the history shows only the file name.",
+            "<b>AI request history:</b> what was sent to the AI and the result, the model, status, duration and credits used. Kept to count quotas and trace problems.",
+            "<b>Payments:</b> the buyer’s name and WhatsApp number, amount, status, Mayar payment link, coupon used, and subscription period.",
+            "<b>Cookies:</b> a sign-in session cookie so you stay signed in and a `locale` preference cookie to remember your chosen language (ID/EN). {app} does not use third-party advertising, tracking or analytics cookies."
+          ]
+        ]
+      },
+      {
+        "title": "What the data is used for",
+        "blocks": [
+          "Data is only used to run features for the user who owns it: drafting content, publishing scheduled posts, showing and replying to DMs and comments, notifying the owner of new messages or comments, showing post performance, processing payments, and customer support.",
+          "One user’s data cannot be seen by other users. Every DM and comment reply is sent by the account owner. {app} does not send bulk or unsolicited messages."
+        ]
+      },
+      {
+        "title": "Who the data is shared with",
+        "blocks": [
+          [
+            "<b>Meta (Instagram and Threads):</b> to publish posts, fetch profiles and post statistics, read comments, send DM and comment replies, and hide or delete comments on the account owner’s instruction.",
+            "<b>Mayar:</b> name, email, WhatsApp number and invoice amount, to process subscription payments. Your card or bank details are processed by Mayar and never reach {app}.",
+            "<b>AI providers through 9Router:</b> topics, captions, brand information, brand website content, the user’s Instagram username, name, bio and captions, reference images, Mimo messages and their attachments, and product or website images chosen for the catalog or content are sent to create drafts. The text of DMs and comments (up to the last 10 messages, plus the post caption for comments) is sent only when the account owner presses an AI button to draft a reply, without the sender’s ID or profile picture.",
+            "<b>Apify:</b> the usernames or keywords you search for in Mimo’s competitor research, to read matching public Instagram profiles.",
+            "<b>Supabase:</b> the database, sign-in and file storage provider where all {app} data is stored."
+          ],
+          "Data is not sold and is not used for advertising."
+        ]
+      },
+      {
+        "title": "Storage and security",
+        "blocks": [
+          "The dashboard can only be opened after signing in, every request only reads data belonging to the signed-in user, the database is not publicly accessible, and files are only opened through signed links that expire within 1 hour.",
+          "{app} admins can see users’ email, sign-up and last sign-in dates, the connected Instagram username, subscription status, payment history, and the number and status of AI requests (without their content), for customer support and billing. Admins can reset passwords, suspend or delete accounts, and every such action is logged."
+        ]
+      },
+      {
+        "title": "How long data is kept",
+        "blocks": [
+          [
+            "Access tokens are deleted when you disconnect in Settings, and also when the subscription is inactive.",
+            "Other data is kept while your account is active.",
+            "When you delete your account, the account is closed and its data archived: it can no longer be opened from the app and is not used for any feature. The archive is deleted permanently at your request. Details are in <deletion>Data Deletion</deletion>.",
+            "Transaction records are kept for 10 years as required by tax law. Records of admin actions, including the email of the affected account, are kept as an audit trail."
+          ]
+        ]
+      },
+      {
+        "title": "Your rights",
+        "blocks": [
+          "Under Law Number 27 of 2022 on Personal Data Protection, you have the right to request a copy of your data, correct inaccurate data, withdraw consent, and request that your data be deleted. Send your request to <mail>{email}</mail> from your account’s email address. We reply within 3×24 hours and complete it within 30 days at the latest."
+        ]
+      },
+      {
+        "id": "ketentuan",
+        "title": "Terms of service",
+        "blocks": [
+          "The terms of use, pricing and subscriptions are in the <terms>Terms & Conditions</terms>. Refund conditions are in the <refund>Refund Policy</refund>."
+        ]
+      },
+      {
+        "id": "hapus-data",
+        "title": "Data deletion",
+        "blocks": [
+          "You can delete your account at any time from <settings>Settings</settings>, and you can also ask by email for your data to be deleted permanently. Senders of DMs and comments can request deletion of their data too. All the ways to do so are on the <deletion>Data Deletion</deletion> page."
+        ]
+      },
+      {
+        "title": "Changes to this policy",
+        "blocks": [
+          "Changes are announced by updating this page and the date above. For important changes, we also notify you by email or in the dashboard."
+        ]
+      },
+      {
+        "title": "Contact",
+        "blocks": [
+          { "contact": true }
+        ]
+      }
+    ]
+  },
+  "terms": {
+    "title": "Terms & Conditions",
+    "intro": [
+      "Welcome to {app}. By creating an account or using the {app} service (the “Service”), you agree to these Terms & Conditions (the “Terms”). Use of the Service is also subject to the <privacy>Privacy Policy</privacy> and the <refund>Refund Policy</refund>. Please read all three before using the Service."
+    ],
+    "sections": [
+      {
+        "title": "About the Service",
+        "blocks": [
+          "{app} helps businesses and creators create and manage social media content with AI assistance. Current features include:",
+          [
+            "An AI creator for carousel content, captions and images, following your brand kit.",
+            "A scheduler that publishes posts to the Instagram (feed and Story) and Threads accounts you connect.",
+            "An inbox to read and reply to DMs and comments.",
+            "Analytics for the post metrics available through the platforms’ official APIs.",
+            "Mimo, an AI assistant for content ideas, research and planning."
+          ],
+          "We may add, change or remove features. Important changes are announced in advance.",
+          "{app} is a tool. We <b>do not guarantee</b> reach, engagement, follower counts, sales or any particular business result. Content performance on social platforms depends on platform algorithms, content quality and other factors outside our control."
+        ]
+      },
+      {
+        "title": "User accounts",
+        "blocks": [
+          [
+            "You must be at least 18 years old or otherwise legally competent.",
+            "You are responsible for keeping your sign-in confidential and for all activity on your account. Tell us right away if you suspect unauthorised access.",
+            "Provide accurate information when signing up and when paying.",
+            "Only connect Instagram and Threads accounts you own or are entitled to manage. You are responsible for the content and replies that are published.",
+            "One {app} account per person or business. Do not share your sign-in with others."
+          ]
+        ]
+      },
+      {
+        "title": "Your content and AI output",
+        "blocks": [
+          [
+            "<b>Ownership:</b> content you upload or create with {app} remains yours (“Your Content”).",
+            "<b>Limited licence to {app}:</b> you allow us to store, process and transmit Your Content as far as needed to run the Service, including passing it to social platforms on your instruction and to AI providers to create drafts.",
+            "<b>AI output:</b> you may use AI output for commercial purposes after you have reviewed, edited and approved it. You are responsible for what you publish, including product claims, sector advertising rules (for example BPOM for cosmetics, food and medicine, or OJK for financial products), and intellectual property rights in other parties’ brands, logos and images."
+          ],
+          "We do not guarantee that AI output is always accurate, original or free of third-party rights. Always check before publishing."
+        ]
+      },
+      {
+        "title": "Prohibited use",
+        "blocks": [
+          "You may not use {app} to:",
+          [
+            "Break Indonesian law or any law that applies to you.",
+            "Create or spread content that promotes violence, hate speech, harassment or discrimination.",
+            "Spread hoaxes, scams or fraudulent investment schemes.",
+            "Infringe other parties’ intellectual property, privacy or publicity rights.",
+            "Violate the Meta Platform Terms, the Instagram and Threads Terms of Use, or the Instagram Community Guidelines. Spam, bulk messages and unsolicited messages are prohibited.",
+            "Circumvent quotas or credits, abuse the Service through automation, or interfere with the Service’s security."
+          ],
+          "Violations may lead to the account being suspended or closed and, for serious violations, reported to the authorities."
+        ]
+      },
+      {
+        "id": "langganan",
+        "title": "Subscriptions, credits and payment",
+        "blocks": [
+          "New accounts can try {app} for free with one-time trial credits and a few Mimo messages, without a card. After that, paid features require a subscription on the following terms:",
+          { "plans": true },
+          [
+            "A subscription can be paid in advance for several months at once, at the discount shown at checkout.",
+            "Payments are in Rupiah through Mayar. Access starts once the payment is confirmed and lasts until the end of the paid period.",
+            "Prices may change. Changes do not affect periods already paid, because the purchase terms are saved at checkout.",
+            "Refunds are governed by the <refund>Refund Policy</refund>, which is part of these Terms."
+          ]
+        ]
+      },
+      {
+        "title": "Termination",
+        "blocks": [
+          [
+            "<b>By you:</b> you can delete your account at any time from <settings>Settings</settings>. The account is closed and its data archived as described in <deletion>Data Deletion</deletion>. A running subscription ends too.",
+            "<b>By us:</b> we may suspend or close accounts that violate these Terms, endanger the Service or other users, or on the order of a lawful authority. For minor violations, we notify you and give you a chance to fix them first."
+          ]
+        ]
+      },
+      {
+        "title": "Disclaimer",
+        "blocks": [
+          "The Service is provided “as is” and “as available”. The Service depends on third-party APIs such as Meta’s, so we do not guarantee that it is always available without interruption or free of errors.",
+          "This disclaimer does not limit consumer rights protected by Law Number 8 of 1999 on Consumer Protection and Law Number 27 of 2022 on Personal Data Protection."
+        ]
+      },
+      {
+        "title": "Limitation of liability",
+        "blocks": [
+          "To the extent permitted by law, {app}’s total liability for any claim related to the Service is limited to the total fees you paid us in the 12 months before the claim. {app} is not liable for indirect losses, such as lost profits or business opportunities.",
+          "This limitation does not apply to losses caused by {app}’s gross negligence or wilful misconduct, or by a breach of personal data protection obligations."
+        ]
+      },
+      {
+        "title": "Governing law and disputes",
+        "blocks": [
+          "These Terms are governed by the laws of the Republic of Indonesia. Disputes are first settled amicably within 30 days of written notice. If that fails, disputes are settled at the South Jakarta District Court (Pengadilan Negeri Jakarta Selatan)."
+        ]
+      },
+      {
+        "title": "Changes to the Terms",
+        "blocks": [
+          "We may change these Terms. For important changes, we notify you by email or in the dashboard at least 14 days before they take effect. If you do not agree, you can stop using the Service and delete your account."
+        ]
+      },
+      {
+        "title": "Contact",
+        "blocks": [
+          { "contact": true }
+        ]
+      }
+    ]
+  },
+  "refund": {
+    "title": "Refund Policy",
+    "intro": [
+      "This policy applies to all {app} subscription payments (the Pro and Max plans, monthly or paid in advance for several months) and is part of the <terms>Terms & Conditions</terms>."
+    ],
+    "sections": [
+      {
+        "title": "Try it free first",
+        "blocks": [
+          "Every new account gets free trial credits without a card, enough to create your first content and try Mimo. We recommend using them before you pay, so you know whether {app} suits your business."
+        ]
+      },
+      {
+        "title": "First-purchase guarantee: 7 days",
+        "blocks": [
+          "If {app} turns out not to be a fit, request a refund within 7 days of your first payment. We refund the full amount paid, as long as during that period:",
+          [
+            "you used no more than 10% of the first month’s AI credits, and",
+            "no post was published or scheduled through {app}."
+          ],
+          "Beyond that, the current month counts as used. This guarantee applies once per user. Once the money is returned, paid access ends."
+        ]
+      },
+      {
+        "title": "3, 6 or 12-month plans",
+        "blocks": [
+          "Unused full months are refunded pro rata, counted from the date we receive your request. The current month is not refunded.",
+          "The amount is based on the monthly price you actually paid: the total payment after the duration discount and any coupon, divided by the number of months."
+        ]
+      },
+      {
+        "title": "No automatic billing",
+        "blocks": [
+          "{app} never charges you automatically. A new period only starts if you pay for it yourself, so no renewal is ever charged without your knowledge."
+        ]
+      },
+      {
+        "title": "Payment errors and service outages",
+        "blocks": [
+          [
+            "<b>Charged twice</b> for the same order: we refund the extra payment in full.",
+            "<b>Paid but the plan did not activate</b> because of an error on our side: we activate the plan, or refund you in full if you prefer.",
+            "<b>The Service could not be used</b> because of a fault on {app}’s side for more than 3 days in a row: we make up the lost days with an extended active period, or refund them pro rata.",
+            "<b>A payment that arrives after the account was deleted</b>, for example from an old payment link: we refund it in full."
+          ]
+        ]
+      },
+      {
+        "title": "How to request",
+        "blocks": [
+          "Email <refundMail>{email}</refundMail> from your account’s email address with the subject “Permintaan Refund”. Include the payment number from your Mayar receipt and a short reason. We reply within 2 business days.",
+          "If you have already deleted your account, send it from the same email address as that account. Its payment records are still kept in the archive."
+        ]
+      },
+      {
+        "title": "Process and timing",
+        "blocks": [
+          "Refunds are made through Mayar to the original payment method within 7 business days of approval. Your bank or e-wallet provider may need a few more days to show it. If the original method does not support refunds, the money is transferred to a bank account in the buyer’s name.",
+          "Once a refund is approved, paid access for the refunded period ends, along with that period’s AI credits."
+        ]
+      },
+      {
+        "title": "What is not refunded",
+        "blocks": [
+          [
+            "The current month, outside the first-purchase guarantee.",
+            "AI credits already used.",
+            "Free periods or extra credits given without payment, including through a 100% coupon.",
+            "Accounts suspended or closed for violating the <terms>Terms & Conditions</terms>."
+          ]
+        ]
+      },
+      {
+        "title": "Contact",
+        "blocks": [
+          { "contact": true }
+        ]
+      }
+    ]
+  },
+  "deletion": {
+    "title": "Data Deletion",
+    "intro": [
+      "You have the right to request deletion of your personal data from {app} at any time, under Law Number 27 of 2022 on Personal Data Protection. This page explains what happens when you delete your account and how to request permanent deletion."
+    ],
+    "sections": [
+      {
+        "id": "dasbor",
+        "title": "Delete your account from the dashboard",
+        "blocks": [
+          { "ol": [
+            "Sign in to your {app} account.",
+            "Open <settings>Settings</settings>, then scroll to the <b>Delete account</b> section at the very bottom.",
+            "Click <b>Delete account</b>, type your account’s email address, then confirm."
+          ] },
+          "The account is closed right away and you are signed out of every session. At the same time:",
+          [
+            "Instagram, Facebook and Threads are disconnected and their access tokens deleted.",
+            "Scheduled posts go back to drafts and will not be published. AI content generation still in progress is stopped.",
+            "Unpaid invoices are closed. A running subscription ends too.",
+            "Your email and Google sign-in are released from the old account. If you later sign in again with the same email or Google account, you get a new, empty account. Nothing from the old account comes back."
+          ]
+        ]
+      },
+      {
+        "id": "arsip",
+        "title": "Archived data",
+        "blocks": [
+          "Deleting your account from the dashboard <b>does not immediately erase</b> its content. The following data is kept as an archive:",
+          [
+            "Brand kit, design references and assets with their files.",
+            "Posts, drafts, content ideas and publishing history.",
+            "Stored DMs, comments and replies.",
+            "Conversations with Mimo and AI request history.",
+            "Payment history and account records (email, Instagram and Threads usernames, deletion date)."
+          ],
+          "The archive cannot be opened from the app, is not used for any feature, and is not sent to AI providers. It is only used to process refunds, answer payment disputes, meet legal obligations, or carry out your requests. If you want the archive deleted too, request permanent deletion."
+        ]
+      },
+      {
+        "id": "permanen",
+        "title": "Request permanent deletion",
+        "blocks": [
+          "Email <deleteMail>{email}</deleteMail> from your account’s email address, before or after deleting the account, with the subject “Permintaan Penghapusan Data”. Include:",
+          [
+            "your account’s email address, and",
+            "the Instagram username that was connected (optional, speeds up verification)."
+          ],
+          "We confirm receipt within 3×24 hours and complete the deletion within 30 days at the latest. The account, its content and all its files are deleted permanently, except the data listed under “What we still keep” below. When it is done, you get a confirmation by email."
+        ]
+      },
+      {
+        "id": "pengirim",
+        "title": "Senders of DMs and comments",
+        "blocks": [
+          "If you have sent a DM or commented on an account managed with {app} and want that data deleted, email <deleteMail>{email}</deleteMail> with the subject “Permintaan Penghapusan Data” and include your Instagram or Threads username. Your conversations, messages and comments are deleted within 30 days of receiving the email. You can also request a copy of your data through the same email."
+        ]
+      },
+      {
+        "id": "disimpan",
+        "title": "What we still keep",
+        "blocks": [
+          "After permanent deletion, some data is still kept because of legal obligations or legitimate purposes:",
+          [
+            "<b>Transaction records:</b> amount, date and payer identity are kept for 10 years as required by tax law.",
+            "<b>Records of admin actions:</b> including the email of the affected account, as an audit trail.",
+            "<b>Records of deletion requests:</b> email, request date and completion date, to prove the request was carried out.",
+            "<b>Backups:</b> encrypted database backups at our infrastructure provider (Supabase) expire on their own with the backup cycle, within 30 days at most."
+          ]
+        ]
+      },
+      {
+        "id": "cabut-akses",
+        "title": "Revoke access without deleting your account",
+        "blocks": [
+          "You can revoke {app}’s access to your social accounts without deleting your {app} account: disconnect in <settings>Settings</settings>, then remove {app} in Instagram (Settings and activity → Website permissions → Apps and websites). The account’s data stays and becomes visible again if the same account is connected again."
+        ]
+      },
+      {
+        "title": "Questions?",
+        "blocks": [
+          "Contact us at <mail>{email}</mail> or <phoneLink>{phone}</phoneLink> if you have questions or need help with a deletion request.",
+          { "contact": true }
+        ]
+      }
+    ]
   }
 }

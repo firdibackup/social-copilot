@@ -51,14 +51,15 @@ export function DesignStylePicker({ value, onChange, palette, large = false }: D
         const style = DESIGN_STYLES[id]
         const selected = value === id
         return (
+          // The label stretches over the whole card, and the keyboard ring sits on the card only for keyboard focus.
           <div
             key={id}
-            className={`group relative space-y-3 rounded-xl border bg-white p-3 text-left transition-colors ${
+            className={`group relative space-y-3 rounded-xl border bg-white p-3 text-left transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent ${
               selected ? 'border-accent ring-1 ring-accent' : 'border-hairline hover:border-zinc-300'
             }`}
           >
             <CoverPreview id={id} palette={{ ...style.preview, ...palette }} />
-            <label className="block cursor-pointer space-y-0.5 rounded-md focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
+            <label className="block cursor-pointer space-y-0.5 after:absolute after:inset-0 after:rounded-xl">
               <input
                 type="radio"
                 name="design-style"

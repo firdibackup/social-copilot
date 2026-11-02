@@ -30,7 +30,9 @@ export function AuthCard({ title, description, children }: { title: string; desc
   )
 }
 
-export function AuthForm({ mode, next, oauthError }: { mode: 'masuk' | 'daftar'; next?: string; oauthError?: string }) {
+export function AuthForm({ mode, next, oauthError, notice }: {
+  mode: 'masuk' | 'daftar'; next?: string; oauthError?: string; notice?: string
+}) {
   const t = useTranslations('auth.form')
   const MODES = {
     masuk: {
@@ -53,6 +55,7 @@ export function AuthForm({ mode, next, oauthError }: { mode: 'masuk' | 'daftar';
 
   return (
     <div className="space-y-4">
+      {notice && <Notice tone="success">{notice}</Notice>}
       <form action={googleAction} className="space-y-3">
         {next && <input type="hidden" name="next" value={next} />}
         {(googleState.error || oauthError) && <Notice tone="error">{googleState.error || oauthError}</Notice>}

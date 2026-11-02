@@ -6,8 +6,8 @@ import { parseAdminEmails } from './lib/admin-options'
 const WEBHOOKS = new Set(['/api/webhooks/instagram', '/api/webhooks/mayar'])
 /** Crawler files: public, and never worth a session round trip. */
 const SEO_FILES = new Set(['/robots.txt', '/sitemap.xml'])
-/** Pages reachable without a session: sign in and up, and the privacy page Meta links to. */
-const PUBLIC_PATHS = new Set(['/masuk', '/daftar', '/privasi', '/auth/callback'])
+/** Pages reachable without a session: sign in and up, and the legal pages (Meta links to the privacy one). */
+const PUBLIC_PATHS = new Set(['/masuk', '/daftar', '/privasi', '/syarat', '/refund', '/hapus-data', '/auth/callback'])
 /** Signed-in users who open these go to the app instead. */
 const AUTH_PAGES = new Set(['/masuk', '/daftar'])
 /** No route lives here, so a rewrite to it renders the app's ordinary 404 with a real 404 status. */

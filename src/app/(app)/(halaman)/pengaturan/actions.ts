@@ -4,7 +4,9 @@ import { getTranslations } from 'next-intl/server'
 
 import { refresh } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { requireAccount, requireUser } from '@/lib/auth'
+import { archiveAccount, confirmsEmail } from '@/lib/account-deletion'
+import { authClient, currentUser, requireAccount, requireUser } from '@/lib/auth'
+import { COMPANY } from '@/lib/company'
 import { disconnectInstagram as disconnectAccount } from '@/lib/connection'
 import { setDensityDefault } from '@/lib/density'
 import { isTextDensity } from '@/lib/density-options'
@@ -100,4 +102,31 @@ export async function setDensityDefaultAction(density: unknown): Promise<ActionE
     console.error('[pengaturan] kepadatan teks gagal disimpan:', describeError(error))
     return t('actions.couldnTSaveTextDensityTryAgain')
   }
+}
+
+export interface DeleteAccountState {
+  error: string | null
+}
+
+/**
+ * Hapus akun: archived, not deleted (see archiveAccount). Needs no subscription, like Putuskan. The email typed in
+ * `confirmEmail` must be the account's, so a slip of the hand can't do it.
+ */
+export async function deleteAccount(_previous: DeleteAccountState, formData: FormData): Promise<DeleteAccountState> {
+  const t = await getTranslations('settings')
+
+  const user = await currentUser()
+  if (!user) redirect('/masuk')
+  const typed = formData.get('confirmEmail')
+  if (typeof typed !== 'string' || !confirmsEmail(typed, user.email)) return { error: t('delete_account.mismatch') }
+  try {
+    await archiveAccount(user)
+  } catch (error) {
+    console.error('[pengaturan] akun gagal dihapus:', describeError(error))
+    return { error: t('delete_account.failed', { email: COMPANY.email }) }
+  }
+  // The soft delete already ended the sessions on the server; this clears the cookies of this browser.
+  const { error } = await (await authClient()).auth.signOut({ scope: 'local' })
+  if (error) console.error('[pengaturan] cookie sesi gagal dihapus setelah hapus akun:', describeError(error))
+  redirect('/masuk?akun=dihapus')
 }

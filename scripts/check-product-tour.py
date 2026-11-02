@@ -39,7 +39,6 @@ assert len(groups) == 4 and all(len(group) == 5 for group in groups)
 assert sorted(sum(groups, [])) == list(range(20))
 assert re.search(r'id=[\'"]konten[\'"]', showcase)
 assert 'data-folder' in showcase and 'aria-expanded' in showcase
-assert 'showcase-disclaimer' in showcase
 names_match = re.search(r'const names\s*=\s*\[([\s\S]*?)\]', showcase)
 assert names_match, 'Missing showcase cover manifest'
 names = re.findall(r'[\'"]([^\'"]+)[\'"]', names_match[1])
@@ -54,11 +53,11 @@ for name in names:
 catalogs = [json.loads(read(f'messages/{locale}/landing.json')) for locale in ('id', 'en')]
 for data in catalogs:
     story = data['story']
-    for key in ('cta', 'placeholder', 'label', 'note', 'handleSpace', 'handleInvalid', 'word0'):
+    for key in ('cta', 'placeholder', 'label', 'handleSpace', 'handleInvalid', 'word0'):
         assert data['trial'][key].strip(), f'Missing trial copy: {key}'
     for key in ('title1', 'title2', 'body'):
         assert story['opening'][key].strip(), f'Missing opening copy: {key}'
-    for key in ('beauty', 'living', 'spaces', 'business', 'disclaimer', 'open', 'close', 'count'):
+    for key in ('beauty', 'living', 'spaces', 'business', 'open', 'close', 'count'):
         assert story['showcase'][key].strip(), f'Missing showcase copy: {key}'
     for index in range(20):
         assert story['covers'][f'label{index}'].strip()

@@ -336,5 +336,26 @@
     "max": "Kredit lebih banyak · Prioritas proses",
     "upgrade": "Lihat paket",
     "later": "Nanti"
+  },
+  "site": {
+    "footerNav": "Navigasi situs",
+    "legalNav": "Dokumen legal",
+    "tagline": "Teman kerja untuk ide-ide kamu.",
+    "company": "Carousely",
+    "product": "Produk",
+    "legal": "Legal",
+    "features": "Fitur",
+    "pricing": "Harga",
+    "contact": "Kontak",
+    "workflow": "Cara kerja",
+    "faq": "FAQ",
+    "login": "Masuk",
+    "signup": "Daftar",
+    "privacy": "Privasi",
+    "terms": "Syarat",
+    "refund": "Refund",
+    "deletion": "Hapus Data",
+    "address": "Alamat dan kontak",
+    "copyright": "© {year} Carousely"
   }
 }

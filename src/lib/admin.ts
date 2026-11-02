@@ -125,6 +125,7 @@ function bannedUntil(user: User, now: Date): Date | null {
   return until && until > now ? until : null
 }
 
+/** Every user still in use. An account the user deleted is soft-deleted (deleted_at) and archived, so it is left out. */
 async function allAuthUsers(): Promise<User[]> {
   const users: User[] = []
   for (let page = 1; page <= MAX_PAGES; page++) {
@@ -133,7 +134,7 @@ async function allAuthUsers(): Promise<User[]> {
     users.push(...data.users)
     if (data.users.length < PAGE_SIZE) break
   }
-  return users
+  return users.filter((user) => !user.deleted_at)
 }
 
 async function authUser(userId: string): Promise<User> {
@@ -257,7 +258,8 @@ export async function getAdminOverview(now = new Date()): Promise<AdminOverview>
   const emails = new Map(users.map((user) => [user.id, user.email ?? '']))
   return {
     users: users.length,
-    activeUsers: [...overview.values()].filter((row) => row.period_start !== null).length,
+    // Payments outlive an archived account; only users still listed count.
+    activeUsers: [...overview.values()].filter((row) => row.period_start !== null && emails.has(row.user_id)).length,
     usageDays: USAGE_DAYS,
     usage: unwrap(usage) as ModelUsage[],
     failures: (

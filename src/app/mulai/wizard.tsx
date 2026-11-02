@@ -169,7 +169,9 @@ export function Wizard({ initial }: { initial: OnboardingAnswers }) {
           <h1 ref={heading} tabIndex={-1} className="mt-2 text-2xl font-semibold tracking-tight text-ink outline-none sm:text-3xl">
             {t(`steps.${step.id}.title`)}
           </h1>
-          <p className="mt-2 text-ink-muted">{t(`steps.${step.id}.hint`)}</p>
+          <p className="mt-2 text-ink-muted">
+            {t.rich(`steps.${step.id}.hint`, { b: (chunks) => <strong className="font-medium text-ink">{chunks}</strong> })}
+          </p>
 
           <div className="mt-8">
             <StepBody id={step.id} answers={answers} update={update} textareaKeys={textareaKeys} />

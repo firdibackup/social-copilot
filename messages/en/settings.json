@@ -287,5 +287,23 @@
     "nameRequired": "Enter a billing name.",
     "nameLength": "Name must be at most {max} characters.",
     "whatsappInvalid": "Invalid WhatsApp number. Example: 0812 3456 7890."
+  },
+  "delete_account": {
+    "title": "Delete account",
+    "description": "This account is closed and its data is kept as an archive, not erased. You are signed out right away. If you sign in again later, you start with a new, empty account.",
+    "consequenceConnections": "Instagram and Threads are disconnected and their access tokens are deleted.",
+    "consequenceScheduled": "Scheduled posts go back to drafts and will not be published.",
+    "consequenceArchive": "Your brand, content, assets and history are kept as an archive and can no longer be opened from the app.",
+    "consequenceFresh": "Signing in again with the same email or Google account creates a new, empty account. Nothing from the old account comes back.",
+    "activePlan": "A running subscription ends too and does not move to a new account. If you meet the <refund>refund conditions</refund>, request a refund before you delete your account.",
+    "learnMore": "Read more in the <link>Delete Data policy</link>.",
+    "open": "Delete account…",
+    "dialogTitle": "Delete this account?",
+    "confirmLabel": "Type {email} to confirm",
+    "submit": "Delete account",
+    "pending": "Deleting account…",
+    "cancel": "Cancel",
+    "mismatch": "The email does not match. Type this account’s email exactly.",
+    "failed": "The account could not be deleted. Try again, or contact {email}."
   }
 }
