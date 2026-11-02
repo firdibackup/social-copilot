@@ -36,7 +36,7 @@ export function LandingPricing({ catalog, provisional = false }: { catalog: Bill
           const postCount = estimatedPosts.toLocaleString(intlLocale(locale))
           // Custom catalog copy is admin-authored data; only localize known default descriptions.
           const defaultPlan = DEFAULT_CATALOG.plans.find((item) => item.id === plan.id && item.description === plan.description)
-          const description = defaultPlan && (plan.id === 'pro' || plan.id === 'max') ? t(`descriptions.${plan.id}`) : plan.description
+          const description = defaultPlan && (plan.id === 'pro' || plan.id === 'max') && estimatedPosts > 0 ? t(`descriptions.${plan.id}`, { count: postCount }) : plan.description
           const features = [
             t('features.posts', { count: estimatedPosts, formattedCount: postCount }),
             t('features.chatbot'),
@@ -50,17 +50,14 @@ export function LandingPricing({ catalog, provisional = false }: { catalog: Bill
           ]
           return <article key={plan.id} className={`${styles.plan} ${plan.id === 'max' ? styles.max : ''}`}>
             <div className={styles.planTitle}><h3>{plan.name}</h3>{multiplier && Number.isInteger(multiplier) ? <span>{t('multiplier', { count: multiplier })}</span> : null}</div>
-            <p className={styles.description}>{description}</p>
-            {estimatedPosts > 0 && <p className={styles.estimate}><strong>{t('estimate', { count: postCount })}</strong><span>{t('review')}</span></p>}
             <div className={styles.price} aria-live="polite"><strong>{formatRupiah(Math.round(quote.total / months), locale)}</strong><span>{t('perMonth')}</span></div>
-            <p className={styles.total}>{months === 1 ? t('monthly') : t('total', { amount: formatRupiah(quote.total, locale), count: months })}<br />{months === 1 ? t('noRenewal') : t('upfront')}</p>
+            <p className={styles.total}>{months === 1 ? t('monthly') : t('upfront', { amount: formatRupiah(quote.total, locale), count: months })}</p>
+            <p className={styles.description}>{description}</p>
             <Link href={`/langganan?paket=${encodeURIComponent(plan.id)}&bulan=${months}`} className={styles.choose}>{t('choose', { name: plan.name })}<ArrowUpRight size={18} aria-hidden="true" /></Link>
             <ul>{features.map((feature) => <li key={feature}><Check size={16} aria-hidden="true" /><span>{feature}</span></li>)}</ul>
           </article>
         })}
       </div>
-      <p className={styles.note}>{t('paymentNote')}</p>
-      <p className={styles.estimateNote}>{t('estimateNote')}</p>
       {provisional && <p className={styles.note}>{t('provisional')}</p>}
     </div>
   </section>

@@ -1,0 +1,143 @@
+/* Real client work sits on its own tinted panel so it never reads as one of the illustrative folders below. */
+.real { position: relative; margin: 44px auto 0; padding: 36px clamp(18px, 3vw, 40px) 40px; border-radius: 28px; text-align: left;
+  background: radial-gradient(120% 80% at 0% 0%, #efeaff 0, #f7f5ff 45%, #fbfaff 100%); box-shadow: inset 0 0 0 1px #e9e4fb; }
+/* Client switcher: a segmented control (who) + a pager (where in the list). Manual only, never auto-advances. */
+.switcher { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 26px; }
+.clientTabs { display: inline-flex; gap: 2px; padding: 4px; border-radius: 999px; background: #fff; box-shadow: inset 0 0 0 1px #e4dff4, 0 1px 2px #2c1f5a0d; }
+.clientTabs button { min-height: 36px; padding: 6px 16px; border: 0; border-radius: 999px; background: transparent; color: #625b74; font: inherit; font-size: 13px; font-weight: 650; letter-spacing: -.01em; cursor: pointer; transition: background .2s ease, color .2s ease; }
+.clientTabs button:hover { color: #302650; }
+.clientTabs button[aria-selected='true'] { background: #302650; color: #fff; }
+.clientTabs button:focus-visible, .pager button:focus-visible, .upNext:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }
+.pager { display: inline-flex; align-items: center; gap: 6px; }
+.pagerCount { min-width: 38px; margin-right: 4px; color: #625b74; font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; text-align: right; }
+.pagerCount i { font-style: normal; margin: 0 2px; color: #b4aec4; }
+.pager button { display: grid; place-items: center; width: 38px; height: 38px; border: 0; border-radius: 50%; background: #fff; color: #302650; cursor: pointer; box-shadow: inset 0 0 0 1px #e4dff4, 0 1px 2px #2c1f5a0d; transition: background .2s ease, box-shadow .2s ease; }
+.pager button:hover { background: #f6f4ff; box-shadow: inset 0 0 0 1px #c9c1f5; }
+.srOnly { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+@keyframes panel-forward { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+@keyframes panel-back { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
+.real[data-motion='true'] .panel:not([hidden]) { animation: panel-forward .42s cubic-bezier(.22, 1, .36, 1) both; }
+.real[data-motion='true'] .panel[data-dir='back']:not([hidden]) { animation-name: panel-back; }
+
+.realHead { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 38ch); align-items: end; gap: 10px 40px; }
+.badge { grid-column: 1 / -1; justify-self: start; display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px 6px 9px; border-radius: 999px; background: #fff; box-shadow: inset 0 0 0 1px #e4dff4, 0 1px 2px #2c1f5a0d; color: #463b60; font-size: 12.5px; font-weight: 550; }
+.badge svg { color: var(--color-mint-ink); }
+.badgeDivider { width: 1px; height: 14px; margin: 0 2px; background: #ddd7ee; }
+.badgeLogo { display: block; width: auto; height: 15px; }
+.panel[data-client='sume'] .badgeLogo { height: 13px; }
+.real .realHead h3 { margin: 6px 0 0; font-family: var(--font-display); font-size: clamp(24px, 2.4vw, 32px); line-height: 1.15; letter-spacing: -.035em; font-weight: 650; color: #302650; text-wrap: balance; }
+.realHead p { margin: 0; color: #625b74; font-size: 14px; line-height: 1.7; text-wrap: pretty; }
+
+.chips { display: none; }
+.posts { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 330px)); justify-content: center; gap: clamp(14px, 2vw, 26px); margin-top: 30px; align-items: start; }
+
+.post { min-width: 0; padding: 0 0 14px; border-radius: 18px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px #2c1f5a12, 0 22px 40px -24px #2c1f5a59; transition: transform .35s cubic-bezier(.22, 1, .36, 1), box-shadow .35s ease; }
+.post:hover { transform: translateY(-3px); box-shadow: 0 0 0 1px #2c1f5a14, 0 28px 48px -24px #2c1f5a73; }
+.post:nth-child(2) { margin-top: 26px; }
+
+/* Instagram feed post chrome. */
+.postHead { display: flex; align-items: center; gap: 10px; padding: 11px 12px 10px; }
+.storyRing { flex: none; display: grid; place-items: center; width: 38px; height: 38px; padding: 2px; border-radius: 50%;
+  background: conic-gradient(from 210deg, #feda75, #fa7e1e, #d62976, #962fbf, #4f5bd5, #feda75); }
+.storyRing img { display: block; width: 100%; height: 100%; border-radius: 50%; border: 2px solid #fff; object-fit: cover; background: #fff; }
+.igMeta { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.igMeta a { color: #0c0c0d; font-size: 13.5px; font-weight: 650; letter-spacing: -.005em; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.igMeta a:hover { color: #737373; }
+.igMeta a:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; border-radius: 4px; }
+.igMeta small { font-size: 11.5px; color: #737373; }
+.igMore { flex: none; margin-left: auto; color: #0c0c0d; }
+
+.viewport { position: relative; overflow: hidden; background: #eceaf3; }
+.track { display: flex; width: 100%; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
+.track::-webkit-scrollbar { display: none; }
+.track:focus-visible { outline: 3px solid var(--color-primary); outline-offset: -3px; }
+.slide { flex: 0 0 100%; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; }
+.slide img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; user-select: none; }
+.nav { position: absolute; top: 50%; translate: 0 -50%; display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 50%; background: #ffffffd9; color: #262626; cursor: pointer;
+  box-shadow: 0 2px 10px -2px #0000003d; opacity: 0; transition: opacity .2s ease, scale .2s ease; }
+.prev { left: 8px; }
+.next { right: 8px; }
+.viewport:hover .nav:not(:disabled), .nav:focus-visible { opacity: 1; }
+.nav:hover { scale: 1.06; }
+.nav:disabled { pointer-events: none; }
+.nav:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }
+
+.igActions { position: relative; display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 4px; color: #0c0c0d; }
+.igActions > span:first-child { display: flex; gap: 14px; }
+.igActions svg { display: block; stroke-width: 1.9; }
+.dots { position: absolute; left: 50%; top: 50%; translate: -50% -15%; display: flex; gap: 4px; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: #c7c7c7; transition: background .25s ease, scale .25s ease; }
+.dots i[data-on] { background: #0095f6; }
+.caption { margin: 6px 12px 0; font-size: 13.5px; line-height: 1.4; color: #0c0c0d; }
+.caption b { font-weight: 650; }
+.real .postTitle { display: inline; margin: 0; font-size: inherit; font-weight: 400; letter-spacing: 0; line-height: inherit; color: inherit; }
+
+.upNext { display: flex; align-items: center; gap: 10px; margin: 26px auto 0; min-height: 44px; padding: 8px 16px 8px 18px; border: 0; border-radius: 999px; background: #fff; color: #302650; font: inherit; font-size: 13.5px; font-weight: 650; cursor: pointer;
+  box-shadow: inset 0 0 0 1px #e4dff4, 0 1px 2px #2c1f5a0d; transition: box-shadow .2s ease, transform .2s ease; }
+.upNext:hover { box-shadow: inset 0 0 0 1px #c9c1f5, 0 8px 20px -12px #2c1f5a59; }
+.upNext:hover svg { transform: translateX(2px); }
+.upNext svg { transition: transform .2s ease; }
+.upNextLogo { display: block; width: auto; height: 13px; }
+
+/* Closing prompt: deep-ink card (the brand's own ink, not the client's blue), headline left, handle field right. */
+.prompt { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 470px); align-items: center; gap: 22px 48px; margin: 72px auto 0; padding: 34px clamp(22px, 4vw, 48px); border-radius: 28px; text-align: left;
+  background: #302650; color: #fff; position: relative; overflow: hidden; isolation: isolate; }
+.prompt::before { content: ''; position: absolute; z-index: -1; right: -80px; top: -120px; width: 360px; height: 360px; border-radius: 50%; background: radial-gradient(circle, #6558f5 0, #6558f500 70%); opacity: .55; }
+.prompt .promptCopy h3 { margin: 0; font-family: var(--font-display); font-size: clamp(26px, 2.6vw, 34px); line-height: 1.12; letter-spacing: -.035em; font-weight: 650; color: #fff; text-wrap: balance; }
+.promptCopy p { margin: 10px 0 0; max-width: 44ch; color: #d6d0ee; font-size: 14px; line-height: 1.65; }
+.promptForm { position: relative; display: flex; flex-wrap: wrap; gap: 8px; padding: 6px; border-radius: 18px; background: #fff; box-shadow: 0 18px 40px -18px #00000080; }
+.promptField { flex: 1 1 180px; position: relative; display: flex; align-items: center; min-width: 0; }
+.promptIg { position: absolute; left: 14px; color: #a39bbd; pointer-events: none; }
+.promptField input { width: 100%; min-height: 48px; border: 0; outline: 0; border-radius: 12px; background: #f6f4fd; font: inherit; font-size: 16px; padding: 10px 14px 10px 42px; color: #171827; transition: background .2s ease, box-shadow .2s ease; }
+.promptField input::placeholder { color: #9a93ad; }
+.promptField input:focus-visible { background: #fff; box-shadow: inset 0 0 0 2px var(--color-primary); }
+.promptField input[aria-invalid] { box-shadow: inset 0 0 0 2px #e0566e; }
+.promptButton { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 11px 18px; border: 0; border-radius: 12px; background: var(--color-mint); color: var(--color-mint-ink); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; transition: background .2s ease, transform .2s ease; }
+.promptButton:hover:not(:disabled) { background: #9eebc4; }
+.promptButton:hover:not(:disabled) svg { transform: translateX(2px); }
+.promptButton svg { transition: transform .2s ease; }
+.promptButton:active:not(:disabled) { transform: scale(.98); }
+.promptButton:disabled { cursor: progress; }
+.promptButton:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }
+.promptNote { position: absolute; left: 6px; right: 6px; top: calc(100% + 8px); margin: 0; font-size: 12.5px; line-height: 1.45; color: #ffd1da; }
+.promptNote:empty { display: none; }
+
+@media (max-width: 960px) {
+  .realHead { grid-template-columns: minmax(0, 1fr); }
+  .prompt { grid-template-columns: minmax(0, 1fr); padding-bottom: 46px; }
+}
+@media (max-width: 767px) {
+  .real { margin-top: 32px; padding: 16px 16px 26px; border-radius: 22px; }
+  .switcher { margin-bottom: 20px; }
+  .clientTabs button { padding: 6px 13px; }
+  .pagerCount { min-width: 0; margin-right: 0; }
+  .pager button { width: 36px; height: 36px; }
+  .upNext { margin-top: 20px; }
+  .chips { display: flex; gap: 6px; margin: 20px -16px 0; padding: 2px 16px; overflow-x: auto; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chips button { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 8px 12px; border: 0; border-radius: 999px; background: #fff; box-shadow: inset 0 0 0 1px #e4dff4; color: #463b60; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .chips button small { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #f1eefc; font-size: 11px; }
+  .chips button[aria-pressed='true'] { background: #302650; color: #fff; box-shadow: none; }
+  .chips button[aria-pressed='true'] small { background: #ffffff26; }
+  .chips button:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }
+  .posts { display: block; margin-top: 16px; }
+  .post { max-width: 360px; margin: 0 auto; }
+  .post:nth-child(2) { margin-top: 0; }
+  .post[data-hidden] { display: none; }
+  .nav { opacity: 1; width: 32px; height: 32px; }
+  .nav:disabled { opacity: 0; }
+  .prompt { margin-top: 48px; padding: 26px 18px 44px; border-radius: 22px; }
+  .promptForm { flex-direction: column; }
+  .promptField { flex-basis: auto; }
+  .promptButton { width: 100%; }
+}
+/* Footer pause control and system reduced motion both settle everything. */
+.real[data-motion='false'] .panel { animation: none; }
+.real[data-motion='false'] *, .prompt[data-motion='false'] * { transition: none !important; }
+.real[data-motion='false'] .post:hover { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .panel { animation: none !important; }
+  .post, .nav, .dots i, .igMeta a, .clientTabs button, .pager button, .upNext, .upNext svg, .promptButton, .promptButton svg, .promptField input { transition: none; }
+  .post:hover { transform: none; }
+}

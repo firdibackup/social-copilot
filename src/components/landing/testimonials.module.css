@@ -1,0 +1,66 @@
+/* Two real client quotes, side by side. Brand tones only: lavender + mint (DESIGN.md), Bricolage for the voice. */
+.testimonials { max-width: 1160px; margin: auto; padding: 40px 24px 112px; }
+
+.head { display: grid; justify-items: center; gap: 16px; text-align: center; }
+.eyebrow { color: #655c76; font-size: 12px; letter-spacing: .03em; }
+.head h2 { max-width: 15ch; }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; margin-top: 56px; }
+
+.card {
+  --tm-bg: #f3f0fb; --tm-edge: #e6e0fa; --tm-mark: #c9bff7; --tm-hl: #ddd6ff; --tm-ink: #302650;
+  position: relative; display: flex; flex-direction: column;
+  margin: 0; padding: 40px 40px 30px; border-radius: 28px; overflow: hidden;
+  background: var(--tm-bg); box-shadow: inset 0 0 0 1px var(--tm-edge);
+}
+.card[data-tone='mint'] { --tm-bg: #ecfaf3; --tm-edge: #d3f1e2; --tm-mark: #9fe3c2; --tm-hl: #c4f2db; --tm-ink: #0b3d29; margin-top: 56px; }
+
+.quoteMark {
+  display: block; height: 52px; margin: -6px 0 10px -4px; overflow: hidden;
+  font-family: var(--font-display); font-weight: 700; font-size: 118px; line-height: .92;
+  color: var(--tm-mark); pointer-events: none; user-select: none;
+}
+
+.quote { position: relative; margin: 0; flex: 1; }
+.quote p {
+  margin: 0; max-width: 30ch; color: var(--tm-ink);
+  font-family: var(--font-display); font-weight: 600;
+  font-size: clamp(21px, 2.05vw, 26px); line-height: 1.32; letter-spacing: -.025em; text-wrap: pretty;
+}
+.quote mark {
+  color: inherit; background: linear-gradient(transparent 58%, var(--tm-hl) 58%, var(--tm-hl) 92%, transparent 92%);
+  padding: 0 .08em; -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+
+.author { display: flex; align-items: center; gap: 14px; margin-top: 36px; padding-top: 22px; border-top: 1px solid var(--tm-edge); }
+.logo {
+  display: grid; place-items: center; flex: none; width: 64px; height: 64px; padding: 0 8px;
+  border-radius: 50%; background: #fff; box-shadow: 0 10px 24px -12px rgb(48 38 80 / .35), 0 0 0 1px rgb(48 38 80 / .05);
+}
+.logo img { width: 100%; height: auto; }
+.who { display: grid; gap: 2px; min-width: 0; }
+.who strong { color: var(--tm-ink); font-family: var(--font-display); font-size: 17px; font-weight: 650; letter-spacing: -.02em; line-height: 1.2; }
+.who a {
+  display: inline-flex; align-items: center; gap: 5px; justify-self: start;
+  color: #625b74; font-size: 13.5px; text-decoration: none; transition: color .2s ease;
+}
+.who a svg:last-child { opacity: 0; transform: translate(-3px, 3px); transition: opacity .2s ease, transform .2s ease; }
+.who a:hover { color: var(--tm-ink); }
+.who a:hover svg:last-child { opacity: 1; transform: none; }
+.who a:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 5px; border-radius: 4px; }
+
+@media (max-width: 860px) {
+  .grid { grid-template-columns: 1fr; gap: 18px; margin-top: 40px; max-width: 560px; margin-inline: auto; }
+  .card[data-tone='mint'] { margin-top: 0; }
+}
+@media (max-width: 520px) {
+  .testimonials { padding: 24px 16px 80px; }
+  .card { padding: 34px 24px 24px; border-radius: 22px; }
+  .quoteMark { height: 44px; font-size: 100px; }
+  .quote p { font-size: 20px; line-height: 1.36; }
+  .author { margin-top: 28px; }
+  .logo { width: 56px; height: 56px; padding: 0 7px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .who a, .who a svg:last-child { transition: none; }
+}

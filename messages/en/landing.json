@@ -47,13 +47,6 @@
     "title1": "From “what should I post?”",
     "repliesTab": "DM replies"
   },
-  "brand": {
-    "body": "AI helps put it together. You give it personality. Save your brand identity, use your own assets, and edit every draft until it feels just right.",
-    "link": "Bring your brand to Carousely",
-    "canvas": "One brand. Many stories.",
-    "title2": "In every post.",
-    "title1": "Still feels like you."
-  },
   "inbox": {
     "reply": "Absolutely! Just find a spot with indirect light. Would you like help picking a plant for your desk?",
     "incoming": "Hi! Would the plant in your latest post be good for a work desk?",
@@ -84,18 +77,6 @@
     "ready": "Ready to make your own",
     "plantPrompt": "Plant content ideas"
   },
-  "workflow": {
-    "brandBody": "Save your brand personality, voice, and content assets. Give every idea a shared direction.",
-    "mimoBody": "Start with a topic or assets you already have. Develop, edit, and make them your own.",
-    "scheduleBody": "Review your content, pick a time to publish, and follow the conversations that come next.",
-    "scheduleTitle": "Schedule it. Keep creating.",
-    "subtitle1": "Carousely handles the workflow.",
-    "subtitle2": "The story stays yours.",
-    "title2": "Find your rhythm.",
-    "mimoTitle": "Shape ideas with Mimo",
-    "title1": "Keep your style.",
-    "brandTitle": "Introduce your brand"
-  },
   "calendar": {
     "hint": "Pick a post to see its schedule, or try the next week.",
     "subtitle": "Every idea has its moment.",
@@ -120,10 +101,13 @@
     "afternoon": "4:00 PM"
   },
   "cta": {
-    "body": "Make room for creativity. Carousely helps with the rest.",
-    "start": "Start with Carousely",
-    "title2": "Shall we make it together?",
-    "title1": "Your next idea."
+    "eyebrow": "Ready to start?",
+    "title1": "Your next idea,",
+    "title2": "shall we make it together?",
+    "body": "Introduce your brand once. Carousely helps with the carousel, the caption, and the posting schedule.",
+    "start": "Start for free",
+    "note": "3 free credits, no card needed",
+    "chip": "Ready to post"
   },
   "hero": {
     "bottom": "More creating. Less tab-hopping.",
@@ -144,10 +128,6 @@
     "title1": "Ideas flow.",
     "body": "Your creative partner for Instagram. From ideas to content,<br></br> all the way to publishing. All in Carousely."
   },
-  "partners": {
-    "subtitle": "Brands creating with Carousely.",
-    "title": "Trusted by our partners"
-  },
   "dashboard": {
     "tagline": "Your workspace, more organized.",
     "navigation": "Illustrative app navigation",
@@ -159,18 +139,6 @@
     "calendar": "Calendar",
     "replies": "Replies",
     "assets": "Assets"
-  },
-  "art": {
-    "peachFooter": "Make room for your next idea.",
-    "purpleFooter": "Creative notes for your day.",
-    "greenFooter": "Small spaces. Big stories.",
-    "greenTitle2": "at your pace.",
-    "peachTitle2": "Then carry on.",
-    "peachTitle1": "Take a break.",
-    "purpleTitle1": "Small ideas,",
-    "greenTitle1": "Grow",
-    "purpleTitle2": "big",
-    "purpleTitle3": "impact."
   },
   "footer": {
     "tagline": "A creative partner for your ideas.",
@@ -212,8 +180,8 @@
   "pricing": {
     "title1": "Pick your plan.",
     "title2": "Start your story.",
-    "subtitle1": "From your first post to a full calendar.",
-    "subtitle2": "Find the right allowance for your brand's rhythm.",
+    "subtitle1": "One plan per brand. No automatic renewal.",
+    "subtitle2": "Costs less than a social media admin, and never takes a day off.",
     "durationLabel": "Plan duration",
     "months": "{count, plural, one {# month} other {# months}}",
     "save": "Save {percent}%",
@@ -230,35 +198,28 @@
       "earlyAccess": "Early access to new features"
     },
     "descriptions": {
-      "pro": "For creating and scheduling content regularly.",
-      "max": "More room for content creation and research."
+      "pro": "{count}+ posts a month, ready for your weekly review.",
+      "max": "{count}+ posts a month, for a busier rhythm."
     },
     "multiplier": "{count}× more AI allowance",
-    "estimate": "An estimated {count}+ posts per month",
-    "review": "Ready for your weekly review.",
     "perMonth": "/month",
-    "monthly": "Billed monthly",
-    "total": "{amount} total for {count, plural, one {# month} other {# months}}",
-    "noRenewal": "No automatic renewal.",
-    "upfront": "Paid upfront, not in installments.",
+    "monthly": "Billed monthly · No automatic renewal",
+    "upfront": "Paid once upfront · {amount}/{count} mo",
     "choose": "Choose {name}",
-    "paymentNote": "Payments via Mayar · AI allowance renews monthly · Research resets at 00:00 WIB",
-    "estimateNote": "Post estimates depend on content format, slide count, and other AI usage.",
     "provisional": "Starting prices shown. Availability and current pricing are confirmed before payment."
   },
   "story": {
     "showcase": {
       "eyebrow": "CONTENT INSPIRATION",
       "title": "Open a folder. Find your next idea.",
-      "subtitle": "20 sample designs across different industries. Open a folder to explore each cover up close.",
-      "disclaimer": "Dummy content for inspiration, not work or campaigns for RE/MAX or SUME.",
       "beauty": "Beauty & wellness",
       "living": "Food & experiences",
       "spaces": "Spaces & everyday life",
       "business": "Business & services",
       "count": "5 examples",
       "open": "Open folder",
-      "close": "Close folder"
+      "close": "Close folder",
+      "samplesLabel": "Sample designs for other industries"
     },
     "covers": {
       "label0": "Skincare",
@@ -448,12 +409,85 @@
       "next": "Continue demo"
     }
   },
+  "realWork": {
+    "label": "Real work",
+    "slides": "{count} slides",
+    "slideOf": "Slide {current} of {total}",
+    "prev": "Previous slide",
+    "next": "Next slide",
+    "pick": "Choose a carousel",
+    "clients": "Choose a client",
+    "clientOf": "Client {current} of {total}",
+    "prevClient": "Previous client",
+    "nextClient": "Next client",
+    "upNext": "Next: {name}",
+    "remax": {
+      "title": "Carousels published for RE/MAX Indonesia",
+      "body": "Three home-buying explainer series, made with Carousely and posted on their Instagram. Swipe to see every slide.",
+      "costs": {
+        "title": "The hidden costs of buying a home",
+        "short": "Buying costs",
+        "alt0": "Cover: Thought the house price was all you needed? There are other costs",
+        "alt1": "The house price is not the total cost of buying; extra costs run about 5–7%",
+        "alt2": "First cost: BPHTB transfer tax, the largest one, usually 5%",
+        "alt3": "Second cost: PPAT or notary fees for the sale deed and title transfer",
+        "alt4": "Closing: talk to a RE/MAX agent first"
+      },
+      "inspect": {
+        "title": "4 things to check before you sign",
+        "short": "Check before signing",
+        "alt0": "Cover: Before you sign, check these 4 things",
+        "alt1": "Number 01, roof and ceiling: look for leak stains",
+        "alt2": "Number 02, walls: watch for cracks and damp",
+        "alt3": "Number 03, water and power: make sure both work safely",
+        "alt4": "Number 04, legal papers: match the certificate and building permit",
+        "alt5": "Closing: inspect the house with a RE/MAX agent"
+      },
+      "steps": {
+        "title": "5 steps to your first home",
+        "short": "First home",
+        "alt0": "Cover: Buying your first home? Follow these 5 steps",
+        "alt1": "Step 1: set a budget, keep mortgage payments under 30% of income",
+        "alt2": "Step 2: choose the right location",
+        "alt3": "Step 3: check the condition of the house",
+        "alt4": "Step 4: make sure the legal papers are in order",
+        "alt5": "Closing: 5 simple steps to your first home, talk to a RE/MAX agent"
+      }
+    },
+    "sume": {
+      "title": "Carousels published for SUME",
+      "body": "Two explainer series on backup power and data center efficiency, made with Carousely and posted on their Instagram. Swipe to see every slide.",
+      "ups": {
+        "title": "Keeping UPS batteries ready",
+        "short": "UPS batteries",
+        "alt0": "Cover: You have a UPS, but are its batteries ready? UPS batteries carry the load until the genset takes over",
+        "alt1": "The first seconds run on battery: when grid power fails, the UPS battery kicks in before the genset starts",
+        "alt2": "Why UPS batteries fail: hot rooms, a 3–5 year service life, frequent use",
+        "alt3": "Ideal battery room temperature: 20–25°C",
+        "alt4": "Routine UPS battery maintenance: regular checks, a clean environment, performance tests, a replacement plan",
+        "alt5": "Closing: keep your backup power ready, talk to the SUME team"
+      },
+      "pue": {
+        "title": "Lowering data center PUE",
+        "short": "Data center PUE",
+        "alt0": "Cover: What is your data center’s PUE?",
+        "alt1": "What PUE is: total facility energy divided by IT equipment energy",
+        "alt2": "The global average PUE is around 1.5",
+        "alt3": "Where energy gets wasted: no containment, temperature set points too low, overcapacity, unoptimized operations",
+        "alt4": "4 steps to lower PUE: containment, tuned temperature settings, right-sized capacity, routine monitoring",
+        "alt5": "Closing: efficiency starts with measurement, book an efficiency audit with the SUME team"
+      }
+    }
+  },
+  "trialPrompt": {
+    "title": "Now it's your brand's turn.",
+    "body": "Enter your Instagram username, then continue to sign up. New accounts get 3 free credits to try it out."
+  },
   "trial": {
     "label": "Instagram username",
     "placeholder": "@yourusername",
     "cta": "Try 3 free credits",
     "submitting": "Getting ready…",
-    "note": "3 free credits · 1 post = 3 credits · no card needed",
     "handleSpace": "This is your Instagram username, not your brand name. Usernames have no spaces, e.g. @kopikita",
     "handleInvalid": "Instagram usernames may only contain letters, numbers, dots (.) and underscores (_), up to 30 characters.",
     "word0": "small businesses",
@@ -467,7 +501,6 @@
   "featureTour": {
     "eyebrow": "Meet the features",
     "title": "One place for everything your content needs",
-    "subtitle": "Try it right here. Everything is clickable, just like in the dashboard.",
     "hello": "Hi, I'm Mimo! Keep scrolling and I'll show you around Carousely.",
     "cta": "Seen it all? Start for free, I'll be waiting inside!",
     "sneak": "Mimo says",
@@ -629,5 +662,16 @@
       "topPost": "5 productive morning tips"
     },
     "start": "Start for free"
+  },
+  "testimonials": {
+    "eyebrow": "WHAT OUR CLIENTS SAY",
+    "title": "Real brands, content that keeps going.",
+    "handleLabel": "{name} on Instagram (@{handle}), opens in a new tab",
+    "remax": {
+      "quote": "Our Instagram content is so much more consistent now. Carousely gets our visual style: the colors, the fonts, even the layout. A few small tweaks and <mark>it’s ready to post.</mark>"
+    },
+    "sume": {
+      "quote": "Carousely helps us turn technical topics like UPS, cooling, and redundancy into <mark>carousels our clients can easily understand.</mark> It looks professional and stays true to our brand."
+    }
   }
 }

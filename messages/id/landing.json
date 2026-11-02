@@ -47,13 +47,6 @@
     "title1": "Dari “posting apa, ya?”",
     "repliesTab": "Balasan DM"
   },
-  "brand": {
-    "body": "AI membantu merangkai. Kamu yang memberi karakter. Simpan identitas brand, pakai asetmu sendiri, dan ubah setiap draf sampai benar-benar pas.",
-    "link": "Bawa brand kamu ke Carousely",
-    "canvas": "Satu brand. Banyak cerita.",
-    "title2": "Di setiap postingan.",
-    "title1": "Tetap terasa kamu."
-  },
   "inbox": {
     "reply": "Cocok, kak! Pilih tempat dengan cahaya tidak langsung, ya. Mau kami bantu pilihkan tanaman untuk meja kerjanya?",
     "incoming": "Halo, kak! Tanaman yang di postingan terakhir cocok buat di meja kerja nggak, ya?",
@@ -84,18 +77,6 @@
     "ready": "Siap kamu kembangkan",
     "plantPrompt": "Ide konten tanaman"
   },
-  "workflow": {
-    "brandBody": "Simpan karakter, gaya bahasa, dan bahan konten. Biar setiap ide punya arah yang sama.",
-    "mimoBody": "Mulai dari topik atau aset yang sudah ada. Kembangkan, edit, dan buat jadi versimu.",
-    "scheduleBody": "Tinjau konten, tentukan waktu tayang, dan ikuti percakapan yang datang setelahnya.",
-    "scheduleTitle": "Atur jadwal. Lanjut berkarya.",
-    "subtitle1": "Carousely mengurus alurnya.",
-    "subtitle2": "Ceritanya tetap punya kamu.",
-    "title2": "Bantu nemuin ritmemu.",
-    "mimoTitle": "Olah ide bareng Mimo",
-    "title1": "Bukan ganti gayamu.",
-    "brandTitle": "Kenalkan brand kamu"
-  },
   "calendar": {
     "hint": "Pilih konten untuk melihat jadwalnya, atau coba pindah minggu.",
     "subtitle": "Semua ide punya waktunya.",
@@ -120,10 +101,13 @@
     "afternoon": "16.00"
   },
   "cta": {
-    "body": "Kasih ruang untuk kreativitasmu. Carousely bantu sisanya.",
-    "start": "Mulai dengan Carousely",
+    "eyebrow": "Siap mulai?",
+    "title1": "Ide berikutnya,",
     "title2": "kita bikin bareng?",
-    "title1": "Ide berikutnya,"
+    "body": "Kenalkan brand-mu sekali. Carousely bantu bikin carousel, caption, sampai jadwal tayangnya.",
+    "start": "Mulai gratis",
+    "note": "3 kredit gratis, tanpa kartu",
+    "chip": "Siap tayang"
   },
   "hero": {
     "bottom": "Lebih banyak berkarya. Lebih sedikit pindah tab.",
@@ -144,10 +128,6 @@
     "title1": "Ide jalan.",
     "body": "Partner kreatif untuk Instagram kamu. Dari ide, bikin konten,<br></br> sampai jadwal tayang. Beres di Carousely."
   },
-  "partners": {
-    "subtitle": "Brand yang sudah jalan bareng Carousely.",
-    "title": "Dipercaya oleh partner kami"
-  },
   "dashboard": {
     "tagline": "Ruang kerja kamu, lebih teratur.",
     "navigation": "Ilustrasi navigasi aplikasi",
@@ -159,18 +139,6 @@
     "calendar": "Kalender",
     "replies": "Balasan",
     "assets": "Aset"
-  },
-  "art": {
-    "peachFooter": "Beri jeda untuk ide berikutnya.",
-    "purpleFooter": "Catatan kreatif untuk harimu.",
-    "greenFooter": "Ruang kecil. Cerita besar.",
-    "greenTitle2": "pelan-pelan.",
-    "peachTitle2": "Lanjut lagi.",
-    "peachTitle1": "Rehat dulu.",
-    "purpleTitle1": "Ide kecil,",
-    "greenTitle1": "Tumbuh",
-    "purpleTitle2": "dampak",
-    "purpleTitle3": "besar."
   },
   "footer": {
     "tagline": "Teman kerja untuk ide-ide kamu.",
@@ -212,8 +180,8 @@
   "pricing": {
     "title1": "Pilih paketnya.",
     "title2": "Mulai ceritamu.",
-    "subtitle1": "Dari konten pertama sampai kalender penuh.",
-    "subtitle2": "Pilih kuota yang pas untuk ritme brand kamu.",
+    "subtitle1": "Satu paket untuk satu brand. Tanpa perpanjangan otomatis.",
+    "subtitle2": "Lebih hemat dari gaji admin sosmed, dan selalu siap bantu.",
     "durationLabel": "Durasi paket",
     "months": "{count, plural, other {# bulan}}",
     "save": "Hemat {percent}%",
@@ -230,35 +198,28 @@
       "earlyAccess": "Early access fitur baru"
     },
     "descriptions": {
-      "pro": "Untuk rutin membuat dan menjadwalkan konten.",
-      "max": "Lebih banyak ruang untuk produksi dan riset konten."
+      "pro": "{count}+ post per bulan, siap kamu review tiap minggu.",
+      "max": "{count}+ post per bulan, untuk ritme yang lebih padat."
     },
     "multiplier": "{count}× lebih banyak kuota AI",
-    "estimate": "Estimasi {count}+ post per bulan",
-    "review": "Siap kamu review tiap minggu.",
     "perMonth": "/bulan",
-    "monthly": "Dibayar bulanan",
-    "total": "Total {amount} untuk {count} bulan",
-    "noRenewal": "Tanpa perpanjangan otomatis.",
-    "upfront": "Dibayar sekaligus, bukan cicilan.",
+    "monthly": "Dibayar bulanan · Tanpa perpanjangan otomatis",
+    "upfront": "Sekali bayar di muka · {amount}/{count} bln",
     "choose": "Pilih {name}",
-    "paymentNote": "Pembayaran melalui Mayar · Kuota AI diperbarui bulanan · Riset direset pukul 00.00 WIB",
-    "estimateNote": "Estimasi jumlah post bergantung pada format konten, jumlah slide, dan penggunaan AI lainnya.",
     "provisional": "Harga awal ditampilkan. Ketersediaan dan harga terbaru dikonfirmasi sebelum pembayaran."
   },
   "story": {
     "showcase": {
       "eyebrow": "INSPIRASI KONTEN",
       "title": "Buka folder. Temukan idemu.",
-      "subtitle": "20 contoh desain untuk berbagai bidang. Buka folder untuk melihat setiap cover lebih dekat.",
-      "disclaimer": "Konten dummy untuk inspirasi, bukan karya atau kampanye RE/MAX maupun SUME.",
       "beauty": "Cantik & sehat",
       "living": "Rasa & pengalaman",
       "spaces": "Ruang & keseharian",
       "business": "Bisnis & layanan",
       "count": "5 contoh",
       "open": "Buka folder",
-      "close": "Tutup folder"
+      "close": "Tutup folder",
+      "samplesLabel": "Contoh desain untuk bidang lain"
     },
     "covers": {
       "label0": "Perawatan kulit",
@@ -448,12 +409,85 @@
       "next": "Lanjutkan demo"
     }
   },
+  "realWork": {
+    "label": "Hasil nyata",
+    "slides": "{count} slide",
+    "slideOf": "Slide {current} dari {total}",
+    "prev": "Slide sebelumnya",
+    "next": "Slide berikutnya",
+    "pick": "Pilih carousel",
+    "clients": "Pilih klien",
+    "clientOf": "Klien {current} dari {total}",
+    "prevClient": "Klien sebelumnya",
+    "nextClient": "Klien berikutnya",
+    "upNext": "Selanjutnya: {name}",
+    "remax": {
+      "title": "Carousel yang sudah tayang untuk RE/MAX Indonesia",
+      "body": "Tiga seri edukasi beli rumah, dibuat dengan Carousely lalu dipublikasikan di Instagram mereka. Geser untuk lihat tiap slide.",
+      "costs": {
+        "title": "Biaya tersembunyi saat beli rumah",
+        "short": "Biaya beli rumah",
+        "alt0": "Cover: Kira cukup siapin uang seharga rumahnya, ternyata masih ada biaya lain?",
+        "alt1": "Harga rumah tidak sama dengan total biaya beli rumah, biaya tambahannya sekitar 5–7%",
+        "alt2": "Biaya pertama: BPHTB, biaya terbesar, tarif umumnya 5%",
+        "alt3": "Biaya kedua: honor PPAT atau notaris untuk AJB dan balik nama sertifikat",
+        "alt4": "Penutup: konsultasi dulu dengan agen RE/MAX"
+      },
+      "inspect": {
+        "title": "4 hal yang dicek sebelum deal",
+        "short": "Cek sebelum deal",
+        "alt0": "Cover: Sebelum deal, cek 4 hal ini dulu",
+        "alt1": "Nomor 01, atap dan plafon: cari bekas rembesan",
+        "alt2": "Nomor 02, dinding: perhatikan retak dan lembap",
+        "alt3": "Nomor 03, air dan listrik: pastikan lancar dan aman",
+        "alt4": "Nomor 04, legalitas: cocokkan sertifikat dan IMB/PBG",
+        "alt5": "Penutup: inspeksi bareng agen RE/MAX"
+      },
+      "steps": {
+        "title": "5 langkah beli rumah pertama",
+        "short": "Rumah pertama",
+        "alt0": "Cover: Beli rumah pertama? Ikuti 5 langkah ini",
+        "alt1": "Langkah 1: hitung budget, cicilan maksimal 30% penghasilan",
+        "alt2": "Langkah 2: pilih lokasi yang tepat",
+        "alt3": "Langkah 3: cek kondisi rumah",
+        "alt4": "Langkah 4: pastikan legalitasnya aman",
+        "alt5": "Penutup: 5 langkah sederhana menuju rumah pertama, konsultasi dengan agen RE/MAX"
+      }
+    },
+    "sume": {
+      "title": "Carousel yang sudah tayang untuk SUME",
+      "body": "Dua seri edukasi soal daya cadangan dan efisiensi data center, dibuat dengan Carousely lalu dipublikasikan di Instagram mereka. Geser untuk lihat tiap slide.",
+      "ups": {
+        "title": "Merawat baterai UPS",
+        "short": "Baterai UPS",
+        "alt0": "Cover: UPS ada, tapi baterainya siap? Baterai UPS menopang listrik sampai genset mengambil alih",
+        "alt1": "Detik pertama ditopang baterai: saat listrik PLN padam, baterai UPS bekerja sebelum genset menyala",
+        "alt2": "Kenapa baterai UPS bisa gagal: suhu ruang tinggi, usia pakai 3–5 tahun, terlalu sering terpakai",
+        "alt3": "Suhu ideal ruang baterai 20–25°C",
+        "alt4": "Maintenance rutin baterai UPS: pemeriksaan berkala, jaga lingkungan, uji performa, rencana penggantian",
+        "alt5": "Penutup: pastikan backup power selalu siap, konsultasi dengan tim SUME"
+      },
+      "pue": {
+        "title": "Menurunkan PUE data center",
+        "short": "PUE data center",
+        "alt0": "Cover: Berapa PUE data center Anda?",
+        "alt1": "Apa itu PUE: total energi fasilitas dibagi energi perangkat IT",
+        "alt2": "Rata-rata PUE global sekitar 1,5",
+        "alt3": "Di mana energi sering terbuang: tanpa containment, set point suhu terlalu rendah, kapasitas berlebih, operasional belum optimal",
+        "alt4": "4 langkah menurunkan PUE: containment, setelan suhu, kapasitas sesuai kebutuhan, monitoring rutin",
+        "alt5": "Penutup: efisiensi dimulai dari pengukuran, jadwalkan audit efisiensi bersama tim SUME"
+      }
+    }
+  },
+  "trialPrompt": {
+    "title": "Sekarang giliran brand kamu.",
+    "body": "Tulis username Instagram kamu, lalu lanjut daftar. Akun baru langsung dapat 3 kredit gratis untuk mencoba."
+  },
   "trial": {
     "label": "Username Instagram",
     "placeholder": "@usernamekamu",
     "cta": "Coba 3 kredit gratis",
     "submitting": "Menyiapkan…",
-    "note": "Gratis 3 kredit · 1 konten = 3 kredit · tanpa kartu",
     "handleSpace": "Ini username Instagram, bukan nama brand. Username tidak pakai spasi, contoh: @kopikita",
     "handleInvalid": "Username Instagram hanya boleh huruf, angka, titik (.) dan garis bawah (_), maksimal 30 karakter.",
     "word0": "UMKM",
@@ -467,7 +501,6 @@
   "featureTour": {
     "eyebrow": "Kenalan sama fiturnya",
     "title": "Satu tempat buat semua urusan kontenmu",
-    "subtitle": "Coba langsung di bawah. Semua bisa diklik, persis seperti di dashboard.",
     "hello": "Hai, aku Mimo! Scroll terus, aku tunjukin fitur Carousely.",
     "cta": "Udah lihat semuanya? Yuk mulai gratis, aku tunggu di dalam!",
     "sneak": "Kata Mimo",
@@ -629,5 +662,16 @@
       "topPost": "5 tips pagi produktif"
     },
     "start": "Mulai gratis"
+  },
+  "testimonials": {
+    "eyebrow": "KATA KLIEN KAMI",
+    "title": "Brand nyata, konten yang jalan terus.",
+    "handleLabel": "Instagram {name} (@{handle}), buka di tab baru",
+    "remax": {
+      "quote": "Konten Instagram kami sekarang lebih konsisten. Carousely paham gaya visual kami: warna, font, sampai layout-nya. Tinggal sesuaikan sedikit, <mark>langsung siap posting.</mark>"
+    },
+    "sume": {
+      "quote": "Carousely membantu kami mengubah topik teknis seperti UPS, cooling, dan redundansi menjadi <mark>carousel yang mudah dipahami klien.</mark> Tampilannya profesional dan tetap sesuai brand kami."
+    }
   }
 }

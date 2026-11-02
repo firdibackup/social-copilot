@@ -42,7 +42,7 @@ async function StructuredData() {
       {
         '@type': 'SoftwareApplication', name: 'Carousely', url: `${base}/`, image: `${base}/og-image.jpg`,
         applicationCategory: 'BusinessApplication', operatingSystem: 'Web', description: t('metadata.description'),
-        offers: { '@type': 'Offer', price: 0, priceCurrency: 'IDR', description: t('trial.note') },
+        offers: { '@type': 'Offer', price: 0, priceCurrency: 'IDR', description: t('trial.cta') },
         publisher: { '@id': `${base}/#org` },
       },
       {

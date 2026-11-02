@@ -129,9 +129,9 @@ export function OrbitHero({ paused, reduceMotion }: { paused: boolean; reduceMot
           {submitting && <span className={styles.spinner} aria-hidden="true" />}{submitting ? trial('submitting') : trial('cta')}
         </button>
       </form>
-      {/* One status line: the trial terms, swapped for the validation hint when needed. Its height is
-          reserved in CSS so a hint never resizes the copy box (which would re-fit and jump the ring). */}
-      <p id={noteId} className={`${styles.note} ${styles.step}`} data-error={!!error || undefined} role="status">{error ?? trial('note')}</p>
+      {/* The validation hint's line. Its height is reserved in CSS so a hint never resizes the copy box
+          (which would re-fit and jump the ring). */}
+      <p id={noteId} className={`${styles.note} ${styles.step}`} data-error={!!error || undefined} role="status">{error}</p>
     </div>
     {confetti && <div className={styles.confetti} aria-hidden="true">{Array.from({ length: 16 }, (_, i) =>
       <i key={i} style={{ '--x': `${(i * 37) % 100}%`, '--d': `${(i % 6) * 0.06}s`, '--c': ['#6558f5', '#302650', '#3fe0b5', '#ffb86b'][i % 4] } as CSSProperties} />)}</div>}

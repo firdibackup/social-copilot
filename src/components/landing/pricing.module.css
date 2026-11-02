@@ -14,15 +14,11 @@
 .planTitle { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .planTitle h3 { font-family: var(--font-display); font-size: 28px; line-height: 1.2; font-weight: 650; margin: 0; color: #302650; }
 .planTitle > span { font-size: 12px; font-weight: 600; color: #5145d8; background: #e9e5ff; padding: 5px 10px; border-radius: 7px; }
-.description { font-size: 14px; color: #656078; min-height: 44px; margin: 12px 0 22px; }
-.estimate { display: grid; gap: 3px; margin: 0 0 24px; color: #302650; }
-.estimate strong { font-size: 18px; font-weight: 650; }
-.estimate span { font-size: 13px; color: #656078; }
-.estimateNote { margin: 8px auto 0; max-width: 72ch; text-align: center; color: #656078; font-size: 12px; line-height: 1.7; }
-.price { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.description { font-size: 14px; font-weight: 600; color: #302650; line-height: 1.6; min-height: 44px; margin: 0 0 22px; }
+.price { display: flex; margin-top: 18px; align-items: baseline; gap: 6px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
 .price strong { font-family: var(--font-display); font-size: clamp(32px, 3vw, 42px); line-height: 1.2; letter-spacing: -.035em; font-weight: 650; }
 .price > span { color: #656078; font-size: 14px; }
-.total { margin: 12px 0 24px; font-size: 13px; line-height: 1.7; color: #656078; font-variant-numeric: tabular-nums; }
+.total { margin: 6px 0 18px; font-size: 13px; line-height: 1.7; color: #656078; font-variant-numeric: tabular-nums; }
 .choose { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 48px; background: #f4f1ff; border: 1px solid #ddd7ee; border-radius: 10px; color: #5145d8; font-weight: 600; transition: background .15s; }
 .choose:hover { background: #e9e5ff; }
 .max .choose { color: white; background: #6558f5; border-color: #6558f5; }

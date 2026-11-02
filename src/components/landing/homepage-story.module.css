@@ -1,9 +1,9 @@
 .eyebrow { display: inline-flex; align-items: center; gap: 9px; color: #655c76; font-size: 12px; letter-spacing: .03em; }
 .showcase { max-width: 1160px; margin: auto; padding: 64px 24px 80px; text-align: center; }
 .showcase h2 { margin-top: 18px; }
-.showcase > p { color: #6c6579; font-size: 14px; line-height: 1.7; margin: 18px auto 0; max-width: 65ch; }
-.showcase > .showcaseNote { font-size: 12px; margin-top: 10px; }
-.folderWrap { position: relative; margin-top: 64px; --fd-gap: clamp(12px, 2vw, 28px); --fd-w: clamp(100px, calc((100vw - 48px - 5 * var(--fd-gap)) / 6), 162px); }
+.samplesHead { display: flex; align-items: center; gap: 14px; margin: 64px auto 0; max-width: 560px; color: #807a90; font-size: 12.5px; }
+.samplesHead::before, .samplesHead::after { content: ''; flex: 1; height: 1px; background: #e6e4ef; }
+.folderWrap { position: relative; margin-top: 76px; --fd-gap: clamp(12px, 2vw, 28px); --fd-w: clamp(100px, calc((100vw - 48px - 5 * var(--fd-gap)) / 6), 162px); }
 .folderBackRow { position: absolute; inset-inline: 0; top: -44px; display: flex; justify-content: center; pointer-events: none; }
 .folderBack { pointer-events: auto; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 7px 14px 7px 10px; border: 0; border-radius: 999px; background: #f1f1f1; font: inherit; font-size: 14px; cursor: pointer; }
 .folderBack:hover { background: #e7e7e7; }
@@ -29,9 +29,11 @@
 .folderCell .folderPaper { width: 100%; }
 .folderCell figcaption { letter-spacing: -.02em; text-align: center; text-wrap: balance; background: white; border-radius: 999px; max-width: 100%; padding: 9px 16px; font-size: 14px; line-height: 1.25; box-shadow: 0 1px 2px #0000000f, 0 8px 20px -10px #00000047; }
 @media(max-width: 767px) {
- .showcase { padding: 48px 24px; }
+ .showcase { padding: 48px 16px; }
+ .samplesHead { margin-top: 44px; }
+ .folderWrap { margin-top: 56px; }
  .folderWrap { --fd-w: 168px; --fd-gap: 16px; }
- .folders { min-height: 0; margin-inline: -24px; padding: 12px 24px 44px; scroll-snap-type: x mandatory; scroll-padding-inline: 24px; scrollbar-width: none; justify-content: flex-start; overflow-x: auto; }
+ .folders { min-height: 0; margin-inline: -16px; padding: 12px 16px 44px; scroll-snap-type: x mandatory; scroll-padding-inline: 16px; scrollbar-width: none; justify-content: flex-start; overflow-x: auto; }
  .folders::-webkit-scrollbar { display: none; }
  .folder { scroll-snap-align: start; }
  .folders[data-open='true'] { flex-wrap: wrap; gap: 22px 14px; margin-inline: 0; padding: 12px 0 0; overflow: visible; }

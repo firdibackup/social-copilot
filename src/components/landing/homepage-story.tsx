@@ -6,6 +6,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { AnimatePresence, LayoutGroup, motion } from 'framer-motion'
 import { ChevronLeft } from 'lucide-react'
 import styles from './homepage-story.module.css'
+import { RealWork, TrialPrompt } from './real-work'
 
 export const names = ['01-beauty-skincare', '02-haircare', '03-cafe', '04-bakery', '05-restaurant', '06-architecture', '07-legal-service', '08-finance-service', '09-hr-recruitment', '10-digital-agency', '11-property', '12-wellness', '13-education', '14-automotive', '15-modest-fashion', '16-travel', '17-saas-technology', '18-fitness', '19-wedding-organizer', '20-umkm-branding']
 function useCoverLabels() {
@@ -68,11 +69,11 @@ export function ContentShowcase({ motionEnabled }: { motionEnabled: boolean }) {
   const selected = showcaseFolders.find(folder => folder.key === active)
   const visible = selected ? [selected] : showcaseFolders
   const transition = motionEnabled ? folderSpring : { duration: 0 }
-  return <section id="konten" className={styles.showcase} data-motion={motionEnabled} aria-labelledby="showcase-title" aria-describedby="showcase-disclaimer">
+  return <section id="konten" className={styles.showcase} data-motion={motionEnabled} aria-labelledby="showcase-title">
     <span className={styles.eyebrow}>{t('eyebrow')}</span>
     <h2 id="showcase-title">{t('title')}</h2>
-    <p>{t('subtitle')}</p>
-    <p id="showcase-disclaimer" className={styles.showcaseNote}>{t('disclaimer')}</p>
+    <RealWork motionEnabled={motionEnabled} />
+    <div className={styles.samplesHead}><span>{t('samplesLabel')}</span></div>
     <LayoutGroup id={layoutId}>
       <div className={styles.folderWrap}>
         <div className={styles.folderBackRow}><AnimatePresence>{selected && <motion.button type="button" className={styles.folderBack} onClick={close} initial={{ opacity: 0, x: motionEnabled ? -8 : 0 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: motionEnabled ? -8 : 0, transition: { duration: motionEnabled ? 0.15 : 0 } }} transition={motionEnabled ? { ...captionSpring, delay: 0.2 } : { duration: 0 }}><ChevronLeft size={16} />{t('close')}</motion.button>}</AnimatePresence></div>
@@ -104,5 +105,6 @@ export function ContentShowcase({ motionEnabled }: { motionEnabled: boolean }) {
         </motion.div>
       </div>
     </LayoutGroup>
+    <TrialPrompt motionEnabled={motionEnabled} />
   </section>
 }

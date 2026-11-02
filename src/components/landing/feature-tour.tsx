@@ -362,10 +362,30 @@ function DesignDemo({ motionEnabled }: { motionEnabled: boolean }) {
     }, SCAN_START + feed.length * SCAN_STEP + SCAN_HOLD)
   }
 
+  // Below 900px the stage isn't sticky, so the stop's scroll range is short and Analyze only comes into view near its
+  // end: Mimo rarely gets to press it before the card scrolls by. There the scan starts once the card is mostly in view.
+  const studio = useRef<HTMLDivElement>(null)
+  const autoStarted = useRef(false)
+  const autoAnalyze = useEffectEvent(() => {
+    autoStarted.current = true
+    if (phase === 'idle') analyze()
+  })
+  useEffect(() => {
+    const element = studio.current
+    if (!motionEnabled || phase !== 'idle' || autoStarted.current || !element) return
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting || !matchMedia('(max-width: 900px)').matches) return
+      observer.disconnect()
+      autoAnalyze()
+    }, { threshold: .55 })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [motionEnabled, phase])
+
   return <Card stop="design" title={t('title')} icon={<WandSparkles size={16} />} action={<span className={styles.barMeta}>{phase === 'made' ? t('queued', { count: approved.length }) : t('handleAt')}</span>}>
     <AnimatePresence mode="wait" initial={false}>
       {phase !== 'made'
-        ? <motion.div key="scan" className={styles.studio} exit={motionEnabled ? { opacity: 0, scale: .97, filter: 'blur(4px)' } : undefined} transition={{ duration: .22 }}>
+        ? <motion.div key="scan" ref={studio} className={styles.studio} exit={motionEnabled ? { opacity: 0, scale: .97, filter: 'blur(4px)' } : undefined} transition={{ duration: .22 }}>
           <div className={styles.igPanel} data-ft-aim="design">
             <div className={styles.igHead}>
               <span className={styles.igAvatar}><InstagramFillIcon size={13} /></span>
@@ -655,7 +675,6 @@ export function FeatureTour({ motionEnabled }: { motionEnabled: boolean }) {
     <motion.header className={styles.intro} {...reveal()}>
       <span className={styles.eyebrow}><Sparkles size={14} />{t('eyebrow')}</span>
       <h2 id="feature-tour-title">{t('title')}</h2>
-      <p>{t('subtitle')}</p>
     </motion.header>
     <div className={styles.steps}>
       {STOPS.map(({ stop, side, face, fx, aim, anchor }, index) => <article key={stop} className={styles.step} aria-labelledby={`ft-${stop}-title`}
