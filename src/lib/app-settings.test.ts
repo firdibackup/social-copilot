@@ -44,7 +44,7 @@ afterEach(() => {
 describe('app settings', () => {
   it('uses the defaults from .env and code without a row', async () => {
     expect(await textModel()).toBe('env-model')
-    expect(await imageModel()).toBe('cx/gpt-image-2.5')
+    expect(await imageModel()).toBe('cx/gpt-image-2.5-sunburst')
     expect(await getPlan()).toEqual(DEFAULT_PLAN)
   })
 
@@ -52,7 +52,7 @@ describe('app settings', () => {
     store.result = { data: ROW, error: null }
 
     expect(await textModel()).toBe('cc/claude-sonnet')
-    expect(await imageModel()).toBe('cx/gpt-image-2.5')
+    expect(await imageModel()).toBe('cx/gpt-image-2.5-sunburst')
     expect(await getPlan()).toEqual({ name: 'Pro', priceIdr: 149_000, days: 30, credits: DEFAULT_PLAN.credits })
   })
 

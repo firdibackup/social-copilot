@@ -157,7 +157,7 @@ describe('generateImage', () => {
     expect(url).toBe('https://router.example/v1/images/generations')
     expect(new Headers(init?.headers).get('accept')).toBe('text/event-stream')
     expect(JSON.parse(String(init?.body))).toEqual({
-      model: 'cx/gpt-image-2.5',
+      model: 'cx/gpt-image-2.5-sunburst',
       prompt: 'Kucing',
       n: 1,
       size: '1088x1360',

@@ -6,7 +6,7 @@ import { ConfigError, describeError } from './errors'
 import { db, unwrap } from './supabase'
 
 /** Verified on 2026-10-16. Overridable, since 9Router's image models change with its Codex version. */
-export const DEFAULT_IMAGE_MODEL = 'cx/gpt-image-2.5'
+export const DEFAULT_IMAGE_MODEL = 'cx/gpt-image-2.5-sunburst'
 
 /** Every AI request and credit check reads these, so they are kept this long per server process. */
 const CACHE_MS = 30_000
