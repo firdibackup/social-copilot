@@ -1,14 +1,14 @@
 {
   "faq": {
-    "audienceAnswer": "Untuk pemilik UMKM, kreator, dan pengelola media sosial yang ingin menyiapkan konten serta mengelola Instagram dari satu tempat. Kamu bisa mulai dari ide sederhana, foto produk, atau bahan konten yang sudah ada.",
-    "demoAnswer": "Preview ini adalah demo interaktif dengan data ilustrasi. Mencoba ide, melihat jadwal, atau mengirim balasan di demo tidak membuat konten maupun mengirim pesan ke akun Instagram sungguhan.",
-    "accountAnswer": "Gunakan akun Instagram Business atau Creator. Hubungkan akun melalui alur resmi Instagram di pengaturan Carousely dan berikan izin yang diperlukan untuk fitur publikasi serta pesan.",
-    "startAnswer": "Buat akun gratis, hubungkan Instagram, lalu lengkapi brand kamu. Akun baru mendapat 3 kredit gratis (1 konten = 3 kredit) dan 3 pesan Mimo untuk mencoba. Setelah itu pilih paket Pro atau Max untuk lanjut.",
-    "aiAnswer": "Tidak. Hasil AI adalah bahan kerja yang bisa kamu tinjau dan edit. Kamu tetap menentukan konten mana yang dipakai dan kapan konten dijadwalkan untuk tayang.",
+    "audienceAnswer": "Untuk pemilik UMKM, kreator, dan pengelola media sosial yang ingin menyiapkan konten dan mengelola Instagram dari satu tempat. Kamu bisa mulai dari ide sederhana, foto produk, atau materi yang sudah ada.",
+    "demoAnswer": "Preview ini adalah demo interaktif dengan data contoh. Mencoba ide, melihat jadwal, atau membalas di demo tidak membuat konten dan tidak mengirim pesan ke akun Instagram sungguhan.",
+    "accountAnswer": "Gunakan akun Instagram Business atau Creator. Hubungkan lewat alur resmi Instagram di pengaturan Carousely, lalu berikan izin yang diperlukan untuk fitur publikasi dan pesan.",
+    "startAnswer": "Buat akun gratis, hubungkan Instagram, lalu lengkapi informasi brand kamu. Akun baru mendapat 3 kredit gratis (1 konten = 3 kredit) dan 3 pesan Mimo untuk mencoba. Setelah itu, pilih paket Pro atau Max untuk melanjutkan.",
+    "aiAnswer": "Tidak. Hasil AI berupa draf yang bisa kamu tinjau dan sunting. Kamu yang memutuskan konten mana yang dipakai dan kapan dijadwalkan.",
     "demoQuestion": "Apakah preview di halaman ini terhubung ke akun asli?",
     "accountQuestion": "Akun Instagram apa yang bisa dihubungkan?",
     "aiQuestion": "Apakah konten AI langsung dipublikasikan?",
-    "startQuestion": "Bagaimana cara mulai memakai Carousely?",
+    "startQuestion": "Bagaimana cara mulai?",
     "audienceQuestion": "Carousely cocok untuk siapa?",
     "subtitle2": "sebelum mulai berkarya.",
     "subtitle1": "Kenalan sedikit lagi",
@@ -101,12 +101,12 @@
     "afternoon": "16.00"
   },
   "cta": {
-    "eyebrow": "Siap mulai?",
+    "eyebrow": "Siap memulai?",
     "title1": "Ide berikutnya,",
-    "title2": "kita bikin bareng?",
-    "body": "Kenalkan brand-mu sekali. Carousely bantu bikin carousel, caption, sampai jadwal tayangnya.",
+    "title2": "kita buat bareng.",
+    "body": "Perkenalkan brand kamu sekali. Carousely membantu membuat carousel, caption, sampai jadwal tayangnya.",
     "start": "Mulai gratis",
-    "note": "3 kredit gratis, tanpa kartu",
+    "note": "3 kredit gratis, tanpa kartu kredit",
     "chip": "Siap tayang"
   },
   "hero": {
@@ -141,7 +141,7 @@
     "assets": "Aset"
   },
   "footer": {
-    "tagline": "Teman kerja untuk ide-ide kamu.",
+    "tagline": "Carousely, teman kerja untuk ide-ide kamu.",
     "reducedMotion": "Gerak minimal sistem",
     "privacy": "Kebijakan privasi",
     "enableMotion": "Aktifkan animasi",
@@ -173,15 +173,15 @@
   },
   "metadata": {
     "title": "Carousely — Aplikasi AI Carousel & Jadwal Posting Instagram",
-    "description": "Bikin carousel, caption, dan jadwal posting Instagram otomatis dengan AI. Cocok untuk UMKM & kreator. Coba gratis 3 kredit, tanpa kartu.",
+    "description": "Buat carousel, caption, dan jadwal posting Instagram otomatis dengan AI. Cocok untuk UMKM dan kreator. Coba 3 kredit gratis, tanpa kartu kredit.",
     "socialDescription": "Konten Instagram dibuat AI, tayang otomatis. Carousel, caption, jadwal posting, dan auto DM dalam satu workspace.",
     "ogAlt": "Carousely: konten Instagram dibuat AI dan tayang otomatis"
   },
   "pricing": {
-    "title1": "Pilih paketnya.",
-    "title2": "Mulai ceritamu.",
-    "subtitle1": "Satu paket untuk satu brand. Tanpa perpanjangan otomatis.",
-    "subtitle2": "Lebih hemat dari gaji admin sosmed, dan selalu siap bantu.",
+    "title1": "Pilih paket",
+    "title2": "yang sesuai",
+    "subtitle1": "Satu paket untuk satu brand. Ditagih per bulan dan tidak diperpanjang otomatis.",
+    "subtitle2": "Lebih hemat daripada menggaji admin media sosial, dan selalu siap membantu.",
     "durationLabel": "Durasi paket",
     "months": "{count, plural, other {# bulan}}",
     "save": "Hemat {percent}%",
@@ -189,24 +189,25 @@
     "features": {
       "posts": "±{formattedCount} post setiap bulan",
       "chatbot": "Mimo AI Chatbot",
-      "research": "Deep riset Instagram + Threads (segera untuk Threads)",
-      "creation": "Ide, skrip, carousel, gambar, dan caption AI",
+      "research": "Riset mendalam Instagram + Threads (Threads segera hadir)",
+      "creation": "Ide, skrip, carousel, gambar, dan caption dengan AI",
       "calendar": "Kalender dan penjadwalan konten",
-      "accounts": "1 akun Instagram + 1 akun Threads",
+      "accounts": "1 akun Instagram + 1 akun Threads (segera hadir)",
       "analytics": "Analitik dan Auto DM Instagram",
-      "support": "Support prioritas 1-on-1",
-      "earlyAccess": "Early access fitur baru"
+      "allPro": "Semua fitur Pro",
+      "support": "Dukungan prioritas 1-on-1",
+      "earlyAccess": "Akses awal ke fitur baru"
     },
     "descriptions": {
-      "pro": "{count}+ post per bulan, siap kamu review tiap minggu.",
-      "max": "{count}+ post per bulan, untuk ritme yang lebih padat."
+      "pro": "{count}+ post per bulan, siap kamu tinjau setiap minggu",
+      "max": "{count}+ post per bulan, untuk ritme posting yang lebih padat"
     },
-    "multiplier": "{count}× lebih banyak kuota AI",
+    "multiplier": "Kuota AI {count}x lebih banyak",
     "perMonth": "/bulan",
-    "monthly": "Dibayar bulanan · Tanpa perpanjangan otomatis",
-    "upfront": "Sekali bayar di muka · {amount}/{count} bln",
+    "monthly": "Ditagih per bulan, tidak diperpanjang otomatis",
+    "upfront": "Sekali bayar di muka · {amount}/{count} bulan",
     "choose": "Pilih {name}",
-    "provisional": "Harga awal ditampilkan. Ketersediaan dan harga terbaru dikonfirmasi sebelum pembayaran."
+    "provisional": "Harga dapat berubah. Harga terbaru dikonfirmasi sebelum pembayaran."
   },
   "story": {
     "showcase": {
@@ -375,9 +376,10 @@
     },
     "opening": {
       "apiBadge": "Integrasi API resmi",
-      "title1": "Otomasi Social Mediamu",
-      "title2": "untuk",
-      "body": "Tulis username Instagram-mu. Carousely pelajari gaya feed-mu, lalu bikin carousel, caption, dan jadwal posting yang sesuai brand.",
+      "title1": "Otomasi Media Sosialmu",
+      "title2": "untuk UMKM",
+      "subtitle": "Cocok untuk UMKM, coffee shop, klinik kecantikan, bengkel motor, toko bangunan, kos-kosan, hingga pabrik.",
+      "body": "Tulis username Instagram kamu. Carousely mempelajari gaya feed kamu, lalu membuat carousel, caption, dan jadwal posting yang sesuai dengan brand kamu.",
       "prompt": "Bikinin carousel promo untuk kafe studio.kamu. Ceritakan kopi favorit dan suasana nyaman, lalu ajak orang mampir.",
       "demo": "Simulasi · bukan chat langsung",
       "connected": "Carousely terhubung",
@@ -423,7 +425,7 @@
     "upNext": "Selanjutnya: {name}",
     "remax": {
       "title": "Carousel yang sudah tayang untuk RE/MAX Indonesia",
-      "body": "Tiga seri edukasi beli rumah, dibuat dengan Carousely lalu dipublikasikan di Instagram mereka. Geser untuk lihat tiap slide.",
+      "body": "Tiga seri edukasi beli rumah yang dibuat dengan Carousely dan dipublikasikan di Instagram mereka. Geser untuk melihat setiap slide.",
       "costs": {
         "title": "Biaya tersembunyi saat beli rumah",
         "short": "Biaya beli rumah",
@@ -456,7 +458,7 @@
     },
     "sume": {
       "title": "Carousel yang sudah tayang untuk SUME",
-      "body": "Dua seri edukasi soal daya cadangan dan efisiensi data center, dibuat dengan Carousely lalu dipublikasikan di Instagram mereka. Geser untuk lihat tiap slide.",
+      "body": "Dua seri edukasi tentang daya cadangan dan efisiensi data center yang dibuat dengan Carousely dan dipublikasikan di Instagram mereka. Geser untuk melihat setiap slide.",
       "ups": {
         "title": "Merawat baterai UPS",
         "short": "Baterai UPS",
@@ -486,7 +488,7 @@
   "trial": {
     "label": "Username Instagram",
     "placeholder": "@usernamekamu",
-    "cta": "Coba 3 kredit gratis",
+    "cta": "Mulai gratis",
     "submitting": "Menyiapkan…",
     "handleSpace": "Ini username Instagram, bukan nama brand. Username tidak pakai spasi, contoh: @kopikita",
     "handleInvalid": "Username Instagram hanya boleh huruf, angka, titik (.) dan garis bawah (_), maksimal 30 karakter.",
@@ -499,42 +501,42 @@
     "word6": "pabrik"
   },
   "featureTour": {
-    "eyebrow": "Kenalan sama fiturnya",
-    "title": "Satu tempat buat semua urusan kontenmu",
-    "hello": "Hai, aku Mimo! Scroll terus, aku tunjukin fitur Carousely.",
-    "cta": "Udah lihat semuanya? Yuk mulai gratis, aku tunggu di dalam!",
+    "eyebrow": "Kenalan dengan fiturnya",
+    "title": "Satu tempat untuk semua kebutuhan konten kamu",
+    "hello": "Hai, aku Mimo! Gulir ke bawah, aku tunjukkan fitur Carousely.",
+    "cta": "Sudah lihat semuanya? Yuk, mulai gratis. Aku tunggu di dalam!",
     "sneak": "Kata Mimo",
     "count": "{current} dari {total}",
     "steps": {
       "chat": {
         "kicker": "Chat Mimo",
         "title": "Ngobrol, lalu jadi konten",
-        "body": "Ceritakan idemu dengan bahasa sehari-hari. Mimo langsung membuat carousel lengkap, dari cover sampai slide penutup, sesuai gaya brand kamu.",
-        "say": "Ketik idemu, aku langsung bikinin carousel-nya di sini."
+        "body": "Ceritakan ide kamu dengan bahasa sehari-hari. Mimo langsung membuat carousel lengkap, dari cover sampai slide penutup, sesuai gaya brand kamu.",
+        "say": "Ketik ide kamu, aku langsung buatkan carousel di sini."
       },
       "schedule": {
         "kicker": "Jadwal otomatis",
-        "title": "Carousel siap, terbit sendiri",
-        "body": "Carousel yang sudah jadi masuk antrean. Carousely menaruhnya di jam paling ramai minggu ini dan memposting otomatis ke Instagram, kamu tidak perlu posting manual.",
+        "title": "Carousel siap, tayang otomatis",
+        "body": "Carousel yang sudah jadi masuk antrean. Carousely menjadwalkannya di jam paling ramai minggu ini dan memposting otomatis ke Instagram, tanpa posting manual.",
         "say": "Klik Jadwalkan otomatis, aku taruh semua carousel di jam terbaik dan posting sendiri."
       },
       "design": {
         "kicker": "Desain AI",
-        "title": "Instagram kamu dipelajari, desainnya jadi sendiri",
-        "body": "Carousely membaca feed Instagram kamu: warna, font, dan gaya visualnya. Lalu postingan lama dibuat ulang supaya seragam, plus ide desain baru. Kamu tinggal swipe untuk setuju.",
-        "say": "Klik Analisis, aku pelajari Instagram kamu lalu bikin desain baru. Tinggal swipe!"
+        "title": "Desain AI yang mengikuti Instagram kamu",
+        "body": "Carousely membaca feed Instagram kamu, termasuk warna, font, dan gaya visualnya. Postingan lama dibuat ulang agar seragam, serta ada ide desain baru. Kamu tinggal menggeser untuk menyetujui.",
+        "say": "Klik Analisis, aku pelajari Instagram kamu lalu buat desain baru. Tinggal geser!"
       },
       "autodm": {
         "kicker": "Auto DM",
         "title": "Komentar masuk, DM langsung dibalas",
-        "body": "Buat aturan seperti “komentar LINK, kirim DM”. Begitu ada yang komentar, Carousely membalas komentarnya, mengajak lanjut di DM, lalu mengirim link begitu mereka membalas. Semuanya otomatis, 24 jam.",
+        "body": "Buat aturan seperti “komentar LINK, kirim DM”. Setiap ada komentar, Carousely membalas, mengajak lanjut di DM, lalu mengirim link setelah mereka membalas. Berjalan otomatis 24 jam.",
         "say": "Lihat langsung: ada yang komentar “LINK”, aku balas dan kirim link-nya lewat DM. Coba ketik sendiri juga!"
       },
       "analytics": {
         "kicker": "Analitik",
-        "title": "Tahu konten mana yang paling jalan",
-        "body": "Pantau jangkauan, interaksi, dan pengikut baru dari semua akun. Ganti rentang waktu untuk melihat trennya.",
-        "say": "Ganti rentang waktunya, aku tunjukin konten mana yang lagi naik."
+        "title": "Ketahui konten yang paling berhasil",
+        "body": "Pantau jangkauan, interaksi, dan pengikut baru dari semua akun. Ubah rentang waktu untuk melihat tren.",
+        "say": "Ubah rentang waktunya, aku tunjukkan konten mana yang sedang naik."
       }
     },
     "chat": {
@@ -545,7 +547,7 @@
       "placeholder": "Tulis idemu…",
       "send": "Kirim",
       "typing": "Mimo sedang menulis…",
-      "intro": "Hai! Mau bikin konten apa hari ini?",
+      "intro": "Hai! Mau membuat konten apa hari ini?",
       "prompt1": "Carousel 5 tips pagi produktif",
       "prompt2": "Promo diskon akhir bulan",
       "reply1": "Siap! Carousel-nya sudah jadi:",
@@ -583,7 +585,7 @@
       "feedLabel": "{count} postingan terakhir",
       "feedAlt": "Feed Instagram dengan {count} postingan yang dianalisis",
       "kitTitle": "Brand kit kamu",
-      "kitEmpty": "Aku baca feed kamu dulu, baru bikin desain yang seragam.",
+      "kitEmpty": "Aku baca feed kamu dulu, lalu buat desain yang seragam.",
       "analyze": "Analisis Instagram",
       "scanning": "Membaca postingan {done} dari {total}…",
       "colors": "Warna",
@@ -622,14 +624,14 @@
       "toggle": "Aturan auto DM",
       "post": "Postingan kamu",
       "brand": "akarstudio",
-      "caption": "Mau template gratisnya? Komen {keyword} ya!",
+      "caption": "Mau template gratisnya? Tulis komentar {keyword}, ya!",
       "user": "nadia.rn",
       "userName": "Nadia",
       "comment": "{keyword} kak 🙏",
       "publicReply": "Sudah aku kirim ke DM ya 💜",
       "inbox": "Pesan langsung",
       "live": "Sedang berlangsung",
-      "prompt": "Hai {name}! Makasih udah komen 💜 Ketik {keyword} di sini kalau mau link-nya aku kirim.",
+      "prompt": "Hai {name}! Terima kasih sudah berkomentar 💜 Ketik {keyword} di sini kalau mau link-nya aku kirim.",
       "auto": "Otomatis",
       "typing": "akarstudio sedang mengetik…",
       "dm": "Ini dia, {name}! Template gratisnya bisa langsung dipakai.",
@@ -658,7 +660,7 @@
       "engagement": "Interaksi",
       "followers": "Pengikut baru",
       "chart": "Jangkauan per periode",
-      "top": "Paling jalan",
+      "top": "Paling berhasil",
       "topPost": "5 tips pagi produktif"
     },
     "start": "Mulai gratis"

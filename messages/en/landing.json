@@ -194,6 +194,7 @@
       "calendar": "Content calendar and scheduling",
       "accounts": "1 Instagram account + 1 Threads account",
       "analytics": "Instagram analytics and Auto DM",
+      "allPro": "All Pro features",
       "support": "Priority 1-on-1 support",
       "earlyAccess": "Early access to new features"
     },
@@ -206,7 +207,7 @@
     "monthly": "Billed monthly · No automatic renewal",
     "upfront": "Paid once upfront · {amount}/{count} mo",
     "choose": "Choose {name}",
-    "provisional": "Starting prices shown. Availability and current pricing are confirmed before payment."
+    "provisional": "Prices may change. Current pricing is confirmed before payment."
   },
   "story": {
     "showcase": {
@@ -376,7 +377,8 @@
     "opening": {
       "apiBadge": "Official API integration",
       "title1": "Automate Social Media",
-      "title2": "for",
+      "title2": "for small businesses",
+      "subtitle": "Built for small businesses, coffee shops, beauty clinics, motorcycle workshops, building supply stores, boarding houses, and factories.",
       "body": "Enter your Instagram username. Carousely learns your feed’s style, then makes on-brand carousels, captions, and a posting schedule.",
       "prompt": "Create a promo carousel for studio.kamu café. Show our favourite coffee and cosy space, then invite people to visit.",
       "demo": "Simulation · not a live chat",

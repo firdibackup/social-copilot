@@ -56,11 +56,11 @@ async function StructuredData() {
 }
 
 export default function Page() {
-  return <><Suspense fallback={null}><StructuredData /></Suspense><IntlMessages namespaces={['common', 'landing']}><LandingPage pricing={<Suspense fallback={<LandingPricing catalog={DEFAULT_CATALOG} provisional />}><Pricing /></Suspense>} /></IntlMessages></>
+  return <><Suspense fallback={null}><StructuredData /></Suspense><IntlMessages namespaces={['common', 'landing']}><LandingPage pricing={<Suspense fallback={<LandingPricing catalog={DEFAULT_CATALOG} />}><Pricing /></Suspense>} /></IntlMessages></>
 }
 
 async function Pricing() {
   await connection()
   const billing = await getBillingCatalog().catch(() => null)
-  return <LandingPricing catalog={billing?.catalog ?? DEFAULT_CATALOG} provisional={!billing} />
+  return <LandingPricing catalog={billing?.catalog ?? DEFAULT_CATALOG} />
 }

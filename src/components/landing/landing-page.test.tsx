@@ -29,7 +29,7 @@ function coverSources(html: string) {
 
 // These are SSR contracts only: geometry, lifecycle and animation need browser QA.
 describe.each(['id', 'en'] as const)('homepage story (%s)', locale => {
-  it('opens with the orbit hero: one page h1, cycling audiences and the Instagram trial form', () => {
+  it('opens with the orbit hero: one page h1, audience subtitle and the Instagram trial form', () => {
     const html = renderLanding(locale)
     const hero = html.match(/<section\b[^>]*\bdata-orbit-hero(?:="[^"]*")?[^>]*>[\s\S]*?<\/section>/)?.[0] ?? ''
     expect(hero).not.toBe('')
@@ -38,11 +38,7 @@ describe.each(['id', 'en'] as const)('homepage story (%s)', locale => {
     expect(hero).toMatch(/<h1\b[^>]*id="hero-title"/)
     const { opening } = catalogs[locale].landing.story
     const trial = catalogs[locale].landing.trial
-    for (const text of [opening.title1, opening.title2, opening.body, trial.word0, trial.cta]) expect(hero).toContain(text)
-    // Every audience is in the h1 for screen readers, even though only one is painted at a time.
-    const title = hero.match(/<h1\b[\s\S]*?<\/h1>/)?.[0] ?? ''
-    expect(title).toContain(Object.entries(trial).filter(([key]) => /^word\d$/.test(key)).map(([, word]) => word).join(', '))
-    expect(hero).toContain('id="carousely-threshold"')
+    for (const text of [opening.title1, opening.title2, opening.subtitle, opening.body, trial.cta, catalogs[locale].landing.cta.note]) expect(hero).toContain(text)
     const form = hero.match(/<form\b[^>]*data-orbit-trial[\s\S]*?<\/form>/)?.[0] ?? ''
     expect(form).toMatch(/<input\b[^>]*aria-label="[^"]+"[^>]*placeholder="@|<input\b[^>]*placeholder="@[^>]*aria-label="[^"]+"/)
     expect(form).toMatch(/<button\b[^>]*type="submit"/)

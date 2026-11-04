@@ -9,7 +9,7 @@ import { formatRupiah } from '@/lib/billing-options'
 import { intlLocale } from '@/i18n/locale-config'
 import styles from './pricing.module.css'
 
-export function LandingPricing({ catalog, provisional = false }: { catalog: BillingCatalog; provisional?: boolean }) {
+export function LandingPricing({ catalog }: { catalog: BillingCatalog }) {
   const t = useTranslations('landing.pricing')
   const locale = useLocale()
   const [selected, setSelected] = useState(1)
@@ -38,13 +38,14 @@ export function LandingPricing({ catalog, provisional = false }: { catalog: Bill
           const defaultPlan = DEFAULT_CATALOG.plans.find((item) => item.id === plan.id && item.description === plan.description)
           const description = defaultPlan && (plan.id === 'pro' || plan.id === 'max') && estimatedPosts > 0 ? t(`descriptions.${plan.id}`, { count: postCount }) : plan.description
           const features = [
-            t('features.posts', { count: estimatedPosts, formattedCount: postCount }),
-            t('features.chatbot'),
-            t('features.research'),
-            t('features.creation'),
-            t('features.calendar'),
-            t('features.accounts'),
-            t('features.analytics'),
+            ...(plan.id === 'max' ? [t('features.allPro')] : [
+              t('features.chatbot'),
+              t('features.research'),
+              t('features.creation'),
+              t('features.calendar'),
+              t('features.accounts'),
+              t('features.analytics'),
+            ]),
             ...(plan.prioritySupport ? [t('features.support')] : []),
             ...(plan.earlyAccess ? [t('features.earlyAccess')] : []),
           ]
@@ -58,7 +59,7 @@ export function LandingPricing({ catalog, provisional = false }: { catalog: Bill
           </article>
         })}
       </div>
-      {provisional && <p className={styles.note}>{t('provisional')}</p>}
+      <p className={styles.note}>{t('provisional')}</p>
     </div>
   </section>
 }
