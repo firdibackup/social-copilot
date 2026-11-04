@@ -8,6 +8,7 @@ import { ShieldCheck } from 'lucide-react'
 import { InstagramFillIcon, MetaFillIcon, ThreadsFillIcon } from '@/components/brand-icons'
 import { names } from './homepage-story'
 import { handleIssue, trialHref } from './instagram-handle'
+import { GooeyFilter, MorphWord } from './morph-word'
 import styles from './orbit-hero.module.css'
 
 // Brand names are proper nouns, so they stay untranslated; screen readers hear
@@ -17,6 +18,9 @@ const platforms = [
   { name: 'Instagram', Icon: InstagramFillIcon },
   { name: 'Threads', Icon: ThreadsFillIcon },
 ] as const
+
+/** Audiences the headline cycles through ("… untuk UMKM", "… untuk coffee shop"). */
+const WORDS = ['word0', 'word1', 'word2', 'word3', 'word4', 'word5', 'word6'] as const
 
 // Two concentric rings, alternating covers between them. The outer ring is
 // staggered by half a step so its cards sit in the inner ring's gaps. Both
@@ -72,6 +76,7 @@ export function OrbitHero({ paused, reduceMotion }: { paused: boolean; reduceMot
   const motion = !reduceMotion && !paused
   // The entrance (blur step-in, covers fading in) keys off reduced motion only, so pausing and
   // resuming the page never replays it.
+  const words = WORDS.map(key => trial(key))
   const issue = handleIssue(value)
   const error = touched && issue ? trial(issue === 'space' ? 'handleSpace' : 'handleInvalid') : null
   const submit = (event: FormEvent) => {
@@ -86,6 +91,7 @@ export function OrbitHero({ paused, reduceMotion }: { paused: boolean; reduceMot
   }
   return <section ref={ref} id="fitur" data-orbit-hero data-motion={!reduceMotion} className={styles.hero} aria-labelledby="hero-title"
     data-tour-stop="hello" data-tour-grow data-tour-anchor="[data-orbit-badge]" data-tour-side="right" data-tour-face="happy" data-tour-fx="elastic" data-tour-say={t('featureTour.hello')}>
+    <GooeyFilter />
     <div className={styles.stage} data-orbit-stage data-paused={stopped} data-pause-reason={reason}>
       <div className={styles.camera} data-orbit-camera aria-hidden="true">
         {rings.map(ring => <div key={ring.id} className={`${styles.ring} ${styles[ring.id]}`} data-orbit-ring={ring.id}>
@@ -108,9 +114,9 @@ export function OrbitHero({ paused, reduceMotion }: { paused: boolean; reduceMot
       </div>
       <h1 id="hero-title" className={styles.step}>
         {opening('title1')}<br />
-        <span className={styles.titleLine}>{opening('title2')}</span>
+        <span className={styles.titleLine}>{opening('title2')} <MorphWord words={words} animate={!stopped} crossfade={reduceMotion && !offscreen && !hidden} /></span>
+        <span className={styles.srOnly}>{words.join(', ')}</span>
       </h1>
-      <p className={`${styles.subtitle} ${styles.step}`}>{opening('subtitle')}</p>
       <p className={`${styles.body} ${styles.step}`}>{opening('body')}</p>
       <form className={`${styles.form} ${styles.step}`} onSubmit={submit} noValidate data-orbit-trial>
         <div className={styles.field}>
@@ -125,7 +131,7 @@ export function OrbitHero({ paused, reduceMotion }: { paused: boolean; reduceMot
       </form>
       {/* The validation hint's line. Its height is reserved in CSS so a hint never resizes the copy box
           (which would re-fit and jump the ring). */}
-      <p id={noteId} className={`${styles.note} ${styles.step}`} data-error={!!error || undefined} role="status">{error ?? t('cta.note')}</p>
+      <p id={noteId} className={`${styles.note} ${styles.step}`} data-error={!!error || undefined} role="status">{error}</p>
     </div>
     {confetti && <div className={styles.confetti} aria-hidden="true">{Array.from({ length: 16 }, (_, i) =>
       <i key={i} style={{ '--x': `${(i * 37) % 100}%`, '--d': `${(i % 6) * 0.06}s`, '--c': ['#6558f5', '#302650', '#3fe0b5', '#ffb86b'][i % 4] } as CSSProperties} />)}</div>}

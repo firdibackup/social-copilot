@@ -84,15 +84,14 @@
 .brand { display: inline-flex; }
 .srOnly { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .hero .copy h1 { margin: 0; font-size: clamp(40px, min(3.74vw, 5.94svh), 53px); line-height: 1.06; letter-spacing: -.045em; font-weight: 650; color: var(--ink); text-wrap: balance; }
+/* "untuk <word>" never wraps: the copy box keeps one height while words change, so the ring never re-fits mid-cycle. */
 .titleLine { display: inline-flex; align-items: baseline; justify-content: center; gap: .25em; white-space: nowrap; }
-.subtitle { margin: 18px auto 0; max-width: 54ch; color: var(--ink); font-size: 15px; line-height: 1.65; text-wrap: pretty; }
 .body { margin: 16px auto 0; max-width: 42ch; color: var(--muted); font-size: 15px; line-height: 1.65; text-wrap: pretty; }
 
 /* Step-in entrance: blur + rise, staggered down the copy (same motion as the trial form's original hero). */
 @keyframes step-in { from { opacity: 0; transform: translateY(14px) scale(.98); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
 .hero[data-motion='true'] .step { animation: step-in .52s cubic-bezier(.22, 1, .36, 1) both; }
 .hero[data-motion='true'] .copy > h1 { animation-delay: .08s; }
-.hero[data-motion='true'] .copy > .subtitle { animation-delay: .12s; }
 .hero[data-motion='true'] .copy > .body { animation-delay: .16s; }
 .hero[data-motion='true'] .copy > .form { animation-delay: .24s; }
 .hero[data-motion='true'] .copy > .note { animation-delay: .3s; }
@@ -137,7 +136,7 @@
     --persp: 420px;
     height: auto;
     overflow: visible;
-    /* Keep the decorative orbit from scrolling the page sideways. */
+    /* A fading wider word can briefly poke past the edge mid-morph; never let it scroll the page sideways. */
     overflow-x: clip;
     padding: 8px 16px 52px;
     background: #fff;
@@ -153,10 +152,9 @@
   .frame img { border-radius: 5px; }
   .copy { position: relative; left: auto; top: auto; transform: none; width: auto; max-width: 520px; margin: 32px auto 0; }
   .badge { margin-bottom: 14px; padding: 5px 11px 5px 9px; font-size: 12.5px; }
-  /* Keep the two-line headline readable from 320px up. */
+  /* 8vw keeps both lines ("Otomasi Social Mediamu", "untuk klinik kecantikan") on one line each from 320px up. */
   .hero .copy h1 { font-size: clamp(24px, 8vw, 44px); }
   .body { font-size: 14px; margin-top: 14px; }
-  .subtitle { font-size: 14px; margin-top: 16px; }
   .form { margin-top: 22px; }
 }
 @media (max-width: 479px) {
