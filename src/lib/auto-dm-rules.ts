@@ -1,4 +1,4 @@
-import { createTranslator } from 'next-intl'
+import { createTranslator } from 'use-intl/core'
 import type { Locale } from '@/i18n/locale-config'
 import idInbox from '../../messages/id/inbox.json'
 import enInbox from '../../messages/en/inbox.json'

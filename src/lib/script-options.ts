@@ -1,6 +1,6 @@
 import { intlLocale } from '@/i18n/locale-config'
 
-import { createTranslator } from 'next-intl'
+import { createTranslator } from 'use-intl/core'
 import type { Locale } from '@/i18n/locale-config'
 import idMessages from '../../messages/id/editor.json'
 import enMessages from '../../messages/en/editor.json'

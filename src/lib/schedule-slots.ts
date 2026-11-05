@@ -3,7 +3,7 @@
  * A slot is never a post. A post keeps its absolute time, so changing the slots moves nothing. Pure, so the browser,
  * the server and the tests share it.
  */
-import { createTranslator } from 'next-intl'
+import { createTranslator } from 'use-intl/core'
 import type { Locale } from '@/i18n/locale-config'
 import idCalendar from '../../messages/id/calendar.json'
 import enCalendar from '../../messages/en/calendar.json'
