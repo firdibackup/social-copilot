@@ -25,10 +25,18 @@ export const FONT_CHOICES = [
   { name: 'Libre Baskerville', kind: 'serif', use: 'klasik & premium' },
 ] as const
 
-export type FontName = (typeof FONT_CHOICES)[number]['name']
+/** One of the curated fonts above: self-hosted through next/font and offered first. */
+export type CuratedFontName = (typeof FONT_CHOICES)[number]['name']
 
-export const DEFAULT_HEADING_FONT: FontName = 'Plus Jakarta Sans'
-export const DEFAULT_BODY_FONT: FontName = 'Inter'
+/** Any font a layer can use: a curated one or any family of the Google Fonts catalogue (see google-fonts.ts). */
+export type FontName = string
+
+const CURATED: ReadonlySet<string> = new Set(FONT_CHOICES.map((font) => font.name))
+
+export const isCuratedFont = (value: unknown): value is CuratedFontName => typeof value === 'string' && CURATED.has(value)
+
+export const DEFAULT_HEADING_FONT: CuratedFontName = 'Plus Jakarta Sans'
+export const DEFAULT_BODY_FONT: CuratedFontName = 'Inter'
 
 /** Which slides a recipe is for: a carousel's three roles, or a post of one image. */
 export type LayoutRole = SlideRole | 'single'
@@ -41,8 +49,8 @@ export interface DesignStyle {
   sample: { label: string; title: string; copy: string; image: string }
   /** Who it suits, in Indonesian. */
   suits: string
-  headingFont: FontName
-  bodyFont: FontName
+  headingFont: CuratedFontName
+  bodyFont: CuratedFontName
   /** Background, ink and accent for the little previews when the brand has no colours yet. */
   preview: { background: string; ink: string; accent: string }
   /** The shared design system of every slide, in English for the image model. */

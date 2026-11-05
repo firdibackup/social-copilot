@@ -16,7 +16,7 @@ export function BillingForm({ catalog, version }: { catalog: BillingCatalog; ver
 
   const RATE_LABELS: Record<string, string> = {
   image: t('billing_form.newImagePerSlide'), content: t('billing_form.contentLayoutAndCaption'), content_slide: t('billing_form.alreadyPaidSlides'),
-  slide_edit: t('billing_form.editImage'), caption_edit: t('billing_form.editCaption'), threads_write: t('billing_form.writeThreads'), threads_edit: t('billing_form.editThreads'), content_ideas: t('billing_form.contentIdeas'), content_script: t('billing_form.script'),
+  slide_edit: t('billing_form.editImage'), magic_layers: t('billing_form.magicLayers'), caption_edit: t('billing_form.editCaption'), threads_write: t('billing_form.writeThreads'), threads_edit: t('billing_form.editThreads'), content_ideas: t('billing_form.contentIdeas'), content_script: t('billing_form.script'),
   brand_profile: t('billing_form.brandProfile'), brand_visual: t('billing_form.brandVisuals'), brand_strategy: t('billing_form.brandStrategy'), website_catalog: t('billing_form.websiteCatalog'),
   asset_tags: t('billing_form.assetTagsPerPhoto'), reply_draft: t('billing_form.replyDraft'), template_analysis: t('billing_form.adminTemplateAnalysis'),
   reference_labels: t('billing_form.referenceCategoriesFromGrid'),

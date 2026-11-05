@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto'
 import { isAssetCategory, isAssetOrigin, type AssetCategory, type AssetOrigin } from './asset-options'
 import { getConnectedAccountId } from './connection'
 import { describeError } from './errors'
-import { isJpeg } from './image'
+import { imageType } from './image'
 import { toReferenceDataUrl } from './slide-image'
 import { assertStorageAvailable, FileTooLargeError } from './storage-quota'
 import { MAX_STORED_BYTES } from './storage-quota-options'
@@ -108,6 +108,8 @@ export interface CreateAssetOptions {
   contentHash?: string
   /** A slide job already paid for may finish even if storage filled after it started. */
   enforceQuota?: boolean
+  /** A slide layer (background, cut-out object, logo copy): stored under <user>/layers/, may be a PNG, never listed. */
+  layer?: boolean
 }
 
 export interface AssetGroupInput {
@@ -162,7 +164,9 @@ export async function signMediaUrls(paths: string[], ttlSeconds = VIEW_URL_TTL_S
  * Paused photos remain available for manually assembled posts.
  */
 export async function listAssets(userId: string, accountId: string, set?: 'mine' | 'ai'): Promise<Asset[]> {
+  // Layer images (PNGs among them) are never photos a post may use.
   const query = db().from('assets').select(ASSET_COLUMNS).eq('user_id', userId).eq('account_id', accountId)
+    .not('storage_path', 'like', '%/layers/%')
   const rows: AssetRow[] = unwrap(
     await (set === 'ai' ? query.eq('origin', 'ai') : set === 'mine' ? query.neq('origin', 'ai') : query)
       .order('created_at', { ascending: false })
@@ -211,7 +215,7 @@ export async function listAssetLibrary(userId: string, accountId: string): Promi
   }
 }
 
-/** Stores a JPEG prepared by the browser or by the server-side website/image pipeline. */
+/** Stores a JPEG prepared by the browser or by the server-side website/image pipeline; a layer may be a PNG. */
 export async function createAsset(
   userId: string,
   file: Blob,
@@ -227,11 +231,12 @@ export async function createAsset(
     throw new InvalidImageError(t('library.text2'))
   }
   const bytes = new Uint8Array(await file.arrayBuffer())
-  if (!isJpeg(bytes)) throw new InvalidImageError(t('library.text3'))
+  const type = imageType(bytes)
+  if (type !== 'image/jpeg' && !(options.layer && type === 'image/png')) throw new InvalidImageError(t('library.text3'))
   if (options.enforceQuota !== false) await assertStorageAvailable(userId, bytes.length, locale)
 
-  const path = `${userId}/${randomUUID()}.jpg`
-  const upload = await bucket().upload(path, bytes, { contentType: 'image/jpeg' })
+  const path = `${userId}/${options.layer ? 'layers/' : ''}${randomUUID()}.${type === 'image/png' ? 'png' : 'jpg'}`
+  const upload = await bucket().upload(path, bytes, { contentType: type })
   if (upload.error) throw new Error(`Supabase Storage: ${upload.error.message}`)
 
   const insert = await db()

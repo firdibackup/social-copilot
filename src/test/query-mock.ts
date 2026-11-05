@@ -8,7 +8,7 @@ export function queryMock(result: unknown = { data: [], error: null }) {
   const calls: unknown[][] = []
   const query: Record<string, unknown> = {}
   for (const method of [
-    'from', 'select', 'insert', 'update', 'upsert', 'delete', 'eq', 'neq', 'in', 'is', 'gte', 'lt', 'order', 'limit',
+    'from', 'select', 'insert', 'update', 'upsert', 'delete', 'eq', 'neq', 'not', 'like', 'in', 'is', 'gte', 'lt', 'order', 'limit',
     'maybeSingle', 'single', 'overrideTypes',
   ]) {
     query[method] = vi.fn((...args: unknown[]) => {

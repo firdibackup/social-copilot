@@ -38,7 +38,11 @@
     "text36": "Invalid logo address.",
     "text37": "Couldn't fetch the logo: {v0}",
     "text38": "Couldn't fetch the logo. Try uploading it manually.",
-    "text39": "Couldn't delete the logo. Try again."
+    "text39": "Couldn't delete the logo. Try again.",
+    "profileInvalid": "Paste an Instagram profile link or type an @username.",
+    "profileQuotaFull": "You've used this week's allowance for pulling designs from other accounts. We keep this feature limited so it stays fast — it refills on Monday. Meanwhile, you can still reopen accounts you've already pulled this week.",
+    "profileEmpty": "No photo or carousel posts found for @{username}. Make sure the account is public and the username is correct.",
+    "profileFailed": "Couldn't fetch that account's posts. Try again in a moment."
   },
   "brandForm": {
     "text1": "Brand kit saved. AI will use it from your next request.",
@@ -116,7 +120,7 @@
   },
   "referencesPanel": {
     "text1": "Design references",
-    "text2": "Design examples to draw inspiration from: uploads, grid crops, or your posts. Palettes are calculated from image pixels. Note what you'd like to borrow from each reference, then run visual analysis in the Visuals section.",
+    "text2": "Design examples to draw inspiration from: uploads, grid crops, your posts, or another account's posts. Palettes are calculated from image pixels. Note what you'd like to borrow from each reference, then run visual analysis in the Visuals section.",
     "text3": "Labels decide which slides follow each image: Cover, Content, or CTA layouts guide slides with the same role; General styles guide slides that don't have a reference for their role yet.",
     "text4": "Split a profile screenshot or moodboard into references",
     "text5": "From grid",
@@ -174,7 +178,13 @@
     "cropDescription": "Crop {number} description",
     "optionalCredits": "Optional · uses about {count, plural, one {# credit} other {# credits}}",
     "selectPosts": "Select up to {count, plural, one {# post} other {# posts}}. Videos are skipped; all carousel slides are imported.",
-    "carouselCount": "Carousel · {count}"
+    "carouselCount": "Carousel · {count}",
+    "fromOther": "From another account",
+    "otherInput": "Profile link or @username",
+    "otherPlaceholder": "e.g. instagram.com/accountname or @accountname",
+    "otherSubmit": "Fetch posts",
+    "otherHint": "Pulling designs from other accounts is limited each week. Pick the accounts that inspire you most.",
+    "otherLoading": "Pulling designs from @{username}… This can take 30–60 seconds."
   },
   "strategyCard": {
     "text1": "Rebuild your strategy with AI?",

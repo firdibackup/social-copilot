@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "db:push": "supabase db push",
+    "fonts:sync": "node scripts/sync-google-fonts.mjs",
     "worker": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx src/worker/index.ts"
   },
   "dependencies": {

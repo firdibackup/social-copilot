@@ -12,8 +12,10 @@ import {
   ImagePlus,
   LoaderCircle,
   MessageCircle,
+  PenLine,
   Plus,
   Send,
+  Sparkles,
   Trash2,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -66,10 +68,17 @@ interface PostMockupProps {
   onAdd?: () => void
   /** How many photos a post can hold. */
   maxSlides: number
+  /** Opens the layer editor for an image slide; unset hides the button. */
+  onEditDesign?: (assetId: string) => void
+  /** Opens ✨ Lapisan ajaib for an image slide; unset hides the button. */
+  onMagicLayers?: (assetId: string) => void
 }
 
 const ROUND_BUTTON =
   'flex size-8 items-center justify-center rounded-full bg-white/95 text-ink shadow-[0_1px_3px_-1px_rgba(0,0,0,0.3)] transition-transform hover:scale-105'
+/** Round tools that sit beside the image, never over it. */
+const SIDE_BUTTON =
+  'flex size-11 items-center justify-center rounded-full border border-hairline bg-white text-ink shadow-[0_2px_8px_-4px_rgba(23,24,39,0.3)] transition-[transform,color,border-color] hover:-translate-y-px hover:border-accent/40 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'
 
 /**
  * The post as it will look in the Instagram feed, with its slides beside it. While photos can be added, the slide
@@ -81,6 +90,9 @@ export function PostMockup(props: PostMockupProps) {
   const { username, avatarUrl, items, active, onSelect, ratio, caption, empty, onAdd, maxSlides } = props
   const current = items[active]
   const slots = items.length + (onAdd ? 1 : 0)
+  const tools = current?.kind === 'image' && props.editable && !props.remaking && (props.onEditDesign || props.onMagicLayers)
+    ? <DesignTools assetId={current.media.assetId} onEditDesign={props.onEditDesign} onMagicLayers={props.onMagicLayers} />
+    : null
 
   return (
     <div className="flex justify-center gap-3">
@@ -126,8 +138,10 @@ export function PostMockup(props: PostMockupProps) {
             {caption}
           </div>
         </article>
+        {tools && <div className="flex justify-end gap-2 md:hidden">{tools}</div>}
         {slots > 1 && <SlideStrip {...props} className="flex gap-2 overflow-x-auto pb-1 md:hidden" />}
       </div>
+      {tools && <div className="hidden shrink-0 flex-col gap-2 pt-14 md:flex">{tools}</div>}
     </div>
   )
 }
@@ -204,6 +218,29 @@ function Stage({ item, items, remaking, running, editable, onRemove, onRetry, on
       corner={<CancelGenerationButton label={t('message14')} onClick={() => onCancelSlide(slide.id)} pending={cancelling} />}
       footer={t('message15')}
     />
+  )
+}
+
+/** Edit desain and Lapisan ajaib for the slide on show: a column beside the card, a row under it on phones. */
+function DesignTools({ assetId, onEditDesign, onMagicLayers }: {
+  assetId: string
+  onEditDesign?: (assetId: string) => void
+  onMagicLayers?: (assetId: string) => void
+}) {
+  const t = useTranslations('editor.layerEditor')
+  return (
+    <>
+      {onEditDesign && (
+        <button type="button" onClick={() => onEditDesign(assetId)} aria-label={t('editDesign')} title={t('editDesign')} className={SIDE_BUTTON}>
+          <PenLine size={18} aria-hidden="true" />
+        </button>
+      )}
+      {onMagicLayers && (
+        <button type="button" onClick={() => onMagicLayers(assetId)} aria-label={t('magicLayers')} title={t('magicLayers')} className={`${SIDE_BUTTON} text-accent`}>
+          <Sparkles size={18} aria-hidden="true" />
+        </button>
+      )}
+    </>
   )
 }
 

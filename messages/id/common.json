@@ -326,7 +326,29 @@
     "previous": "Contoh sebelumnya — {style}",
     "next": "Contoh berikutnya — {style}",
     "follow": "Ikuti gaya ({font})",
-    "suits": "Cocok: {suits}"
+    "suits": "Cocok: {suits}",
+    "picker": {
+      "search": "Cari font…",
+      "clear": "Hapus pencarian",
+      "close": "Tutup",
+      "list": "Daftar font",
+      "category": "Kategori font",
+      "choose": "Pilih font",
+      "suggested": "Disarankan",
+      "all": "Semua font",
+      "results": "Hasil",
+      "count": "{count, plural, other {# font}}",
+      "empty": "Tidak ada font yang cocok dengan “{query}”.",
+      "emptyHint": "Coba nama lain, atau pilih kategori Semua.",
+      "categories": {
+        "all": "Semua",
+        "sans": "Sans serif",
+        "serif": "Serif",
+        "display": "Display",
+        "handwriting": "Tulisan tangan",
+        "mono": "Monospace"
+      }
+    }
   },
   "trial": {
     "limit": "Kredit gratis kamu habis (sisa 0). Upgrade ke Pro atau Max untuk lanjut.",

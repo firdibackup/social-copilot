@@ -5,13 +5,47 @@ import { getValidAccessToken } from '@/lib/connection'
 import { fetchOwnProfile, fetchRecentMedia } from '@/lib/instagram'
 import { fetchImage } from '@/lib/web-fetch'
 import { classifyDesigns } from '@/lib/template-ai'
+import { ApifyError, fetchProfilePosts } from '@/lib/apify'
+import type { InstagramPost } from '@/lib/instagram'
 import {
   analyzeProfileAction,
   classifyGridTilesAction,
   importReferencesAction,
+  listProfilePostsAction,
   setReferenceLabelAction,
   uploadReferenceAction,
 } from './actions'
+
+const scrapes = vi.hoisted(() => ({
+  reservation: 'reserved' as string,
+  row: null as unknown,
+  rpcs: [] as unknown[][],
+  updates: [] as unknown[],
+}))
+
+vi.mock('@/lib/supabase', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/supabase')>()),
+  db: () => ({
+    rpc: async (name: string, args: unknown) => {
+      scrapes.rpcs.push([name, args])
+      return { data: name === 'reserve_reference_scrape' ? scrapes.reservation : null, error: null }
+    },
+    from: () => {
+      const query: Record<string, unknown> = {
+        select: () => query,
+        eq: () => query,
+        update: (values: unknown) => (scrapes.updates.push(values), query),
+        maybeSingle: async () => ({ data: scrapes.row, error: null }),
+        then: (resolve: (value: unknown) => unknown) => resolve({ data: null, error: null }),
+      }
+      return query
+    },
+  }),
+}))
+vi.mock('@/lib/apify', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/apify')>()),
+  fetchProfilePosts: vi.fn(),
+}))
 
 vi.mock('next-intl/server', async () => {
   const { createTranslator } = await import('next-intl')
@@ -63,6 +97,22 @@ describe('importReferencesAction', () => {
     expect(result).toEqual({ imported: 1, failed: [] })
     expect(fetchImage).toHaveBeenCalledTimes(2)
     expect(addReference).toHaveBeenCalledWith('user-1', 'ig-1', expect.objectContaining({ images: [IMAGE, IMAGE] }))
+  })
+
+  it('imports another account’s post as discovery', async () => {
+    const result = await importReferencesAction([
+      { imageUrls: ['https://cdn/a.jpg'], permalink: 'https://www.instagram.com/p/x/', source: 'discovery', sourceLabel: '@kopi' },
+    ])
+
+    expect(result).toEqual({ imported: 1, failed: [] })
+    expect(addReference).toHaveBeenCalledWith('user-1', 'ig-1', expect.objectContaining({ source: 'discovery', sourceLabel: '@kopi' }))
+  })
+
+  it('still refuses upload as an import source', async () => {
+    const result = await importReferencesAction([{ imageUrls: ['https://cdn/a.jpg'], permalink: null, source: 'upload', sourceLabel: 'x' }])
+
+    expect(result).toHaveProperty('error')
+    expect(addReference).not.toHaveBeenCalled()
   })
 
   it('refuses the old one-image shape', async () => {
@@ -176,5 +226,89 @@ describe('analyzeProfileAction', () => {
       biography: 'Ngopi',
       captions: [],
     })
+  })
+})
+
+describe('listProfilePostsAction', () => {
+  const POST: InstagramPost = {
+    id: 'abc',
+    caption: '',
+    imageUrl: 'https://cdn.test/a.jpg',
+    images: ['https://cdn.test/a.jpg'],
+    isCarousel: false,
+    permalink: 'https://www.instagram.com/p/abc/',
+  }
+
+  beforeEach(() => {
+    scrapes.reservation = 'reserved'
+    scrapes.row = null
+    scrapes.rpcs = []
+    scrapes.updates = []
+    vi.mocked(fetchProfilePosts).mockReset().mockResolvedValue([POST])
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  it('scrapes a new username into the picker and stores its posts', async () => {
+    await expect(listProfilePostsAction('https://www.instagram.com/KopiKenangan/?hl=id')).resolves.toEqual({
+      account: { username: 'kopikenangan', name: '', biography: '', followersCount: null },
+      posts: [POST],
+    })
+    expect(scrapes.rpcs[0]).toEqual(['reserve_reference_scrape', { p_user_id: 'user-1', p_username: 'kopikenangan', p_limit: 3 }])
+    expect(fetchProfilePosts).toHaveBeenCalledWith('kopikenangan')
+    expect(scrapes.updates).toEqual([expect.objectContaining({ posts: [POST] })])
+  })
+
+  it('refuses input that is not a profile', async () => {
+    await expect(listProfilePostsAction('https://www.instagram.com/p/abc/')).resolves.toHaveProperty('error')
+    expect(scrapes.rpcs).toEqual([])
+  })
+
+  it('reports a full week without showing the limit', async () => {
+    scrapes.reservation = 'full'
+
+    const result = await listProfilePostsAction('@kopi')
+
+    expect(result).toHaveProperty('error')
+    const message = (result as { error: string }).error
+    expect(message).toContain('Kuota ambil desain dari akun lain minggu ini sudah habis')
+    expect(message).not.toMatch(/\d/)
+    expect(fetchProfilePosts).not.toHaveBeenCalled()
+  })
+
+  it('serves a username scraped this week from the fresh stored copy without Apify', async () => {
+    scrapes.reservation = 'existing'
+    scrapes.row = { posts: [POST], fetched_at: new Date(Date.now() - 60 * 60 * 1000).toISOString() }
+
+    await expect(listProfilePostsAction('@kopi')).resolves.toMatchObject({ posts: [POST] })
+    expect(fetchProfilePosts).not.toHaveBeenCalled()
+    expect(scrapes.rpcs.map(([name]) => name)).toEqual(['reserve_reference_scrape'])
+  })
+
+  it('scrapes a stale stored username again without a new slot or a release', async () => {
+    scrapes.reservation = 'existing'
+    scrapes.row = { posts: [POST], fetched_at: new Date(Date.now() - 13 * 60 * 60 * 1000).toISOString() }
+
+    await expect(listProfilePostsAction('@kopi')).resolves.toMatchObject({ posts: [POST] })
+    expect(fetchProfilePosts).toHaveBeenCalledTimes(1)
+    expect(scrapes.updates).toHaveLength(1)
+  })
+
+  it('gives the slot back when Apify fails on a new username', async () => {
+    vi.mocked(fetchProfilePosts).mockRejectedValue(new ApifyError('Not enough credit', 402))
+
+    const result = await listProfilePostsAction('@kopi')
+
+    expect(result).toHaveProperty('error')
+    expect(scrapes.rpcs.map(([name]) => name)).toEqual(['reserve_reference_scrape', 'release_reference_scrape'])
+    expect(scrapes.rpcs[1][1]).toEqual({ p_user_id: 'user-1', p_username: 'kopi' })
+  })
+
+  it('gives the slot back when the profile has no photo posts', async () => {
+    vi.mocked(fetchProfilePosts).mockResolvedValue([])
+
+    await expect(listProfilePostsAction('@kopi')).resolves.toEqual({
+      error: expect.stringContaining('@kopi'),
+    })
+    expect(scrapes.rpcs.map(([name]) => name)).toContain('release_reference_scrape')
   })
 })

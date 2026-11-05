@@ -45,7 +45,8 @@ import { toReferenceDataUrl } from '@/lib/slide-image'
 import { FileTooLargeError, StorageFullError } from '@/lib/storage-quota'
 import { storageFullMessage, fileTooLargeMessage } from '@/lib/storage-quota-options'
 import { classifyDesigns } from '@/lib/template-ai'
-import { fetchOwnProfile, fetchRecentMedia, InstagramApiError, type InstagramPost } from '@/lib/instagram'
+import { fetchOwnProfile, fetchRecentMedia, InstagramApiError, parseInstagramUsername, type InstagramPost } from '@/lib/instagram'
+import { loadProfilePosts, ReferenceScrapeError } from '@/lib/reference-scrape'
 import { isUuid } from '@/lib/params'
 import { fetchImage, RemoteFetchError } from '@/lib/web-fetch'
 import { readWebsite } from '@/lib/website'
@@ -317,15 +318,36 @@ export async function listOwnPostsAction(): Promise<PostsResult> {
   }
 }
 
+/**
+ * Another public profile's newest posts (link or @username), scraped through Apify for "Dari akun lain". New
+ * usernames are capped per week (src/lib/reference-scrape.ts); the cap's number is never shown to the owner.
+ */
+export async function listProfilePostsAction(input: unknown): Promise<PostsResult> {
+  const t = await getTranslations('brand')
+  const { userId } = await requireAccount()
+  const username = typeof input === 'string' ? parseInstagramUsername(input) : null
+  if (!username) return { error: t('actions.profileInvalid') }
+  try {
+    const posts = await loadProfilePosts(userId, username)
+    return { account: { username, name: '', biography: '', followersCount: null }, posts }
+  } catch (error) {
+    if (error instanceof ReferenceScrapeError) {
+      return { error: error.kind === 'full' ? t('actions.profileQuotaFull') : t('actions.profileEmpty', { username }) }
+    }
+    console.error('[brand] post akun lain gagal diambil:', describeError(error))
+    return { error: t('actions.profileFailed') }
+  }
+}
+
 /** One post: its photo, or every slide of a carousel, becomes one reference group. */
 interface ImportItem {
   imageUrls: string[]
   permalink: string | null
-  source: Exclude<ReferenceSource, 'upload' | 'discovery'>
+  source: Exclude<ReferenceSource, 'upload'>
   sourceLabel: string
 }
 
-const IMPORT_SOURCES = new Set<string>(['website', 'instagram'])
+const IMPORT_SOURCES = new Set<string>(['website', 'instagram', 'discovery'])
 const isHttpUrl = (value: string) => /^https?:\/\//i.test(value) && lengthOf(value) <= URL_MAX_LENGTH
 
 function parseImportItem(value: unknown): ImportItem | null {

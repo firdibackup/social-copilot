@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from 'next-intl'
 
 import { ArrowLeft, LoaderCircle, RefreshCw, SlidersHorizontal } from 'lucide-react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
 import { confirmDialog } from '@/components/confirm-dialog'
@@ -55,12 +56,16 @@ import { ReferencePicker } from './reference-picker'
 import { ScheduleButton } from './schedule-button'
 import { formatScript, useScriptText } from './script-text'
 import { ThreadsEditor, type StoredItem } from './threads-editor'
+import { magicLayersAction } from './layer-actions'
+import { MagicLayersDialog, type MagicResult } from './layer-editor-magic'
 import { saveBeforeNavigation, useSaveBeforeNavigation } from './use-save-before-navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { editorKeys, type EditorDetail } from './editor-query'
 import { useEditorScope } from './editor-provider'
 import { createSaveQueue } from './save-queue'
 
+// Edit desain brings every font it offers: loaded when it first opens, not with the page.
+const LayerEditor = dynamic(() => import('./layer-editor').then((module) => module.LayerEditor), { ssr: false })
 const MAX_MEDIA = 10
 const AUTOSAVE_MS = 1000
 const EDITABLE_STATUSES = new Set(['draft', 'scheduled', 'failed', 'cancelled'])
@@ -157,6 +162,7 @@ export function ContentEditor({
 }: ContentEditorProps) {
   const t = useTranslations('editor.contentEditor')
   const densityText = useTranslations('editor.density')
+  const layerText = useTranslations('editor.layerEditor')
   const locale = useLocale()
 
   const SHORT = t('message1')
@@ -412,6 +418,46 @@ export function ContentEditor({
     } else {
       openPost(result.postId)
     }
+  }
+
+  // Edit desain and ✨ Lapisan ajaib work on one image slide, by asset id (the slide's number is for the title).
+  const [layerSlide, setLayerSlide] = useState<string | null>(null)
+  const [magicSlide, setMagicSlide] = useState<string | null>(null)
+  const slideOf = (assetId: string | null) => {
+    const index = media.findIndex((item) => item.assetId === assetId)
+    return index < 0 ? null : { media: media[index], number: index + 1 }
+  }
+  const layerTarget = slideOf(layerSlide)
+  const magicTarget = slideOf(magicSlide)
+
+  async function openLayerEditor(assetId: string) {
+    setNotice(null)
+    // The editor replaces this slide on Simpan: the post's own edits go first.
+    if (await flush()) setLayerSlide(assetId)
+  }
+
+  async function runMagic(splitObject: boolean): Promise<MagicResult> {
+    if (!post || !magicTarget) return { error: null }
+    if (!(await flush())) return { error: saveError ?? FAILED }
+    const { assetId } = magicTarget.media
+    const operationId = crypto.randomUUID()
+    setBusy(layerText('magicBusy', { slide: magicTarget.number }))
+    setRemaking(true)
+    setEditOperation(operationId)
+    const result = await magicLayersAction({ postId: post.id, assetId, operationId, splitObject }).catch(() => ({ error: FAILED }))
+    setBusy(null)
+    setRemaking(false)
+    setEditOperation(null)
+    if (cancelledEdit.current === operationId) {
+      router.refresh()
+      return { error: null }
+    }
+    if ('error' in result) return storageFull(result.error) ? { error: null } : { error: result.error }
+    if (result.notice) setNotice({ tone: 'success', text: result.notice })
+    setMagicSlide(null)
+    router.refresh()
+    setLayerSlide(assetId)
+    return { ok: true }
   }
 
   async function dropSlide(slideId: string) {
@@ -807,6 +853,8 @@ export function ContentEditor({
             caption={captionArea}
             onAdd={canAdd ? openPicker : undefined}
             maxSlides={MAX_MEDIA}
+            onEditDesign={post ? (assetId) => void openLayerEditor(assetId) : undefined}
+            onMagicLayers={post ? (assetId) => { setNotice(null); setMagicSlide(assetId) } : undefined}
             empty={
               job?.kind === 'content' && jobPending ? (
                 <GenerationProgress phase="writing" footer={t('message50')} />
@@ -911,6 +959,37 @@ export function ContentEditor({
         onUploaded={addUploaded}
         onDone={() => void pickerDone()}
       />
+
+      {post && magicTarget && (
+        <MagicLayersDialog
+          key={magicTarget.media.assetId}
+          slide={magicTarget.number}
+          rate={TASK_CREDITS.magic_layers}
+          planCredits={planCredits}
+          credits={credits}
+          trial={trial}
+          onRun={runMagic}
+          onCancelRun={() => editOperation && void cancel('edit', editOperation)}
+          cancelling={cancelling}
+          onClose={() => setMagicSlide(null)}
+        />
+      )}
+
+      {post && layerTarget && (
+        <LayerEditor
+          key={layerTarget.media.assetId}
+          postId={post.id}
+          media={layerTarget.media}
+          slide={layerTarget.number}
+          onFlush={flush}
+          onClose={() => setLayerSlide(null)}
+          onMagicLayers={() => {
+            setLayerSlide(null)
+            setNotice(null)
+            setMagicSlide(layerTarget.media.assetId)
+          }}
+        />
+      )}
 
       {post && (
         <PlatformDialog

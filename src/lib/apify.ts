@@ -1,13 +1,16 @@
 import 'server-only'
 import { createHash } from 'node:crypto'
+import { MAX_GROUP_IMAGES } from './brand-options'
 import { env } from './env'
 import { describeError } from './errors'
+import type { InstagramPost } from './instagram'
 import { db, unwrap } from './supabase'
 
 /**
- * Apify, for Intel Kompetitor in Mimo only: public Instagram profiles found by username or keyword, through the
- * `apify/instagram-scraper` actor (paid per result). The rest of the app reads Instagram only through Meta's APIs.
- * Profile pictures are signed CDN links: show them, never log them.
+ * Apify, through the `apify/instagram-scraper` actor (paid per result), for two features only: Intel Kompetitor in
+ * Mimo (public profiles found by username or keyword) and Brand › Referensi "Dari akun lain" (one public profile's
+ * recent posts, capped per user and month in reference-scrape.ts). The rest of the app reads Instagram only through
+ * Meta's APIs. Profile pictures and post images are signed CDN links: show them, never log them.
  */
 const ACTOR = 'apify~instagram-scraper'
 /** Leaves enough of Mimo's 300 s route budget for the model call before and after this actor. */
@@ -127,12 +130,12 @@ export function competitorInput(search: CompetitorSearch, max: number): Json {
 }
 
 /** Runs the actor and waits for its items. The token travels only in the header; errors never carry the URL. */
-export async function findCompetitors(search: CompetitorSearch, max: number, outerSignal?: AbortSignal): Promise<Competitor[]> {
+async function runActor(input: Json, timeoutMs: number, outerSignal?: AbortSignal): Promise<unknown> {
   const response = await fetch(`https://api.apify.com/v2/acts/${ACTOR}/run-sync-get-dataset-items`, {
     method: 'POST',
     headers: { authorization: `Bearer ${env('APIFY_TOKEN')}`, 'content-type': 'application/json' },
-    body: JSON.stringify(competitorInput(search, max)),
-    signal: outerSignal ? AbortSignal.any([AbortSignal.timeout(RUN_TIMEOUT_MS), outerSignal]) : AbortSignal.timeout(RUN_TIMEOUT_MS),
+    body: JSON.stringify(input),
+    signal: outerSignal ? AbortSignal.any([AbortSignal.timeout(timeoutMs), outerSignal]) : AbortSignal.timeout(timeoutMs),
   }).catch((error: unknown) => {
     const reason = isObject(error) && typeof error.name === 'string' ? error.name : 'unknown'
     throw new ApifyError(`Apify tidak bisa dihubungi (${reason})`, 0)
@@ -142,7 +145,61 @@ export async function findCompetitors(search: CompetitorSearch, max: number, out
     const message = isObject(body) && isObject(body.error) && typeof body.error.message === 'string' ? body.error.message : ''
     throw new ApifyError(message || `HTTP ${response.status}`, response.status)
   }
-  return readCompetitors(body, max)
+  return body
+}
+
+export async function findCompetitors(search: CompetitorSearch, max: number, outerSignal?: AbortSignal): Promise<Competitor[]> {
+  return readCompetitors(await runActor(competitorInput(search, max), RUN_TIMEOUT_MS, outerSignal), max)
+}
+
+/** Brand › Referensi "Dari akun lain": how many recent posts one profile run asks for. */
+export const PROFILE_POSTS_LIMIT = 24
+/** A profile's posts take longer than a details lookup (observed 30–60 s); still under a server action's patience. */
+const PROFILE_RUN_TIMEOUT_MS = 120_000
+const POST_CAPTION_LENGTH = 2200
+
+const httpsUrl = (value: unknown): value is string => typeof value === 'string' && value.startsWith('https://')
+
+/**
+ * Reads the actor's `posts` items into the reference picker's posts: photos and carousels (every slide, at most
+ * MAX_GROUP_IMAGES), videos and error items skipped, https links only. Pure, for tests.
+ */
+export function readProfilePosts(items: unknown, max = PROFILE_POSTS_LIMIT): InstagramPost[] {
+  if (!Array.isArray(items)) return []
+  const seen = new Set<string>()
+  const posts: InstagramPost[] = []
+  for (const item of items) {
+    if (!isObject(item) || 'error' in item) continue
+    if (item.type !== 'Image' && item.type !== 'Sidecar') continue
+    const id = typeof item.shortCode === 'string' && item.shortCode ? item.shortCode : typeof item.id === 'string' ? item.id : ''
+    if (!id || seen.has(id)) continue
+    const cover = httpsUrl(item.displayUrl) ? item.displayUrl : null
+    const slides = item.type === 'Sidecar' && Array.isArray(item.images) ? item.images.filter(httpsUrl).slice(0, MAX_GROUP_IMAGES) : []
+    const images = slides.length > 0 ? slides : cover ? [cover] : []
+    if (images.length === 0) continue
+    seen.add(id)
+    posts.push({
+      id,
+      caption: typeof item.caption === 'string' ? item.caption.slice(0, POST_CAPTION_LENGTH) : '',
+      imageUrl: images[0],
+      images,
+      isCarousel: slides.length > 1,
+      permalink: httpsUrl(item.url) ? item.url : null,
+    })
+    if (posts.length >= max) break
+  }
+  return posts
+}
+
+/** The actor's input for one profile's recent posts. Pure, for tests. */
+export function profilePostsInput(username: string): Json {
+  return { directUrls: [`https://www.instagram.com/${username}/`], resultsType: 'posts', resultsLimit: PROFILE_POSTS_LIMIT }
+}
+
+/** One public profile's recent photo and carousel posts. Empty for a private, unknown or video-only profile. */
+export async function fetchProfilePosts(username: string): Promise<InstagramPost[]> {
+  if (!INSTAGRAM_USERNAME.test(username)) return []
+  return readProfilePosts(await runActor(profilePostsInput(username), PROFILE_RUN_TIMEOUT_MS))
 }
 
 /**

@@ -38,7 +38,11 @@
     "text36": "Alamat logo tidak valid.",
     "text37": "Logo tidak bisa diambil: {v0}",
     "text38": "Logo tidak bisa diambil. Coba unggah manual.",
-    "text39": "Logo gagal dihapus. Coba lagi."
+    "text39": "Logo gagal dihapus. Coba lagi.",
+    "profileInvalid": "Tempel link profil Instagram atau tulis @username.",
+    "profileQuotaFull": "Kuota ambil desain dari akun lain minggu ini sudah habis. Fitur ini sengaja dibatasi supaya tetap cepat — kuota terisi lagi hari Senin. Sementara itu, kamu tetap bisa membuka lagi akun yang sudah diambil minggu ini.",
+    "profileEmpty": "Tidak ada post foto atau carousel dari @{username}. Pastikan akunnya publik dan username-nya benar.",
+    "profileFailed": "Post akun itu belum bisa diambil. Coba lagi sebentar lagi."
   },
   "brandForm": {
     "text1": "Brand kit tersimpan. Buat AI memakainya mulai permintaan berikutnya.",
@@ -116,7 +120,7 @@
   },
   "referencesPanel": {
     "text1": "Referensi desain",
-    "text2": "Contoh desain yang ingin ditiru gayanya: unggahan, potongan grid, atau post akunmu. Palet dihitung dari piksel gambar. Tulis catatan apa yang mau diambil dari tiap referensi, lalu jalankan analisis visual di bagian Visual.",
+    "text2": "Contoh desain yang ingin ditiru gayanya: unggahan, potongan grid, post akunmu, atau post akun lain. Palet dihitung dari piksel gambar. Tulis catatan apa yang mau diambil dari tiap referensi, lalu jalankan analisis visual di bagian Visual.",
     "text3": "Label menentukan slide mana yang meniru gambar itu: Cover, Isi, atau CTA meniru layout-nya untuk slide berperan sama; Umum dipinjam gayanya oleh slide yang belum punya referensi sesuai perannya.",
     "text4": "Potong screenshot profil atau moodboard jadi beberapa referensi",
     "text5": "Dari grid",
@@ -174,7 +178,13 @@
     "cropDescription": "Deskripsi potongan {number}",
     "optionalCredits": "Opsional · memakai sekitar {count} kredit",
     "selectPosts": "Pilih sampai {count} post. Video dilewati; carousel diambil semua slide-nya.",
-    "carouselCount": "Carousel · {count}"
+    "carouselCount": "Carousel · {count}",
+    "fromOther": "Dari akun lain",
+    "otherInput": "Link profil atau @username",
+    "otherPlaceholder": "mis. instagram.com/namaakun atau @namaakun",
+    "otherSubmit": "Ambil post",
+    "otherHint": "Kuota ambil desain dari akun lain terbatas setiap minggu. Pilih akun yang paling menginspirasi.",
+    "otherLoading": "Mengambil desain dari @{username}… Bisa makan waktu 30–60 detik."
   },
   "strategyCard": {
     "text1": "Susun ulang strategi dengan AI?",

@@ -8,8 +8,10 @@ import {
   KEYWORD_CACHE_TTL_MS,
   MAX_COMPETITORS,
   normalizeCompetitorSearch,
+  profilePostsInput,
   readCachedCompetitors,
   readCompetitors,
+  readProfilePosts,
   saveCachedCompetitors,
   USERNAME_CACHE_TTL_MS,
 } from './apify'
@@ -101,6 +103,54 @@ describe('readCompetitors', () => {
     expect(found.map((account) => account.username)).toEqual(['kopikenangan', 'janjijiwa'])
     expect(found[1]).toMatchObject({ followers: null, avatar: null, recentPosts: [] })
     expect(readCompetitors({ error: 'x' })).toEqual([])
+  })
+})
+
+describe('readProfilePosts', () => {
+  const image = { type: 'Image', shortCode: 'img1', url: 'https://www.instagram.com/p/img1/', displayUrl: 'https://cdn.test/1.jpg', images: [], caption: 'Foto' }
+  const carousel = {
+    type: 'Sidecar',
+    shortCode: 'car1',
+    url: 'https://www.instagram.com/p/car1/',
+    displayUrl: 'https://cdn.test/c0.jpg',
+    images: ['https://cdn.test/c1.jpg', 'http://cdn.test/insecure.jpg', 'https://cdn.test/c2.jpg'],
+    caption: 'Carousel',
+  }
+
+  it('reads photos and every carousel slide into picker posts', () => {
+    expect(readProfilePosts([image, carousel])).toEqual([
+      { id: 'img1', caption: 'Foto', imageUrl: 'https://cdn.test/1.jpg', images: ['https://cdn.test/1.jpg'], isCarousel: false, permalink: 'https://www.instagram.com/p/img1/' },
+      {
+        id: 'car1',
+        caption: 'Carousel',
+        imageUrl: 'https://cdn.test/c1.jpg',
+        images: ['https://cdn.test/c1.jpg', 'https://cdn.test/c2.jpg'],
+        isCarousel: true,
+        permalink: 'https://www.instagram.com/p/car1/',
+      },
+    ])
+  })
+
+  it('skips videos, errors, duplicates and posts without an https image; caps slides', () => {
+    const many = Array.from({ length: 30 }, (_, index) => `https://cdn.test/s${index}.jpg`)
+    const posts = readProfilePosts([
+      { type: 'Video', shortCode: 'vid', displayUrl: 'https://cdn.test/v.jpg' },
+      { error: 'not_found', errorDescription: 'private' },
+      { type: 'Image', shortCode: 'insecure', displayUrl: 'http://cdn.test/x.jpg' },
+      image,
+      { ...image, caption: 'dobel' },
+      { ...carousel, shortCode: 'big', images: many },
+      { ...carousel, shortCode: 'nocover', images: [], url: 'javascript:alert(1)' },
+      'rusak',
+    ])
+    expect(posts.map((post) => post.id)).toEqual(['img1', 'big', 'nocover'])
+    expect(posts[1].images).toHaveLength(20)
+    expect(posts[2]).toMatchObject({ images: ['https://cdn.test/c0.jpg'], isCarousel: false, permalink: null })
+    expect(readProfilePosts({ error: 'x' })).toEqual([])
+  })
+
+  it('asks the actor for one profile’s posts', () => {
+    expect(profilePostsInput('kopi')).toEqual({ directUrls: ['https://www.instagram.com/kopi/'], resultsType: 'posts', resultsLimit: 24 })
   })
 })
 

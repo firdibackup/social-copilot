@@ -3,7 +3,9 @@
 import { useTranslations } from 'next-intl'
 import Image from 'next/image'
 import { Check } from 'lucide-react'
-import { DESIGN_STYLE_IDS, DESIGN_STYLES, FONT_CHOICES, type DesignStyleId, type FontName } from '@/lib/design-styles'
+import { DESIGN_STYLE_IDS, DESIGN_STYLES, type DesignStyleId, type FontName } from '@/lib/design-styles'
+import { useFont } from '@/lib/font-loader'
+import { FontPicker } from './font-picker'
 import { FONT_FAMILY, fontFamilyOf } from './font-previews'
 
 interface Palette {
@@ -93,46 +95,31 @@ interface FontSelectProps {
   className?: string
 }
 
-/** A font from the choices, each in its own face; one typed elsewhere stays selectable as it is. */
-export function FontSelect({ label, value, onChange, recommended, extra = [], className = '' }: FontSelectProps) {
+/**
+ * A font from the whole Google Fonts catalogue, each in its own face, with '' meaning "follow the style"; a font
+ * typed elsewhere (or found on the brand's website) stays selectable as it is, under "Lainnya".
+ */
+export function FontSelect({ label, value, onChange, recommended, extra, className = '' }: FontSelectProps) {
   const t = useTranslations('common')
-  const others = [...new Set([...extra, value])].filter((font) => font !== '' && fontFamilyOf(font) === undefined)
   return (
-    <label className="block space-y-1 text-sm font-medium text-zinc-900">
-      <span>{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        style={{ fontFamily: fontFamilyOf(value) }}
-        className={`block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-normal text-zinc-900 focus:border-zinc-400 focus:outline-none ${className}`}
-      >
-        <option value="">{recommended ? t('design.follow', { font: recommended }) : t('design.auto')}</option>
-        {(['sans', 'serif'] as const).map((kind) => (
-          <optgroup key={kind} label={kind === 'sans' ? 'Sans serif' : 'Serif'}>
-            {FONT_CHOICES.filter((font) => font.kind === kind).map((font) => (
-              <option key={font.name} value={font.name} style={{ fontFamily: FONT_FAMILY[font.name] }}>
-                {font.name} — {t(`design.fonts.${font.name}`)}{font.name === recommended ? t('design.recommended') : ''}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-        {others.length > 0 && (
-          <optgroup label={t('design.other')}>
-            {others.map((font) => (
-              <option key={font} value={font}>
-                {font}
-              </option>
-            ))}
-          </optgroup>
-        )}
-      </select>
-    </label>
+    <FontPicker
+      label={label}
+      labelClassName="mb-1 block text-sm font-medium text-zinc-900"
+      value={value}
+      onChange={onChange}
+      emptyLabel={recommended ? t('design.follow', { font: recommended }) : t('design.auto')}
+      recommended={recommended}
+      extra={extra}
+      className={`rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-normal text-zinc-900 hover:border-zinc-300 ${className}`}
+    />
   )
 }
 
 /** The heading over a line of body text, in the two fonts. */
 export function FontPreview({ heading, body }: { heading: string; body: string }) {
   const t = useTranslations('common')
+  useFont(heading)
+  useFont(body)
   return (
     <div className="space-y-1 rounded-xl border border-hairline bg-white p-5">
       <p className="text-2xl font-bold leading-tight text-ink" style={{ fontFamily: fontFamilyOf(heading) }}>

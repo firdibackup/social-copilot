@@ -20,7 +20,8 @@ import {
   Sora,
   Space_Grotesk,
 } from 'next/font/google'
-import type { FontName } from '@/lib/design-styles'
+import { isCuratedFont, type CuratedFontName } from '@/lib/design-styles'
+import { cssFamily, isGoogleFont } from '@/lib/google-fonts'
 
 // Only the pages that show font previews import this file; none is preloaded, so they load when first drawn.
 const plusJakarta = Plus_Jakarta_Sans({ subsets: ['latin'], preload: false })
@@ -44,8 +45,8 @@ const lora = Lora({ subsets: ['latin'], preload: false })
 const merriweather = Merriweather({ subsets: ['latin'], preload: false })
 const libreBaskerville = Libre_Baskerville({ subsets: ['latin'], weight: ['400', '700'], preload: false })
 
-/** The CSS font-family of each font the owner can pick. */
-export const FONT_FAMILY: Record<FontName, string> = {
+/** The CSS font-family of each curated font (self-hosted by next/font). */
+export const FONT_FAMILY: Record<CuratedFontName, string> = {
   'Plus Jakarta Sans': plusJakarta.style.fontFamily,
   Poppins: poppins.style.fontFamily,
   Montserrat: montserrat.style.fontFamily,
@@ -68,6 +69,9 @@ export const FONT_FAMILY: Record<FontName, string> = {
   'Libre Baskerville': libreBaskerville.style.fontFamily,
 }
 
-/** A font the owner typed that isn't one of the choices falls back to the app's own. */
+/**
+ * The CSS font-family of a font: next/font's for a curated one, the catalogue name (loaded at runtime by
+ * font-loader) for any other Google font, undefined for an unknown name so it falls back to the app's own.
+ */
 export const fontFamilyOf = (name: string): string | undefined =>
-  Object.hasOwn(FONT_FAMILY, name) ? FONT_FAMILY[name as FontName] : undefined
+  isCuratedFont(name) ? FONT_FAMILY[name] : isGoogleFont(name) ? cssFamily(name) : undefined

@@ -3,9 +3,9 @@
 import { useTranslations, useLocale } from 'next-intl'
 import { intlLocale } from '@/i18n/locale-config'
 
-import { Check, ChevronLeft, ChevronRight, ExternalLink, Grid2x2, ImagePlus, Sparkles, Trash2 } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, ExternalLink, Grid2x2, ImagePlus, Sparkles, Trash2, UserSearch } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { confirmDialog } from '@/components/confirm-dialog'
 import { GridSplitter, type GridSelection, type GridTile } from '@/components/grid-splitter'
 import { LoadingState } from '@/components/loading-state'
@@ -30,6 +30,7 @@ import {
   deleteReferenceAction,
   importReferencesAction,
   listOwnPostsAction,
+  listProfilePostsAction,
   setReferenceLabelAction,
   updateReferenceAction,
   uploadReferenceAction,
@@ -56,7 +57,7 @@ interface ReferencesPanelProps {
 
 export function ReferencesPanel({ references, instagramUsername, labelCredits }: ReferencesPanelProps) {
   const t = useTranslations('brand')
-  const [picker, setPicker] = useState<'instagram' | null>(null)
+  const [picker, setPicker] = useState<'instagram' | 'other' | null>(null)
   const [gridFile, setGridFile] = useState<File | null>(null)
   const gridInput = useRef<HTMLInputElement>(null)
   useMissingPalettes(references)
@@ -116,6 +117,16 @@ export function ReferencesPanel({ references, instagramUsername, labelCredits }:
             {t('referencesPanel.fromAccount', { username: instagramUsername })}
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => setPicker(picker === 'other' ? null : 'other')}
+          disabled={room <= 0}
+          aria-expanded={picker === 'other'}
+          className={BUTTON}
+        >
+          <UserSearch size={16} aria-hidden="true" />
+          {t('referencesPanel.fromOther')}
+        </button>
       </div>
 
       {gridFile && (
@@ -131,6 +142,7 @@ export function ReferencesPanel({ references, instagramUsername, labelCredits }:
       )}
 
       {picker === 'instagram' && <OwnPosts room={room} imported={permalinks} onDone={() => setPicker(null)} />}
+      {picker === 'other' && <OtherAccountPosts room={room} imported={permalinks} onDone={() => setPicker(null)} />}
       {references.length === 0 ? (
         <p className="rounded-xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500">
           {t('referencesPanel.text7')}</p>
@@ -491,14 +503,82 @@ function OwnPosts({ room, imported, onDone }: PickerProps) {
 
   if (!result) return <LoadingState variant="gallery" label={t('referencesPanel.text31')} />
   if ('error' in result) return <Notice tone="error">{result.error}</Notice>
-  return <PostPicker result={result} room={room} imported={imported} onDone={onDone} />
+  return <PostPicker result={result} source="instagram" room={room} imported={imported} onDone={onDone} />
+}
+
+/** Another public account's posts, scraped on the server (Apify) from a pasted profile link or @username. */
+function OtherAccountPosts({ room, imported, onDone }: PickerProps) {
+  const t = useTranslations('brand')
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState<string | null>(null)
+  const [result, setResult] = useState<PostsResult | null>(null)
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const value = input.trim()
+    if (!value || loading) return
+    setResult(null)
+    setLoading(value.replace(/^.*instagram\.com\//i, '').replace(/^@/, '').split(/[/?#]/)[0] || value)
+    const response = await listProfilePostsAction(value).catch((): PostsResult => ({ error: t('shared.failed') }))
+    setLoading(null)
+    setResult(response)
+  }
+
+  return (
+    <>
+      <form onSubmit={submit} className={CARD}>
+        <label className={LABEL}>
+          <span>{t('referencesPanel.otherInput')}</span>
+          <input
+            type="text"
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            disabled={loading !== null}
+            placeholder={t('referencesPanel.otherPlaceholder')}
+            autoComplete="off"
+            spellCheck={false}
+            maxLength={200}
+            className={FIELD}
+          />
+        </label>
+        <p className="text-xs text-zinc-500">{t('referencesPanel.otherHint')}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="submit" disabled={loading !== null || !input.trim()} className={PRIMARY_BUTTON}>
+            {t('referencesPanel.otherSubmit')}
+          </button>
+          <button type="button" onClick={onDone} disabled={loading !== null} className={BUTTON}>
+            {t('referencesPanel.text40')}
+          </button>
+        </div>
+        {loading !== null && (
+          <p aria-hidden="true" className="text-sm text-zinc-500">
+            {t('referencesPanel.otherLoading', { username: loading })}
+          </p>
+        )}
+        {result && 'error' in result && <Notice tone="error">{result.error}</Notice>}
+      </form>
+      {loading !== null && <LoadingState variant="gallery" label={t('referencesPanel.otherLoading', { username: loading })} />}
+      {result && !('error' in result) && (
+        <PostPicker
+          key={result.account.username}
+          result={result}
+          source="discovery"
+          room={room}
+          imported={imported}
+          onDone={onDone}
+        />
+      )}
+    </>
+  )
 }
 
 interface PostPickerProps extends PickerProps {
   result: Extract<PostsResult, { posts: InstagramPost[] }>
+  /** Where the imported references say they came from. */
+  source: 'instagram' | 'discovery'
 }
 
-function PostPicker({ result, room, imported, onDone }: PostPickerProps) {
+function PostPicker({ result, source, room, imported, onDone }: PostPickerProps) {
   const locale = useLocale()
   const t = useTranslations('brand')
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
@@ -521,7 +601,7 @@ function PostPicker({ result, room, imported, onDone }: PostPickerProps) {
     setPending(true)
     const items = posts
       .filter((post) => selected.has(post.id))
-      .map((post) => ({ imageUrls: post.images, permalink: post.permalink, source: 'instagram' as const, sourceLabel: `@${account.username}` }))
+      .map((post) => ({ imageUrls: post.images, permalink: post.permalink, source, sourceLabel: `@${account.username}` }))
     const response = await importReferencesAction(items).catch(() => ({ error: t('shared.failed') }))
     setPending(false)
     if ('error' in response) {

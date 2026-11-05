@@ -84,6 +84,19 @@ describe('createAsset', () => {
     expect(db).not.toHaveBeenCalled()
   })
 
+  it('stores a layer, PNG included, under the layers folder', async () => {
+    const mock = dbMock([{ data: { id: 'asset-1' }, error: null }])
+    vi.mocked(db).mockReturnValue(mock.client as never)
+    const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+
+    await createAsset('user-1', blob(png), 1080, 1080, { origin: 'ai', layer: true })
+    await createAsset('user-1', blob(JPEG_HEADER), 1080, 1080, { origin: 'ai', layer: true })
+
+    expect(mock.storage.uploads[0]).toMatch(/^user-1\/layers\/[0-9a-f-]+\.png$/)
+    expect((mock.storage.upload.mock.calls[0] as unknown[])[2]).toEqual({ contentType: 'image/png' })
+    expect(mock.storage.uploads[1]).toMatch(/^user-1\/layers\/[0-9a-f-]+\.jpg$/)
+  })
+
   it('rejects a file above the stored-file limit', async () => {
     await expect(createAsset('user-1', blob(JPEG_HEADER, 2 * 1024 * 1024 + 1), 1080, 1080)).rejects.toBeInstanceOf(FileTooLargeError)
     expect(db).not.toHaveBeenCalled()
@@ -185,6 +198,7 @@ describe('asset library', () => {
     expect(mock.chains[0]).toContainEqual(['neq', 'origin', 'ai'])
     expect(mock.chains[1]).toContainEqual(['eq', 'origin', 'ai'])
     for (const chain of mock.chains) expect(filtered(chain, 'account_id', 'ig-1')).toBe(true)
+    for (const chain of mock.chains.slice(0, 2)) expect(chain).toContainEqual(['not', 'storage_path', 'like', '%/layers/%'])
   })
 
   it("loads the account's own photos for tagging, with their product", async () => {

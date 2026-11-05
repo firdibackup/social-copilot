@@ -110,6 +110,8 @@ export type LoggedTask =
   | 'deep_search'
   /** The rolling summary of a Mimo conversation, written after the answer. */
   | 'chat_summary'
+  /** ✨ Lapisan ajaib: a finished slide split into a clean background and editable text (units: 2 with an object). */
+  | 'magic_layers'
 
 interface GenerationLog {
   reservation_id?: string | null

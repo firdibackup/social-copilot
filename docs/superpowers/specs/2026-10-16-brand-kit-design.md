@@ -12,6 +12,13 @@
 - Tabel `facebook_connections`, data yang mungkin tersimpan di dalamnya, dan migrasi historis tidak dihapus atau diubah. Penghapusan fitur ini bukan pembersihan token di database.
 - Intel Kompetitor di Mimo memakai Apify, bukan Business Discovery. Parser `parseInstagramUsername` beserta tesnya dipindahkan ke `src/lib/instagram.ts` dan `src/lib/instagram.test.ts` karena masih dipakai fitur tersebut.
 
+## Pembaruan 2026-11-05: Dari akun lain lewat Apify
+
+- Tombol **Dari akun lain** kembali di Brand › Referensi desain, kini lewat Apify (`apify/instagram-scraper`, `resultsType: posts`), bukan Business Discovery: Business Discovery butuh Facebook Login (Page + akun Instagram Business yang terhubung ke Facebook), yang sudah dihapus dan tidak ingin dikembalikan.
+- Owner menempel link profil atau @username (`parseInstagramUsername`); server mengambil hingga 24 post terbaru akun publik itu (`fetchProfilePosts`, parser murni `readProfilePosts` di `src/lib/apify.ts`): foto dan carousel (semua slide, maks `MAX_GROUP_IMAGES`), video dilewati, hanya URL https. Hasilnya tampil di pemilih post yang sama dengan akun sendiri, lalu diimpor sebagai referensi bersumber `discovery` (**Akun lain**), `source_label` `@username`, permalink = URL post. Gambar tetap diunduh lewat `fetchImage` (aman SSRF).
+- Kuota: tiap user maksimal `REFERENCE_SCRAPE_WEEKLY` (3) profil berbeda per minggu kalender WIB (Senin–Minggu; awalnya per bulan, diubah owner 2026-11-05) (`src/lib/reference-scrape.ts`, tabel `reference_profile_scrapes`, fungsi `reserve_reference_scrape` / `release_reference_scrape`, migrasi `20261105000000_referensi_akun_lain.sql`). Membuka lagi username yang sudah diambil minggu itu tidak memakai kuota; jika data tersimpan < 12 jam, dipakai tanpa memanggil Apify, selain itu Apify dijalankan ulang tanpa kuota baru. Gagal pada username baru (Apify error, profil privat/tidak ada/tanpa post foto) mengembalikan slotnya.
+- Angka kuota tidak pernah ditampilkan ke pengguna (tanpa "x/3"); UI hanya memakai kalimat pemasaran bahwa kuota terbatas tiap minggu. Log boleh menyebut angkanya. URL gambar tidak pernah dicatat di log.
+
 Bagian berikut mencatat desain awal dengan cakupan Business Discovery dihapus. Detail lain tetap merupakan catatan desain pada tanggal pembuatannya, bukan spesifikasi lengkap produk terkini.
 
 ## Tujuan dan kriteria sukses

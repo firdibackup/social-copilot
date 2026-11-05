@@ -21,6 +21,7 @@ export const TASK_LABELS: Record<string, string> = {
   content: 'Konten baru',
   content_slide: 'Slide konten',
   slide_edit: 'Edit slide',
+  magic_layers: 'Lapisan ajaib',
   caption_edit: 'Edit caption',
   threads_write: 'Tulis Threads',
   threads_edit: 'Edit Threads',

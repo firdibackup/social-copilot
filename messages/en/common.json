@@ -326,7 +326,29 @@
     "previous": "Previous example — {style}",
     "next": "Next example — {style}",
     "follow": "Follow style ({font})",
-    "suits": "Best for: {suits}"
+    "suits": "Best for: {suits}",
+    "picker": {
+      "search": "Search fonts…",
+      "clear": "Clear search",
+      "close": "Close",
+      "list": "Fonts",
+      "category": "Font category",
+      "choose": "Choose a font",
+      "suggested": "Recommended",
+      "all": "All fonts",
+      "results": "Results",
+      "count": "{count, plural, one {# font} other {# fonts}}",
+      "empty": "No fonts match “{query}”.",
+      "emptyHint": "Try another name, or pick the All category.",
+      "categories": {
+        "all": "All",
+        "sans": "Sans serif",
+        "serif": "Serif",
+        "display": "Display",
+        "handwriting": "Handwriting",
+        "mono": "Monospace"
+      }
+    }
   },
   "trial": {
     "limit": "Your free credits are used up (0 left). Upgrade to Pro or Max to continue.",
