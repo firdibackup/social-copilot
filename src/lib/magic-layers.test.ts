@@ -81,6 +81,14 @@ describe('mergeBlocks', () => {
     ]
     expect(mergeBlocks(lines)).toHaveLength(6)
   })
+
+  it('does not merge overlapping columns, different weights, or truncate a long paragraph', () => {
+    expect(mergeBlocks([block(), block({ x: 300, y: 100, text: 'Autre colonne' })])).toHaveLength(2)
+    expect(mergeBlocks([block(), block({ y: 170, weight: 400 })])).toHaveLength(2)
+    const long = mergeBlocks([block({ text: 'x'.repeat(300) }), block({ y: 170, text: 'y'.repeat(300) })])
+    expect(long).toHaveLength(2)
+    expect(long.map((item) => item.text).join('').length).toBe(600)
+  })
 })
 
 describe('textMask', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createHistory, type ImageLayer, type LayerDoc, type TextLayer } from '@/lib/layer-doc'
-import { editStep, fitTextHeights, handlesFor, moveLayer, nudgeLayer, readDraft, resizeLayer } from './layer-editor-gesture'
+import { createHistory, redo, undo, type ImageLayer, type LayerDoc, type TextLayer } from '@/lib/layer-doc'
+import { editStep, fitTextHeights, handlesFor, moveLayer, nudgeLayer, readDraft, resizeLayer, resizeRotatedLayer } from './layer-editor-gesture'
 
 const ASSET = '11111111-1111-4111-8111-111111111111'
 const canvas = { width: 1080, height: 1350 }
@@ -27,6 +27,18 @@ describe('moveLayer', () => {
 })
 
 describe('resizeLayer', () => {
+  it('preserves a rotated resize anchor and prevents edits to locked layers', () => {
+    const shape = { id: 's1', kind: 'shape' as const, shape: 'rect' as const, x: 100, y: 100, w: 200, h: 80,
+      rotation: 90, color: '#FFFFFF', strokeColor: '#000000', strokeWidth: 0, radius: 0 }
+    const next = resizeRotatedLayer(shape, 'e', 0, 40)
+    expect(next.w).toBeCloseTo(240)
+    expect(next.x + next.w / 2).toBeCloseTo(200)
+    expect(next.y + next.h / 2).toBeCloseTo(160)
+    const locked = { ...image, locked: true }
+    expect(resizeLayer(locked, 'e', 50, 0)).toBe(locked)
+    expect(nudgeLayer(locked, 50, 0, canvas)).toBe(locked)
+    expect(moveLayer(locked, 50, 0, canvas, [], 6).layer).toBe(locked)
+  })
   it('keeps an image in proportion', () => {
     const next = resizeLayer(image, 'se', 100, 0)
     expect(next.w / next.h).toBeCloseTo(2)
@@ -87,6 +99,14 @@ describe('editStep', () => {
 })
 
 describe('readDraft', () => {
+  it('retains prompt-only edits in drafts and undo/redo', () => {
+    const changed: LayerDoc = { ...doc, layers: [{ ...text, field: { kind: 'text', mode: 'ai', prompt: 'Tips usaha', length: 'medium' } }, image] }
+    const restored = readDraft(JSON.stringify(changed), doc)
+    expect(restored).toEqual(changed)
+    const history = editStep(createHistory(doc), restored!, false)
+    expect(undo(history).present).toEqual(doc)
+    expect(redo(undo(history)).present).toEqual(changed)
+  })
   it('offers a valid, different draft of the same canvas only', () => {
     const changed = { ...doc, layers: [{ ...text, text: 'Baru' }] }
     expect(readDraft(JSON.stringify(changed), doc)).toEqual(changed)

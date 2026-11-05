@@ -18,6 +18,7 @@ export const handlesFor = (layer: Layer): readonly Handle[] =>
 export function moveLayer<T extends Layer>(
   start: T, dx: number, dy: number, canvas: Canvas, others: Omit<Box, 'id'>[], tolerance: number,
 ): { layer: T; guides: Guides } {
+  if (start.locked) return { layer: start, guides: NO_GUIDES }
   const moved = { ...start, x: start.x + dx, y: start.y + dy }
   const snap = snapBox(moved, canvas, others, tolerance)
   const layer = clampBox({ ...moved, x: snap.x, y: snap.y }, canvas)
@@ -36,6 +37,8 @@ export function moveLayer<T extends Layer>(
  * scales the box and the font size together; a text side changes only the width (the lines rewrap).
  */
 export function resizeLayer(start: Layer, handle: Handle, dx: number, dy: number): Layer {
+  if (start.locked) return start
+  if (start.kind === 'shape') return resizeBox(start, handle, dx, dy, false)
   if (start.kind === 'image') return resizeBox(start, handle, dx, dy, true)
   if (handle.length === 1) return resizeBox(start, handle, dx, 0, false)
   const nominal = resizeBox(start, handle, dx, dy, true)
@@ -54,9 +57,19 @@ export function resizeLayer(start: Layer, handle: Handle, dx: number, dy: number
   }
 }
 
+/** Keep the opposite handle stationary when resizing a rotated element. */
+export function resizeRotatedLayer(start: Layer, handle: Handle, dx: number, dy: number): Layer {
+  const angle = (start.rotation ?? 0) * Math.PI / 180
+  const next = resizeLayer(start, handle, dx * Math.cos(angle) + dy * Math.sin(angle), -dx * Math.sin(angle) + dy * Math.cos(angle))
+  const cx = next.x + next.w / 2 - start.x - start.w / 2
+  const cy = next.y + next.h / 2 - start.y - start.h / 2
+  return { ...next, x: next.x + cx * Math.cos(angle) - cy * Math.sin(angle) - cx,
+    y: next.y + cx * Math.sin(angle) + cy * Math.cos(angle) - cy }
+}
+
 /** An arrow key's move, kept on the canvas like a drag. */
 export const nudgeLayer = <T extends Layer>(layer: T, dx: number, dy: number, canvas: Canvas): T =>
-  clampBox({ ...layer, x: layer.x + dx, y: layer.y + dy }, canvas)
+  layer.locked ? layer : clampBox({ ...layer, x: layer.x + dx, y: layer.y + dy }, canvas)
 
 export const replaceLayer = (doc: LayerDoc, layer: Layer): LayerDoc =>
   ({ ...doc, layers: doc.layers.map((item) => (item.id === layer.id ? layer : item)) })
@@ -76,7 +89,7 @@ export const removeLayer = (doc: LayerDoc, id: string): LayerDoc =>
 export function fitTextHeights(doc: LayerDoc, heightOf: (layer: Extract<Layer, { kind: 'text' }>) => number): LayerDoc {
   let changed = false
   const layers = doc.layers.map((layer) => {
-    if (layer.kind !== 'text') return layer
+    if (layer.kind !== 'text' || layer.locked) return layer
     const h = Math.min(doc.height * 4, Math.max(1, heightOf(layer)))
     if (Math.abs(h - layer.h) < 0.01) return layer
     changed = true
@@ -107,7 +120,7 @@ export function readDraft(raw: string | null, current: LayerDoc): LayerDoc | nul
   } catch {
     return null
   }
-  const parsed = parseLayerDoc(value)
+  const parsed = parseLayerDoc(value && typeof value === 'object' && 'doc' in value ? value.doc : value)
   if ('error' in parsed) return null
   const { doc } = parsed
   if (doc.width !== current.width || doc.height !== current.height) return null

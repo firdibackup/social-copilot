@@ -981,6 +981,8 @@ export function ContentEditor({
           postId={post.id}
           media={layerTarget.media}
           slide={layerTarget.number}
+          slides={media}
+          onSlideChange={setLayerSlide}
           onFlush={flush}
           onClose={() => setLayerSlide(null)}
           onMagicLayers={() => {

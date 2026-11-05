@@ -1,15 +1,19 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
+import { Minus, Plus, Scan } from 'lucide-react'
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { fontFamilyOf } from '@/components/font-previews'
 import type { FontName } from '@/lib/design-styles'
-import { layoutText, measureContext, textCss } from '@/lib/layer-canvas'
+import { layoutText, loadFonts, loadImage, measureContext } from '@/lib/layer-canvas'
+import { migrateLayerDoc } from '@/lib/design-doc'
+import { drawDesignPage } from '@/lib/design-canvas'
+import { fieldReady } from '@/lib/design-fields'
 import {
-  isOutside, layerImageUrl, lineBox, SNAP_SCREEN_PX,
+  isOutside, layerImageUrl, SNAP_SCREEN_PX,
   type Handle, type Layer, type LayerDoc, type TextLayer,
 } from '@/lib/layer-doc'
-import { fitTextHeights, handlesFor, moveLayer, NO_GUIDES, replaceLayer, resizeLayer, type Guides } from './layer-editor-gesture'
+import { fitTextHeights, handlesFor, moveLayer, NO_GUIDES, replaceLayer, resizeRotatedLayer, type Guides } from './layer-editor-gesture'
 
 export const familyOf = (font: FontName) => fontFamilyOf(font) ?? 'sans-serif'
 
@@ -64,6 +68,7 @@ export function LayerCanvas({ doc, baseAssetId, selectedId, readOnly, labelOf, o
   const baseRef = useRef<HTMLImageElement>(null)
   const [area, setArea] = useState({ width: 0, height: 0 })
   const [baseLoaded, setBaseLoaded] = useState(false)
+  const [zoom, setZoom] = useState<number | null>(null)
   const gesture = useRef<Gesture | null>(null)
   const liveRef = useRef<{ doc: LayerDoc; guides: Guides } | null>(null)
   const [live, setLiveState] = useState<{ doc: LayerDoc; guides: Guides } | null>(null)
@@ -96,7 +101,10 @@ export function LayerCanvas({ doc, baseAssetId, selectedId, readOnly, labelOf, o
     if (image?.complete && image.naturalWidth > 0 && !baseLoaded) measureTone(image)
   })
 
-  const scale = area.width > 0 && area.height > 0 ? Math.min(area.width / doc.width, area.height / doc.height) : 0
+  const padding = area.width < 600 ? 24 : 64
+  const fitScale = area.width > 0 && area.height > 0 ? Math.min(Math.max(1, area.width - 40) / doc.width, Math.max(1, area.height - padding) / doc.height) : 0
+  const scale = zoom ?? fitScale
+  const changeZoom = (factor: number) => setZoom(Math.min(8, Math.max(0.05, scale * factor)))
   const shown = live?.doc ?? doc
   const selected = shown.layers.find((layer) => layer.id === selectedId) ?? null
 
@@ -107,6 +115,7 @@ export function LayerCanvas({ doc, baseAssetId, selectedId, readOnly, labelOf, o
     if (readOnly) return
     const layer = doc.layers.find((item) => item.id === id)
     if (!layer) return
+    if (layer.locked || layer.hidden) return
     event.currentTarget.setPointerCapture(event.pointerId)
     gesture.current = { id, handle, start: layer, x: event.clientX, y: event.clientY, pointerId: event.pointerId, moved: false }
   }
@@ -122,10 +131,10 @@ export function LayerCanvas({ doc, baseAssetId, selectedId, readOnly, labelOf, o
     const dx = sx / scale
     const dy = sy / scale
     if (current.handle) {
-      setLive({ doc: fitDoc(replaceLayer(doc, resizeLayer(current.start, current.handle, dx, dy))), guides: NO_GUIDES })
+      setLive({ doc: fitDoc(replaceLayer(doc, resizeRotatedLayer(current.start, current.handle, dx, dy))), guides: NO_GUIDES })
       return
     }
-    const others = doc.layers.filter((layer) => layer.id !== current.id)
+    const others = doc.layers.filter((layer) => layer.id !== current.id && !layer.hidden)
     const next = moveLayer(current.start, dx, dy, doc, others, SNAP_SCREEN_PX / scale)
     setLive({ doc: replaceLayer(doc, next.layer), guides: next.guides })
   }
@@ -157,14 +166,26 @@ export function LayerCanvas({ doc, baseAssetId, selectedId, readOnly, labelOf, o
     }
   }
 
-  const box = (layer: Layer) => ({ left: layer.x * scale, top: layer.y * scale, width: layer.w * scale, height: layer.h * scale })
+  const box = (layer: Layer) => ({ left: layer.x * scale, top: layer.y * scale, width: layer.w * scale, height: layer.h * scale,
+    transform: `rotate(${layer.rotation ?? 0}deg)` })
 
   return (
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
     <div
       ref={areaRef}
-      className="relative flex min-h-0 flex-1 items-center justify-center"
+      className="relative min-h-0 flex-1 overflow-auto overscroll-contain"
+      tabIndex={0}
+      role="region"
+      aria-label={t('canvas')}
+      onKeyDown={(event) => {
+        if (event.shiftKey && event.key === '!' && !(event.target as HTMLElement).closest('input, textarea, [contenteditable]')) {
+          event.preventDefault()
+          setZoom(null)
+        }
+      }}
     >
       {scale > 0 && (
+        <div style={{ minWidth: '100%', minHeight: '100%', width: doc.width * scale + 40, height: doc.height * scale + 40 }} className="flex items-center justify-center p-5">
         <div
           className="relative shadow-[0_18px_50px_-18px_rgba(23,24,39,0.45),0_0_0_1px_rgba(23,24,39,0.06)]"
           style={{ width: doc.width * scale, height: doc.height * scale }}
@@ -185,21 +206,7 @@ export function LayerCanvas({ doc, baseAssetId, selectedId, readOnly, labelOf, o
               onLoad={(event) => measureTone(event.currentTarget)}
               className={`absolute inset-0 size-full max-w-none transition-opacity duration-300 ${baseLoaded ? 'opacity-100' : 'opacity-0'}`}
             />
-            {shown.layers.map((layer) =>
-              layer.kind === 'image' ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={layer.id}
-                  src={layerImageUrl(layer.assetId)}
-                  alt=""
-                  draggable={false}
-                  className="absolute max-w-none"
-                  style={{ left: layer.x, top: layer.y, width: layer.w, height: layer.h, opacity: layer.opacity ?? 1 }}
-                />
-              ) : (
-                <TextView key={layer.id} layer={layer} />
-              ),
-            )}
+            <DocumentCanvas doc={shown} baseAssetId={baseAssetId} />
           </div>
 
           {/* Hit areas, frame and handles, in screen px. */}
@@ -214,7 +221,7 @@ export function LayerCanvas({ doc, baseAssetId, selectedId, readOnly, labelOf, o
             onPointerUp={(event) => end(event, true)}
             onPointerCancel={(event) => end(event, false)}
           >
-            {shown.layers.map((layer) => (
+            {shown.layers.filter((layer) => !layer.hidden).map((layer) => (
               <div
                 key={layer.id}
                 role="button"
@@ -223,9 +230,10 @@ export function LayerCanvas({ doc, baseAssetId, selectedId, readOnly, labelOf, o
                 aria-pressed={layer.id === selectedId}
                 onPointerDown={(event) => start(event, layer.id, null)}
                 onFocus={() => onSelect(layer.id)}
-                onDoubleClick={() => layer.kind === 'text' && onEditText(layer.id)}
+                onDoubleClick={() => !layer.locked && layer.kind === 'text' && onEditText(layer.id)}
                 className={`absolute touch-none rounded-[1px] outline-none hover:outline hover:outline-1 hover:outline-accent/70 focus-visible:outline-2 focus-visible:outline-accent ${readOnly ? '' : 'cursor-move'}`}
-                style={box(layer)}
+                style={{ ...box(layer), ...(layer.field && layer.field.mode !== 'static'
+                  ? { border: `1.5px dashed ${fieldReady(layer.field) ? '#15803d' : '#b91c1c'}` } : {}) }}
               />
             ))}
 
@@ -236,16 +244,16 @@ export function LayerCanvas({ doc, baseAssetId, selectedId, readOnly, labelOf, o
               <span key={`h${y}`} aria-hidden="true" className="pointer-events-none absolute -right-3 -left-3 h-px bg-[#ff3d9a]" style={{ top: y * scale }} />
             ))}
 
-            {selected && (
+            {selected && !selected.hidden && (
               <div
                 className={`absolute touch-none ${readOnly ? 'pointer-events-none' : 'cursor-move'} ${
                   isOutside(selected, doc) ? 'outline-[1.5px] outline-amber-500 outline-dashed' : 'outline-[1.5px] outline-accent outline-solid'
                 }`}
                 style={box(selected)}
                 onPointerDown={(event) => start(event, selected.id, null)}
-                onDoubleClick={() => selected.kind === 'text' && onEditText(selected.id)}
+                onDoubleClick={() => !selected.locked && selected.kind === 'text' && onEditText(selected.id)}
               >
-                {!readOnly && handlesFor(selected).map((handle) => {
+                {!readOnly && !selected.locked && handlesFor(selected).map((handle) => {
                   const [fx, fy] = HANDLE_AT[handle]
                   const side = handle.length === 1
                   return (
@@ -271,39 +279,55 @@ export function LayerCanvas({ doc, baseAssetId, selectedId, readOnly, labelOf, o
             )}
           </div>
         </div>
+        </div>
       )}
+    </div>
+    <div role="group" aria-label={t('zoom')} className="flex h-11 shrink-0 items-center justify-center gap-1 border-t border-hairline bg-white">
+      <button type="button" aria-label={t('zoomOut')} disabled={scale <= 0.05} onClick={() => changeZoom(1 / 1.25)} className="inline-flex size-10 items-center justify-center rounded-lg hover:bg-zinc-100 disabled:text-ink-soft"><Minus size={16} aria-hidden="true" /></button>
+      <select aria-label={t('zoom')} value={zoom === null ? 'fit' : String(zoom)} className="h-9 rounded-md border border-hairline bg-white px-2 text-xs tabular-nums"
+        onChange={(event) => setZoom(event.target.value === 'fit' ? null : Number(event.target.value))}>
+        <option value="fit">{t('fitPage')}</option>
+        {zoom !== null && ![0.05, 0.25, 0.5, 1, 2, 4, 8].includes(zoom) && <option value={zoom}>{Math.round(zoom * 100)}%</option>}
+        {[0.05, 0.25, 0.5, 1, 2, 4, 8].map((value) => <option key={value} value={value}>{value * 100}%</option>)}
+      </select>
+      <button type="button" aria-label={t('zoomIn')} disabled={scale >= 8} onClick={() => changeZoom(1.25)} className="inline-flex size-10 items-center justify-center rounded-lg hover:bg-zinc-100 disabled:text-ink-soft"><Plus size={16} aria-hidden="true" /></button>
+      <button type="button" aria-label={t('fitPage')} title={`${t('fitPage')} (Shift+1)`} onClick={() => setZoom(null)} className="inline-flex size-10 items-center justify-center rounded-lg hover:bg-zinc-100"><Scan size={16} aria-hidden="true" /></button>
+    </div>
     </div>
   )
 }
 
-/** A text layer as lines placed where the export canvas puts them; never HTML. */
-function TextView({ layer }: { layer: TextLayer }) {
-  const { lines } = layoutOf(layer)
-  const height = lineBox(layer)
-  // React warns when the `textDecoration` shorthand changes beside its longhands: use the line longhand.
-  const { textDecoration, ...css } = textCss(layer, familyOf(layer.font))
-  css.textDecorationLine = textDecoration
-  return (
-    <div className="absolute" style={{ left: layer.x, top: layer.y, width: layer.w, height: layer.h }}>
-      {lines.map((line, index) =>
-        line.text ? (
-          <span
-            key={index}
-            className="absolute"
-            style={{
-              ...css,
-              left: line.x - layer.x,
-              top: line.top - layer.y,
-              height,
-              lineHeight: `${height}px`,
-              fontKerning: 'normal',
-              color: layer.color,
-            }}
-          >
-            {line.text}
-          </span>
-        ) : null,
-      )}
-    </div>
-  )
+/** Editor and export draw through the same node renderer; DOM remains only for accessible controls. */
+function DocumentCanvas({ doc, baseAssetId }: { doc: LayerDoc; baseAssetId: string }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  const images = useRef(new Map<string, Promise<HTMLImageElement>>())
+  const [failed, setFailed] = useState(false)
+  const t = useTranslations('editor.layerEditor')
+  useEffect(() => {
+    let live = true
+    const ids = [...new Set([baseAssetId, ...doc.layers.flatMap(layer => layer.kind === 'image' && !layer.hidden ? [layer.assetId] : [])])]
+    const loaded = ids.map(id => {
+      let promise = images.current.get(id)
+      if (!promise) {
+        promise = loadImage(layerImageUrl(id)).catch(error => { images.current.delete(id); throw error })
+        images.current.set(id, promise)
+      }
+      return promise.then(image => [id, { image, width: image.naturalWidth, height: image.naturalHeight }] as const)
+    })
+    void Promise.all([Promise.all(loaded), loadFonts(doc, familyOf)]).then(([sources]) => {
+      if (!live) return
+      const canvas = ref.current
+      const context = canvas?.getContext('2d')
+      if (!canvas || !context) throw new Error('canvas_unavailable')
+      const design = migrateLayerDoc(doc, { id: crypto.randomUUID(), pageId: crypto.randomUUID(),
+        nodeIds: doc.layers.map(() => crypto.randomUUID()) }, baseAssetId)
+      drawDesignPage(context, design.pages[0], new Map(sources), familyOf)
+      setFailed(false)
+    }).catch(() => { if (live) setFailed(true) })
+    return () => { live = false }
+  }, [doc, baseAssetId])
+  return <>
+    <canvas ref={ref} width={doc.width} height={doc.height} className="absolute inset-0 max-w-none" />
+    {failed && <p role="alert" className="absolute inset-x-0 top-0 bg-white p-4 text-red-700">{t('renderFailed')}</p>}
+  </>
 }

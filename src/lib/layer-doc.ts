@@ -4,15 +4,23 @@
  */
 import { isCuratedFont, type FontName } from './design-styles'
 import { isGoogleFont } from './google-fonts'
+import { isFieldConfig, type FieldConfig } from './design-fields'
 
 export interface Box { id: string; x: number; y: number; w: number; h: number }
+export interface LayerFlags {
+  field?: FieldConfig
+  name?: string
+  rotation?: number
+  locked?: boolean
+  hidden?: boolean
+}
 
 export type TextAlign = 'left' | 'center' | 'right'
 
 export const TEXT_WEIGHTS = [300, 400, 500, 600, 700, 800] as const
 export type TextWeight = (typeof TEXT_WEIGHTS)[number]
 
-export interface TextLayer extends Box {
+export interface TextLayer extends Box, LayerFlags {
   kind: 'text'
   /** Plain text; '\n' starts a new line. Never rendered as HTML. */
   text: string
@@ -36,7 +44,7 @@ export interface TextLayer extends Box {
 
 export type ImageRole = 'logo' | 'product' | 'object' | 'upload'
 
-export interface ImageLayer extends Box {
+export interface ImageLayer extends Box, LayerFlags {
   kind: 'image'
   assetId: string
   role: ImageRole
@@ -44,7 +52,17 @@ export interface ImageLayer extends Box {
   opacity?: number
 }
 
-export type Layer = TextLayer | ImageLayer
+export interface ShapeLayer extends Box, LayerFlags {
+  kind: 'shape'
+  shape: 'rect' | 'ellipse' | 'triangle' | 'line' | 'arrow'
+  color: string
+  radius: number
+  strokeColor: string
+  strokeWidth: number
+  opacity?: number
+}
+
+export type Layer = TextLayer | ImageLayer | ShapeLayer
 
 export interface LayerDoc {
   v: 1
@@ -76,11 +94,12 @@ const ID = /^[A-Za-z0-9_-]{1,40}$/
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const ROLES: ReadonlySet<string> = new Set(['logo', 'product', 'object', 'upload'])
 const ALIGNS: ReadonlySet<string> = new Set(['left', 'center', 'right'])
-const BOX_KEYS = ['id', 'x', 'y', 'w', 'h', 'kind']
+const BOX_KEYS = ['id', 'x', 'y', 'w', 'h', 'kind', 'name', 'rotation', 'locked', 'hidden', 'field']
 const TEXT_FLAGS = ['italic', 'underline', 'uppercase', 'shadow'] as const
 const TEXT_KEYS = new Set([...BOX_KEYS, 'text', 'font', 'size', 'weight', 'color', 'align', 'lineHeight',
   ...TEXT_FLAGS, 'letterSpacing', 'opacity'])
 const IMAGE_KEYS = new Set([...BOX_KEYS, 'assetId', 'role', 'opacity'])
+const SHAPE_KEYS = new Set([...BOX_KEYS, 'shape', 'color', 'radius', 'strokeColor', 'strokeWidth', 'opacity'])
 const WEIGHTS: ReadonlySet<unknown> = new Set(TEXT_WEIGHTS)
 const DOC_KEYS = new Set(['v', 'width', 'height', 'layers'])
 
@@ -123,7 +142,16 @@ function parseLayer(value: unknown, width: number, height: number): Layer | null
   const { x, y, w, h } = value
   if (!finite(w, 1, width * 4) || !finite(h, 1, height * 4)) return null
   if (!finite(x, -w, width) || !finite(y, -h, height)) return null
-  const box = { id: value.id, x, y, w, h }
+  if (value.name !== undefined && (typeof value.name !== 'string' || value.name.length > 120)) return null
+  if (value.rotation !== undefined && !finite(value.rotation, -360, 360)) return null
+  if (['locked', 'hidden'].some((key) => value[key] !== undefined && typeof value[key] !== 'boolean')) return null
+  if (value.field !== undefined && !isFieldConfig(value.field, String(value.kind))) return null
+  const box = { id: value.id, x, y, w, h,
+    ...(value.name !== undefined ? { name: value.name as string } : {}),
+    ...(value.rotation !== undefined ? { rotation: value.rotation as number } : {}),
+    ...(value.locked !== undefined ? { locked: value.locked as boolean } : {}),
+    ...(value.hidden !== undefined ? { hidden: value.hidden as boolean } : {}),
+    ...(value.field !== undefined ? { field: value.field as FieldConfig } : {}) }
   const { opacity } = value
   if (opacity !== undefined && !finite(opacity, LAYER_LIMITS.opacity.min, LAYER_LIMITS.opacity.max)) return null
   const extra: { opacity?: number } = opacity === undefined ? {} : { opacity }
@@ -155,6 +183,13 @@ function parseLayer(value: unknown, width: number, height: number): Layer | null
     if (typeof value.assetId !== 'string' || !UUID.test(value.assetId)) return null
     if (typeof value.role !== 'string' || !ROLES.has(value.role)) return null
     return { ...box, kind: 'image', assetId: value.assetId.toLowerCase(), role: value.role as ImageRole, ...extra }
+  }
+  if (value.kind === 'shape') {
+    if (!onlyKeys(value, SHAPE_KEYS) || !['rect', 'ellipse', 'triangle', 'line', 'arrow'].includes(String(value.shape))
+      || typeof value.color !== 'string' || !HEX.test(value.color) || typeof value.strokeColor !== 'string' || !HEX.test(value.strokeColor)
+      || !finite(value.radius, 0, 1000) || !finite(value.strokeWidth, 0, 100)) return null
+    return { ...box, kind: 'shape', shape: value.shape as ShapeLayer['shape'], color: value.color.toUpperCase(),
+      radius: value.radius, strokeColor: value.strokeColor.toUpperCase(), strokeWidth: value.strokeWidth, ...extra }
   }
   return null
 }
@@ -223,8 +258,14 @@ export function lineStart(layer: Pick<TextLayer, 'x' | 'w' | 'align'>, lineWidth
 export interface Canvas { width: number; height: number }
 
 /** Whether any part of the box lies outside the canvas: the editor warns, it doesn't move it. */
-export const isOutside = (box: Omit<Box, 'id'>, canvas: Canvas) =>
-  box.x < 0 || box.y < 0 || box.x + box.w > canvas.width || box.y + box.h > canvas.height
+export function isOutside(box: Omit<Box, 'id'> & { rotation?: number }, canvas: Canvas): boolean {
+  const angle = (box.rotation ?? 0) * Math.PI / 180
+  const w = Math.abs(box.w * Math.cos(angle)) + Math.abs(box.h * Math.sin(angle))
+  const h = Math.abs(box.w * Math.sin(angle)) + Math.abs(box.h * Math.cos(angle))
+  const x = box.x + (box.w - w) / 2
+  const y = box.y + (box.h - h) / 2
+  return x < -0.001 || y < -0.001 || x + w > canvas.width + 0.001 || y + h > canvas.height + 0.001
+}
 
 /** Keeps at least `visible` px of the box on the canvas, so a layer dragged away can still be grabbed. */
 export function clampBox<T extends Omit<Box, 'id'>>(box: T, canvas: Canvas, visible = 40): T {
@@ -277,7 +318,15 @@ export function snapBox(box: Omit<Box, 'id'>, canvas: Canvas, others: Omit<Box, 
 export function hitTest(layers: Layer[], x: number, y: number): string | null {
   for (let index = layers.length - 1; index >= 0; index--) {
     const layer = layers[index]
-    if (x >= layer.x && x <= layer.x + layer.w && y >= layer.y && y <= layer.y + layer.h) return layer.id
+    if (layer.hidden || layer.locked) continue
+    const angle = -(layer.rotation ?? 0) * Math.PI / 180
+    const cx = layer.x + layer.w / 2
+    const cy = layer.y + layer.h / 2
+    const dx = x - cx
+    const dy = y - cy
+    const localX = dx * Math.cos(angle) - dy * Math.sin(angle) + cx
+    const localY = dx * Math.sin(angle) + dy * Math.cos(angle) + cy
+    if (localX >= layer.x && localX <= layer.x + layer.w && localY >= layer.y && localY <= layer.y + layer.h) return layer.id
   }
   return null
 }
@@ -389,4 +438,22 @@ export function newImageLayer(doc: LayerDoc, assetId: string, role: ImageRole, w
   const w = Math.round(Math.min(doc.width * (role === 'logo' ? 0.22 : 0.4), width))
   const h = Math.round((w * height) / Math.max(1, width))
   return { id: newLayerId(doc), kind: 'image', assetId, role, x: Math.round((doc.width - w) / 2), y: Math.round((doc.height - h) / 2), w, h }
+}
+
+export function newShapeLayer(doc: LayerDoc, shape: ShapeLayer['shape']): ShapeLayer {
+  const w = Math.round(doc.width * 0.4)
+  const h = shape === 'line' || shape === 'arrow' ? 40 : Math.round(doc.height * 0.2)
+  return { id: newLayerId(doc), kind: 'shape', shape, color: '#6558F5', radius: 0,
+    strokeColor: '#171827', strokeWidth: shape === 'line' || shape === 'arrow' ? 6 : 0,
+    x: Math.round((doc.width - w) / 2), y: Math.round((doc.height - h) / 2), w, h }
+}
+
+export function duplicateLayer(doc: LayerDoc, id: string): { doc: LayerDoc; id: string | null } {
+  if (doc.layers.length >= LAYER_LIMITS.layers) return { doc, id: null }
+  const source = doc.layers.find((layer) => layer.id === id)
+  if (!source) return { doc, id: null }
+  const copy = clampBox({ ...source, id: newLayerId(doc), x: source.x + 20, y: source.y + 20, locked: false }, doc)
+  const layers = [...doc.layers]
+  layers.splice(layers.indexOf(source) + 1, 0, copy)
+  return { doc: { ...doc, layers }, id: copy.id }
 }

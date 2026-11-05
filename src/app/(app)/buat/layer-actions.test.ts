@@ -19,7 +19,7 @@ import { FileTooLargeError, StorageFullError } from '@/lib/storage-quota'
 import { fileTooLargeMessage, storageFullMessage } from '@/lib/storage-quota-options'
 import { db } from '@/lib/supabase'
 import { queryMock } from '@/test/query-mock'
-import { magicLayersAction, resetSlideLayersAction, saveSlideLayersAction, uploadLayerImageAction } from './layer-actions'
+import { loadSlideLayersAction, magicLayersAction, resetSlideLayersAction, saveSlideLayersAction, uploadLayerImageAction } from './layer-actions'
 
 vi.mock('next-intl/server', async () => {
   const { createTranslator } = await import('next-intl')
@@ -95,6 +95,7 @@ function form(doc: unknown = DOC): FormData {
   data.append('postId', POST)
   data.append('oldAssetId', OLD)
   data.append('doc', typeof doc === 'string' ? doc : JSON.stringify(doc))
+  data.append('expectedVersion', '')
   return data
 }
 
@@ -123,7 +124,7 @@ describe('saveSlideLayersAction', () => {
   it("rejects a doc drawing someone else's image", async () => {
     vi.mocked(ownsAssets).mockResolvedValue(false)
     expect(await saveSlideLayersAction(form())).toEqual({ error: expect.stringContaining('Gambar lapisan tidak ditemukan') })
-    expect(ownsAssets).toHaveBeenCalledWith(USER, [LOGO])
+    expect(ownsAssets).toHaveBeenCalledWith(USER, 'ig-1', [LOGO])
     expect(createAsset).not.toHaveBeenCalled()
   })
 
@@ -143,7 +144,8 @@ describe('saveSlideLayersAction', () => {
     vi.mocked(saveSlideLayers).mockResolvedValue([OLD])
     expect(await saveSlideLayersAction(form())).toEqual({ assetId: NEW })
     expect(createAsset).toHaveBeenCalledWith(USER, expect.any(Blob), 1080, 1350, { accountId: 'ig-1', origin: 'ai', locale: 'id' })
-    expect(saveSlideLayers).toHaveBeenCalledWith(USER, { postId: POST, oldAssetId: OLD, newAssetId: NEW, doc: DOC })
+    expect(saveSlideLayers).toHaveBeenCalledWith(USER, expect.objectContaining({ postId: POST, oldAssetId: OLD, newAssetId: NEW, doc: DOC,
+      expectedVersion: null, design: expect.objectContaining({ format: 'carousely.design' }) }))
     expect(deleteUnused).toHaveBeenCalledWith(USER, [OLD])
     expect(refresh).toHaveBeenCalled()
   })
@@ -153,6 +155,28 @@ describe('saveSlideLayersAction', () => {
     expect(await saveSlideLayersAction(form())).toEqual({ error: expect.stringContaining('sudah diterbitkan') })
     expect(deleteAsset).toHaveBeenCalledWith(USER, NEW)
     expect(deleteUnused).not.toHaveBeenCalled()
+  })
+
+  it('accepts full-length AI prompts even when JSON escaping exceeds the former size limit', async () => {
+    const field = { kind: 'image', mode: 'ai_generate', prompt: '\n'.repeat(2000) }
+    const doc = { ...DOC, layers: Array.from({ length: 30 }, (_, index) => ({ ...DOC.layers[0], id: `l${index}`, field })) }
+    expect(JSON.stringify(doc).length).toBeGreaterThan(100_000)
+    vi.mocked(saveSlideLayers).mockResolvedValue([])
+    expect(await saveSlideLayersAction(form(doc))).toEqual({ assetId: NEW })
+    expect(saveSlideLayers).toHaveBeenCalledWith(USER, expect.objectContaining({ doc }))
+  })
+
+  it('refuses stale edits before uploading their flattened image', async () => {
+    vi.mocked(getSlideLayers).mockResolvedValue({ doc: DOC as never, design: null, version: '2026-11-05T00:00:00+00:00', baseAssetId: OLD, originalAssetId: OLD })
+    expect(await saveSlideLayersAction(form())).toEqual({ error: expect.stringContaining('sesi lain') })
+    expect(createAsset).not.toHaveBeenCalled()
+  })
+
+  it('does not open or overwrite an unreadable stored design as empty layers', async () => {
+    vi.mocked(getSlideLayers).mockResolvedValue({ doc: null, design: null, version: '2026-11-05T00:00:00+00:00', baseAssetId: OLD, originalAssetId: OLD })
+    expect(await loadSlideLayersAction({ postId: POST, assetId: OLD })).toEqual({ error: expect.stringContaining('tidak dapat dibaca') })
+    expect(await saveSlideLayersAction(form())).toEqual({ error: expect.stringContaining('tidak dapat dibaca') })
+    expect(createAsset).not.toHaveBeenCalled()
   })
 })
 
@@ -196,7 +220,7 @@ describe('magicLayersAction', () => {
   })
 
   it('refuses a slide that already has layers before charging', async () => {
-    vi.mocked(getSlideLayers).mockResolvedValue({ doc: null, baseAssetId: OLD, originalAssetId: OLD })
+    vi.mocked(getSlideLayers).mockResolvedValue({ doc: null, design: null, version: '2026-11-05T00:00:00+00:00', baseAssetId: OLD, originalAssetId: OLD })
     expect(await magicLayersAction(input)).toEqual({ error: expect.stringContaining('sudah punya lapisan') })
     expect(runLogged).not.toHaveBeenCalled()
   })

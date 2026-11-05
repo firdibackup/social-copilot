@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { drawDoc, layerUploadAttempts, layoutText, textCss, type DrawContext } from './layer-canvas'
+import { drawDoc, drawShape, layerUploadAttempts, layoutText, textCss, type DrawContext } from './layer-canvas'
 import type { LayerDoc, TextLayer } from './layer-doc'
 
 /** Every character is size/2 px wide; ascent 0.8·size, descent 0.2·size. */
@@ -42,6 +42,34 @@ describe('layoutText', () => {
 })
 
 describe('drawDoc', () => {
+  it('omits hidden layers and restores the transform after rotated elements', () => {
+    const ctx = fakeContext()
+    ctx.save = () => { ctx.calls.push(['save']) }
+    ctx.restore = () => { ctx.calls.push(['restore']) }
+    ctx.translate = (x, y) => { ctx.calls.push(['translate', x, y]) }
+    ctx.rotate = (angle) => { ctx.calls.push(['rotate', angle]) }
+    drawDoc(ctx, { v: 1, width: 1080, height: 1350, layers: [{ ...layer, hidden: true }, { ...layer, id: 't2', rotation: 90 }] },
+      {} as CanvasImageSource, new Map(), (font) => font)
+    expect(ctx.calls.filter((call) => call[0] === 'fillText')).toHaveLength(1)
+    expect(ctx.calls).toContainEqual(['rotate', Math.PI / 2])
+    expect(ctx.calls.at(-1)).toEqual(['restore'])
+  })
+
+  it('draws shape fills separately from line and arrow strokes', () => {
+    const ctx = fakeContext()
+    ctx.beginPath = () => { ctx.calls.push(['begin']) }
+    ctx.fill = () => { ctx.calls.push(['fill']) }
+    ctx.stroke = () => { ctx.calls.push(['stroke']) }
+    ctx.lineTo = (x, y) => { ctx.calls.push(['line', x, y]) }
+    const shape = { id: 's1', kind: 'shape' as const, shape: 'arrow' as const, x: 10, y: 20, w: 200, h: 40,
+      color: '#FFFFFF', strokeColor: '#000000', strokeWidth: 5, radius: 0 }
+    drawShape(ctx, shape)
+    expect(ctx.calls).not.toContainEqual(['fill'])
+    expect(ctx.calls).toContainEqual(['line', 210, 40])
+    expect(ctx.calls.at(-1)).toEqual(['stroke'])
+    drawShape(ctx, { ...shape, shape: 'rect' })
+    expect(ctx.calls).toContainEqual(['fill'])
+  })
   it('draws the background, then layers back to front', () => {
     const ctx = fakeContext()
     const base = {} as CanvasImageSource

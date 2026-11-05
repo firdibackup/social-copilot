@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl'
 import {
   ArrowDownToLine, ArrowUpToLine, Bold, CaseUpper, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Flag, Image as ImageIcon, ImagePlus,
   Italic, LoaderCircle, Redo2, RotateCcw, Sparkles, Stamp, TextAlignCenter, TextAlignEnd, TextAlignStart, Trash2, TriangleAlert, Type,
-  Underline, Undo2, Upload, X,
+  Underline, Undo2, Upload, X, Shapes, Copy, LockKeyhole, EyeOff,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -13,10 +13,11 @@ import { FontPicker } from '@/components/font-picker'
 import { useStorageFull } from '@/components/storage-full'
 import type { Asset } from '@/lib/assets'
 import { DEFAULT_HEADING_FONT } from '@/lib/design-styles'
+import { FIELD_PROMPT_LIMIT, fieldMaxChars, fieldReady } from '@/lib/design-fields'
 import { flattenDoc, loadFonts, prepareLayerUpload } from '@/lib/layer-canvas'
 import {
-  createHistory, emptyDoc, isFontName, isOutside, LAYER_LIMITS, layerDraftKey, newImageLayer, newTextLayer, redo, reorder, TEXT_WEIGHTS, undo,
-  type History, type ImageLayer, type Layer, type LayerDoc, type Reorder, type TextAlign, type TextLayer, type TextWeight,
+  createHistory, duplicateLayer, emptyDoc, isFontName, isOutside, LAYER_LIMITS, layerDraftKey, newImageLayer, newTextLayer, newShapeLayer, redo, reorder, TEXT_WEIGHTS, undo,
+  type History, type ImageLayer, type Layer, type LayerDoc, type Reorder, type TextAlign, type TextLayer, type TextWeight, type ShapeLayer,
 } from '@/lib/layer-doc'
 import type { PostMedia } from '@/lib/posts'
 import {
@@ -25,9 +26,13 @@ import {
 import { familyOf, fitDoc, LayerCanvas, type BaseTone } from './layer-editor-canvas'
 import { addLayer, AMEND_MS, editStep, nudgeLayer, readDraft, removeLayer, sameDoc, updateLayer } from './layer-editor-gesture'
 import { Thumbnail } from './thumbnail'
+import { saveSlideTemplateAction } from './canvas-template-actions'
+import { parseLayerDraft, serializeLayerDraft } from '@/lib/layer-draft'
+import { CanvasTemplateGallery } from './canvas-template-gallery'
 
 interface Loaded {
   baseAssetId: string
+  version: string | null
   hasOriginal: boolean
   fromMagic: boolean
   /** The slide has stored layers; a flat slide gets the ✨ Lapisan ajaib offer instead. */
@@ -43,6 +48,8 @@ interface LayerEditorProps {
   media: PostMedia
   /** 1-based, for the title. */
   slide: number
+  slides: PostMedia[]
+  onSlideChange: (assetId: string) => void
   /** Saves the post's pending edits before anything reads or replaces its slides. */
   onFlush: () => Promise<boolean>
   onClose: () => void
@@ -51,7 +58,7 @@ interface LayerEditorProps {
 }
 
 /** What the panel shows while adding an image: where it comes from, then the library. */
-type Adding = 'image' | 'library' | null
+type Adding = 'image' | 'library' | 'templates' | null
 
 const WEIGHT_NAME = { 300: 'light', 400: 'regular', 500: 'medium', 600: 'semibold', 700: 'bold', 800: 'extrabold' } as const satisfies Record<TextWeight, string>
 const UPLOAD_ERRORS = new Set(['image_too_large', 'image_unreadable'])
@@ -67,7 +74,7 @@ const CHIP = 'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-l
  * Edit desain: the slide as layers over its background, full screen. Changes stay in the browser (and a draft in
  * localStorage) until Simpan flattens them into a new slide image.
  */
-export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLayers }: LayerEditorProps) {
+export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlush, onClose, onMagicLayers }: LayerEditorProps) {
   const t = useTranslations('editor.layerEditor')
   const router = useRouter()
   const storageFull = useStorageFull()
@@ -92,7 +99,11 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
   const [error, setError] = useState<string | null>(null)
   const [feedbackSent, setFeedbackSent] = useState(false)
   const [, setFontTick] = useState(0)
-  const [sheetOpen, setSheetOpen] = useState(true)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [templateName, setTemplateName] = useState<string | null>(null)
+  const [templateSaved, setTemplateSaved] = useState(false)
+  const [templateAllSlides, setTemplateAllSlides] = useState(false)
+  const [templateDirty, setTemplateDirty] = useState(false)
 
   useEffect(() => {
     const node = dialog.current
@@ -120,6 +131,7 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
         const initial = fitDoc(stored?.doc ?? emptyDoc(media.width, media.height))
         setLoaded({
           baseAssetId: stored?.baseAssetId ?? media.assetId,
+          version: stored?.version ?? null,
           hasOriginal: stored?.hasOriginal ?? false,
           fromMagic: stored?.fromMagic ?? false,
           layered: stored !== null,
@@ -165,12 +177,12 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
     if (!doc || readOnly || draft) return
     const timer = window.setTimeout(() => {
       try {
-        if (dirty) window.localStorage.setItem(draftKey, JSON.stringify(doc))
+        if (dirty) window.localStorage.setItem(draftKey, serializeLayerDraft(doc, loaded?.version ?? null))
         else window.localStorage.removeItem(draftKey)
       } catch { /* full or private: the editor still works */ }
     }, 300)
     return () => window.clearTimeout(timer)
-  }, [doc, dirty, readOnly, draft, draftKey])
+  }, [doc, dirty, readOnly, draft, draftKey, loaded?.version])
 
   useEffect(() => {
     if (!dirty) return
@@ -204,9 +216,25 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
   }
 
   function remove() {
-    if (!doc || !selected) return
+    if (!doc || !selected || selected.locked) return
     edit(removeLayer(doc, selected.id))
     setSelectedId(null)
+  }
+
+  function duplicate() {
+    if (!doc || !selected) return
+    const result = duplicateLayer(doc, selected.id)
+    if (!result.id) return
+    edit(result.doc)
+    setSelectedId(result.id)
+  }
+
+  function addShape(shape: ShapeLayer['shape']) {
+    if (!doc || full) return
+    const layer = newShapeLayer(doc, shape)
+    edit(addLayer(doc, layer))
+    setSelectedId(layer.id)
+    setSheetOpen(true)
   }
 
   function addText() {
@@ -280,6 +308,7 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
   /** Leaves the editor, asking first when there are unsaved changes; `then` runs once it's let go. */
   async function close(then: () => void = onClose) {
     if (working) return
+    if (templateDirty && !await confirmDialog({ title: t('templateUnsaved'), confirmLabel: t('discard'), cancelLabel: t('keepEditing'), tone: 'danger' })) return
     if (dirty && !(await confirmDialog({
       title: t('discardTitle'),
       description: t('discardDescription'),
@@ -291,7 +320,21 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
     then()
   }
 
+  function switchSlide(assetId: string) {
+    if (working || assetId === media.assetId) return
+    if (templateDirty) { setError(t('templateUnsaved')); return }
+    // Flush the debounce before unmounting this slide, including a draft not restored yet.
+    try {
+      if (dirty && doc) window.localStorage.setItem(draftKey, serializeLayerDraft(doc, loaded?.version ?? null))
+    } catch {
+      setError(t('draftSaveFailed'))
+      return
+    }
+    onSlideChange(assetId)
+  }
+
   async function save() {
+    if (templateDirty) { setError(t('templateUnsaved')); return }
     if (!doc || !loaded || readOnly || working) return
     setError(null)
     setSelectedId(null)
@@ -306,6 +349,7 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
       form.set('postId', postId)
       form.set('oldAssetId', media.assetId)
       form.set('doc', JSON.stringify(doc))
+      form.set('expectedVersion', loaded.version ?? '')
       const result = await saveSlideLayersAction(form).catch(() => ({ error: t('failed') }))
       if ('error' in result) {
         setWorking(null)
@@ -341,6 +385,48 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
     onClose()
   }
 
+  async function saveTemplate() {
+    if (templateDirty) { setError(t('templateUnsaved')); return }
+    if (draft) { setError(t('templateRestoreDraft')); return }
+    if (!doc || !loaded || working || !templateName?.trim()) return
+    setWorking(t('saving'))
+    setError(null)
+    try {
+      if (!await onFlush()) throw new Error(t('flushFailed'))
+      const prepared = await flattenDoc(doc, loaded.baseAssetId, familyOf)
+      const form = new FormData()
+      form.set('postId', postId)
+      form.set('assetId', media.assetId)
+      form.set('expectedVersion', loaded.version ?? '')
+      form.set('name', templateName.trim())
+      form.set('allSlides', String(templateAllSlides))
+      if (templateAllSlides) {
+        const drafts = []
+        for (const item of slides) {
+          if (item.assetId === media.assetId) continue
+          const raw = window.localStorage.getItem(layerDraftKey(item.assetId))
+          if (!raw) continue
+          const pending = parseLayerDraft(raw)
+          if (!pending || pending.version === null) { setError(t('templateRestoreDraft')); return }
+          drafts.push({ assetId: item.assetId, expectedVersion: pending.version, doc: pending.doc })
+        }
+        form.set('drafts', JSON.stringify(drafts))
+      }
+      form.set('doc', JSON.stringify(doc))
+      form.set('file', prepared.blob, 'template.jpg')
+      form.set('width', String(prepared.width))
+      form.set('height', String(prepared.height))
+      const result = await saveSlideTemplateAction(form)
+      if ('error' in result) {
+        if (!storageFull(result.error)) setError(result.error)
+      } else {
+        setTemplateName(null)
+        setTemplateSaved(true)
+      }
+    } catch { setError(t('failed')) }
+    finally { setWorking(null) }
+  }
+
   async function feedback() {
     setFeedbackSent(true)
     const result = await magicFeedbackAction({ assetId: media.assetId }).catch(() => t('failed'))
@@ -351,6 +437,7 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
   }
 
   function onKeyDown(event: React.KeyboardEvent) {
+    if (adding === 'templates') return
     const target = event.target as HTMLElement
     if (target.closest('input, textarea, select, [contenteditable="true"]') || !doc) return
     const mod = event.metaKey || event.ctrlKey
@@ -365,7 +452,13 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
       stepHistory('redo')
       return
     }
-    if (!selected || readOnly || mod) return
+    if (!selected || readOnly) return
+    if (mod && key === 'd') {
+      event.preventDefault()
+      duplicate()
+      return
+    }
+    if (mod || selected.locked) return
     if (event.key === 'Delete' || event.key === 'Backspace') {
       event.preventDefault()
       remove()
@@ -379,10 +472,10 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
   }
 
   const labelOf = (layer: Layer) =>
-    layer.kind === 'text'
+    layer.name || (layer.kind === 'text'
       ? t('textLabel', { text: layer.text.replace(/\s+/g, ' ').trim().slice(0, 40) || '…' })
-      : t(`roles.${layer.role}`)
-  const outside = doc?.layers.some((layer) => isOutside(layer, doc)) ?? false
+      : layer.kind === 'shape' ? t(`shapes.${layer.shape}`) : t(`roles.${layer.role}`))
+  const outside = doc?.layers.some((layer) => !layer.hidden && isOutside(layer, doc)) ?? false
 
   return (
     <dialog
@@ -391,6 +484,7 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
       onCancel={(event) => {
         // Esc: let go of the selection first, then close.
         event.preventDefault()
+        if (templateDirty) { void close(); return }
         if (adding) setAdding(null)
         else if (selectedId) setSelectedId(null)
         else void close()
@@ -405,10 +499,10 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
             <X size={19} aria-hidden="true" />
           </button>
           <h2 id="layer-editor-heading" className="flex min-w-0 flex-1 items-center gap-2 px-1 text-sm font-semibold md:text-base">
-            <span className="truncate">{t('title', { slide })}</span>
+             <span className="truncate">{adding === 'templates' ? t('myTemplates') : t('title', { slide })}</span>
             {readOnly && loaded && <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-ink-muted">{t('viewOnly')}</span>}
           </h2>
-          {!readOnly && history && (
+           {adding !== 'templates' && !readOnly && history && (
             <>
               <button type="button" onClick={() => stepHistory('undo')} disabled={history.past.length === 0 || working !== null} aria-label={t('undo')} title={`${t('undo')} (Ctrl+Z)`} className={TOOL}>
                 <Undo2 size={18} aria-hidden="true" />
@@ -429,7 +523,38 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
           )}
         </header>
 
-        {loadError ? (
+        {adding !== 'templates' && loaded && !readOnly && <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-hairline bg-white px-3 py-2">
+          {templateName === null ? <button type="button" disabled={working !== null} className={CHIP}
+            onClick={() => { setTemplateName(''); setTemplateSaved(false) }}>{t('saveSlideTemplate')}</button>
+            : <form className="flex w-full flex-wrap items-end gap-2" onSubmit={event => { event.preventDefault(); void saveTemplate() }}>
+              <label className="min-w-40 flex-1"><span className={LABEL}>{t('templateName')}</span>
+                <input autoFocus required maxLength={120} value={templateName} onChange={event => setTemplateName(event.target.value)} disabled={working !== null} className={FIELD} />
+              </label>
+              <button type="submit" className={CHIP} disabled={!templateName.trim() || working !== null}>{t('save')}</button>
+              <button type="button" className={CHIP} disabled={working !== null} onClick={() => setTemplateName(null)}>{t('templateCancel')}</button>
+              {slides.length > 1 && <div className="w-full">
+                <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={templateAllSlides}
+                  disabled={working !== null} onChange={event => setTemplateAllSlides(event.target.checked)} />{t('templateAllSlides', { count: slides.length })}</label>
+                {templateAllSlides && <p className="text-xs leading-relaxed text-ink-muted">{t('templateAllSlidesHint')}</p>}
+              </div>}
+            </form>}
+          {templateSaved && <p role="status" className="text-xs text-green-700">{t('templateSaved')}</p>}
+          <button type="button" disabled={working !== null} className={CHIP}
+            onClick={() => { setAdding('templates'); setSelectedId(null); setSheetOpen(true) }}>{t('myTemplates')}</button>
+        </div>}
+
+        {adding !== 'templates' && slides.length > 1 && <nav aria-label={t('slides')} className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-hairline bg-white px-3 py-2">
+          {slides.map((item, index) => <button key={item.assetId} type="button" disabled={working !== null}
+            onClick={() => switchSlide(item.assetId)} aria-current={item.assetId === media.assetId ? 'page' : undefined}
+            aria-label={t('openSlide', { slide: index + 1 })}
+            className={`flex min-h-11 shrink-0 items-center gap-2 rounded-lg border px-2 py-1 text-sm disabled:opacity-50 ${item.assetId === media.assetId ? 'border-accent bg-accent/5 font-semibold text-accent-deep' : 'border-hairline hover:bg-zinc-50'}`}>
+            <Thumbnail id={item.assetId} src={item.url} size={96} className="h-9 w-7 rounded object-cover" />
+            <span>{index + 1}</span>
+          </button>)}
+          <span className="hidden shrink-0 px-2 text-xs text-ink-muted md:inline">{t('slideDraftHint')}</span>
+        </nav>}
+
+        {adding === 'templates' ? <CanvasTemplateGallery onBack={() => { setAdding(null); setError(null) }} onDirtyChange={setTemplateDirty} /> : loadError ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
             <p role="alert" className="text-sm text-red-700">{loadError}</p>
             <button type="button" onClick={() => { setLoadError(null); setAttempt((value) => value + 1) }} className={CHIP}>{t('retry')}</button>
@@ -476,8 +601,9 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
                   readOnly={readOnly || working !== null}
                   labelOf={labelOf}
                   onSelect={(id) => {
+                    if (templateDirty) return
                     setSelectedId(id)
-                    if (id) setAdding(null)
+                    if (id) { setAdding(null); setSheetOpen(true) }
                   }}
                   onCommit={(next) => edit(next)}
                   onEditText={() => {
@@ -506,10 +632,10 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
                 type="button"
                 onClick={() => setSheetOpen((open) => !open)}
                 aria-expanded={sheetOpen}
-                className={`flex shrink-0 flex-col items-center justify-center gap-1 text-xs font-medium text-ink-muted md:hidden ${sheetOpen ? 'h-6' : 'h-12 pb-[env(safe-area-inset-bottom)]'}`}
+                className="flex min-h-11 shrink-0 flex-col items-center justify-center gap-1 py-2 text-xs font-medium text-ink-muted md:hidden"
               >
                 <span aria-hidden="true" className="h-1 w-10 rounded-full bg-zinc-300" />
-                <span className={sheetOpen ? 'sr-only' : ''}>{sheetOpen ? t('sheetHide') : t('sheetShow')}</span>
+                <span>{sheetOpen ? t('sheetHide') : t('sheetShow')}</span>
               </button>
               {/* A plain scroller around the fieldset: a scrolling <fieldset> isn't reliable in every browser. */}
               <div data-sheet-scroll className={`min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain md:block ${sheetOpen ? '' : 'hidden'}`}>
@@ -530,6 +656,9 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
                       if (file) void uploadImage(file)
                     }}
                   />
+                  <div className={selected ? 'hidden md:block' : ''}>
+                    <AiFieldSummary doc={doc} labelOf={labelOf} onSelect={id => { setSelectedId(id); setAdding(null) }} />
+                  </div>
                   {adding === 'image' ? (
                     <ImageSource
                       onBack={() => setAdding(null)}
@@ -556,6 +685,7 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
                       onChange={editSelected}
                       onReorder={(to) => edit(reorder(doc, selected.id, to))}
                       onRemove={remove}
+                      onDuplicate={duplicate}
                       onBack={() => setSelectedId(null)}
                     />
                   ) : (
@@ -586,6 +716,15 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
                       </section>
 
                       <section>
+                        <h3 className="mb-2 text-xs font-semibold text-ink-muted">{t('addShape')}</h3>
+                        <div className="flex flex-wrap gap-2">
+                          {(['rect', 'ellipse', 'triangle', 'line', 'arrow'] as const).map((shape) => (
+                            <button key={shape} type="button" disabled={full} onClick={() => addShape(shape)} className={CHIP}>{t(`shapes.${shape}`)}</button>
+                          ))}
+                        </div>
+                      </section>
+
+                      <section>
                         <h3 className="mb-2 text-xs font-semibold tracking-wide text-ink-soft uppercase">{t('layers')}</h3>
                         {doc.layers.length === 0 ? (
                           <p className="rounded-lg border border-dashed border-hairline px-3 py-4 text-center text-xs leading-relaxed text-ink-muted">{t('noLayers')}</p>
@@ -599,9 +738,11 @@ export function LayerEditor({ postId, media, slide, onFlush, onClose, onMagicLay
                                   className="flex min-h-11 w-full items-center gap-2.5 px-3 text-left text-sm transition-colors hover:bg-zinc-50 disabled:text-ink"
                                 >
                                   <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-md bg-zinc-100 text-ink-muted">
-                                    {layer.kind === 'text' ? <Type size={14} /> : layer.role === 'logo' ? <Stamp size={14} /> : <ImageIcon size={14} />}
+                                    {layer.kind === 'text' ? <Type size={14} /> : layer.kind === 'shape' ? <Shapes size={14} /> : layer.role === 'logo' ? <Stamp size={14} /> : <ImageIcon size={14} />}
                                   </span>
                                   <span className="min-w-0 flex-1 truncate">{labelOf(layer)}</span>
+                                  {layer.locked && <LockKeyhole size={14} aria-label={t('lockedLayer')} />}
+                                  {layer.hidden && <EyeOff size={14} aria-label={t('hiddenLayer')} />}
                                   {isOutside(layer, doc) && <TriangleAlert size={14} className="shrink-0 text-amber-600" aria-label={t('outsideShort')} />}
                                 </button>
                               </li>
@@ -665,6 +806,26 @@ function AddButton({ icon, label, onClick, disabled }: { icon: ReactNode; label:
   )
 }
 
+function AiFieldSummary({ doc, labelOf, onSelect }: { doc: LayerDoc; labelOf: (layer: Layer) => string; onSelect: (id: string) => void }) {
+  const t = useTranslations('editor.layerEditor')
+  const fields = doc.layers.filter(layer => layer.field && layer.field.mode !== 'static')
+  const ready = fields.filter(layer => fieldReady(layer.field)).length
+  return <details open className="mb-5 border-b border-hairline pb-4">
+    <summary className="cursor-pointer text-sm font-semibold">{t('aiField')} <span className="text-ink-muted">({fields.length})</span></summary>
+    <p className="mt-2 text-xs leading-relaxed text-ink-muted">{fields.length ? t('fieldsReady', { ready, total: fields.length }) : t('fieldsEmpty')}</p>
+    {fields.length > 0 && <ul className="mt-2 space-y-1">
+      {fields.map(layer => <li key={layer.id}><button type="button" onClick={() => onSelect(layer.id)}
+        className="flex min-h-11 w-full items-start gap-2 rounded-lg px-2 py-2 text-left hover:bg-zinc-50">
+        {fieldReady(layer.field) ? <Sparkles size={15} className="mt-0.5 shrink-0 text-green-700" aria-hidden="true" />
+          : <TriangleAlert size={15} className="mt-0.5 shrink-0 text-red-700" aria-hidden="true" />}
+        <span className="min-w-0"><span className="block truncate text-xs font-medium">{labelOf(layer)}</span>
+          <span className="mt-0.5 block truncate text-xs text-ink-muted">{fieldReady(layer.field)
+            ? layer.field && 'prompt' in layer.field ? layer.field.prompt : t('fieldReady') : t('fieldNeedsPrompt')}</span></span>
+      </button></li>)}
+    </ul>}
+  </details>
+}
+
 interface LayerPanelProps {
   layer: Layer
   doc: LayerDoc
@@ -673,11 +834,12 @@ interface LayerPanelProps {
   onChange: (change: (layer: Layer) => Layer, key?: string) => void
   onReorder: (to: Reorder) => void
   onRemove: () => void
+  onDuplicate: () => void
   onBack: () => void
 }
 
 /** The selected layer's properties: text grouped as Huruf / Paragraf / Efek, images get their opacity. */
-function LayerPanel({ layer, doc, label, textArea, onChange, onReorder, onRemove, onBack }: LayerPanelProps) {
+function LayerPanel({ layer, doc, label, textArea, onChange, onReorder, onRemove, onDuplicate, onBack }: LayerPanelProps) {
   const t = useTranslations('editor.layerEditor')
   const index = doc.layers.findIndex((item) => item.id === layer.id)
   const last = doc.layers.length - 1
@@ -696,21 +858,96 @@ function LayerPanel({ layer, doc, label, textArea, onChange, onReorder, onRemove
         <p className="min-w-0 flex-1 truncate text-sm font-semibold">{label}</p>
       </div>
 
+      {text && <div>
+        <label htmlFor="layer-text" className={LABEL}>{t('text')}</label>
+        <textarea id="layer-text" ref={textArea} value={text.text} disabled={layer.locked}
+          maxLength={LAYER_LIMITS.text} rows={3}
+          onChange={event => setText({ text: event.target.value }, 'text')}
+          className={`${FIELD} max-h-40 min-h-20 resize-none text-base md:text-sm [field-sizing:content]`} />
+      </div>}
+
+      <label className="block">
+        <span className={LABEL}>{t('layerName')}</span>
+        <input value={layer.name ?? ''} placeholder={label} maxLength={120} disabled={layer.locked}
+          onChange={(event) => onChange((current) => ({ ...current, name: event.target.value }), 'name')} className={FIELD} />
+      </label>
+      <div className="flex flex-wrap gap-3">
+        <label className="flex min-h-10 items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(layer.locked)}
+          onChange={(event) => onChange((current) => ({ ...current, locked: event.target.checked }))} />{t('lockedLayer')}</label>
+        <label className="flex min-h-10 items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(layer.hidden)} disabled={layer.locked}
+          onChange={(event) => onChange((current) => ({ ...current, hidden: event.target.checked }))} />{t('hiddenLayer')}</label>
+      </div>
+
+      <fieldset disabled={layer.locked} className="m-0 min-w-0 space-y-4 border-0 p-0 disabled:opacity-60">
+      {(layer.kind === 'text' || layer.kind === 'image') && <Group title={t('aiField')}>
+        <label className="block"><span className={LABEL}>{t('fieldMode')}</span>
+          <select className={FIELD} value={layer.field?.mode ?? 'static'} onChange={event => onChange(current => ({ ...current,
+            field: event.target.value === 'static' ? { kind: layer.kind, mode: 'static' }
+              : layer.kind === 'text' ? { kind: 'text', mode: 'ai', prompt: '', length: 'auto' }
+                : { kind: 'image', mode: 'ai_generate', prompt: '' },
+          }))}>
+            <option value="static">{t('fieldStatic')}</option>
+            <option value={layer.kind === 'text' ? 'ai' : 'ai_generate'}>{t(layer.kind === 'text' ? 'fieldAiText' : 'fieldAiImage')}</option>
+          </select>
+        </label>
+        {layer.field && (layer.field.mode === 'ai' || layer.field.mode === 'ai_generate') && <>
+          <label className="block"><span className={LABEL}>{t('fieldPrompt')}</span>
+            <textarea rows={3} maxLength={FIELD_PROMPT_LIMIT} className={FIELD} value={layer.field.prompt}
+              onChange={event => onChange(current => current.field && 'prompt' in current.field
+                ? { ...current, field: { ...current.field, prompt: event.target.value } } : current, 'fieldPrompt')} />
+          </label>
+          {!fieldReady(layer.field) && <p className="text-xs text-red-700">{t('fieldNeedsPrompt')}</p>}
+          {layer.kind === 'text' && layer.field.mode === 'ai' && <>
+            <label className="block"><span className={LABEL}>{t('fieldLength')}</span>
+              <select className={FIELD} value={layer.field.length} onChange={event => {
+                const length = event.target.value as 'auto' | 'short' | 'medium' | 'long'
+                onChange(current => current.field?.mode === 'ai' ? { ...current, field: { ...current.field, length } } : current)
+              }}>
+                {(['auto', 'short', 'medium', 'long'] as const).map(value => <option key={value} value={value}>{t(`fieldLengths.${value}`)}</option>)}
+              </select>
+            </label>
+            <p className="text-xs text-ink-muted">{t('fieldCapacity', { count: fieldMaxChars(layer.w, layer.h, layer.size, layer.lineHeight, layer.field.length) })}</p>
+          </>}
+          <p className="text-xs leading-relaxed text-ink-muted">{t('fieldExampleHint')}</p>
+        </>}
+      </Group>}
+      <Group title={t('position')}>
+        <div className="grid grid-cols-2 gap-2">
+          {(['x', 'y', 'w', 'h', 'rotation'] as const).map((key) => (
+            <label key={key} className="block min-w-0">
+              <span className={LABEL}>{t(`coordinates.${key}`)}</span>
+              <input type="number" value={Math.round((layer[key] ?? 0) * 100) / 100} className={FIELD}
+                min={key === 'rotation' ? -360 : key === 'w' || key === 'h' ? 1 : undefined}
+                max={key === 'rotation' ? 360 : undefined} step={1}
+                onChange={(event) => {
+                  const value = Number(event.target.value)
+                  if (!Number.isFinite(value)) return
+                  if (key === 'rotation' && (value < -360 || value > 360)) return
+                  if ((key === 'w' || key === 'h') && (value < 1 || value > (key === 'w' ? doc.width : doc.height) * 4)) return
+                  onChange((current) => key === 'rotation' ? { ...current, rotation: value }
+                    : nudgeLayer({ ...current, [key]: value }, 0, 0, doc), key)
+                }} />
+            </label>
+          ))}
+        </div>
+      </Group>
+
+      {layer.kind === 'shape' && <Group title={t('addShape')}>
+        <label className="block"><span className={LABEL}>{t('color')}</span><input type="color" value={layer.color}
+          onChange={(event) => onChange((current) => current.kind === 'shape' ? { ...current, color: event.target.value.toUpperCase() } : current, 'color')}
+          className="h-10 w-full" /></label>
+        <label className="block"><span className={LABEL}>{t('strokeColor')}</span><input type="color" value={layer.strokeColor}
+          onChange={(event) => onChange((current) => current.kind === 'shape' ? { ...current, strokeColor: event.target.value.toUpperCase() } : current, 'strokeColor')}
+          className="h-10 w-full" /></label>
+        <Slider id="shape-stroke" label={t('strokeWidth')} min={0} max={100} step={1} value={layer.strokeWidth} display={`${layer.strokeWidth}px`}
+          onChange={(strokeWidth) => onChange((current) => current.kind === 'shape' ? { ...current, strokeWidth } : current, 'strokeWidth')} />
+        {layer.shape === 'rect' && <Slider id="shape-radius" label={t('radius')} min={0} max={Math.min(1000, layer.w / 2, layer.h / 2)} step={1}
+          value={layer.radius} display={`${layer.radius}px`} onChange={(radius) => onChange((current) => current.kind === 'shape' ? { ...current, radius } : current, 'radius')} />}
+        <OpacitySlider value={layer.opacity ?? 1} onChange={setOpacity} />
+      </Group>}
+
       {text && (
         <>
-          <div>
-            <label htmlFor="layer-text" className={LABEL}>{t('text')}</label>
-            <textarea
-              id="layer-text"
-              ref={textArea}
-              value={text.text}
-              maxLength={LAYER_LIMITS.text}
-              rows={3}
-              onChange={(event) => setText({ text: event.target.value }, 'text')}
-              className={`${FIELD} max-h-40 min-h-20 resize-none [field-sizing:content]`}
-            />
-          </div>
-
           <Group title={t('groups.type')}>
             <FontPicker
               id="layer-font"
@@ -857,6 +1094,10 @@ function LayerPanel({ layer, doc, label, textArea, onChange, onReorder, onRemove
       <button type="button" onClick={onRemove} className="flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-white text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:border-hairline disabled:text-ink-soft">
         <Trash2 size={15} aria-hidden="true" />
         {t('remove')}
+      </button>
+      </fieldset>
+      <button type="button" onClick={onDuplicate} disabled={doc.layers.length >= LAYER_LIMITS.layers} className={`${CHIP} w-full`}>
+        <Copy size={15} aria-hidden="true" />{t('duplicate')}
       </button>
       <p className="hidden text-[11px] leading-relaxed text-ink-soft md:block">{t('keys')}</p>
     </div>

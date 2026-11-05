@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   clampBox, commit, createHistory, docAssetIds, fontShorthand, hitTest, isOutside, LAYER_LIMITS, lineBaseline, lineStart,
-  newTextLayer, parseLayerDoc, redo, reorder, resizeBox, snapBox, TEXT_WEIGHTS, undo, wrapText, type LayerDoc,
+  newTextLayer, newShapeLayer, duplicateLayer, parseLayerDoc, redo, reorder, resizeBox, snapBox, TEXT_WEIGHTS, undo, wrapText, type LayerDoc,
   type TextLayer,
 } from './layer-doc'
 
@@ -182,5 +182,30 @@ describe('newTextLayer', () => {
   it('is a valid layer', () => {
     const layer = newTextLayer(sample, 'Baru', 'Poppins')
     expect(parseLayerDoc({ ...sample, layers: [...sample.layers, layer] })).toHaveProperty('doc')
+  })
+})
+
+describe('editor elements', () => {
+  it('round-trips every basic shape with rotation and flags', () => {
+    for (const shape of ['rect', 'ellipse', 'triangle', 'line', 'arrow'] as const) {
+      const layer = { ...newShapeLayer(sample, shape), rotation: 45, locked: true, hidden: true, name: 'Panel' }
+      expect(parseLayerDoc({ ...sample, layers: [layer] })).toEqual({ doc: { ...sample, layers: [layer] } })
+      expect(parseLayerDoc({ ...sample, layers: [{ ...layer, radius: -1 }] })).toHaveProperty('error')
+    }
+  })
+
+  it('duplicates above the source, unlocks the copy, and enforces the layer limit', () => {
+    const result = duplicateLayer({ ...sample, layers: [{ ...text, locked: true }] }, text.id)
+    expect(result.doc.layers[1]).toMatchObject({ x: text.x + 20, y: text.y + 20, locked: false, id: result.id })
+    expect(result.id).not.toBe(text.id)
+    expect(duplicateLayer({ ...sample, layers: Array.from({ length: 30 }, () => text) }, text.id).id).toBeNull()
+  })
+
+  it('hit-tests rotated boxes and ignores locked or hidden layers', () => {
+    const rotated = { ...text, x: 100, y: 100, w: 200, h: 40, rotation: 90 }
+    expect(hitTest([rotated], 200, 30)).toBe('t1')
+    expect(hitTest([rotated], 105, 105)).toBeNull()
+    expect(hitTest([{ ...rotated, hidden: true }], 200, 120)).toBeNull()
+    expect(hitTest([{ ...rotated, locked: true }], 200, 120)).toBeNull()
   })
 })

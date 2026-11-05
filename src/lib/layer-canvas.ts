@@ -7,10 +7,12 @@ import { storedJpegAttempts, toInstagramJpeg, type PreparedImage } from './image
 import { MAX_STORED_BYTES } from './storage-quota-options'
 import {
   fontShorthand, layerImageUrl, lineBaseline, lineBox, lineStart, textHeight, wrapText,
-  type LayerDoc, type TextLayer,
+   type LayerDoc, type TextLayer, type ShapeLayer,
 } from './layer-doc'
 import type { FontName } from './design-styles'
 import { loadFont } from './font-loader'
+import { migrateLayerDoc } from './design-doc'
+import { drawDesignPage } from './design-canvas'
 
 export type FamilyOf = (font: FontName) => string
 
@@ -130,6 +132,21 @@ export interface DrawContext extends MeasureContext {
   shadowOffsetX?: number
   shadowOffsetY?: number
   fillRect?(x: number, y: number, w: number, h: number): void
+  save?(): void
+  restore?(): void
+  translate?(x: number, y: number): void
+  rotate?(angle: number): void
+  beginPath?(): void
+  roundRect?(x: number, y: number, width: number, height: number, radius: number): void
+  ellipse?(x: number, y: number, rx: number, ry: number, rotation: number, start: number, end: number): void
+  moveTo?(x: number, y: number): void
+  lineTo?(x: number, y: number): void
+  closePath?(): void
+  fill?(): void
+  stroke?(): void
+  strokeStyle?: string | CanvasGradient | CanvasPattern
+  lineWidth?: number
+  lineCap?: CanvasLineCap
 }
 
 const SHADOW_COLOR = 'rgba(0,0,0,0.45)'
@@ -152,16 +169,55 @@ export function drawDoc(
 ): void {
   ctx.drawImage(base, 0, 0, doc.width, doc.height)
   for (const layer of doc.layers) {
+    if (layer.hidden) continue
+    const rotated = Boolean(layer.rotation)
+    if (rotated) {
+      ctx.save?.()
+      ctx.translate?.(layer.x + layer.w / 2, layer.y + layer.h / 2)
+      ctx.rotate?.((layer.rotation ?? 0) * Math.PI / 180)
+      ctx.translate?.(-layer.x - layer.w / 2, -layer.y - layer.h / 2)
+    }
     const alpha = ctx.globalAlpha ?? 1
     if (layer.opacity !== undefined) ctx.globalAlpha = alpha * layer.opacity
     if (layer.kind === 'image') {
       const image = images.get(layer.assetId)
       if (image) ctx.drawImage(image, layer.x, layer.y, layer.w, layer.h)
+    } else if (layer.kind === 'shape') {
+      drawShape(ctx, layer)
     } else {
       drawText(ctx, layer, familyOf(layer.font))
     }
     if (layer.opacity !== undefined) ctx.globalAlpha = alpha
+    if (rotated) ctx.restore?.()
   }
+}
+
+export function drawShape(ctx: DrawContext, layer: ShapeLayer): void {
+  const { x, y, w, h, shape } = layer
+  ctx.beginPath?.()
+  ctx.fillStyle = layer.color
+  ctx.strokeStyle = layer.strokeColor
+  ctx.lineWidth = layer.strokeWidth
+  ctx.lineCap = 'round'
+  if (shape === 'rect') ctx.roundRect?.(x, y, w, h, Math.min(layer.radius, w / 2, h / 2))
+  else if (shape === 'ellipse') ctx.ellipse?.(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2)
+  else if (shape === 'triangle') {
+    ctx.moveTo?.(x + w / 2, y)
+    ctx.lineTo?.(x + w, y + h)
+    ctx.lineTo?.(x, y + h)
+    ctx.closePath?.()
+  } else {
+    ctx.moveTo?.(x, y + h / 2)
+    ctx.lineTo?.(x + w, y + h / 2)
+    if (shape === 'arrow') {
+      const head = Math.min(w / 3, h / 2)
+      ctx.moveTo?.(x + w - head, y + h / 2 - head)
+      ctx.lineTo?.(x + w, y + h / 2)
+      ctx.lineTo?.(x + w - head, y + h / 2 + head)
+    }
+  }
+  if (shape !== 'line' && shape !== 'arrow') ctx.fill?.()
+  if (layer.strokeWidth > 0) ctx.stroke?.()
 }
 
 function drawText(ctx: DrawContext, layer: TextLayer, family: string): void {
@@ -235,13 +291,20 @@ export async function flattenDoc(doc: LayerDoc, baseAssetId: string, familyOf: F
     ...ids.map((id) => loadImage(layerImageUrl(id))),
     loadFonts(doc, familyOf).then(() => null),
   ])
-  const images = new Map(ids.map((id, index) => [id, loaded[index] as HTMLImageElement]))
+  const images = new Map(ids.map((id, index) => {
+    const image = loaded[index] as HTMLImageElement
+    return [id, { image, width: image.naturalWidth, height: image.naturalHeight }] as const
+  }))
+  const background = base as HTMLImageElement
+  images.set(baseAssetId, { image: background, width: background.naturalWidth, height: background.naturalHeight })
   const canvas = document.createElement('canvas')
   canvas.width = doc.width
   canvas.height = doc.height
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('Canvas tidak tersedia di browser ini')
-  drawDoc(ctx, doc, base as HTMLImageElement, images, familyOf)
+  const design = migrateLayerDoc(doc, { id: crypto.randomUUID(), pageId: crypto.randomUUID(),
+    nodeIds: doc.layers.map(() => crypto.randomUUID()) }, baseAssetId)
+  drawDesignPage(ctx, design.pages[0], images, familyOf)
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
   if (!blob) throw new Error('Canvas tidak bisa diekspor')
   return toInstagramJpeg(new File([blob], 'slide.png', { type: 'image/png' }))

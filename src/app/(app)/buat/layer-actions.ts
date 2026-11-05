@@ -13,7 +13,7 @@ import { DEFAULT_BODY_FONT, DEFAULT_HEADING_FONT } from '@/lib/design-styles'
 import { describeError } from '@/lib/errors'
 import { editAttemptActive, GenerationCancelled, watchGeneration } from '@/lib/generation-cancellation'
 import { imageErrorMessage } from '@/lib/image-ai'
-import { docAssetIds, emptyDoc, isFontName, parseLayerDoc, type LayerDoc } from '@/lib/layer-doc'
+import { docAssetIds, isFontName, parseLayerDoc, type LayerDoc } from '@/lib/layer-doc'
 import { buildDoc, NoTextError, splitSlide } from '@/lib/magic-layers'
 import { isUuid } from '@/lib/params'
 import { getPost, type Post } from '@/lib/posts'
@@ -26,6 +26,7 @@ import {
   ownsAssets,
   resetSlideLayers,
   saveSlideLayers,
+  slideDesign,
   type LayerErrorCode,
 } from '@/lib/slide-layers'
 import { hasSlidesInProgress } from '@/lib/slides'
@@ -51,6 +52,8 @@ const MESSAGE_OF: Record<LayerErrorCode, Parameters<Translate>[0]> = {
   original_missing: 'noOriginal',
   layers_exist: 'alreadyLayered',
   generation_cancelled: 'cancelled',
+  conflict: 'conflict',
+  invalid_document: 'badDoc',
 }
 
 const cleanUp = (userId: string, ids: string[]) => Promise.all(ids.map((id) => deleteAsset(userId, id)
@@ -61,6 +64,7 @@ export type LoadLayersResult =
   | {
     layers: {
       doc: LayerDoc
+      version: string
       /** The clean background the doc is drawn over. */
       baseAssetId: string
       /** "Kembalikan ke asli" is offered. */
@@ -88,12 +92,13 @@ export async function loadSlideLayersAction(input: { postId: string; assetId: st
     const sizes = await assetSizes(userId, accountId,
       [assetId, ...(layers ? [layers.baseAssetId, ...(layers.doc ? docAssetIds(layers.doc) : [])] : [])])
     if (!layers) return { layers: null, sizes, readOnly }
+    if (!layers.doc) return { error: t('corruptDoc') }
     const base = sizes[layers.baseAssetId]
     if (!base) return { error: t('notFound') }
     return {
       layers: {
-        // A stored doc that no longer validates opens empty over its background rather than not at all.
-        doc: layers.doc ?? emptyDoc(base.width, base.height),
+        doc: layers.doc,
+        version: layers.version,
         baseAssetId: layers.baseAssetId,
         hasOriginal: layers.originalAssetId !== null,
         fromMagic: layers.baseAssetId !== layers.originalAssetId,
@@ -120,20 +125,29 @@ export async function saveSlideLayersAction(formData: FormData): Promise<{ asset
   const oldAssetId = formData.get('oldAssetId')
   if (!(file instanceof Blob) || !isUuid(postId) || !isUuid(oldAssetId)) return { error: t('invalid') }
   let raw: unknown
-  try { raw = JSON.parse(String(formData.get('doc') ?? '')) } catch { return { error: t('badDoc') } }
+  const json = formData.get('doc')
+  // Thirty text layers can each carry a 2,000-character prompt, including JSON escapes.
+  if (typeof json !== 'string' || json.length > 1_000_000) return { error: t('badDoc') }
+  try { raw = JSON.parse(json) } catch { return { error: t('badDoc') } }
   const parsed = parseLayerDoc(raw)
   if ('error' in parsed) return { error: t('badDoc') }
   const { doc } = parsed
+  const versionValue = formData.get('expectedVersion')
+  if (typeof versionValue !== 'string' || (versionValue !== '' && !/^\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z|[+-]\d{2}:\d{2})$/.test(versionValue))) return { error: t('invalid') }
+  const expectedVersion = versionValue || null
 
   let newAssetId: string | null = null
   try {
-    if (!(await ownsAssets(userId, docAssetIds(doc)))) return { error: t('badImage') }
+    if (!(await ownsAssets(userId, accountId, docAssetIds(doc)))) return { error: t('badImage') }
     const post = await getPost(userId, postId, accountId)
     if (!post?.media.some((item) => item.assetId === oldAssetId)) return { error: t('notFound') }
     if (!isEditable(post)) return { error: t('locked') }
     if (await hasSlidesInProgress(userId, postId)) return { error: t('busy') }
     // The doc is drawn over the slide's background: its existing one, or the flat image itself.
-    const background = (await getSlideLayers(userId, oldAssetId))?.baseAssetId ?? oldAssetId
+    const stored = await getSlideLayers(userId, oldAssetId)
+    if (stored && !stored.doc) return { error: t('corruptDoc') }
+    if ((stored?.version ?? null) !== expectedVersion) return { error: t('conflict') }
+    const background = stored?.baseAssetId ?? oldAssetId
     const size = (await assetSizes(userId, accountId, [background]))[background]
     if (!size) return { error: t('notFound') }
     if (size.width !== doc.width || size.height !== doc.height) return { error: t('badDoc') }
@@ -142,7 +156,9 @@ export async function saveSlideLayersAction(formData: FormData): Promise<{ asset
     const asset = await createAsset(userId, file, Number(formData.get('width')), Number(formData.get('height')),
       { accountId, origin: 'ai', locale })
     newAssetId = asset.id
-    const unused = await saveSlideLayers(userId, { postId, oldAssetId, newAssetId, doc })
+    const original = stored ? stored.originalAssetId : oldAssetId
+    const design = slideDesign(doc, original ?? background, background, original)
+    const unused = await saveSlideLayers(userId, { postId, oldAssetId, newAssetId, doc, design, expectedVersion })
     newAssetId = null
     await deleteUnused(userId, unused)
     refresh()

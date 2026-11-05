@@ -122,9 +122,11 @@ export function parseBlocks(json: unknown, width: number, height: number): TextB
 /** Whether `line` continues `paragraph`: same look, overlapping columns, and close below it. */
 const continues = (paragraph: TextBlock, line: TextBlock) =>
   paragraph.align === line.align
+  && paragraph.weight === line.weight
   && paragraph.color === line.color
   && Math.abs(paragraph.size - line.size) <= 0.15 * Math.max(paragraph.size, line.size)
   && Math.min(paragraph.x + paragraph.w, line.x + line.w) > Math.max(paragraph.x, line.x)
+  && line.y >= paragraph.y + paragraph.h - 0.2 * Math.min(paragraph.size, line.size)
   && line.y - (paragraph.y + paragraph.h) < 0.8 * Math.max(paragraph.size, line.size)
 
 /** Lines of one paragraph joined with '\n' into one block whose box is their union. */
@@ -137,6 +139,10 @@ export function mergeBlocks(blocks: TextBlock[]): TextBlock[] {
       continue
     }
     const paragraph = paragraphs[index]
+    if (Array.from(`${paragraph.text}\n${line.text}`).length > LAYER_LIMITS.text) {
+      paragraphs.push({ ...line })
+      continue
+    }
     const x = Math.min(paragraph.x, line.x)
     const y = Math.min(paragraph.y, line.y)
     paragraphs[index] = {
