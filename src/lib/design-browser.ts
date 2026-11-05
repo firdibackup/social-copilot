@@ -4,8 +4,8 @@ import { loadFont } from './font-loader'
 import { loadImage } from './layer-canvas'
 import { layerImageUrl } from './layer-doc'
 
-/** Render offscreen first so a failed or superseded load never clears the visible design. */
-export async function renderDesignCanvas(doc: DesignDoc, pageIndex: number, family: (name: string) => string): Promise<HTMLCanvasElement> {
+/** Render offscreen first so a failed or superseded load never clears the visible design. `scale` < 1 draws a thumbnail. */
+export async function renderDesignCanvas(doc: DesignDoc, pageIndex: number, family: (name: string) => string, scale = 1): Promise<HTMLCanvasElement> {
   const page = doc.pages[pageIndex]
   if (!page) throw new Error('page_not_found')
   const styles = walkNodes(page.children).flatMap(node => node.type === 'text' ? node.content.flatMap(paragraph => paragraph.runs.map(run => run.style)) : [])
@@ -20,10 +20,11 @@ export async function renderDesignCanvas(doc: DesignDoc, pageIndex: number, fami
     return [id, { image, width: image.naturalWidth, height: image.naturalHeight }] as const
   })), fonts()])
   const canvas = document.createElement('canvas')
-  canvas.width = page.width
-  canvas.height = page.height
+  canvas.width = Math.max(1, Math.round(page.width * scale))
+  canvas.height = Math.max(1, Math.round(page.height * scale))
   const context = canvas.getContext('2d')
   if (!context) throw new Error('canvas_unavailable')
+  context.scale(scale, scale)
   drawDesignPage(context, page, new Map(images), family)
   return canvas
 }

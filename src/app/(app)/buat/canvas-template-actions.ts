@@ -8,6 +8,8 @@ import { archiveCanvasTemplate, CanvasTemplateError, getCanvasTemplate, listCanv
 import { describeError } from '@/lib/errors'
 import { emptyDoc, parseLayerDoc, type LayerDoc } from '@/lib/layer-doc'
 import { combineTemplateDocuments } from '@/lib/design-template'
+import { clonePage } from '@/lib/design-operations'
+import { STARTER_SIZES, STARTER_TEMPLATES, starterPage } from '@/lib/starter-templates'
 import { DESIGN_LIMITS, parseDesignDoc, type DesignDoc } from '@/lib/design-doc'
 import { isUuid } from '@/lib/params'
 import { getPost } from '@/lib/posts'
@@ -17,6 +19,27 @@ import { FileTooLargeError, StorageFullError } from '@/lib/storage-quota'
 export async function listCanvasTemplatesAction() {
   const { userId, accountId } = await requireAccount()
   return listCanvasTemplates(userId, accountId)
+}
+
+/** A new template from one starter page, saved at once so the editor can autosave against its version. */
+export async function createCanvasTemplateAction(input: { name: string; starterId: string | null; format: '4:5' | '1:1' }): Promise<{ id: string } | { error: string }> {
+  const { userId, accountId } = await requireAccount()
+  const t = await getTranslations('editor.layerActions')
+  const name = typeof input?.name === 'string' ? input.name.trim() : ''
+  if (!name || name.length > 120 || !['4:5', '1:1'].includes(input.format)
+    || (input.starterId !== null && !STARTER_TEMPLATES.some(item => item.id === input.starterId))) return { error: t('invalid') }
+  const size = STARTER_SIZES[input.format]
+  const page = input.starterId ? clonePage(starterPage(input.starterId, input.format, 'Slide 1'), randomUUID)
+    : { id: randomUUID(), name: 'Slide 1', ...size, background: { type: 'solid' as const, color: { srgb: { r: 1, g: 1, b: 1, a: 1 } } }, children: [] }
+  const doc: DesignDoc = { format: 'carousely.design', schemaVersion: 1, id: randomUUID(), title: name, unit: 'px', dpi: 96,
+    pages: [page], assets: [], fonts: [], meta: {} }
+  try {
+    const saved = await saveCanvasTemplate(userId, accountId, { id: doc.id, name, doc, previewAssetId: null, expectedVersion: null })
+    return { id: saved.id }
+  } catch (error) {
+    console.error('[template] gagal membuat:', describeError(error))
+    return { error: t('saveFailed') }
+  }
 }
 
 export async function getCanvasTemplateAction(id: string) {
@@ -57,7 +80,7 @@ export async function manageCanvasTemplateAction(input: { id: string; expectedVe
   }
 }
 
-export async function saveTemplateDocumentAction(form: FormData): Promise<{ version: string } | { error: string }> {
+export async function saveTemplateDocumentAction(form: FormData): Promise<{ version: string } | { error: string; conflict?: true }> {
   const { userId, accountId } = await requireAccount()
   const t = await getTranslations('editor.layerActions')
   const locale = await getLocale()
@@ -75,7 +98,7 @@ export async function saveTemplateDocumentAction(form: FormData): Promise<{ vers
   try {
     const stored = await getCanvasTemplate(userId, accountId, id)
     if (!stored) return { error: t('notFound') }
-    if (stored.version !== version) return { error: t('conflict') }
+    if (stored.version !== version) return { error: t('conflict'), conflict: true }
     const first = parsed.doc.pages[0]
     const preview = await createAsset(userId, file, first.width, first.height, { accountId, origin: 'ai', locale })
     previewId = preview.id
@@ -86,7 +109,7 @@ export async function saveTemplateDocumentAction(form: FormData): Promise<{ vers
     return { version: saved.version }
   } catch (error) {
     if (previewId) await deleteUnused(userId, [previewId])
-    if (error instanceof CanvasTemplateError && error.code === 'conflict') return { error: t('conflict') }
+    if (error instanceof CanvasTemplateError && error.code === 'conflict') return { error: t('conflict'), conflict: true }
     if (error instanceof StorageFullError || error instanceof FileTooLargeError || error instanceof InvalidImageError) return { error: error.message }
     console.error('[template] gagal menyimpan dokumen:', describeError(error))
     return { error: t('saveFailed') }
