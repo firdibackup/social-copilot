@@ -44,7 +44,7 @@ import {
   type ScriptItem,
 } from '@/lib/chat-options'
 import { formatCreditShare } from '@/lib/billing-options'
-import { AUTO_PRODUCT, type ProductOption } from '@/lib/content-options'
+import { AUTO_PRODUCT, AUTO_REFERENCE, type ProductOption } from '@/lib/content-options'
 import { DENSITY_ORDER, isTextDensity, type TextDensity } from '@/lib/density-options'
 import { BULLET, slideProblem, type ScriptSlide } from '@/lib/script-options'
 import { retryContentJobAction } from '../buat/content-actions'
@@ -67,6 +67,8 @@ export interface CardContext {
   ask: ((text: string) => void) | null
   products: Pick<ProductOption, 'id' | 'label' | 'imageCount'>[]
   defaultDensity: TextDensity
+  /** Brand › Referensi groups the bulk card can pin as the design. */
+  references: { id: string; label: string }[]
 }
 
 export const formatBytes = (size: number, locale: Locale = 'id') =>
@@ -546,6 +548,7 @@ function BulkPlanCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk
   const [draftSettings, setSettings] = useState<BulkSettings>(part.settings ?? {
     density: context.defaultDensity,
     productGroupId: AUTO_PRODUCT,
+    referenceId: AUTO_REFERENCE,
   })
   // Once starting, the saved plan is what runs; local edits no longer apply.
   const plan = part.state === 'starting' ? part.plan : draft
@@ -606,7 +609,7 @@ function BulkPlanCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk
 
         <fieldset disabled={!editable} className="mt-4 min-w-0">
           <legend className="text-xs font-medium text-ink">{t('allSettings')}</legend>
-          <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <label className="min-w-0 text-xs text-ink-muted">
               {t('text')}
               <select
@@ -634,6 +637,21 @@ function BulkPlanCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk
                 <option value="">{t('none')}</option>
                 {settings.productGroupId && settings.productGroupId !== AUTO_PRODUCT && !context.products.some((product) => product.id === settings.productGroupId) && (
                   <option value={settings.productGroupId} disabled>{t('productUnavailable')}</option>
+                )}
+              </select>
+            </label>
+            <label className="min-w-0 text-xs text-ink-muted">
+              {t('design')}
+              <select
+                value={settings.referenceId === undefined ? AUTO_REFERENCE : settings.referenceId ?? ''}
+                onChange={(event) => setSettings((current) => ({ ...current, referenceId: event.target.value || null }))}
+                className={`${FIELD} mt-1 min-h-9 disabled:opacity-60`}
+              >
+                <option value={AUTO_REFERENCE}>{t('automatic')}</option>
+                {context.references.map((reference) => <option key={reference.id} value={reference.id}>{reference.label}</option>)}
+                <option value="">{t('noReference')}</option>
+                {settings.referenceId && settings.referenceId !== AUTO_REFERENCE && !context.references.some((reference) => reference.id === settings.referenceId) && (
+                  <option value={settings.referenceId} disabled>{t('referenceUnavailable')}</option>
                 )}
               </select>
             </label>

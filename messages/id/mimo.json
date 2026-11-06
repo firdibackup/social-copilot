@@ -68,6 +68,9 @@
     "refresh": "Perbarui status"
   },
   "cards": {
+    "design": "Desain",
+    "noReference": "Tanpa referensi",
+    "referenceUnavailable": "Referensi tidak tersedia",
     "failed": "Gagal menghubungi server. Coba lagi.",
     "noResults": "Tidak ada hasil.",
     "noAccounts": "Tidak ada akun publik yang ditemukan. Coba username atau kata kunci lain.",
@@ -184,6 +187,7 @@
     }
   },
   "options": {
+    "referenceMissing": "Referensi desain tidak ditemukan. Pilih ulang desainnya.",
     "onePdf": "Maksimal 1 PDF per pesan.",
     "newChat": "Chat baru",
     "invalidSettings": "Pengaturan konten tidak valid.",
@@ -232,6 +236,7 @@
     "analyzeRequest": "Analisis pola konten {accounts}: hook yang dipakai, frekuensi posting, dan pilar kontennya."
   },
   "actions": {
+    "referenceMissing": "Referensi desain tidak ditemukan. Pilih ulang desainnya.",
     "notFound": "Pesan tidak ditemukan. Muat ulang halaman.",
     "failed": "Gagal menyimpan. Coba lagi.",
     "discardFailed": "Gagal membuang skrip. Coba lagi.",

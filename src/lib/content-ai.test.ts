@@ -458,7 +458,8 @@ describe('buildScriptMessages', () => {
     const user = String(buildScriptMessages('Bedanya IN, ON, AT', BRAND, 'curiosity')[1].content)
 
     expect(user).toMatch(/^Tentang brand/)
-    expect(user).toContain('2–10 slide')
+    expect(user).toContain('1–10 slide')
+    expect(user).toContain('Kalau 1 slide: title berisi hook')
     expect(user).toContain('2 slide: slide 1 = Hook; slide 2 = Value + CTA')
     expect(user).toContain('7 slide: slide 1 = Hook; slide 2 = Bridge; slide 3 = Problem; slide 4 = Reframe; slide 5 = Value; slide 6 = Recap/Proof; slide 7 = CTA')
     expect(user).toContain('10 slide: slide 1 = Hook; slide 2 = Bridge; slide 3 = Problem; slide 4 = Reframe; slide 5–7 = Value; slide 8 = Proof; slide 9 = Recap; slide 10 = CTA')
@@ -506,7 +507,11 @@ describe('parseScriptAnswer', () => {
     expect(parseScriptAnswer(JSON.stringify({ slides: Array.from({ length: 12 }, (_, index) => ({ title: `S${index}` })) }))).toHaveLength(10)
   })
 
-  it.each([['one slide', '{"slides": [{"title": "Satu"}]}'], ['no JSON', 'Maaf.']])('throws an AiOutputError for %s', (_label, answer) => {
+  it('reads a one-slide script as a single post', () => {
+    expect(parseScriptAnswer('{"slides": [{"title": "Satu", "body": "Isi"}]}')).toEqual([{ label: 'Hook', title: 'Satu', body: 'Isi' }])
+  })
+
+  it.each([['no hook', '{"slides": [{"body": "Isi"}]}'], ['no JSON', 'Maaf.']])('throws an AiOutputError for %s', (_label, answer) => {
     expect(() => parseScriptAnswer(answer)).toThrow(AiOutputError)
   })
 })

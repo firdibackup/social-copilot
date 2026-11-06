@@ -293,9 +293,10 @@ describe('bulkRequests', () => {
     })
   })
 
-  it('takes the slides from the points when the model gave none, and never fewer than two', () => {
+  it('takes the slides from the points when the model gave none, and never fewer than one', () => {
     expect(bulkRequests([{ topic: 'A', points: ['1', '2', '3', '4', '5'] }], null).requests[0]).toMatchObject({ slides: 5 })
-    expect(bulkRequests([{ topic: 'A', slides: 1 }], null).requests[0]).toMatchObject({ slides: 2 })
+    expect(bulkRequests([{ topic: 'A', slides: 1 }], null).requests[0]).toMatchObject({ slides: 1 })
+    expect(bulkRequests([{ topic: 'A', slides: 0 }], null).requests[0]).toMatchObject({ slides: 1 })
   })
 
   it('stops at the posts per week, or the default without a strategy', () => {

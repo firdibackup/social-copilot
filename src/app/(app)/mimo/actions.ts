@@ -7,6 +7,7 @@ import { aiErrorMessage, remainingCredits } from '@/lib/ai'
 import { getPlan } from '@/lib/app-settings'
 import { getBillingCatalog } from '@/lib/billing-catalog'
 import { listProductGroups } from '@/lib/assets'
+import { listReferenceOptions } from '@/lib/brand'
 import { parseRuleInput } from '@/lib/auto-dm-rules'
 import { requireAccount } from '@/lib/auth'
 import { formatCreditShare } from '@/lib/billing-options'
@@ -23,7 +24,7 @@ import {
   type ChatPart,
 } from '@/lib/chat-options'
 import { enqueueContentJob, getContentJobByKey } from '@/lib/content-jobs'
-import { AUTO_PRODUCT } from '@/lib/content-options'
+import { AUTO_PRODUCT, AUTO_REFERENCE } from '@/lib/content-options'
 import { getDensityDefault } from '@/lib/density'
 import { describeError } from '@/lib/errors'
 import { deleteAccountIdea, ensureIdea, getAccountIdea } from '@/lib/ideas'
@@ -120,6 +121,7 @@ async function loadBulkCard(userId: string, accountId: string, sessionId: unknow
 async function queueBulkItem(userId: string, accountId: string, item: BulkPlanItem, settings: BulkSettings, locale: Locale): Promise<BulkItem> {
   const t = await getTranslations('mimo.actions')
   const { density, productGroupId } = settings
+  const referenceId = settings.referenceId === undefined ? AUTO_REFERENCE : settings.referenceId
   const existing = await getContentJobByKey(userId, accountId, item.key)
   if (existing) return { postId: existing.post_id, ideaId: existing.idea_id ?? item.key, title: item.title }
 
@@ -127,7 +129,7 @@ async function queueBulkItem(userId: string, accountId: string, item: BulkPlanIt
     const idea = await getAccountIdea(userId, accountId, item.ideaId)
     if (!idea) throw new ContentError(t('ideaMissing'))
     if (!idea.script) throw new ContentError(t('invalidScript'))
-    const request = { ...bulkContentRequest(item, idea.id, density, productGroupId), slides: idea.script.length }
+    const request = { ...bulkContentRequest(item, idea.id, density, productGroupId, referenceId), slides: idea.script.length }
     const postId = await enqueueContentJob(userId, accountId, item.key, idea.id, 'content', { request, script: idea.script, attachmentPath: null }, locale)
     return { postId, ideaId: idea.id, title: idea.title }
   }
@@ -138,7 +140,7 @@ async function queueBulkItem(userId: string, accountId: string, item: BulkPlanIt
     const postId = await enqueueContentJob(userId, accountId, item.key, ideaId, 'script', {
       density,
       brief: bulkBrief(item),
-      auto: { request: bulkContentRequest(item, ideaId, density, productGroupId) },
+      auto: { request: bulkContentRequest(item, ideaId, density, productGroupId, referenceId) },
     }, locale)
     return { postId, ideaId, title: item.title }
   } catch (error) {
@@ -191,6 +193,10 @@ export async function startBulkAction(sessionId: string, messageId: string, bulk
         if (!products.some((product) => product.id === settings!.productGroupId)) {
           return t('productMissing')
         }
+      }
+      if (settings.referenceId && settings.referenceId !== AUTO_REFERENCE) {
+        const references = await listReferenceOptions(userId, accountId)
+        if (!references.some((reference) => reference.id === settings!.referenceId)) return t('referenceMissing')
       }
 
       const [{ remaining, period }, billing] = await Promise.all([remainingCredits(userId), getBillingCatalog()])

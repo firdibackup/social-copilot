@@ -3,7 +3,7 @@ import { languagePrompt, type Locale } from './ai-language'
 import { AiOutputError, describeBrand, loadBrandContext, quote, readJson, runLogged, snippetOf } from './ai'
 import { truncate, type BrandContext } from './brand-options'
 import { CAPTION_MAX_LENGTH } from './caption'
-import { carouselGuide, carouselStructure, COVER_RULE, densityRule, singleDensityRule, type HookArchetype } from './carousel-guide'
+import { carouselGuide, carouselStructure, COVER_RULE, densityRule, singleDensityRule, VOICE_RULE, type HookArchetype } from './carousel-guide'
 import type { ContentRequest } from './content-options'
 import { DEFAULT_DENSITY, type TextDensity } from './density-options'
 import { isUuid } from './params'
@@ -50,6 +50,7 @@ const JSON_ONLY = '- Balas HANYA dengan satu objek JSON sesuai format yang dimin
 
 const CAPTION_RULES = [
   '- Tulis dalam Bahasa Indonesia yang natural, kecuali topik jelas memakai bahasa lain.',
+  `- ${VOICE_RULE}`,
   '- Patuhi batas Instagram: caption maksimal 2.200 karakter, 30 hashtag, dan 20 mention.',
   '- Jangan pakai Markdown seperti **tebal**, _miring_, atau judul. Instagram tidak merendernya.',
   '- Jangan mengarang fakta atau klaim yang tidak ada di topik atau fakta brand, misalnya harga, tanggal, lokasi, stok terbatas, atau "kualitas premium".',
@@ -99,6 +100,7 @@ const SCRIPT_SYSTEM = [
   'Kamu penulis skrip carousel Instagram untuk satu akun bisnis atau kreator di Indonesia: kamu mengembangkan satu ide singkat menjadi isi slide yang jelas, lengkap, dan siap ditulis di gambar.',
   'Aturan:',
   '- Tulis dalam Bahasa Indonesia yang natural, kecuali topik jelas memakai bahasa lain. Istilah atau contoh dalam bahasa asing boleh, beri artinya.',
+  `- ${VOICE_RULE}`,
   '- Jangan pakai Markdown seperti **tebal**, _miring_, atau judul. Teks ini ditulis apa adanya di gambar.',
   '- Tulis kata dan kalimat lengkap: jangan pakai singkatan seperti "yg", "dgn", "utk", "krn", "tdk", atau "&".',
   '- Jangan mengarang fakta atau klaim yang tidak ada di ide atau fakta brand, misalnya harga, tanggal, lokasi, stok terbatas, atau "kualitas premium".',
@@ -110,6 +112,8 @@ const IDEAS_SYSTEM = [
   'Aturan:',
   '- Tulis dalam Bahasa Indonesia yang natural.',
   '- Ide harus cocok dengan brand dan hanya memakai fakta yang tertulis tentang brand.',
+  `- ${VOICE_RULE}`,
+  '- Semua ide berupa post gambar (carousel 1–10 slide). Aplikasi ini tidak membuat Reels atau video: kalau formatnya identik dengan video (tur, POV, tutorial gerak), ubah menjadi carousel yang menyampaikan isi yang sama.',
   JSON_ONLY,
 ].join('\n')
 
@@ -375,9 +379,9 @@ export function buildIdeasMessages(brand: BrandContext, recent: string[], langua
       content: [
         `${describeBrand(brand)}Tugas: buat ${IDEAS_COUNT} ide post Instagram lengkap yang berbeda-beda untuk brand ini: ${mix}. Setiap ide memiliki title satu kalimat pendek maksimal 12 kata dan script carousel siap pakai.`,
         ...strategyGuide,
-        `- Tentukan jumlah slide paling pas untuk tiap ide, 2–${MAX_SLIDES}. Susunan wajib mengikuti jumlahnya:\n${Array.from({ length: MAX_SLIDES - MIN_SCRIPT_SLIDES + 1 }, (_, index) => { const count = index + MIN_SCRIPT_SLIDES; return `  - ${count} slide: ${carouselStructure(count)}` }).join('\n')}`,
+        `- Tentukan jumlah slide paling pas untuk tiap ide, ${MIN_SCRIPT_SLIDES}–${MAX_SLIDES}; 1 slide hanya untuk ide yang memang cukup satu gambar. Susunan wajib mengikuti jumlahnya:\n${Array.from({ length: MAX_SLIDES - MIN_SCRIPT_SLIDES + 1 }, (_, index) => { const count = index + MIN_SCRIPT_SLIDES; return `  - ${count} slide: ${carouselStructure(count)}` }).join('\n')}`,
         '- label: nama singkat peran atau isi slide untuk owner, 1–3 kata, misalnya "Hook", nama poinnya, atau "CTA" (boleh digabung seperti "AT + CTA").',
-        `- Cover: ${COVER_RULE} title berisi hook; body berisi subheading opsional atau string kosong.`,
+        `- Cover: ${COVER_RULE} title berisi hook; body berisi subheading opsional atau string kosong. Kalau ide hanya 1 slide, body berisi isi inti yang langsung bermanfaat.`,
         '- title pada slide isi: poin utamanya, maksimal 12 kata. Batas ini bukan untuk hook.',
         `- body slide isi: ${SCRIPT_BODY[DEFAULT_DENSITY]} title dan body bersama maksimal ${HEADLINE_MAX_LENGTH} karakter.`,
         '- Pada carousel 3 slide atau lebih, slide CTA berisi satu ajakan singkat. Pada carousel 2 slide, slide terakhir tetap menjawab janji hook sebagai Value + CTA.',
@@ -441,7 +445,8 @@ export function suggestIdeas(
   })
 }
 
-const MIN_SCRIPT_SLIDES = 2
+/** One slide is a single post: an idea that fits one image (or a Reels idea turned into one image). */
+const MIN_SCRIPT_SLIDES = 1
 
 /** What an inner script slide's body holds at each density; never applied to the cover. */
 const SCRIPT_BODY: Record<TextDensity, string> = {
@@ -471,6 +476,7 @@ export function buildScriptMessages(
         `- Tentukan sendiri jumlah slide yang paling pas dengan isi ide: ${MIN_SCRIPT_SLIDES}–${MAX_SLIDES} slide. Satu poin utama per slide isi; jangan menambah slide hanya supaya banyak, dan jangan memadatkan banyak poin ke satu slide.`,
         `- Susunan wajib mengikuti jumlah slide yang dipilih:\n${Array.from({ length: MAX_SLIDES - MIN_SCRIPT_SLIDES + 1 }, (_, index) => { const count = index + MIN_SCRIPT_SLIDES; return `  - ${count} slide: ${carouselStructure(count)}` }).join('\n')}\nGabungkan peran sesuai susunan di atas dan jangan menambah filler.`,
         '- label: nama singkat peran atau isi slide untuk owner, 1–3 kata, misalnya "Hook", nama poinnya, atau "CTA" (boleh digabung seperti "AT + CTA").',
+        '- Kalau 1 slide: title berisi hook, body berisi isi inti yang langsung bermanfaat; aturan cover tanpa isi tidak berlaku.',
         `- Cover: ${COVER_RULE} title berisi hook tersebut; body cover berisi subheading tersebut atau string kosong ("").`,
         '- title pada slide isi: poin utamanya, maksimal 12 kata, misalnya "IN = Di dalam atau periode waktu yang luas". Batas 12 kata ini bukan untuk hook.',
         `- body slide isi: sisa teks yang tertulis di gambar, baris dipisah \\n: ${SCRIPT_BODY[density]} title dan body bersama maksimal ${HEADLINE_MAX_LENGTH} karakter, jadi pilih contoh yang paling jelas.`,

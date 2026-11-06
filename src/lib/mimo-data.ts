@@ -1,6 +1,7 @@
 import 'server-only'
 import type { AccountScope } from './auth'
 import { listProductGroups } from './assets'
+import { listReferenceOptions } from './brand'
 import { getSession, listMessages } from './chat'
 import { getDensityDefault } from './density'
 
@@ -11,9 +12,14 @@ export async function loadMimoConversation({ userId, accountId }: AccountScope, 
 }
 
 export async function loadMimoSupport({ userId, accountId }: AccountScope) {
-  const [products, defaultDensity] = await Promise.all([
+  const [products, defaultDensity, references] = await Promise.all([
     listProductGroups(userId, accountId),
     getDensityDefault(userId, accountId),
+    listReferenceOptions(userId, accountId),
   ])
-  return { products: products.map(({ id, title, imageCount }) => ({ id, label: title, imageCount })), defaultDensity }
+  return {
+    products: products.map(({ id, title, imageCount }) => ({ id, label: title, imageCount })),
+    defaultDensity,
+    references: references.map(({ id, label }) => ({ id, label })),
+  }
 }

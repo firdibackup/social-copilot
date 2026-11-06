@@ -16,6 +16,14 @@ export const HOOK_ARCHETYPES = {
 /** Auto lets the writer choose by topic, audience and available evidence within the same request. */
 export type HookArchetype = keyof typeof HOOK_ARCHETYPES | 'auto'
 
+/** The register testers asked for: not document-stiff, not chat-casual. The brand's own voice still sets sapaan. */
+export const VOICE_RULE =
+  'Gaya bahasa semi-formal yang mengalir, seperti praktisi yang menjelaskan ke klien atau rekan kerja: kalimat aktif dan pendek, kata sehari-hari yang tetap sopan. Hindari bahasa kaku khas dokumen (merupakan, adalah sebuah, dalam rangka, guna, sebagaimana, hal ini, oleh karena itu, dapat dilakukan) dan hindari bahasa terlalu santai (gue/lo, wkwk, slang, singkatan chat, emoji berlebihan). Sapaan dan tingkat formalitas mengikuti gaya bahasa brand: brand formal tetap dibuat luwes, brand santai tetap rapi.'
+
+/** Hooks came out as generic yes/no questions ("Mencari hunian di X?"); this asks for a concrete promise. */
+export const HOOK_QUALITY_RULE =
+  'Hook harus spesifik dan membuat orang berhenti menggulir: sebut objek, angka, kesalahan, kontras, atau hasil konkret yang benar-benar dibahas di isi. Hindari pertanyaan ya/tidak yang umum ("Mencari rumah?", "Ingin sukses?", "Butuh X?") dan hook yang hanya nama topik. Pikirkan 3 calon hook, lalu pakai yang paling spesifik dan paling membuat pembaca ingin menggeser.'
+
 export const COVER_RULE =
   'Hook slide 1: satu hook 3–7 kata yang menyebut masalah, manfaat, atau pertanyaan spesifik dan memberi alasan untuk menggeser. Bukan sekadar judul topik. Tambahkan subheading opsional satu kalimat pendek (maksimal 12 kata) hanya jika memberi konteks atau membuka rasa penasaran yang mengarah alami ke slide 2; kosongkan jika hook sudah kuat. Subheading tidak boleh mengulang hook, membocorkan seluruh jawaban, menjadi CTA generik, atau membuat klaim baru. Tanpa paragraf penjelasan, bullet, contoh, tips, atau CTA. Aturan ini berlaku pada semua pilihan kepadatan teks.'
 
@@ -51,7 +59,7 @@ export const singleDensityRule = (density: TextDensity) =>
 
 /** A useful narrative for every supported slide count; short carousels merge roles instead of adding filler. */
 export function carouselStructure(slides: number): string {
-  if (slides <= 1) return ''
+  if (slides <= 1) return 'satu gambar: hook sebagai judul, lalu isi inti yang langsung bermanfaat'
   if (slides === 2) return 'slide 1 = Hook; slide 2 = Value + CTA'
   if (slides === 3) return 'slide 1 = Hook; slide 2 = Value; slide 3 = CTA'
   if (slides === 4) return 'slide 1 = Hook; slide 2 = Bridge; slide 3 = Value; slide 4 = CTA'
@@ -69,6 +77,7 @@ export function carouselGuide(hook: HookArchetype = 'auto', density: TextDensity
     'Panduan carousel (wajib):',
     `- ${COVER_RULE}`,
     hookGuide(),
+    `- ${HOOK_QUALITY_RULE}`,
     ...(hook === 'auto' ? [] : [`- Arah struktur yang diminta: ${HOOK_ARCHETYPES[hook]} Gunakan hanya jika sesuai konteks dan bukti; gaya bahasa tetap mengikuti brand.`]),
     ...(slides ? [`- Struktur ${slides} slide: ${carouselStructure(slides)}.`] : []),
     '- Peran struktur: Bridge menghubungkan hook ke konteks dan menjelaskan mengapa topik penting; Problem menunjukkan masalah, penyebab, atau dampak; Reframe memberi cara pandang baru; Value membayar janji hook dengan langkah, poin, atau framework yang dapat dipakai; Proof memakai contoh, demonstrasi, data, before/after, atau pengalaman yang benar-benar tersedia; Recap merangkum inti; CTA meminta tepat satu tindakan.',

@@ -14,7 +14,7 @@ import { contentCost, TASK_CREDITS } from './billing-options'
 import type { BillingCatalog } from './billing-catalog-options'
 import { truncate } from './brand-options'
 import { wibDateKey } from './format'
-import { AUTO_PRODUCT } from './content-options'
+import { AUTO_PRODUCT, AUTO_REFERENCE } from './content-options'
 import { isTextDensity, type TextDensity } from './density-options'
 import { isUuid } from './params'
 
@@ -160,7 +160,8 @@ export interface StatusItem {
 export const BULK_TITLE_MAX_LENGTH = 200
 export const BULK_ANGLE_MAX_LENGTH = 300
 export const BULK_POINT_MAX_LENGTH = 160
-export const MIN_BULK_SLIDES = 2
+/** 1 = a single post; ideas that fit one image (or came from a Reels idea) need not be stretched to two. */
+export const MIN_BULK_SLIDES = 1
 
 /**
  * One planned post of a bulk_content card, before anything is written or charged. The owner can rename a new topic,
@@ -187,17 +188,20 @@ export type BulkState = 'proposed' | 'starting' | 'started' | 'cancelled'
 export interface BulkSettings {
   density: TextDensity
   productGroupId: string | null
+  /** Design the slides follow: AUTO_REFERENCE (all of the account's references), one group's id, or null for none. */
+  referenceId?: string | null
 }
 
 export function parseBulkSettings(value: unknown, locale: Locale = 'id'): { settings: BulkSettings } | { error: string } {
   const t = optionsTranslator(locale)
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return { error: t('invalidSettings') }
-  const { density, productGroupId } = value as Record<string, unknown>
+  const { density, productGroupId, referenceId = AUTO_REFERENCE } = value as Record<string, unknown>
   if (!isTextDensity(density)) return { error: t('unknownDensity') }
   if (productGroupId !== null && productGroupId !== AUTO_PRODUCT && !isUuid(productGroupId)) {
     return { error: t('productMissing') }
   }
-  return { settings: { density, productGroupId } }
+  if (referenceId !== null && referenceId !== AUTO_REFERENCE && !isUuid(referenceId)) return { error: t('referenceMissing') }
+  return { settings: { density, productGroupId, referenceId } }
 }
 
 /** What one planned post costs at most: its script (unless it has one) and its images. Pure. */

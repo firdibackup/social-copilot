@@ -30,6 +30,7 @@ interface MimoChatProps {
   messages: ChatMessageView[]
   products: CardContext['products']
   defaultDensity: CardContext['defaultDensity']
+  references: CardContext['references']
 }
 
 /** The message on its way: shown at once, with what Mimo is doing, until the stored one comes back. */
@@ -59,7 +60,7 @@ async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<Cha
  * The open conversation with Mimo. Sent messages show from the stream's `done` event until the page's own data has
  * them; opening another conversation starts over, but keeps the Deep Search toggle.
  */
-export function MimoChat({ sessionId, messages, products, defaultDensity }: MimoChatProps) {
+export function MimoChat({ sessionId, messages, products, defaultDensity, references }: MimoChatProps) {
   const t = useTranslations('mimo.chat')
   const locale = useLocale()
   const router = useRouter()
@@ -195,7 +196,7 @@ export function MimoChat({ sessionId, messages, products, defaultDensity }: Mimo
   }
 
   const ask = (text: string) => void send(text, [])
-  const cardContext = (message: ChatMessageView): CardContext => ({ sessionId, messageId: message.id, ask: pending ? null : ask, products, defaultDensity })
+  const cardContext = (message: ChatMessageView): CardContext => ({ sessionId, messageId: message.id, ask: pending ? null : ask, products, defaultDensity, references })
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

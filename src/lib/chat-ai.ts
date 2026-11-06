@@ -169,7 +169,7 @@ const BULK_CONTENT: ToolSchema = {
   function: {
     name: 'bulk_content',
     description: [
-      'Rencanakan beberapa konten carousel utuh sekaligus, mis. untuk jadwal minggu ini.',
+      'Rencanakan beberapa konten carousel utuh sekaligus (1 slide = single post), mis. untuk jadwal minggu ini. Ide berformat Reels/video diubah menjadi carousel.',
       'Tool ini HANYA menampilkan rencana (judul, sudut, pilar, jumlah slide, poin per slide) di kartu untuk disetujui owner; belum ada kuota yang terpakai.',
       'Setelah owner menekan Setuju di kartu, skrip dan gambar tiap konten dibuat otomatis di latar belakang.',
       'Tiap item: topic (topik baru) ATAU ideaId (ide yang sudah tersimpan di menu Buat), bukan keduanya. Untuk ideaId, tetap isi angle, slides, dan points.',
@@ -304,7 +304,8 @@ export function chatTools(deepSearch: boolean): ToolSchema[] {
 const SYSTEM_RULES = [
   'Kamu Mimo, asisten AI (copilot) di aplikasi pengelola Instagram ini, untuk pemilik bisnis dan kreator di Indonesia.',
   'Aturan:',
-  '- Jawab dalam Bahasa Indonesia yang ramah, jelas, dan ringkas.',
+  '- Jawab dalam Bahasa Indonesia yang ramah, jelas, dan ringkas: semi-formal yang luwes, tidak kaku seperti dokumen dan tidak terlalu santai (tanpa slang atau gue/lo). Sapaan ikut gaya bahasa brand.',
+  '- Aplikasi ini hanya membuat post gambar (carousel 1–10 slide), bukan Reels atau video. Kalau menyarankan ide atau tren berformat video, ubah langsung menjadi carousel atau satu gambar yang menyampaikan isi yang sama; jangan menawarkan Reels sebagai konten yang bisa dibuat di sini.',
   '- Topikmu: Instagram dan media sosial, konten, marketing, branding, copywriting, dan hal bisnis yang menyangkut pemasaran (harga, promo, diskon, target pasar). Hitungan kecil untuk keperluan itu boleh, mis. harga setelah diskon.',
   '- Di luar topik itu (PR sekolah, soal matematika, coding, kesehatan, hukum, politik, gosip, obrolan umum), jangan dijawab. Tolak dengan sopan dalam satu-dua kalimat, lalu tawarkan bantuan yang terkait akun atau kontennya. Kalau permintaannya bisa dikaitkan ke konten (mis. "buat post tentang hari kemerdekaan"), bantu dari sisi kontennya.',
   '- Jangan pakai Markdown (tanpa **, #, atau tabel). Daftar boleh pakai "- " di awal baris.',

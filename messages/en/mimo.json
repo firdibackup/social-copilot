@@ -68,6 +68,9 @@
     "refresh": "Refresh status"
   },
   "cards": {
+    "design": "Design",
+    "noReference": "No reference",
+    "referenceUnavailable": "Reference unavailable",
     "failed": "Couldn't reach the server. Try again.",
     "noResults": "No results.",
     "noAccounts": "No public accounts found. Try another username or keyword.",
@@ -184,6 +187,7 @@
     }
   },
   "options": {
+    "referenceMissing": "Design reference not found. Choose the design again.",
     "onePdf": "Maximum 1 PDF per message.",
     "newChat": "New chat",
     "invalidSettings": "Invalid content settings.",
@@ -232,6 +236,7 @@
     "analyzeRequest": "Analyze content patterns for {accounts}: hooks, posting frequency, and content pillars."
   },
   "actions": {
+    "referenceMissing": "Design reference not found. Choose the design again.",
     "notFound": "Message not found. Reload the page.",
     "failed": "Couldn't save. Try again.",
     "discardFailed": "Couldn't discard the script. Try again.",

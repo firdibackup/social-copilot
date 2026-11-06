@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { carouselGuide, HOOK_ARCHETYPES } from './carousel-guide'
+import { carouselGuide, HOOK_ARCHETYPES, VOICE_RULE } from './carousel-guide'
 
 describe('carouselGuide', () => {
   it('names only the chosen archetype', () => {
@@ -29,6 +29,13 @@ describe('carouselGuide', () => {
     expect(guide).toContain('Proof')
     expect(guide).toContain('Recap')
     expect(guide).toContain('CTA')
+  })
+
+  it('asks for a specific hook in a register that is neither stiff nor slangy', () => {
+    const guide = carouselGuide()
+    expect(guide).toContain('Hindari pertanyaan ya/tidak yang umum')
+    expect(VOICE_RULE).toContain('Hindari bahasa kaku khas dokumen')
+    expect(VOICE_RULE).toContain('hindari bahasa terlalu santai')
   })
 
   it('requires payoff rather than a CTA-only ending for two slides', () => {
