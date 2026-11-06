@@ -19,6 +19,7 @@ export const BRAND_TEXT_LIMITS = {
   headingFont: 100,
   bodyFont: 100,
   visualStyle: 2000,
+  designRules: 1000,
   accountKind: 20,
   designStyle: 40,
 } as const
@@ -38,6 +39,7 @@ export const FIELD_LABELS: Record<BrandTextField, string> = {
   headingFont: 'Font judul',
   bodyFont: 'Font isi',
   visualStyle: 'Gaya visual',
+  designRules: 'Batasan desain',
   accountKind: 'Jenis akun',
   designStyle: 'Gaya desain',
 }
@@ -92,7 +94,11 @@ export const PROFILE_FIELDS = [
 export type ProfileField = (typeof PROFILE_FIELDS)[number]
 export type ProfileText = Pick<BrandFields, ProfileField>
 /** The profile text for prompts, with the content strategy when the owner has one. */
-export type BrandContext = ProfileText & { strategy?: ContentStrategy | null }
+export type BrandContext = ProfileText & {
+  strategy?: ContentStrategy | null
+  /** What every image must or must not show; Mimo reads it to propose changes. */
+  designRules?: string
+}
 
 export type ReferenceSource = 'upload' | 'website' | 'instagram' | 'discovery'
 
@@ -208,6 +214,7 @@ export const EMPTY_BRAND: BrandFields = {
   headingFont: '',
   bodyFont: '',
   visualStyle: '',
+  designRules: '',
   accountKind: '',
   designStyle: '',
   colors: [],

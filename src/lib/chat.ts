@@ -11,6 +11,7 @@ import {
   type ChatMessageView,
   type ChatPart,
   type ChatSessionView,
+  type ConfirmKind,
   type LimitedTask,
   type StatusItem,
 } from './chat-options'
@@ -245,7 +246,7 @@ export async function resolveConfirmation(
   accountId: string,
   messageId: string,
   confirmId: string,
-  kind: 'strategy' | 'auto_dm_rule',
+  kind: ConfirmKind,
   payload: unknown,
   accept: boolean,
 ): Promise<CardResolution> {

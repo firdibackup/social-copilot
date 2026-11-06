@@ -185,6 +185,8 @@
     }
   },
   "options": {
+    "invalidDesignRules": "Batasan desain tidak valid.",
+    "designRulesTooLong": "Batasan desain maksimal {max} karakter.",
     "referenceMissing": "Referensi desain tidak ditemukan. Pilih ulang desainnya.",
     "onePdf": "Maksimal 1 PDF per pesan.",
     "newChat": "Chat baru",

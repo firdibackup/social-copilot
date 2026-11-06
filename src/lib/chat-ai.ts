@@ -19,6 +19,7 @@ import {
   BULK_ANGLE_MAX_LENGTH,
   BULK_POINT_MAX_LENGTH,
   MIN_BULK_SLIDES,
+  parseDesignRules,
   summaryBatch,
   type BulkPlanItem,
   type ChatMessageView,
@@ -252,6 +253,25 @@ const UPDATE_CONTENT_STRATEGY: ToolSchema = {
   },
 }
 
+const UPDATE_DESIGN_RULES: ToolSchema = {
+  type: 'function',
+  function: {
+    name: 'update_design_rules',
+    description: [
+      'Usulkan Batasan desain brand: aturan gaya visual yang wajib dipatuhi semua gambar konten berikutnya, mis. "Kurangi foto keluarga di interior; utamakan interior kosong yang rapi".',
+      'TIDAK langsung tersimpan: owner menyetujui lewat kartu konfirmasi, lalu tersimpan di Brand › Visual › Batasan desain.',
+      'Isi teks lengkap yang menggantikan batasan sekarang: pertahankan aturan lama yang masih berlaku dan gabungkan dengan permintaan baru. String kosong menghapus semua batasan.',
+    ].join(' '),
+    parameters: {
+      type: 'object',
+      properties: {
+        designRules: { type: 'string', description: 'Daftar aturan singkat, satu per baris diawali "- ", maksimal 1000 karakter.' },
+      },
+      required: ['designRules'],
+    },
+  },
+}
+
 const CREATE_AUTO_DM_RULE: ToolSchema = {
   type: 'function',
   function: {
@@ -297,6 +317,7 @@ export function chatTools(deepSearch: boolean): ToolSchema[] {
     BULK_CONTENT,
     SCHEDULE_CONTENT,
     UPDATE_CONTENT_STRATEGY,
+    UPDATE_DESIGN_RULES,
     CREATE_AUTO_DM_RULE,
   ]
 }
@@ -313,7 +334,8 @@ const SYSTEM_RULES = [
   '- Jangan mengarang angka, data akun, atau tautan. Kalau butuh informasi terbaru, pakai web_search.',
   '- Hasil tool sudah tampil sebagai kartu di chat. Jangan ulangi isinya panjang lebar; cukup simpulkan dan sarankan langkah berikutnya.',
   '- Catatan dalam [kurung siku] di riwayat percakapan ditulis sistem tentang kartu yang tampil. Jangan menulis catatan seperti itu sendiri.',
-  '- update_content_strategy dan create_auto_dm_rule tidak langsung menyimpan: owner menyetujui lewat kartu konfirmasi. Jangan bilang sudah tersimpan.',
+  '- update_content_strategy, update_design_rules, dan create_auto_dm_rule tidak langsung menyimpan: owner menyetujui lewat kartu konfirmasi. Jangan bilang sudah tersimpan.',
+  '- Kalau owner minta mengatur gaya visual atau batasan gambar (mis. "kurangi foto keluarga", "jangan pakai ilustrasi 3D"), pakai update_design_rules.',
   '- analyze_and_draft langsung menyimpan skrip sebagai ide di menu Buat dan memakai kredit AI. Tulis skrip hanya kalau owner memintanya.',
   '- Untuk beberapa konten utuh sekaligus (skrip dan gambar), pakai bulk_content: tool itu hanya menampilkan rencana. Skrip dan gambar baru dibuat setelah owner menekan Setuju di kartu; jangan bilang kontennya sudah dibuat.',
   '- Untuk menjadwalkan konten, pakai schedule_content. Gunakan postIds/ideaIds dari riwayat bila owner merujuk konten tertentu, atau topic kosong untuk draft terbaru. Kartu membaca data Buat dan slot Kalender. Belum terjadwal sampai owner menekan Jadwalkan yang siap. Gambar yang masih diproses harus ditunggu; owner bisa menjadwalkan sisanya yang sudah siap. Skrip saja bisa dibuat gambarnya lewat kartu dahulu.',
@@ -853,6 +875,16 @@ export function ruleLines(rule: AutoDmRuleInput): string[] {
   ]
 }
 
+function runDesignRules(args: Json): ToolOutcome {
+  const parsed = parseDesignRules(args)
+  if ('error' in parsed) return failure('update_design_rules', parsed.error)
+  const lines = parsed.rules.designRules ? parsed.rules.designRules.split('\n').filter(Boolean) : ['Hapus semua batasan desain']
+  return {
+    part: { type: 'confirm', id: crypto.randomUUID(), kind: 'design_rules', title: 'Perbarui batasan desain', lines, payload: parsed.rules, state: 'pending' },
+    result: confirmResult,
+  }
+}
+
 function runAutoDmRule(args: Json): ToolOutcome {
   const parsed = parseRuleInput(proposedRule(args))
   if ('error' in parsed) return failure('create_auto_dm_rule', parsed.error)
@@ -899,6 +931,8 @@ async function runTool(context: ToolContext, call: ToolCall): Promise<ToolOutcom
         return [await runScheduleContent(context, args)]
       case 'update_content_strategy':
         return [runStrategy(context, args)]
+      case 'update_design_rules':
+        return [runDesignRules(args)]
       case 'create_auto_dm_rule':
         return [runAutoDmRule(args)]
       default:

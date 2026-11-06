@@ -960,7 +960,7 @@ function ToolConfirmCard({ part, context }: { part: Extract<ChatPart, { type: 'c
   const [, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const { sessionId, messageId } = context
-  const where = part.kind === 'strategy' ? { href: '/brand', label: t('viewBrand') } : { href: '/balasan', label: t('viewReplies') }
+  const where = part.kind !== 'auto_dm_rule' ? { href: '/brand', label: t('viewBrand') } : { href: '/balasan', label: t('viewReplies') }
 
   const resolve = (accept: boolean) => {
     if (!sessionId) return

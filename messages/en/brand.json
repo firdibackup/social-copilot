@@ -45,6 +45,8 @@
     "profileFailed": "Couldn't fetch that account's posts. Try again in a moment."
   },
   "brandForm": {
+    "designRulesPlaceholder": "e.g. Fewer family photos in interiors; prefer tidy empty rooms. No 3D illustrations.",
+    "designRulesHint": "Every content image must follow these, even with a reference. You can also set them in Mimo: \"set design rules…\".",
     "text1": "Brand kit saved. AI will use it from your next request.",
     "text2": "Identity",
     "text3": "e.g. Kopi Sinar",
@@ -244,6 +246,7 @@
     "reconnect": "Your Instagram token has expired or been revoked. Reconnect in Settings."
   },
   "fields": {
+    "designRules": "Design rules",
     "name": "Brand name",
     "category": "Category",
     "description": "Short description",

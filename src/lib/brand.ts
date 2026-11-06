@@ -67,6 +67,7 @@ interface KitRow {
   heading_font: string
   body_font: string
   visual_style: string
+  design_rules: string
   account_kind: string
   design_style: string
   logo_path: string | null
@@ -94,7 +95,7 @@ interface ReferenceRow {
 }
 
 const KIT_COLUMNS =
-  'name, category, description, website_url, audience, voice, words_use, words_avoid, facts, colors, heading_font, body_font, visual_style, account_kind, design_style, logo_path, sync_status, strategy, updated_at'
+  'name, category, description, website_url, audience, voice, words_use, words_avoid, facts, colors, heading_font, body_font, visual_style, design_rules, account_kind, design_style, logo_path, sync_status, strategy, updated_at'
 const REFERENCE_COLUMNS = 'id, source, source_label, permalink, palette, description, note'
 
 const bucket = () => db().storage.from(BUCKET)
@@ -126,6 +127,7 @@ function toFields(row: KitRow): BrandFields {
     headingFont: row.heading_font,
     bodyFont: row.body_font,
     visualStyle: row.visual_style,
+    designRules: row.design_rules ?? '',
     accountKind: row.account_kind,
     designStyle: row.design_style,
     colors: colorsFrom(row.colors),
@@ -201,6 +203,7 @@ const COLUMN_OF: Record<keyof BrandFields, string> = {
   headingFont: 'heading_font',
   bodyFont: 'body_font',
   visualStyle: 'visual_style',
+  designRules: 'design_rules',
   accountKind: 'account_kind',
   designStyle: 'design_style',
 }
@@ -237,7 +240,8 @@ function contextFromKit(row: KitRow | null): BrandContext | null {
   const context: BrandContext = Object.fromEntries(PROFILE_FIELDS.map((field) => [field, fields[field]])) as ProfileText
   const strategy = readStoredStrategy(row.strategy)
   if (strategy) context.strategy = strategy
-  return strategy || PROFILE_FIELDS.some((field) => context[field]) ? context : null
+  if (fields.designRules) context.designRules = fields.designRules
+  return strategy || fields.designRules || PROFILE_FIELDS.some((field) => context[field]) ? context : null
 }
 
 /** The text the caption prompts use, with the strategy, or null when none of it is filled in. */
@@ -294,6 +298,7 @@ export async function saveBrandKit(userId: string, accountId: string, fields: Br
         heading_font: fields.headingFont,
         body_font: fields.bodyFont,
         visual_style: fields.visualStyle,
+        design_rules: fields.designRules,
         account_kind: fields.accountKind,
         design_style: fields.designStyle,
         // The owner's own save settles a fill that failed; its notice has done its job.
@@ -535,6 +540,8 @@ export interface BrandVisual {
   name: string
   category: string
   visualStyle: string
+  /** The owner's must/must-not list; applies even when a reference sets the design. */
+  designRules?: string
   colors: BrandColor[]
   headingFont: string
   bodyFont: string
@@ -546,9 +553,9 @@ export interface BrandVisual {
 export async function getBrandVisual(userId: string): Promise<BrandVisual | null> {
   const row = await loadConnectedKit(userId)
   if (!row) return null
-  const { name, category, visualStyle, colors, headingFont, bodyFont, designStyle } = toFields(row)
-  const visual = { name, category, visualStyle, colors, headingFont, bodyFont, designStyle }
-  const filled = colors.length > 0 || [name, category, visualStyle, headingFont, bodyFont, designStyle].some(Boolean)
+  const { name, category, visualStyle, designRules, colors, headingFont, bodyFont, designStyle } = toFields(row)
+  const visual = { name, category, visualStyle, designRules, colors, headingFont, bodyFont, designStyle }
+  const filled = colors.length > 0 || [name, category, visualStyle, designRules, headingFont, bodyFont, designStyle].some(Boolean)
   return filled ? visual : null
 }
 

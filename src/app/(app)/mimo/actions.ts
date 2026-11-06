@@ -18,6 +18,7 @@ import {
   bulkBrief,
   bulkItemCost,
   parseBulkSettings,
+  parseDesignRules,
   type BulkSettings,
   type BulkItem,
   type BulkPlanItem,
@@ -68,6 +69,10 @@ export async function resolveConfirmAction(
     let payload: unknown
     if (card.kind === 'strategy') {
       const parsed = parseStrategy(card.payload, locale)
+      if ('error' in parsed) return parsed.error
+      payload = card.payload
+    } else if (card.kind === 'design_rules') {
+      const parsed = parseDesignRules(card.payload, locale)
       if ('error' in parsed) return parsed.error
       payload = card.payload
     } else {

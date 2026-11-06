@@ -241,6 +241,8 @@ export function buildImagePrompt(
   }
   lines.push(MODERN_LOOK)
   if (brand && !reference) lines.push(...describeBrandVisual(brand, style !== null))
+  // Last and outside the reference check: the owner's limits beat a reference, a style and the scene.
+  if (brand?.designRules) lines.push(`Owner's design rules (always follow, they override the scene and any reference): ${brand.designRules}`)
   return lines.join('\n')
 }
 

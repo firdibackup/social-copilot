@@ -45,6 +45,8 @@
     "profileFailed": "Post akun itu belum bisa diambil. Coba lagi sebentar lagi."
   },
   "brandForm": {
+    "designRulesPlaceholder": "mis. Kurangi foto keluarga di dalam interior; utamakan interior kosong yang rapi. Jangan pakai ilustrasi 3D.",
+    "designRulesHint": "Wajib dipatuhi semua gambar konten, juga saat memakai referensi. Bisa diatur lewat Mimo: \"atur batasan desain…\".",
     "text1": "Brand kit tersimpan. Buat AI memakainya mulai permintaan berikutnya.",
     "text2": "Identitas",
     "text3": "mis. Kopi Sinar",
@@ -244,6 +246,7 @@
     "reconnect": "Token Instagram kedaluwarsa atau dicabut. Hubungkan ulang di Pengaturan."
   },
   "fields": {
+    "designRules": "Batasan desain",
     "name": "Nama brand",
     "category": "Kategori",
     "description": "Deskripsi singkat",

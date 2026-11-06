@@ -12,7 +12,9 @@ import type { AutoDmRuleInput } from './auto-dm-rules'
 import type { ScriptSlide } from './script-options'
 import { contentCost, TASK_CREDITS } from './billing-options'
 import type { BillingCatalog } from './billing-catalog-options'
-import { truncate } from './brand-options'
+import { BRAND_TEXT_LIMITS, truncate } from './brand-options'
+
+const DESIGN_RULES_MAX_LENGTH = BRAND_TEXT_LIMITS.designRules
 import { wibDateKey } from './format'
 import { AUTO_PRODUCT, AUTO_REFERENCE } from './content-options'
 import { isTextDensity, type TextDensity } from './density-options'
@@ -300,7 +302,22 @@ export function bulkStage(
   return slides.inProgress > 0 ? 'rendering' : 'done'
 }
 
-export type ConfirmKind = 'strategy' | 'auto_dm_rule'
+/** Brand › Batasan desain as Mimo proposes it: the whole new text, which replaces the old one. */
+export interface DesignRulesInput {
+  designRules: string
+}
+
+/** The proposed rules, trimmed; an error past the brand field's limit or when it isn't text. Empty clears them. */
+export function parseDesignRules(value: unknown, locale: Locale = 'id'): { rules: DesignRulesInput } | { error: string } {
+  const t = optionsTranslator(locale)
+  const text = typeof value === 'object' && value !== null ? (value as Record<string, unknown>).designRules : undefined
+  if (typeof text !== 'string') return { error: t('invalidDesignRules') }
+  const designRules = text.replace(/\r\n/g, '\n').trim()
+  if (Array.from(designRules).length > DESIGN_RULES_MAX_LENGTH) return { error: t('designRulesTooLong', { max: DESIGN_RULES_MAX_LENGTH }) }
+  return { rules: { designRules } }
+}
+
+export type ConfirmKind = 'strategy' | 'auto_dm_rule' | 'design_rules'
 
 export type ChatPart =
   | { type: 'attachment'; kind: AttachmentKind; name: string; size: number }
@@ -317,7 +334,7 @@ export type ChatPart =
       kind: ConfirmKind
       title: string
       lines: string[]
-      payload: ContentStrategy | AutoDmRuleInput
+      payload: ContentStrategy | AutoDmRuleInput | DesignRulesInput
       state: 'pending' | 'saved' | 'cancelled'
     }
   | { type: 'tool_error'; tool: string; message: string }

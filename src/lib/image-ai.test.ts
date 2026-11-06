@@ -63,6 +63,7 @@ const inner = { index: 2, count: 5, role: 'isi' as const }
 describe('buildImagePrompt', () => {
   it('quotes the headline and carries the brand style, colours by role and fonts', () => {
     const prompt = buildImagePrompt(INPUT, BRAND, [])
+    expect(buildImagePrompt(INPUT, { ...BRAND, designRules: 'Kurangi foto keluarga' }, [])).toMatch(/Owner's design rules .*: Kurangi foto keluarga$/)
 
     expect(prompt).toContain('4:5 portrait')
     expect(prompt).toContain('Scene: Pria muda di kafe dengan laptop')

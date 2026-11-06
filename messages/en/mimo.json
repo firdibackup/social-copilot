@@ -185,6 +185,8 @@
     }
   },
   "options": {
+    "invalidDesignRules": "Invalid design rules.",
+    "designRulesTooLong": "Design rules can be at most {max} characters.",
     "referenceMissing": "Design reference not found. Choose the design again.",
     "onePdf": "Maximum 1 PDF per message.",
     "newChat": "New chat",

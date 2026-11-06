@@ -195,6 +195,7 @@ export function BrandForm({ kit, references, instagramUsername, visualLimit }: B
           }}
           referenceCount={Math.min(references.length, visualLimit)}
         />
+        {text('designRules', { rows: 3, placeholder: t('brandForm.designRulesPlaceholder'), hint: t('brandForm.designRulesHint') })}
       </Section>
 
       <div className="sticky bottom-4 z-10 flex flex-wrap items-center gap-3 rounded-xl border border-zinc-200 bg-white/95 p-3 shadow-sm backdrop-blur">

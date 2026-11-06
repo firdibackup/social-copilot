@@ -28,6 +28,7 @@ const BRAND_LINES: [keyof BrandContext, string][] = [
   ['voice', 'Gaya bahasa'],
   ['wordsUse', 'Kata atau frasa khas'],
   ['wordsAvoid', 'Hindari kata atau gaya ini'],
+  ['designRules', 'Batasan desain gambar (scene wajib mematuhinya)'],
 ]
 
 /** The brand kit as prompt text, with its content strategy. Facts are owner text, so they are quoted. */
