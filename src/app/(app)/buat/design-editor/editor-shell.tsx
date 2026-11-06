@@ -220,7 +220,7 @@ export function DesignEditorShell({ initial, version: initialVersion }: { initia
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-hairline bg-white px-3">
         <button type="button" className={ICON_BUTTON} aria-label={t('back')} onClick={async () => {
           if (dirty) await save()
-          router.push('/template')
+          router.push('/admin/editor-template')
         }}><ArrowLeft size={18} /></button>
         <span className="mx-1 h-6 w-px bg-hairline" />
         <button type="button" className={ICON_BUTTON} aria-label={t('undo')} disabled={!past.length} onClick={() => history('undo')}><Undo2 size={18} /></button>

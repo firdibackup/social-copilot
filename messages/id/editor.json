@@ -765,6 +765,8 @@
     "tools": "Alat"
   },
   "designEditor": {
+    "comingSoonTitle": "Template segera hadir",
+    "comingSoonBody": "Editor template sedang kami siapkan: desain sekali, lalu AI mengisi banyak konten dengan layout yang sama.",
     "title": "Editor template",
     "untitled": "Template tanpa judul",
     "back": "Kembali",

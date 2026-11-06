@@ -26,7 +26,7 @@ export function TemplateHome({ mine }: { mine: CanvasTemplateSummary[] }) {
     setError(null)
     const result = await createCanvasTemplateAction({ name, starterId, format }).catch(() => ({ error: t('loadFailed') }))
     if ('error' in result) { setError(result.error); setBusy(null); return }
-    router.push(`/template/${result.id}`)
+    router.push(`/admin/editor-template/${result.id}`)
   }
 
   return <div className="space-y-8">
@@ -48,7 +48,7 @@ export function TemplateHome({ mine }: { mine: CanvasTemplateSummary[] }) {
         <li><button type="button" disabled={!!busy} onClick={() => void create(null, t('untitled'))}
           className="flex aspect-[4/5] w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 text-sm font-medium text-ink-muted hover:border-accent hover:text-accent disabled:opacity-50">
           <Plus size={20} />{busy === 'blank' ? t('saving') : t('newTemplate')}</button></li>
-        {mine.map(item => <li key={item.id}><Link href={`/template/${item.id}`} className="group block text-sm">
+        {mine.map(item => <li key={item.id}><Link href={`/admin/editor-template/${item.id}`} className="group block text-sm">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {item.previewAssetId ? <img src={layerImageUrl(item.previewAssetId)} alt="" className="aspect-[4/5] w-full rounded-xl bg-zinc-100 object-cover ring-accent group-hover:ring-2" />
             : <span className="block aspect-[4/5] rounded-xl bg-zinc-100 ring-accent group-hover:ring-2" />}

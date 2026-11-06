@@ -765,6 +765,8 @@
     "tools": "Tools"
   },
   "designEditor": {
+    "comingSoonTitle": "Templates are coming soon",
+    "comingSoonBody": "We are preparing the template editor: design once, then AI fills many posts with the same layout.",
     "title": "Template editor",
     "untitled": "Untitled template",
     "back": "Back",
