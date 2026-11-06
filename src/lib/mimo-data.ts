@@ -20,6 +20,6 @@ export async function loadMimoSupport({ userId, accountId }: AccountScope) {
   return {
     products: products.map(({ id, title, imageCount }) => ({ id, label: title, imageCount })),
     defaultDensity,
-    references: references.map(({ id, label }) => ({ id, label })),
+    references,
   }
 }

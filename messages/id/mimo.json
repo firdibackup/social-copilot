@@ -69,8 +69,6 @@
   },
   "cards": {
     "design": "Desain",
-    "noReference": "Tanpa referensi",
-    "referenceUnavailable": "Referensi tidak tersedia",
     "failed": "Gagal menghubungi server. Coba lagi.",
     "noResults": "Tidak ada hasil.",
     "noAccounts": "Tidak ada akun publik yang ditemukan. Coba username atau kata kunci lain.",

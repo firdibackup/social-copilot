@@ -13,5 +13,5 @@ export default async function MimoLayout({ children }: { children: ReactNode }) 
 async function AuthenticatedWorkspace({ children }: { children: ReactNode }) {
   const { userId, accountId } = await requireAccount()
   const scope = `${userId}:${accountId}`
-  return <IntlMessages namespaces={['common', 'mimo']}><MimoProvider key={scope} scope={scope} revision={new Date().getTime()}>{children}</MimoProvider></IntlMessages>
+  return <IntlMessages namespaces={['common', 'mimo', 'editor']}><MimoProvider key={scope} scope={scope} revision={new Date().getTime()}>{children}</MimoProvider></IntlMessages>
 }

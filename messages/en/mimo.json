@@ -69,8 +69,6 @@
   },
   "cards": {
     "design": "Design",
-    "noReference": "No reference",
-    "referenceUnavailable": "Reference unavailable",
     "failed": "Couldn't reach the server. Try again.",
     "noResults": "No results.",
     "noAccounts": "No public accounts found. Try another username or keyword.",

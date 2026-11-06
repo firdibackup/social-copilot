@@ -44,7 +44,8 @@ import {
   type ScriptItem,
 } from '@/lib/chat-options'
 import { formatCreditShare } from '@/lib/billing-options'
-import { AUTO_PRODUCT, AUTO_REFERENCE, type ProductOption } from '@/lib/content-options'
+import { AUTO_PRODUCT, AUTO_REFERENCE, type ProductOption, type ReferenceOption } from '@/lib/content-options'
+import { ReferencePicker } from '../buat/reference-picker'
 import { DENSITY_ORDER, isTextDensity, type TextDensity } from '@/lib/density-options'
 import { BULLET, slideProblem, type ScriptSlide } from '@/lib/script-options'
 import { retryContentJobAction } from '../buat/content-actions'
@@ -68,7 +69,7 @@ export interface CardContext {
   products: Pick<ProductOption, 'id' | 'label' | 'imageCount'>[]
   defaultDensity: TextDensity
   /** Brand › Referensi groups the bulk card can pin as the design. */
-  references: { id: string; label: string }[]
+  references: ReferenceOption[]
 }
 
 export const formatBytes = (size: number, locale: Locale = 'id') =>
@@ -640,21 +641,19 @@ function BulkPlanCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk
                 )}
               </select>
             </label>
-            <label className="min-w-0 text-xs text-ink-muted">
+            <div className="min-w-0 text-xs text-ink-muted">
               {t('design')}
-              <select
-                value={settings.referenceId === undefined ? AUTO_REFERENCE : settings.referenceId ?? ''}
-                onChange={(event) => setSettings((current) => ({ ...current, referenceId: event.target.value || null }))}
-                className={`${FIELD} mt-1 min-h-9 disabled:opacity-60`}
-              >
-                <option value={AUTO_REFERENCE}>{t('automatic')}</option>
-                {context.references.map((reference) => <option key={reference.id} value={reference.id}>{reference.label}</option>)}
-                <option value="">{t('noReference')}</option>
-                {settings.referenceId && settings.referenceId !== AUTO_REFERENCE && !context.references.some((reference) => reference.id === settings.referenceId) && (
-                  <option value={settings.referenceId} disabled>{t('referenceUnavailable')}</option>
-                )}
-              </select>
-            </label>
+              {/* Buat's Acuan popup: every reference group with all its slides, so the owner sees the design first. */}
+              <div className="mt-1 flex min-h-9 items-center">
+                {context.references.length > 0 ? (
+                  <ReferencePicker
+                    references={context.references}
+                    value={settings.referenceId === undefined ? AUTO_REFERENCE : settings.referenceId ?? ''}
+                    onChange={(value) => setSettings((current) => ({ ...current, referenceId: value || null }))}
+                  />
+                ) : <span>{t('automatic')}</span>}
+              </div>
+            </div>
           </div>
           <p className="mt-2 text-xs text-ink-muted">{t(`density.${settings.density}.description`)}</p>
           {plan.some((item) => item.scripted) && (
