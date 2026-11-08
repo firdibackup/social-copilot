@@ -26,7 +26,7 @@ const BRAND_LINES: [keyof BrandContext, string][] = [
   ['description', 'Deskripsi'],
   ['audience', 'Audiens utama'],
   ['voice', 'Gaya bahasa'],
-  ['wordsUse', 'Kata atau frasa khas'],
+  ['wordsUse', 'Kata atau frasa khas (pakai sesekali, bukan wajib di setiap hook atau CTA)'],
   ['wordsAvoid', 'Hindari kata atau gaya ini'],
   ['designRules', 'Batasan desain gambar (scene wajib mematuhinya)'],
 ]

@@ -3,7 +3,7 @@ import { languagePrompt, type Locale } from './ai-language'
 import { AiOutputError, describeBrand, loadBrandContext, quote, readJson, runLogged, snippetOf } from './ai'
 import { truncate, type BrandContext } from './brand-options'
 import { CAPTION_MAX_LENGTH } from './caption'
-import { carouselGuide, carouselStructure, COVER_RULE, densityRule, singleDensityRule, VOICE_RULE, type HookArchetype } from './carousel-guide'
+import { carouselGuide, carouselStructure, COVER_RULE, densityRule, HOOK_QUALITY_RULE, IDEA_QUALITY_RULE, singleDensityRule, VOICE_RULE, type HookArchetype } from './carousel-guide'
 import type { ContentRequest } from './content-options'
 import { DEFAULT_DENSITY, type TextDensity } from './density-options'
 import { isUuid } from './params'
@@ -113,6 +113,8 @@ const IDEAS_SYSTEM = [
   '- Tulis dalam Bahasa Indonesia yang natural.',
   '- Ide harus cocok dengan brand dan hanya memakai fakta yang tertulis tentang brand.',
   `- ${VOICE_RULE}`,
+  `- ${IDEA_QUALITY_RULE}`,
+  `- ${HOOK_QUALITY_RULE} Title ide sudah berupa hook itu.`,
   '- Semua ide berupa post gambar (carousel 1–10 slide). Aplikasi ini tidak membuat Reels atau video: kalau formatnya identik dengan video (tur, POV, tutorial gerak), ubah menjadi carousel yang menyampaikan isi yang sama.',
   JSON_ONLY,
 ].join('\n')

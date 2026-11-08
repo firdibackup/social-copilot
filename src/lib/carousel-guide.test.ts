@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { carouselGuide, HOOK_ARCHETYPES, VOICE_RULE } from './carousel-guide'
+import { carouselGuide, HOOK_ARCHETYPES, IDEA_QUALITY_RULE, VOICE_RULE } from './carousel-guide'
 
 describe('carouselGuide', () => {
   it('names only the chosen archetype', () => {
@@ -36,6 +36,8 @@ describe('carouselGuide', () => {
     expect(guide).toContain('Hindari pertanyaan ya/tidak yang umum')
     expect(VOICE_RULE).toContain('Hindari bahasa kaku khas dokumen')
     expect(VOICE_RULE).toContain('hindari bahasa terlalu santai')
+    expect(IDEA_QUALITY_RULE).toContain('sudut pandang audiens')
+    expect(IDEA_QUALITY_RULE).toContain('jangan dua ide dengan format yang sama')
   })
 
   it('requires payoff rather than a CTA-only ending for two slides', () => {

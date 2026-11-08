@@ -188,6 +188,7 @@ describe('bulk plan', () => {
     expect(bulkBrief(item('a')).split('\n')).toEqual([
       'Sudut konten: Sudut',
       'Tulis tepat 3 slide.',
+      'Hook cover boleh dipertajam dari garis besar bila bisa lebih spesifik (angka, kontras, atau fakta brand terkuat), asal maknanya sama.',
       'Garis besar yang sudah disetujui owner (ikuti urutannya; sesuaikan bila judul berubah):',
       '1. A',
       '2. B',

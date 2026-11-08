@@ -14,6 +14,7 @@ import {
 } from './apify'
 import { EMPTY_RULE, parseRuleInput, type AutoDmRuleInput } from './auto-dm-rules'
 import { isObject, lengthOf, truncate, type BrandContext } from './brand-options'
+import { HOOK_QUALITY_RULE, IDEA_QUALITY_RULE } from './carousel-guide'
 import { findContent, loadSummaryBatch, reserveDailyUsage, releaseDailyUsage, saveSummary, type ChatSession } from './chat'
 import {
   BULK_ANGLE_MAX_LENGTH,
@@ -337,6 +338,10 @@ const SYSTEM_RULES = [
   '- update_content_strategy, update_design_rules, dan create_auto_dm_rule tidak langsung menyimpan: owner menyetujui lewat kartu konfirmasi. Jangan bilang sudah tersimpan.',
   '- Kalau owner minta mengatur gaya visual atau batasan gambar (mis. "kurangi foto keluarga", "jangan pakai ilustrasi 3D"), pakai update_design_rules.',
   '- analyze_and_draft langsung menyimpan skrip sebagai ide di menu Buat dan memakai kredit AI. Tulis skrip hanya kalau owner memintanya.',
+  '- Kalau owner hanya minta daftar atau list ide, jawab dengan teks berisi persis sebanyak ide yang diminta (judul hook + satu kalimat sudut), tanpa tool. bulk_content hanya untuk owner yang minta dibuatkan kontennya.',
+  `- Ide dan rencana konten: ${IDEA_QUALITY_RULE}`,
+  `- Hook (judul ide dan poin slide 1): ${HOOK_QUALITY_RULE}`,
+  '- Pilih pilar sesuai porsinya di strategi: pilar dengan porsi terbesar didahulukan, pilar kecil hanya kalau jumlah konten cukup.',
   '- Untuk beberapa konten utuh sekaligus (skrip dan gambar), pakai bulk_content: tool itu hanya menampilkan rencana. Skrip dan gambar baru dibuat setelah owner menekan Setuju di kartu; jangan bilang kontennya sudah dibuat.',
   '- Untuk menjadwalkan konten, pakai schedule_content. Gunakan postIds/ideaIds dari riwayat bila owner merujuk konten tertentu, atau topic kosong untuk draft terbaru. Kartu membaca data Buat dan slot Kalender. Belum terjadwal sampai owner menekan Jadwalkan yang siap. Gambar yang masih diproses harus ditunggu; owner bisa menjadwalkan sisanya yang sudah siap. Skrip saja bisa dibuat gambarnya lewat kartu dahulu.',
 ]
