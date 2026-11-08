@@ -78,11 +78,16 @@ const SINGLE_SYSTEM = [
   JSON_ONLY,
 ].join('\n')
 
+/** PARKSPRING test (8 Nov): the same house came out white on one slide and red brick on the next. */
+const SAME_SUBJECT_RULE =
+  '- Kalau produk, bangunan, tempat, atau orang yang sama muncul di beberapa slide, tulis ciri visualnya dengan kata yang sama persis di setiap scene (bentuk, warna, material, fasad, pakaian), supaya terlihat identik di seluruh carousel.'
+
 const CONTENT_SYSTEM = [
   'Kamu perancang konten Instagram untuk satu akun bisnis atau kreator di Indonesia: kamu menulis caption dan merancang gambar post-nya sekaligus.',
   'Aturan:',
   ...CAPTION_RULES,
   ...SLIDE_RULES,
+  SAME_SUBJECT_RULE,
   JSON_ONLY,
 ].join('\n')
 

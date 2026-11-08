@@ -37,6 +37,8 @@ describe('carouselGuide', () => {
     expect(VOICE_RULE).toContain('Hindari bahasa kaku khas dokumen')
     expect(VOICE_RULE).toContain('hindari bahasa terlalu santai')
     expect(IDEA_QUALITY_RULE).toContain('sudut pandang audiens')
+    expect(guide).toContain('slide perbandingan berdampingan')
+    expect(guide).toContain('informasi baru yang belum ada di slide lain')
     expect(IDEA_QUALITY_RULE).toContain('jangan dua ide dengan format yang sama')
   })
 

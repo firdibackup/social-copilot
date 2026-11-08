@@ -183,7 +183,7 @@ export function buildImagePrompt(
   const carousel = input.slide !== null && input.slide.count > 1
   if (input.slide && carousel) {
     lines.push(
-      `It is slide ${input.slide.index} of ${input.slide.count} of one carousel. All slides share one design system: the same background treatment, margins, fonts, text colours and graphic motifs, so they read as one set when swiped. The cover, the inner slides and the closing slide each have their own layout for their role.`,
+      `It is slide ${input.slide.index} of ${input.slide.count} of one carousel. All slides share one design system: the same background treatment, margins, fonts, text colours and graphic motifs, so they read as one set when swiped. A product, building, place or person that appears on several slides must look identical on each of them (same shape, colours, materials and facade). The cover, the inner slides and the closing slide each have their own layout for their role.`,
     )
   }
   const role = carousel ? (input.slide?.role ?? null) : null
