@@ -190,7 +190,7 @@ const BULK_CONTENT: ToolSchema = {
               ideaId: { type: 'string', description: 'ID ide yang sudah tersimpan di menu Buat, untuk dilanjutkan.' },
               pillar: { type: 'string', description: 'Untuk topic baru: nama pilar konten brand yang paling cocok, kalau ada.' },
               angle: { type: 'string', description: `Sudut/hook konten dalam satu kalimat, maksimal ${BULK_ANGLE_MAX_LENGTH} karakter.` },
-              slides: { type: 'integer', description: `Jumlah slide, ${MIN_BULK_SLIDES}–${MAX_SLIDES}.` },
+              slides: { type: 'integer', description: `Jumlah slide, ${MIN_BULK_SLIDES}–${MAX_SLIDES}: sesedikit mungkin yang tetap lengkap, bukan default 5. Perbandingan atau penjelasan singkat cukup 2–4 slide.` },
               points: {
                 type: 'array',
                 items: { type: 'string' },
@@ -342,6 +342,8 @@ const SYSTEM_RULES = [
   `- Ide dan rencana konten: ${IDEA_QUALITY_RULE}`,
   `- Hook (judul ide dan poin slide 1): ${HOOK_QUALITY_RULE}`,
   '- Pilih pilar sesuai porsinya di strategi: pilar dengan porsi terbesar didahulukan, pilar kecil hanya kalau jumlah konten cukup.',
+  '- Jumlah slide mengikuti isi, bukan target: tiap slide wajib membawa poin baru. Kalau isinya singkat (mis. perbandingan dua pilihan), pakai 2–4 slide; lebih banyak hanya kalau ada lebih banyak poin berbeda.',
+  '- Ide perbandingan (A atau B, A vs B) wajib punya satu slide perbandingan berdampingan dengan kriteria yang sama di garis besarnya, bukan A dan B di slide terpisah.',
   '- Untuk beberapa konten utuh sekaligus (skrip dan gambar), pakai bulk_content: tool itu hanya menampilkan rencana. Skrip dan gambar baru dibuat setelah owner menekan Setuju di kartu; jangan bilang kontennya sudah dibuat.',
   '- Untuk menjadwalkan konten, pakai schedule_content. Gunakan postIds/ideaIds dari riwayat bila owner merujuk konten tertentu, atau topic kosong untuk draft terbaru. Kartu membaca data Buat dan slot Kalender. Belum terjadwal sampai owner menekan Jadwalkan yang siap. Gambar yang masih diproses harus ditunggu; owner bisa menjadwalkan sisanya yang sudah siap. Skrip saja bisa dibuat gambarnya lewat kartu dahulu.',
 ]

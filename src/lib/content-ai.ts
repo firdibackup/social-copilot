@@ -80,7 +80,7 @@ const SINGLE_SYSTEM = [
 
 /** PARKSPRING test (8 Nov): the same house came out white on one slide and red brick on the next. */
 const SAME_SUBJECT_RULE =
-  '- Kalau produk, bangunan, tempat, atau orang yang sama muncul di beberapa slide, tulis ciri visualnya dengan kata yang sama persis di setiap scene (bentuk, warna, material, fasad, pakaian), supaya terlihat identik di seluruh carousel.'
+  '- Kalau produk, bangunan, tempat, atau orang yang sama muncul di beberapa slide, tulis ciri visualnya dengan kata yang sama persis di setiap scene (bentuk, warna, material, fasad, pakaian), supaya terlihat identik di seluruh carousel. Ini juga berlaku di slide perbandingan: sisi produk brand memakai deskripsi yang sama, sisi pembanding dibuat jelas berbeda dan tidak terlihat seperti produk brand.'
 
 const CONTENT_SYSTEM = [
   'Kamu perancang konten Instagram untuk satu akun bisnis atau kreator di Indonesia: kamu menulis caption dan merancang gambar post-nya sekaligus.',
