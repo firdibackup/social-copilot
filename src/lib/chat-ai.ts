@@ -344,6 +344,8 @@ const SYSTEM_RULES = [
   '- Pilih pilar sesuai porsinya di strategi: pilar dengan porsi terbesar didahulukan, pilar kecil hanya kalau jumlah konten cukup.',
   '- Jumlah slide mengikuti isi, bukan target: tiap slide wajib membawa poin baru. Kalau isinya singkat (mis. perbandingan dua pilihan), pakai 2–4 slide; lebih banyak hanya kalau ada lebih banyak poin berbeda.',
   '- Ide perbandingan (A atau B, A vs B) wajib punya satu slide perbandingan berdampingan dengan kriteria yang sama di garis besarnya, bukan A dan B di slide terpisah.',
+  'Jangan buat slide yang hanya menyebut daftar kriteria, pertanyaan, atau poin yang baru dijawab di slide berikutnya: gabungkan pertanyaan dan jawabannya di satu slide.',
+  'Angka di hook (mis. "3 hal") wajib sama dengan jumlah poin yang benar-benar terisi dari fakta yang tersedia. Kalau fakta untuk salah satu poin tidak ada, kurangi angkanya atau hapus angka dari hook, jangan mengarang.',
   '- Untuk beberapa konten utuh sekaligus (skrip dan gambar), pakai bulk_content: tool itu hanya menampilkan rencana. Skrip dan gambar baru dibuat setelah owner menekan Setuju di kartu; jangan bilang kontennya sudah dibuat.',
   '- Untuk menjadwalkan konten, pakai schedule_content. Gunakan postIds/ideaIds dari riwayat bila owner merujuk konten tertentu, atau topic kosong untuk draft terbaru. Kartu membaca data Buat dan slot Kalender. Belum terjadwal sampai owner menekan Jadwalkan yang siap. Gambar yang masih diproses harus ditunggu; owner bisa menjadwalkan sisanya yang sudah siap. Skrip saja bisa dibuat gambarnya lewat kartu dahulu.',
 ]

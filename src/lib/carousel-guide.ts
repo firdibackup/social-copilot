@@ -89,10 +89,12 @@ export function carouselGuide(hook: HookArchetype = 'auto', density: TextDensity
     ...(slides ? [`- Struktur ${slides} slide: ${carouselStructure(slides)}.`] : []),
     '- Peran struktur: Bridge menghubungkan hook ke konteks dan menjelaskan mengapa topik penting; Problem menunjukkan masalah, penyebab, atau dampak; Reframe memberi cara pandang baru; Value membayar janji hook dengan langkah, poin, atau framework yang dapat dipakai; Proof memakai contoh, demonstrasi, data, before/after, atau pengalaman yang benar-benar tersedia; Recap merangkum inti; CTA meminta tepat satu tindakan.',
     '- Isi yang singkat tidak perlu dipanjangkan: kalau poin berbeda habis, gabungkan peran dan pakai slide lebih sedikit, bukan mengulang poin dengan kata lain.',
+    '- Jangan buat slide yang hanya menyebut daftar kriteria, pertanyaan, atau poin yang baru dijawab di slide berikutnya: gabungkan pertanyaan dan jawabannya di satu slide.',
     '- Jangan memaksakan peran yang tidak mendapat slide sendiri. Jika dua peran digabung, satu slide harus menjalankan keduanya secara ringkas. Jangan menambah klaim atau filler hanya untuk memenuhi struktur.',
     '- Slide 2 mulai membayar janji hook tanpa basa-basi. Hook menyebut "5 cara" berarti Value harus memberikan 5 cara lengkap.',
     '- Janji hook wajib dibuktikan secara konkret: "bandingkan A dan B" berarti ada slide perbandingan berdampingan dengan kriteria yang sama (mis. waktu, biaya, risiko); "apa artinya" berarti ada jawaban nyata, bukan ajakan untuk memikirkannya.',
     '- Tiap slide isi membawa informasi baru yang belum ada di slide lain: jangan ulangi poin, manfaat, atau kalimat yang sama dengan kata berbeda. Hindari poin kosong seperti "pertimbangkan kenyamanan" atau "pikirkan kebutuhan Anda"; ganti dengan fakta, angka, contoh, atau langkah yang bisa langsung dipakai.',
+    '- Angka di hook (mis. "3 hal") wajib sama dengan jumlah poin yang benar-benar terisi dari fakta yang tersedia. Kalau fakta untuk salah satu poin tidak ada, kurangi angkanya atau hapus angka dari hook, jangan mengarang.',
     `- Tiap slide isi berisi satu hal yang bisa langsung dipakai pembaca (langkah konkret, contoh kalimat, checklist, angka dari topik), bukan sekadar nama konsep. ${INNER_SLIDE[density]}`,
     slides === 2
       ? '- Carousel 2 slide: slide 2 adalah Value + CTA; jawaban atau isi wajib membayar hook, lalu boleh ditutup satu ajakan singkat.'

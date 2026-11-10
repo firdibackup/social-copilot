@@ -156,7 +156,7 @@ const TEXT_LEADS =
   'On this inner slide the text is the main element and takes the larger share of the slide; any photo or product is smaller and supports it.'
 
 const MODERN_LOOK =
-  'Overall: contemporary and uncluttered; no clip-art, stock-template look, lens flares, glossy effects, heavy vignettes or busy borders.'
+  'Overall: contemporary and uncluttered; no clip-art, stock-template look, lens flares, glossy effects, heavy vignettes or busy borders. Every card, box, table cell or button holds words from the given text; never draw empty ones as decoration.'
 
 /** Role layouts when the owner's own visual style leads and no reference was sent for the role. */
 const PLAIN_LAYOUTS: Record<LayoutRole, string> = {

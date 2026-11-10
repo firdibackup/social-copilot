@@ -39,6 +39,8 @@ describe('carouselGuide', () => {
     expect(IDEA_QUALITY_RULE).toContain('sudut pandang audiens')
     expect(guide).toContain('slide perbandingan berdampingan')
     expect(guide).toContain('informasi baru yang belum ada di slide lain')
+    expect(guide).toContain('gabungkan pertanyaan dan jawabannya di satu slide')
+    expect(guide).toContain('kurangi angkanya atau hapus angka dari hook')
     expect(IDEA_QUALITY_RULE).toContain('jangan dua ide dengan format yang sama')
   })
 
