@@ -32,7 +32,7 @@ export const IDEA_QUALITY_RULE =
   'Kualitas ide: mulai dari sudut pandang audiens (masalah, kekhawatiran, pertanyaan, atau keinginan mereka), bukan daftar fitur brand. Prioritaskan fakta brand yang paling kuat dan paling membedakan (angka, hasil, harga, promo, keunggulan yang tidak dimiliki pesaing) sebagai hook. Variasikan format antar ide, mis. checklist, perbandingan, mitos vs fakta, simulasi biaya atau angka, tanya jawab, sebelum–sesudah, cerita keseharian; jangan dua ide dengan format yang sama dalam satu daftar. Kata atau frasa khas brand dipakai sesekali sebagai warna, bukan wajib di setiap hook atau CTA.'
 
 export const COVER_RULE =
-  'Hook slide 1: satu hook 3–7 kata yang menyebut masalah, manfaat, atau pertanyaan spesifik dan memberi alasan untuk menggeser. Bukan sekadar judul topik. Tambahkan subheading opsional satu kalimat pendek (maksimal 12 kata) hanya jika memberi konteks atau membuka rasa penasaran yang mengarah alami ke slide 2; kosongkan jika hook sudah kuat. Subheading tidak boleh mengulang hook, membocorkan seluruh jawaban, menjadi CTA generik, atau membuat klaim baru. Tanpa paragraf penjelasan, bullet, contoh, tips, atau CTA. Aturan ini berlaku pada semua pilihan kepadatan teks.'
+  'Hook slide 1: satu hook 5–10 kata yang langsung dipahami tanpa konteks lain: sebut subjeknya (produk, tempat, atau topik) bersama masalah, manfaat, kontras, atau pertanyaan spesifik yang memberi alasan untuk menggeser. Jangan pangkas hook sampai tinggal kata sifat atau daftar kata tanpa subjek (mis. "Aman, aktif, dan berkumpul"). Bukan sekadar judul topik. Tambahkan subheading satu kalimat pendek (maksimal 14 kata) yang memberi konteks atau membuka rasa penasaran ke slide 2; kosongkan hanya jika hook sudah lengkap konteksnya. Subheading tidak boleh mengulang hook, membocorkan seluruh jawaban, menjadi CTA generik, atau membuat klaim baru. Tanpa paragraf penjelasan, bullet, contoh, tips, atau CTA. Aturan ini berlaku pada semua pilihan kepadatan teks.'
 
 const INNER_SLIDE: Record<TextDensity, string> = {
   padat:
@@ -102,6 +102,6 @@ export function carouselGuide(hook: HookArchetype = 'auto', density: TextDensity
     '- Hindari isi generik: kalau slide tetap masuk akal untuk topik lain, tulis ulang lebih spesifik. Jangan pakai frasa kosong seperti "game changer", "next level", "ubah segalanya", "solusi yang berhasil". Jangan ulangi pola kalimat yang sama di slide berbeda.',
     '- Pakai satu gaya sapaan secara konsisten, mengikuti gaya bahasa brand kalau ada.',
     '- Caption mendukung slide, bukan menyalin semua isinya.',
-    '- Sebelum menjawab, periksa: cover memakai hook 3–7 kata yang spesifik dan sesuai suara brand; subheading hanya ada bila membantu dan tetap pendek; isi membayar janji hook dan mengikuti kepadatan; tidak ada klaim tanpa bukti. Tulis ulang bagian yang belum memenuhi, lalu keluarkan hanya JSON akhir tanpa hasil pemeriksaan.',
+    '- Sebelum menjawab, periksa: cover memakai hook 5–10 kata yang spesifik, menyebut subjeknya, dan sesuai suara brand; subheading hanya ada bila membantu dan tetap pendek; isi membayar janji hook dan mengikuti kepadatan; tidak ada klaim tanpa bukti. Tulis ulang bagian yang belum memenuhi, lalu keluarkan hanya JSON akhir tanpa hasil pemeriksaan.',
   ].join('\n')
 }

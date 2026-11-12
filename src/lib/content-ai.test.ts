@@ -406,7 +406,7 @@ describe('buildContentMessages text density', () => {
       expect(prompt).toContain('Berlaku hanya untuk slide isi')
       expect(prompt).toContain('subheading opsional satu kalimat pendek')
       expect(prompt).toContain('mengarah alami ke slide 2')
-      expect(prompt).toContain('satu hook 3–7 kata')
+      expect(prompt).toContain('satu hook 5–10 kata')
       expect(prompt).toContain('Template hanya struktur, bukan gaya penulisan')
       expect(prompt).toContain('Gaya bahasa: Santai, pakai "kak"')
       expect(prompt).not.toContain('Teks di gambar setiap slide')
