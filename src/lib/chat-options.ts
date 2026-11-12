@@ -249,7 +249,7 @@ export function bulkBrief(item: Pick<BulkPlanItem, 'angle' | 'slides' | 'points'
   return [
     item.angle && `Sudut konten: ${item.angle}`,
     `Tulis tepat ${item.slides} slide.`,
-    item.points.length > 0 && 'Hook cover boleh dipertajam dari garis besar bila bisa lebih spesifik (angka, kontras, atau fakta brand terkuat), asal maknanya sama.',
+    item.points.length > 0 && 'Hook cover memakai judul dan poin 1 yang sudah disetujui: pertahankan subjek dan maknanya, hanya rapikan agar pas di cover; jangan diganti dengan hook lain.',
     item.points.length > 0 &&
       `Garis besar yang sudah disetujui owner (ikuti urutannya; sesuaikan bila judul berubah):\n${item.points.map((point, index) => `${index + 1}. ${point}`).join('\n')}`,
   ]
