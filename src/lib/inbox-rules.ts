@@ -6,6 +6,12 @@ const notificationMessages = (locale: Locale) => locale === 'en' ? enMessages : 
 
 /** Read, reply and notification rules for Balasan's DMs and comments. Pure, so the browser and tests share them. */
 
+/**
+ * Meta rejected instagram_business_manage_messages (App Review, Nov 2026). While false, connecting doesn't ask for it,
+ * webhooks skip messages, Auto DM doesn't run, and DM features show locked. Flip once Meta approves it.
+ */
+export const DM_APPROVED = false
+
 /** Instagram's limit for a text DM, including private replies to comments. */
 export const REPLY_MAX_LENGTH = 1000
 /** Instagram's limit for a comment, the same as a caption's. A private reply is a DM: REPLY_MAX_LENGTH. */

@@ -6,6 +6,7 @@ import { getPublishingAccount, markNeedsReconnect, NeedsReconnectError, type Pub
 import { getConversation, recordMessage, recordPrivateReply } from './dm'
 import type { MessageEvent, PostbackEvent } from './dm-webhook'
 import { describeError } from './errors'
+import { DM_APPROVED } from './inbox-rules'
 import { fetchFollowsBusiness, InstagramApiError, replyToComment, sendAutoDm } from './instagram'
 
 /** What one webhook brought that an Auto DM rule may answer: only what was stored for the first time. */
@@ -146,6 +147,7 @@ function answer(userId: string, accountId: string, rules: AutoDmRule[], trigger:
  * Meta, so it never throws: a failed step lands on its run, anything else in the log.
  */
 export async function runAutoDm(userId: string, accountId: string, triggers: readonly AutoDmTrigger[]): Promise<void> {
+  if (!DM_APPROVED) return
   let rules: AutoDmRule[]
   try {
     rules = await listRules(userId, accountId, true)

@@ -4,9 +4,11 @@ import { getLocale, getMessages, getTranslations } from 'next-intl/server'
 
 import { revalidatePath } from 'next/cache'
 import { currentUser, requireUser } from '@/lib/auth'
+import { getBillingCatalog } from '@/lib/billing-catalog'
 import { getCurrentPeriod, getUpgradeQuote, paymentsEnabled, quoteCheckout, startCheckout, startUpgradeCheckout, syncPendingPayments } from '@/lib/billing'
 import { CouponError } from '@/lib/coupon-options'
 import { describeError } from '@/lib/errors'
+import { db, unwrap } from '@/lib/supabase'
 import { CUSTOMER_NAME_MAX_LENGTH, parseCustomerContact } from '@/lib/whatsapp'
 
 /** The database's own coupon checks, raised when the last use went or the coupon changed between preview and pay. */
@@ -96,6 +98,22 @@ export async function checkoutAction(input: {
     revalidatePath('/', 'layout')
     return { link }
   } catch (error) { return { error: await billingError(error) } }
+}
+
+/** Gabung daftar tunggu for a plan not on sale yet. Joining twice is fine. */
+export async function joinWaitlistAction(planId: unknown): Promise<{ error: string | null }> {
+  const t = await getTranslations('settings')
+  const userId = await requireUser()
+  try {
+    const { catalog } = await getBillingCatalog()
+    const plan = catalog.plans.find((plan) => plan.id === planId && plan.waitlist && !plan.active)
+    if (!plan) return { error: t('billing_actions.invalidPlan') }
+    unwrap(await db().from('plan_waitlist').upsert({ user_id: userId, plan_id: plan.id }, { onConflict: 'user_id,plan_id', ignoreDuplicates: true }))
+    return { error: null }
+  } catch (error) {
+    console.error('[billing] daftar tunggu:', describeError(error))
+    return { error: t('billing_actions.couldnTJoinTheWaitlistTryAgain') }
+  }
 }
 
 /** Whether a paid period covers now. Reads the database only, so the return page can poll it cheaply. */

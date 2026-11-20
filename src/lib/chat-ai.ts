@@ -16,6 +16,7 @@ import { EMPTY_RULE, parseRuleInput, type AutoDmRuleInput } from './auto-dm-rule
 import { isObject, lengthOf, truncate, type BrandContext } from './brand-options'
 import { HOOK_QUALITY_RULE, IDEA_QUALITY_RULE } from './carousel-guide'
 import { hookGuide } from './hook-guide'
+import { DM_APPROVED } from './inbox-rules'
 import { findContent, loadSummaryBatch, reserveDailyUsage, releaseDailyUsage, saveSummary, type ChatSession } from './chat'
 import {
   BULK_ANGLE_MAX_LENGTH,
@@ -320,7 +321,7 @@ export function chatTools(deepSearch: boolean): ToolSchema[] {
     SCHEDULE_CONTENT,
     UPDATE_CONTENT_STRATEGY,
     UPDATE_DESIGN_RULES,
-    CREATE_AUTO_DM_RULE,
+    ...(DM_APPROVED ? [CREATE_AUTO_DM_RULE] : []),
   ]
 }
 

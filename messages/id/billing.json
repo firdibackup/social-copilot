@@ -53,7 +53,14 @@
     "posts": "±{count} post",
     "proDescription": "Untuk rutin membuat dan menjadwalkan konten.",
     "maxDescription": "Lebih banyak ruang untuk produksi dan riset konten.",
-    "priority": "Prioritas proses"
+    "priority": "Prioritas proses",
+    "waitlistBadge": "Segera hadir",
+    "waitlistHint": "Termasuk DM dan Auto DM Instagram, yang masih menunggu persetujuan Meta. Masuk daftar tunggu untuk dikabari saat dibuka.",
+    "waitlistDm": "DM dan Auto DM Instagram",
+    "waitlistJoin": "Gabung daftar tunggu",
+    "waitlistJoining": "Mendaftarkan…",
+    "waitlistJoined": "Kamu ada di daftar tunggu",
+    "waitlistFailed": "Gagal masuk daftar tunggu. Coba lagi."
   },
   "page": {
     "title": "Berlangganan",

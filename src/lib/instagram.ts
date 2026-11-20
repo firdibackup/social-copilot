@@ -4,16 +4,19 @@ import { MAX_GROUP_IMAGES } from './brand-options'
 import type { OutgoingDm } from './auto-dm-rules'
 import type { MessageEvent } from './dm-webhook'
 import { env } from './env'
+import { DM_APPROVED } from './inbox-rules'
 
 /** Analitik needs it; accounts connected before it existed must reconnect once. */
 export const INSIGHTS_SCOPE = 'instagram_business_manage_insights'
 /** The Komentar tab needs it, the same way. */
 export const COMMENTS_SCOPE = 'instagram_business_manage_comments'
 
+export const MESSAGES_SCOPE = 'instagram_business_manage_messages'
+
 export const INSTAGRAM_SCOPES = [
   'instagram_business_basic',
   'instagram_business_content_publish',
-  'instagram_business_manage_messages',
+  ...(DM_APPROVED ? [MESSAGES_SCOPE] : []),
   INSIGHTS_SCOPE,
   COMMENTS_SCOPE,
 ] as const
@@ -696,7 +699,11 @@ export async function listInstagramConversations(
 /** Asks Meta to send this account's DMs, Auto DM button taps and comments to the app's webhook. Safe to repeat. */
 export async function subscribeToWebhooks(accessToken: string, scopes: readonly string[]): Promise<void> {
   // Meta refuses the whole call for a field whose permission wasn't granted; comments wait for a reconnect.
-  const fields = scopes.includes(COMMENTS_SCOPE) ? 'messages,messaging_postbacks,comments' : 'messages,messaging_postbacks'
-  const body = await graphPost('/me/subscribed_apps', { subscribed_fields: fields, access_token: accessToken })
+  const fields = [
+    ...(DM_APPROVED && scopes.includes(MESSAGES_SCOPE) ? ['messages', 'messaging_postbacks'] : []),
+    ...(scopes.includes(COMMENTS_SCOPE) ? ['comments'] : []),
+  ]
+  if (fields.length === 0) return
+  const body = await graphPost('/me/subscribed_apps', { subscribed_fields: fields.join(','), access_token: accessToken })
   expectSuccess(body, 'langganan DM dan komentar')
 }

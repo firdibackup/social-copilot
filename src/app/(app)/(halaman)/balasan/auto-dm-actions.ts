@@ -9,6 +9,7 @@ import { requireAccount } from '@/lib/auth'
 import { getPublishingAccount } from '@/lib/connection'
 import { describeError } from '@/lib/errors'
 import { fetchOwnMedia } from '@/lib/instagram'
+import { DM_APPROVED } from '@/lib/inbox-rules'
 import { isUuid } from '@/lib/params'
 import { instagramErrorMessage, type ActionError } from './action-utils'
 
@@ -31,6 +32,7 @@ export interface RulePost {
 export async function saveAutoDmRuleAction(id: unknown, input: unknown): Promise<ActionError> {
   const t = await getTranslations('inbox.autoDmActions')
   const NOT_FOUND = t('ruleNotFound')
+  if (!DM_APPROVED) return t('dmLocked')
   const { userId, accountId } = await requireAccount()
   const ruleId = id === null ? null : isUuid(id) ? id : undefined
   if (ruleId === undefined) return NOT_FOUND

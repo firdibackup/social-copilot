@@ -14,13 +14,15 @@
     "conversationNotFound": "Percakapan tidak ditemukan.",
     "noMessagesToReplyToYet": "Belum ada pesan untuk dibalas.",
     "syncedCount": "{count, plural, other {# pesan ditarik dari Instagram.}}",
-    "replyLimit": "Balasan maksimal {max} karakter."
+    "replyLimit": "Balasan maksimal {max} karakter.",
+    "dmLocked": "DM segera hadir, menunggu persetujuan Meta."
   },
   "autoDmActions": {
     "ruleNotFound": "Aturan tidak ditemukan.",
     "couldnTSaveTheRuleCheckYourSupabaseConnection": "Aturan gagal disimpan. Periksa koneksi Supabase.",
     "couldnTChangeTheRuleSStatusTryAgain": "Status aturan gagal diubah. Coba lagi.",
-    "couldnTDeleteTheRuleTryAgain": "Aturan gagal dihapus. Coba lagi."
+    "couldnTDeleteTheRuleTryAgain": "Aturan gagal dihapus. Coba lagi.",
+    "dmLocked": "Auto DM segera hadir, menunggu persetujuan Meta."
   },
   "autoDmRules": {
     "noRulesYetClickAutoDmToCreateYour": "Belum ada aturan. Klik + Auto DM untuk membuat yang pertama.",
@@ -63,7 +65,8 @@
     "syncPartial": "Komentar dari {posts} post ditarik; {failed} post gagal dibaca.",
     "synced": "Komentar dari {posts} post ditarik.",
     "replyLimit": "Balasan komentar maksimal {max} karakter.",
-    "dmLimit": "DM maksimal {max} karakter."
+    "dmLimit": "DM maksimal {max} karakter.",
+    "dmLocked": "DM segera hadir, menunggu persetujuan Meta."
   },
   "commentItem": {
     "couldnTReachTheServerTryAgain": "Gagal menghubungi server. Coba lagi.",
@@ -82,7 +85,8 @@
     "writeAReply": "Tulis balasan…",
     "writeADm": "Tulis DM…",
     "you": "{name} (kamu)",
-    "privateDm": "DM pribadi ke {name}. Instagram hanya menerima satu DM untuk komentar ini."
+    "privateDm": "DM pribadi ke {name}. Instagram hanya menerima satu DM untuk komentar ini.",
+    "dmLocked": "Segera hadir · menunggu persetujuan Meta"
   },
   "comments": {
     "postWithoutACaption": "Post tanpa caption",
@@ -146,7 +150,8 @@
     "threadsExpired": "Token Threads kedaluwarsa atau dicabut, jadi balasan tidak bisa ditarik. <reconnect>Hubungkan ulang Threads</reconnect> dengan @{username}.",
     "threadsPermission": "Komentar Threads butuh izin membaca balasan. <reconnect>Hubungkan ulang Threads</reconnect> sekali.",
     "instagramExpired": "Token Instagram kedaluwarsa atau dicabut, jadi komentar tidak bisa ditarik. <reconnect>Hubungkan ulang Instagram</reconnect> dengan @{username}.",
-    "instagramPermission": "Komentar butuh izin baru untuk membaca dan membalas komentar. <reconnect>Hubungkan ulang Instagram</reconnect> sekali dan masuk dengan @{username}."
+    "instagramPermission": "Komentar butuh izin baru untuk membaca dan membalas komentar. <reconnect>Hubungkan ulang Instagram</reconnect> sekali dan masuk dengan @{username}.",
+    "dmLocked": "DM dan Auto DM segera hadir. Fitur ini menunggu persetujuan Meta; komentar Instagram dan Threads tetap bisa dibalas dari tab Komentar."
   },
   "pendingLink": {
     "loadingReplies": "Memuat balasan"

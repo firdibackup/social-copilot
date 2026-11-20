@@ -20,7 +20,8 @@
     "enterACouponCode": "Masukkan kode kupon.",
     "invalidPlanSelection": "Pilihan paket tidak valid.",
     "paymentsArenTEnabledYet": "Pembayaran belum diaktifkan.",
-    "couldnTCheckPaymentStatusTryAgain": "Status pembayaran belum bisa diperiksa. Coba lagi sebentar lagi."
+    "couldnTCheckPaymentStatusTryAgain": "Status pembayaran belum bisa diperiksa. Coba lagi sebentar lagi.",
+    "couldnTJoinTheWaitlistTryAgain": "Gagal masuk daftar tunggu. Coba lagi."
   },
   "billing_panel": {
     "couldnTCheckTheCouponTryAgain": "Kupon belum bisa diperiksa. Coba lagi.",

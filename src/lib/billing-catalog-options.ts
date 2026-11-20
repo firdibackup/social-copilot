@@ -12,6 +12,8 @@ export interface CatalogPlan extends Plan {
   researchDaily: number
   prioritySupport: boolean
   earlyAccess: boolean
+  /** Shown with a Gabung daftar tunggu button instead of being sold; only meaningful while not active. */
+  waitlist?: boolean
 }
 export interface BillingCatalog {
   plans: CatalogPlan[]
@@ -32,6 +34,8 @@ export const DEFAULT_CATALOG: BillingCatalog = {
   durations: [{ months: 1, discount: 0 }, { months: 3, discount: 5 }, { months: 6, discount: 11 }, { months: 12, discount: 17 }],
   rates: { ...TASK_CREDITS, image: 20 }, supportUrl: '', supportHours: '',
 }
+/** What /langganan and the landing page list: plans on sale, then waitlist-only plans. */
+export const shownPlans = (catalog: BillingCatalog) => catalog.plans.filter((plan) => plan.active || plan.waitlist)
 /** Mayar rejects payment amounts below Rp 1.000. */
 export const MIN_PRICE_IDR = 1_000
 /** Rough monthly post count shown instead of raw credits: 2.500 credits ≈ 30 carousel posts. */
@@ -101,7 +105,8 @@ export function parseBillingCatalog(value: unknown, locale: Locale = 'id'): Bill
       || !shortText(plan.name, 80) || !String(plan.name).trim() || !shortText(plan.description, 250)
       || !integer(plan.priceIdr, MIN_PRICE_IDR, 100_000_000) || !integer(plan.credits, 1, 1_000_000)
       || plan.days !== 30 || !integer(plan.chatDaily, 0, 100_000) || !integer(plan.researchDaily, 0, 10_000)
-      || typeof plan.active !== 'boolean' || typeof plan.prioritySupport !== 'boolean' || typeof plan.earlyAccess !== 'boolean') {
+      || typeof plan.active !== 'boolean' || typeof plan.prioritySupport !== 'boolean' || typeof plan.earlyAccess !== 'boolean'
+      || (plan.waitlist !== undefined && typeof plan.waitlist !== 'boolean')) {
       throw new Error(t('message3'))
     }
     ids.add(plan.id)

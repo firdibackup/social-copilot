@@ -369,25 +369,22 @@ describe('fetchCustomerProfile', () => {
 })
 
 describe('subscribeToWebhooks', () => {
-  it('subscribes the account to messages, Auto DM button taps and comments', async () => {
+  it('subscribes the account to comments only while DMs await Meta approval', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ success: true }))
 
     await subscribeToWebhooks('token-1', INSTAGRAM_SCOPES)
     const [url, init] = fetchMock.mock.calls[0]
     expect(String(url)).toBe('https://graph.instagram.com/me/subscribed_apps')
     expect(Object.fromEntries(init?.body as URLSearchParams)).toEqual({
-      subscribed_fields: 'messages,messaging_postbacks,comments',
+      subscribed_fields: 'comments',
       access_token: 'token-1',
     })
   })
 
-  it('leaves comments out until their permission is granted, which Meta would refuse', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ success: true }))
-
+  it('makes no call when nothing it may subscribe to was granted, which Meta would refuse', async () => {
     await subscribeToWebhooks('token-1', ['instagram_business_basic', 'instagram_business_manage_messages'])
-    expect(Object.fromEntries(fetchMock.mock.calls[0][1]?.body as URLSearchParams)).toMatchObject({
-      subscribed_fields: 'messages,messaging_postbacks',
-    })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(INSTAGRAM_SCOPES).not.toContain('instagram_business_manage_messages')
   })
 
   it('fails when Meta does not confirm', async () => {

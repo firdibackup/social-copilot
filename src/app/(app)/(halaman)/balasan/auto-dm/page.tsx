@@ -3,6 +3,7 @@ import { IntlMessages } from '@/i18n/client-messages'
 import { getTranslations } from 'next-intl/server'
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
 import { LoadingState } from '@/components/loading-state'
@@ -12,6 +13,7 @@ import { getRule } from '@/lib/auto-dm'
 import { EMPTY_RULE, toRuleInput, type AutoDmRule } from '@/lib/auto-dm-rules'
 import { getConnection, type Connection } from '@/lib/connection'
 import { describeError } from '@/lib/errors'
+import { DM_APPROVED } from '@/lib/inbox-rules'
 import { firstValue, isUuid, type SearchParams } from '@/lib/params'
 import { loadBrand } from '../inbox'
 import { AutoDmForm } from './auto-dm-form'
@@ -36,6 +38,7 @@ export default async function AutoDmPage({ searchParams }: AutoDmPageProps) {
 
 async function AutoDmEditor({ searchParams }: AutoDmPageProps) {
   const t = await getTranslations('inbox.builderPage')
+  if (!DM_APPROVED) redirect('/balasan?tab=dm')
   const params = await searchParams
   await connection()
   const { userId, accountId } = await requireAccount()

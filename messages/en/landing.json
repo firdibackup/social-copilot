@@ -193,10 +193,11 @@
       "creation": "AI ideas, scripts, carousels, images, and captions",
       "calendar": "Content calendar and scheduling",
       "accounts": "1 Instagram account + 1 Threads account",
-      "analytics": "Instagram analytics and Auto DM",
+      "analytics": "Instagram analytics",
       "allPro": "All Pro features",
       "support": "Priority 1-on-1 support",
-      "earlyAccess": "Early access to new features"
+      "earlyAccess": "Early access to new features",
+      "dmSoon": "Instagram DMs and Auto DM (coming soon, awaiting Meta approval)"
     },
     "descriptions": {
       "pro": "{count}+ posts a month, ready for your weekly review.",
@@ -207,7 +208,8 @@
     "monthly": "Billed monthly · No automatic renewal",
     "upfront": "Paid once upfront · {amount}/{count} mo",
     "choose": "Choose {name}",
-    "provisional": "Prices may change. Current pricing is confirmed before payment."
+    "provisional": "Prices may change. Current pricing is confirmed before payment.",
+    "joinWaitlist": "Join the waitlist"
   },
   "story": {
     "showcase": {

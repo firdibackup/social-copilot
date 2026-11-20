@@ -18,7 +18,7 @@ import { getPublishingAccount } from '@/lib/connection'
 import { recordPrivateReply } from '@/lib/dm'
 import { REPLY_MAX_LENGTH } from '@/lib/inbox-rules'
 import { describeError } from '@/lib/errors'
-import { canPrivateReply, COMMENT_MAX_LENGTH } from '@/lib/inbox-rules'
+import { canPrivateReply, COMMENT_MAX_LENGTH, DM_APPROVED } from '@/lib/inbox-rules'
 import { deleteComment, replyToComment, sendPrivateReply, setCommentHidden } from '@/lib/instagram'
 import { draftReply, REPLY_CONTEXT_MESSAGES, type ReplyChannel } from '@/lib/reply-ai'
 import { inboxAiError, instagramErrorMessage, text, type ActionError, type DraftResult, type SyncState } from './action-utils'
@@ -146,6 +146,7 @@ export async function privateReplyAction(commentId: unknown, reply: unknown): Pr
   const PRIVATE_REPLY_CLOSED =
   t('thisCommentAlreadyReceivedADmOrIsOver')
   const NOT_FOUND = t('commentNotFound')
+  if (!DM_APPROVED) return t('dmLocked')
   const { userId, accountId } = await requireAccount()
   const id = commentIdOf(commentId)
   const message = text(reply)

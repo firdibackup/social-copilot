@@ -3,8 +3,8 @@
 import Link from 'next/link'
 import { useLocale, useTranslations } from 'next-intl'
 import { useState } from 'react'
-import { ArrowUpRight, Check } from 'lucide-react'
-import { DEFAULT_CATALOG, estimatedPosts as postsFor, quotePurchase, type BillingCatalog } from '@/lib/billing-catalog-options'
+import { ArrowUpRight, Check, Lock } from 'lucide-react'
+import { DEFAULT_CATALOG, estimatedPosts as postsFor, quotePurchase, shownPlans, type BillingCatalog } from '@/lib/billing-catalog-options'
 import { formatRupiah } from '@/lib/billing-options'
 import { intlLocale } from '@/i18n/locale-config'
 import styles from './pricing.module.css'
@@ -15,7 +15,8 @@ export function LandingPricing({ catalog }: { catalog: BillingCatalog }) {
   const [selected, setSelected] = useState(1)
   const months = catalog.durations.some((item) => item.months === selected) ? selected : catalog.durations[0].months
   const pro = catalog.plans.find((plan) => plan.id === 'pro')
-  const plans = catalog.plans.filter((plan) => plan.active)
+  const plans = shownPlans(catalog)
+  const discount = catalog.durations.find((item) => item.months === months)?.discount ?? 0
   return <section id="harga" className={styles.section} aria-labelledby="pricing-title">
     <div className={styles.inner}>
       <header className={styles.heading}>
@@ -30,7 +31,8 @@ export function LandingPricing({ catalog }: { catalog: BillingCatalog }) {
       {plans.length === 0 && <p className={styles.note}>{t('empty')}</p>}
       <div className={styles.grid}>
         {plans.map((plan) => {
-          const quote = quotePurchase(catalog, 0, plan.id, months)
+          // A waitlist plan isn't on sale, so quotePurchase refuses it; its price shows with the same discount.
+          const quote = plan.active ? quotePurchase(catalog, 0, plan.id, months) : { total: Math.round(plan.priceIdr * months * (100 - discount) / 100) }
           const multiplier = pro && plan.id !== pro.id && plan.credits > pro.credits ? plan.credits / pro.credits : null
           const estimatedPosts = postsFor(plan.credits)
           const postCount = estimatedPosts.toLocaleString(intlLocale(locale))
@@ -46,6 +48,7 @@ export function LandingPricing({ catalog }: { catalog: BillingCatalog }) {
               t('features.accounts'),
               t('features.analytics'),
             ]),
+            ...(plan.waitlist && !plan.active ? [t('features.dmSoon')] : []),
             ...(plan.prioritySupport ? [t('features.support')] : []),
             ...(plan.earlyAccess ? [t('features.earlyAccess')] : []),
           ]
@@ -54,7 +57,9 @@ export function LandingPricing({ catalog }: { catalog: BillingCatalog }) {
             <div className={styles.price} aria-live="polite"><strong>{formatRupiah(Math.round(quote.total / months), locale)}</strong><span>{t('perMonth')}</span></div>
             <p className={styles.total}>{months === 1 ? t('monthly') : t('upfront', { amount: formatRupiah(quote.total, locale), count: months })}</p>
             <p className={styles.description}>{description}</p>
-            <Link href={`/langganan?paket=${encodeURIComponent(plan.id)}&bulan=${months}`} className={styles.choose}>{t('choose', { name: plan.name })}<ArrowUpRight size={18} aria-hidden="true" /></Link>
+            {plan.active
+              ? <Link href={`/langganan?paket=${encodeURIComponent(plan.id)}&bulan=${months}`} className={styles.choose}>{t('choose', { name: plan.name })}<ArrowUpRight size={18} aria-hidden="true" /></Link>
+              : <Link href="/langganan" className={`${styles.choose} ${styles.waitlist}`}><Lock size={16} aria-hidden="true" />{t('joinWaitlist')}</Link>}
             <ul>{features.map((feature) => <li key={feature}><Check size={16} aria-hidden="true" /><span>{feature}</span></li>)}</ul>
           </article>
         })}

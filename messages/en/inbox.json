@@ -14,13 +14,15 @@
     "conversationNotFound": "Conversation not found.",
     "noMessagesToReplyToYet": "No messages to reply to yet.",
     "syncedCount": "{count, plural, one {# message fetched from Instagram.} other {# messages fetched from Instagram.}}",
-    "replyLimit": "Replies can be up to {max} characters."
+    "replyLimit": "Replies can be up to {max} characters.",
+    "dmLocked": "DMs are coming soon, awaiting Meta approval."
   },
   "autoDmActions": {
     "ruleNotFound": "Rule not found.",
     "couldnTSaveTheRuleCheckYourSupabaseConnection": "Couldn't save the rule. Check your Supabase connection.",
     "couldnTChangeTheRuleSStatusTryAgain": "Couldn't change the rule's status. Try again.",
-    "couldnTDeleteTheRuleTryAgain": "Couldn't delete the rule. Try again."
+    "couldnTDeleteTheRuleTryAgain": "Couldn't delete the rule. Try again.",
+    "dmLocked": "Auto DM is coming soon, awaiting Meta approval."
   },
   "autoDmRules": {
     "noRulesYetClickAutoDmToCreateYour": "No rules yet. Click + Auto DM to create your first one.",
@@ -63,7 +65,8 @@
     "syncPartial": "Fetched comments from {posts} posts; {failed} posts could not be read.",
     "synced": "Fetched comments from {posts} posts.",
     "replyLimit": "Comment replies can be up to {max} characters.",
-    "dmLimit": "DMs can be up to {max} characters."
+    "dmLimit": "DMs can be up to {max} characters.",
+    "dmLocked": "DMs are coming soon, awaiting Meta approval."
   },
   "commentItem": {
     "couldnTReachTheServerTryAgain": "Couldn't reach the server. Try again.",
@@ -82,7 +85,8 @@
     "writeAReply": "Write a reply…",
     "writeADm": "Write a DM…",
     "you": "{name} (you)",
-    "privateDm": "Private DM to {name}. Instagram only allows one DM for this comment."
+    "privateDm": "Private DM to {name}. Instagram only allows one DM for this comment.",
+    "dmLocked": "Coming soon · awaiting Meta approval"
   },
   "comments": {
     "postWithoutACaption": "Post without a caption",
@@ -146,7 +150,8 @@
     "threadsExpired": "Your Threads token expired or was revoked, so replies cannot be fetched. <reconnect>Reconnect Threads</reconnect> as @{username}.",
     "threadsPermission": "Threads comments need permission to read replies. <reconnect>Reconnect Threads</reconnect> once.",
     "instagramExpired": "Your Instagram token expired or was revoked, so comments cannot be fetched. <reconnect>Reconnect Instagram</reconnect> as @{username}.",
-    "instagramPermission": "Comments need new permissions to read and reply. <reconnect>Reconnect Instagram</reconnect> once and sign in as @{username}."
+    "instagramPermission": "Comments need new permissions to read and reply. <reconnect>Reconnect Instagram</reconnect> once and sign in as @{username}.",
+    "dmLocked": "DMs and Auto DM are coming soon. They await Meta approval; Instagram and Threads comments can still be answered from the Comments tab."
   },
   "pendingLink": {
     "loadingReplies": "Loading replies"

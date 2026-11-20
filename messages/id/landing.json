@@ -193,10 +193,11 @@
       "creation": "Ide, skrip, carousel, gambar, dan caption dengan AI",
       "calendar": "Kalender dan penjadwalan konten",
       "accounts": "1 akun Instagram + 1 akun Threads (segera hadir)",
-      "analytics": "Analitik dan Auto DM Instagram",
+      "analytics": "Analitik Instagram",
       "allPro": "Semua fitur Pro",
       "support": "Dukungan prioritas 1-on-1",
-      "earlyAccess": "Akses awal ke fitur baru"
+      "earlyAccess": "Akses awal ke fitur baru",
+      "dmSoon": "DM dan Auto DM Instagram (segera hadir, menunggu persetujuan Meta)"
     },
     "descriptions": {
       "pro": "{count}+ post per bulan, siap kamu tinjau setiap minggu",
@@ -207,7 +208,8 @@
     "monthly": "Ditagih per bulan, tidak diperpanjang otomatis",
     "upfront": "Sekali bayar di muka · {amount}/{count} bulan",
     "choose": "Pilih {name}",
-    "provisional": "Harga dapat berubah. Harga terbaru dikonfirmasi sebelum pembayaran."
+    "provisional": "Harga dapat berubah. Harga terbaru dikonfirmasi sebelum pembayaran.",
+    "joinWaitlist": "Gabung daftar tunggu"
   },
   "story": {
     "showcase": {

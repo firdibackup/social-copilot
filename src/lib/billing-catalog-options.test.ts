@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addBillingMonths, assertPayableTotals, billingCycle, DEFAULT_CATALOG, MIN_PRICE_IDR, parseBillingCatalog, quotePurchase } from './billing-catalog-options'
+import { addBillingMonths, assertPayableTotals, billingCycle, DEFAULT_CATALOG, MIN_PRICE_IDR, parseBillingCatalog, quotePurchase, shownPlans } from './billing-catalog-options'
 
 describe('purchased entitlements', () => {
   it('prices all durations from the catalog and locks a separate plan snapshot', () => {
@@ -22,6 +22,11 @@ describe('purchased entitlements', () => {
   })
   it('rejects malformed prices, duplicate IDs, unsafe support URLs and double charging slides', () => {
     expect(parseBillingCatalog(DEFAULT_CATALOG)).toEqual(DEFAULT_CATALOG)
+    const lite = { ...DEFAULT_CATALOG.plans[0], id: 'lite' }
+    const waiting = { ...DEFAULT_CATALOG, plans: [lite, { ...DEFAULT_CATALOG.plans[1], active: false, waitlist: true }] }
+    expect(shownPlans(parseBillingCatalog(waiting)).map((plan) => plan.id)).toEqual(['lite', 'max'])
+    expect(() => quotePurchase(waiting, 1, 'max', 1)).toThrow()
+    expect(() => parseBillingCatalog({ ...DEFAULT_CATALOG, plans: [{ ...lite, waitlist: 'ya' }] })).toThrow()
     const cheapest = structuredClone(DEFAULT_CATALOG)
     cheapest.plans[0].priceIdr = MIN_PRICE_IDR
     cheapest.durations = [{ months: 1, discount: 0 }]

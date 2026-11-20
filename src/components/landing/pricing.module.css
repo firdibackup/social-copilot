@@ -8,7 +8,7 @@
 .durations button:hover { background: #f6f4ff; }
 .durations button[aria-pressed='true'] { border-color: #e2ddec; background: white; color: #302650; box-shadow: 0 2px 5px -2px #30265025; }
 .durations span { font-size: 11px; font-weight: 600; color: #5b4d79; background: #e4deef; border-radius: 5px; padding: 2px 6px; }
-.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; align-items: stretch; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 22px; align-items: stretch; }
 .plan { padding: 34px; background: #fff; border: 1px solid #e2ddec; border-radius: 20px; }
 .max { border-color: #a9a1ff; background: #fdfcff; box-shadow: 0 14px 35px -24px #5145d845; }
 .planTitle { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
@@ -23,6 +23,7 @@
 .choose:hover { background: #e9e5ff; }
 .max .choose { color: white; background: #6558f5; border-color: #6558f5; }
 .max .choose:hover { background: #5145d8; }
+.choose.waitlist, .max .choose.waitlist { color: #656078; background: #f4f3f7; border-color: #e2ddec; border-style: dashed; }
 .plan ul { display: grid; gap: 13px; list-style: none; margin: 26px 0 0; padding: 24px 0 0; border-top: 1px solid #eeeaf5; }
 .plan li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: #494257; line-height: 1.5; }
 .plan li svg { color: #6558f5; flex-shrink: 0; margin-top: 3px; }

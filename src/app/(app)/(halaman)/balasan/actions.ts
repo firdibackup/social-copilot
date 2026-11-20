@@ -12,7 +12,7 @@ import {
   markConversationSeen,
   recordMessage,
 } from '@/lib/dm'
-import { REPLY_MAX_LENGTH } from '@/lib/inbox-rules'
+import { DM_APPROVED, REPLY_MAX_LENGTH } from '@/lib/inbox-rules'
 import { describeError } from '@/lib/errors'
 import { PROFILE_BATCH, readProfiles, syncConversations } from '@/lib/inbox-sync'
 import { sendDirectMessage } from '@/lib/instagram'
@@ -22,6 +22,7 @@ import { inboxAiError, instagramErrorMessage, text, type ActionError, type Draft
 /** Opening the DM tab and Muat ulang: stores the DMs Instagram has that the webhook never brought, at most every 10 minutes. */
 export async function syncDmsAction(): Promise<SyncState> {
   const t = await getTranslations('inbox.actions')
+  if (!DM_APPROVED) return { status: 'error', message: t('dmLocked') }
   const { userId } = await requireAccount()
   let result: SyncState
   try {
@@ -42,6 +43,7 @@ export async function sendReply(igsid: unknown, reply: unknown): Promise<ActionE
   const t = await getTranslations('inbox.actions')
   const WINDOW_CLOSED =
   t('itSBeenOver24HoursSinceTheCustomer')
+  if (!DM_APPROVED) return t('dmLocked')
   const { userId, accountId } = await requireAccount()
   const message = text(reply)
   if (!message) return t('writeAReplyFirst')

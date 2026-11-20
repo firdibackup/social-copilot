@@ -2,11 +2,11 @@
 
 import { useTranslations } from 'next-intl'
 
-import { EyeOff } from 'lucide-react'
+import { EyeOff, Lock } from 'lucide-react'
 import { useState } from 'react'
 import { confirmDialog } from '@/components/confirm-dialog'
 import { Notice } from '@/components/notice'
-import { COMMENT_MAX_LENGTH, REPLY_MAX_LENGTH } from '@/lib/inbox-rules'
+import { COMMENT_MAX_LENGTH, DM_APPROVED, REPLY_MAX_LENGTH } from '@/lib/inbox-rules'
 import { THREADS_TEXT_LIMIT } from '@/lib/thread-items'
 import {
   deleteCommentAction,
@@ -177,10 +177,11 @@ function CommentBody({ comment, brand, platform, onRemoved, onRestore }: Comment
           <button
             type="button"
             onClick={() => setMode(mode === 'dm' ? null : 'dm')}
-            disabled={!comment.canDm}
-            title={comment.canDm ? undefined : t('instagramOnlyAllowsOneDmPerCommentWithin7')}
-            className={ACTION}
+            disabled={!DM_APPROVED || !comment.canDm}
+            title={!DM_APPROVED ? t('dmLocked') : comment.canDm ? undefined : t('instagramOnlyAllowsOneDmPerCommentWithin7')}
+            className={`${ACTION} inline-flex items-center gap-1`}
           >
+            {!DM_APPROVED && <Lock size={12} aria-hidden="true" />}
             {t('replyViaDm')}
             </button>
         )}

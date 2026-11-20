@@ -7,6 +7,7 @@ import { getPublishingAccount, markNeedsReconnect } from './connection'
 import { getConversation, recordMessage, recordPrivateReply } from './dm'
 import { fetchFollowsBusiness, InstagramApiError, replyToComment, sendAutoDm } from './instagram'
 
+vi.mock('./inbox-rules', async (importOriginal) => ({ ...(await importOriginal<typeof import('./inbox-rules')>()), DM_APPROVED: true }))
 vi.mock('./auto-dm', () => ({
   claimRun: vi.fn(),
   listRules: vi.fn(),

@@ -4,16 +4,16 @@ import { useTranslations, useLocale } from 'next-intl'
 import { intlLocale } from '@/i18n/locale-config'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
-import { ArrowRight, ArrowUpRight, Check, Clock, LogOut, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Check, Clock, Lock, LogOut, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react'
 import { CarouselyLogo } from '@/components/brand-mark'
 import { CheckoutContactFields, useCheckoutContact } from '@/components/checkout-contact-fields'
 import { InstagramAiIcon } from '@/components/instagram-ai-icon'
 import { Notice } from '@/components/notice'
 import type { Payment } from '@/lib/billing'
-import { estimatedPosts, quotePurchase, type BillingCatalog, type CatalogPlan } from '@/lib/billing-catalog-options'
+import { estimatedPosts, quotePurchase, shownPlans, type BillingCatalog, type CatalogPlan } from '@/lib/billing-catalog-options'
 import { formatRupiah } from '@/lib/billing-options'
 import { signOut } from '@/app/masuk/actions'
-import { checkPaymentAction, checkoutAction, subscriptionActiveAction } from '@/app/(app)/(halaman)/pengaturan/billing-actions'
+import { checkPaymentAction, checkoutAction, joinWaitlistAction, subscriptionActiveAction } from '@/app/(app)/(halaman)/pengaturan/billing-actions'
 import { CouponField, isCouponError, useCoupon } from '@/app/(app)/(halaman)/pengaturan/billing-panel'
 
 type ClientPayment = Omit<Payment, 'createdAt' | 'periodStart' | 'periodEnd'> & { createdAt: string; periodStart: string | null; periodEnd: string | null }
@@ -37,6 +37,7 @@ export function SubscribePage(props: Props) {
   const { catalog, enabled, payments } = props
   const router = useRouter()
   const plans = catalog.plans.filter((plan) => plan.active)
+  const waitlist = shownPlans(catalog).filter((plan) => !plan.active)
   const [planId, setPlanId] = useState(plans.find((plan) => plan.id === props.selectedPlan)?.id ?? plans[0]?.id ?? '')
   const [months, setMonths] = useState(catalog.durations.find((duration) => duration.months === props.initialMonths)?.months ?? catalog.durations[0]?.months ?? 1)
   const [error, setError] = useState<string | null>(null)
@@ -185,8 +186,9 @@ export function SubscribePage(props: Props) {
             {plans.length ? (
               <fieldset disabled={busy}>
                 <legend className="mb-3 text-sm font-semibold text-ink">{t('plan')}</legend>
-                <div className={`grid gap-4 ${plans.length > 1 ? 'sm:grid-cols-2' : ''}`}>
+                <div className={`grid gap-4 ${plans.length + waitlist.length > 1 ? 'sm:grid-cols-2' : ''} ${plans.length + waitlist.length > 2 ? 'xl:grid-cols-3' : ''}`}>
                   {plans.map((plan) => <PlanCard key={plan.id} plan={plan} checked={selected?.id === plan.id} onSelect={() => { setPlanId(plan.id); setError(null); coupon.reprice(plan.id, months) }} />)}
+                  {waitlist.map((plan) => <WaitlistCard key={plan.id} plan={plan} />)}
                 </div>
               </fieldset>
             ) : <Notice tone="warning">{t('noPlans')}</Notice>}
@@ -256,6 +258,37 @@ function Footnote({ free, className = '' }: { free: boolean; className?: string 
     <p className={`items-center gap-1.5 text-[11px] leading-snug text-ink-muted ${className}`}>
       <ShieldCheck size={13} className="shrink-0" aria-hidden="true" />{free ? t('freeFootnote') : t('paidFootnote')}
     </p>
+  )
+}
+
+/** A plan not on sale yet: its features show, and Gabung daftar tunggu replaces the price choice. */
+function WaitlistCard({ plan }: { plan: CatalogPlan }) {
+  const t = useTranslations('billing.subscribe')
+  const locale = useLocale()
+  const [state, setState] = useState<'idle' | 'joining' | 'joined'>('idle')
+  const [error, setError] = useState<string | null>(null)
+  async function join() {
+    setState('joining'); setError(null)
+    const result = await joinWaitlistAction(plan.id).catch(() => ({ error: t('waitlistFailed') }))
+    if (result.error) { setError(result.error); setState('idle') } else setState('joined')
+  }
+  return (
+    <div className="flex flex-col rounded-2xl border border-dashed border-hairline bg-paper/60 p-5">
+      <span className="flex items-start justify-between gap-3">
+        <span className="font-display text-xl font-bold tracking-[-0.02em] text-ink">{plan.name}</span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-ink-muted"><Lock size={12} aria-hidden="true" />{t('waitlistBadge')}</span>
+      </span>
+      <span className="mt-3 block text-sm text-ink-muted text-pretty">{t('waitlistHint')}</span>
+      <span className="mt-4 block border-t border-hairline pt-4 text-sm text-ink">
+        <span className="flex items-center gap-2.5"><Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />
+          <span><strong className="font-semibold tabular-nums">{t('posts', { count: estimatedPosts(plan.credits).toLocaleString(intlLocale(locale)) })}</strong> {t('perMonth')}</span></span>
+        <span className="mt-2 flex items-center gap-2.5"><Lock size={16} className="shrink-0 text-ink-muted" aria-hidden="true" />{t('waitlistDm')}</span>
+      </span>
+      <button type="button" onClick={join} disabled={state !== 'idle'} className={`${SECONDARY} mt-5 w-full`}>
+        {state === 'joined' ? <><Check size={16} aria-hidden="true" />{t('waitlistJoined')}</> : state === 'joining' ? t('waitlistJoining') : t('waitlistJoin')}
+      </button>
+      {error && <p role="alert" className="mt-2 text-xs text-red-600">{error}</p>}
+    </div>
   )
 }
 

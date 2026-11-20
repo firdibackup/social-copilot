@@ -122,7 +122,7 @@ describe('chatTools', () => {
       'bulk_content',
       'schedule_content',
       'update_content_strategy',
-      'create_auto_dm_rule',
+      'update_design_rules',
     ])
   })
 })

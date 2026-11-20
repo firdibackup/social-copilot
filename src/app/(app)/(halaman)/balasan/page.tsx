@@ -6,13 +6,14 @@ import Link from 'next/link'
 import { connection } from 'next/server'
 import { Suspense } from 'react'
 import { LoadingState } from '@/components/loading-state'
-import { Plus } from 'lucide-react'
+import { Lock, Plus } from 'lucide-react'
 import { Notice } from '@/components/notice'
 import { requireAccount } from '@/lib/auth'
 import { latestRuns, listRules } from '@/lib/auto-dm'
 import { getConnection, type Connection } from '@/lib/connection'
 import { describeError } from '@/lib/errors'
 import { COMMENTS_SCOPE } from '@/lib/instagram'
+import { DM_APPROVED } from '@/lib/inbox-rules'
 import { firstValue, type SearchParams } from '@/lib/params'
 import { THREADS_REPLIES_SCOPE } from '@/lib/threads'
 import { getThreadsConnection, type ThreadsConnection } from '@/lib/threads-connection'
@@ -55,7 +56,9 @@ async function BalasanView({ searchParams }: { searchParams: Promise<SearchParam
   const params = await searchParams
   await connection()
   const { userId, accountId } = await requireAccount()
-  const tab: Tab = firstValue(params.tab) === 'komentar' ? 'komentar' : 'dm'
+  const tabParam = firstValue(params.tab)
+  // While DMs are locked Komentar opens by default; ?tab=dm shows the locked tab.
+  const tab: Tab = tabParam === 'komentar' || (!DM_APPROVED && tabParam !== 'dm') ? 'komentar' : 'dm'
   const filterParam = firstValue(params.filter)
   const filter: Filter = filterParam === 'semua' ? 'semua' : 'belum'
   const dmFilter: DmFilter = filterParam === 'otomatis' ? 'otomatis' : filter
@@ -88,7 +91,7 @@ async function BalasanView({ searchParams }: { searchParams: Promise<SearchParam
       : instagram?.status !== 'active'
         ? null
         : tab === 'dm'
-          ? 'dm'
+          ? DM_APPROVED ? 'dm' : null
           : instagram.scopes.includes(COMMENTS_SCOPE)
             ? 'komentar'
             : null
@@ -107,29 +110,41 @@ async function BalasanView({ searchParams }: { searchParams: Promise<SearchParam
 
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-zinc-200">
         <nav aria-label={t('replyType')} className="flex gap-6">
-          <TabLink href={dmHref(dmFilter)} active={tab === 'dm'} label="DM" />
+          <TabLink href={DM_APPROVED ? dmHref(dmFilter) : '/balasan?tab=dm'} active={tab === 'dm'} label="DM" locked={!DM_APPROVED} />
           <TabLink href={commentsHref(filter)} active={tab === 'komentar'} label={t('comments')} />
         </nav>
         <div className="flex items-center gap-2 pb-2">
-          <FilterSelect
+          {(DM_APPROVED || tab === 'komentar') && <FilterSelect
             value={tab === 'dm' ? dmFilter : filter}
             hrefs={
               tab === 'dm'
                 ? { belum: dmHref('belum'), semua: dmHref('semua'), otomatis: dmHref('otomatis') }
                 : { belum: commentsHref('belum', undefined, platform), semua: commentsHref('semua', undefined, platform) }
             }
-          />
-          <Link
-            href="/balasan/auto-dm"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800"
-          >
-            <Plus size={16} aria-hidden="true" />
-            Auto DM
-          </Link>
+          />}
+          {DM_APPROVED ? (
+            <Link
+              href="/balasan/auto-dm"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800"
+            >
+              <Plus size={16} aria-hidden="true" />
+              Auto DM
+            </Link>
+          ) : (
+            <span
+              title={t('dmLocked')}
+              className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-lg bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-400"
+            >
+              <Lock size={14} aria-hidden="true" />
+              Auto DM
+            </span>
+          )}
         </div>
       </div>
 
-      {tab === 'dm' ? (
+      {tab === 'dm' && !DM_APPROVED ? (
+        <Notice tone="warning">{t('dmLocked')}</Notice>
+      ) : tab === 'dm' ? (
         <div className="space-y-8">
           <DmTab userId={userId} accountId={accountId} filter={dmFilter} params={params} brand={brand} now={now} />
           <RulesSection userId={userId} accountId={accountId} username={instagram?.username ?? t('yourAccount')} />
@@ -187,7 +202,7 @@ function PlatformLink({ href, active, label }: { href: string; active: boolean; 
   )
 }
 
-function TabLink({ href, active, label }: { href: string; active: boolean; label: string }) {
+function TabLink({ href, active, label, locked = false }: { href: string; active: boolean; label: string; locked?: boolean }) {
   return (
     <PendingLink
       href={href}
@@ -196,7 +211,7 @@ function TabLink({ href, active, label }: { href: string; active: boolean; label
         active ? 'border-accent text-zinc-900' : 'border-transparent text-zinc-500 hover:text-zinc-900'
       }`}
     >
-      {label}
+      <span className="inline-flex items-center gap-1">{locked && <Lock size={13} aria-hidden="true" />}{label}</span>
     </PendingLink>
   )
 }

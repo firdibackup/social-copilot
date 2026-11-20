@@ -53,7 +53,14 @@
     "posts": "±{count} posts",
     "proDescription": "For regularly creating and scheduling content.",
     "maxDescription": "More room for content creation and research.",
-    "priority": "Priority processing"
+    "priority": "Priority processing",
+    "waitlistBadge": "Coming soon",
+    "waitlistHint": "Includes Instagram DMs and Auto DM, which still await Meta approval. Join the waitlist to hear when it opens.",
+    "waitlistDm": "Instagram DMs and Auto DM",
+    "waitlistJoin": "Join the waitlist",
+    "waitlistJoining": "Joining…",
+    "waitlistJoined": "You're on the waitlist",
+    "waitlistFailed": "Couldn't join the waitlist. Try again."
   },
   "page": {
     "title": "Subscribe",

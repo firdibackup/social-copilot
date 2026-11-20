@@ -20,7 +20,8 @@
     "enterACouponCode": "Enter a coupon code.",
     "invalidPlanSelection": "Invalid plan selection.",
     "paymentsArenTEnabledYet": "Payments aren't enabled yet.",
-    "couldnTCheckPaymentStatusTryAgain": "Couldn't check payment status. Try again in a moment."
+    "couldnTCheckPaymentStatusTryAgain": "Couldn't check payment status. Try again in a moment.",
+    "couldnTJoinTheWaitlistTryAgain": "Couldn't join the waitlist. Try again."
   },
   "billing_panel": {
     "couldnTCheckTheCouponTryAgain": "Couldn't check the coupon. Try again.",
