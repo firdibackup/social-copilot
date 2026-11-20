@@ -2,7 +2,7 @@ import { createTranslator } from 'use-intl/core'
 import type { Locale } from '@/i18n/locale-config'
 import idMessages from '../../messages/id/billing.json'
 import enMessages from '../../messages/en/billing.json'
-import { formatRupiah, TASK_CREDITS, type Plan } from './billing-options'
+import { contentCost, formatRupiah, TASK_CREDITS, type Plan } from './billing-options'
 
 export interface CatalogPlan extends Plan {
   id: string
@@ -38,8 +38,8 @@ export const DEFAULT_CATALOG: BillingCatalog = {
 export const shownPlans = (catalog: BillingCatalog) => catalog.plans.filter((plan) => plan.active || plan.waitlist)
 /** Mayar rejects payment amounts below Rp 1.000. */
 export const MIN_PRICE_IDR = 1_000
-/** Rough monthly post count shown instead of raw credits: 2.500 credits ≈ 30 carousel posts. */
-export const estimatedPosts = (credits: number) => Math.floor((credits * 30) / 2_500)
+/** Monthly post count shown instead of raw credits: what a 5-slide carousel really costs (103 credits by default). */
+export const estimatedPosts = (credits: number) => Math.floor(credits / contentCost(5))
 
 export interface PurchaseSnapshot {
   version: number
