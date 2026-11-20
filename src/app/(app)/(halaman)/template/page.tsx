@@ -26,10 +26,12 @@ async function Templates() {
   await connection()
   const t = await getTranslations('editor.designEditor')
   const { userId, accountId } = await requireAccount()
+  let mine: Awaited<ReturnType<typeof listCanvasTemplates>>
   try {
-    return <TemplateHome mine={await listCanvasTemplates(userId, accountId)} />
+    mine = await listCanvasTemplates(userId, accountId)
   } catch (error) {
     console.error('[template] daftar gagal dimuat:', describeError(error))
     return <Notice tone="warning">{t('loadFailed')}</Notice>
   }
+  return <TemplateHome mine={mine} />
 }

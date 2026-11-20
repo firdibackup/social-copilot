@@ -35,6 +35,7 @@ export function PageCanvas({ page, zoom, selectedId, active, disabled, onSelect,
   const [live, setLive] = useState<{ id: string; box: Box; rotation: number } | null>(null)
   const [guides, setGuides] = useState<{ vertical: number[]; horizontal: number[] }>({ vertical: [], horizontal: [] })
   const [failed, setFailed] = useState(false)
+  const [grabbing, setGrabbing] = useState(false)
 
   // Re-render whenever the page changes; the offscreen render keeps the old pixels until the new ones are ready.
   useEffect(() => {
@@ -69,6 +70,7 @@ export function PageCanvas({ page, zoom, selectedId, active, disabled, onSelect,
     onSelect(top?.id ?? null)
     if (!top || !editable(top)) return
     drag.current = { kind: 'move', node: top, start: point, box: nodeBox(top), pointer: event.pointerId }
+    setGrabbing(true)
     event.currentTarget.setPointerCapture(event.pointerId)
   }
   function startHandle(event: ReactPointerEvent, node: DesignNode, handle: Handle | 'rotate') {
@@ -109,6 +111,7 @@ export function PageCanvas({ page, zoom, selectedId, active, disabled, onSelect,
     const active = drag.current
     if (!active || active.pointer !== event.pointerId) return
     drag.current = null
+    setGrabbing(false)
     setGuides({ vertical: [], horizontal: [] })
     const result = live
     setLive(null)
@@ -128,6 +131,11 @@ export function PageCanvas({ page, zoom, selectedId, active, disabled, onSelect,
 
   const selected = page.children.find(node => node.id === selectedId) ?? null
   const shown = (node: DesignNode) => live?.id === node.id ? { box: live.box, rotation: live.rotation } : { box: nodeBox(node), rotation: node.transform.rotation }
+  const selection = active && selected && !selected.hidden ? { ...shown(selected), locked: !editable(selected) } : null
+  function handleDown(event: ReactPointerEvent<HTMLButtonElement>) {
+    const handle = event.currentTarget.dataset.handle as Handle | 'rotate'
+    if (selected) startHandle(event, selected, handle)
+  }
   const outlined = page.children.filter(node => !node.hidden && node.type !== 'group' && node.data?.carousely?.field && node.data.carousely.field.mode !== 'static')
 
   return (
@@ -136,9 +144,9 @@ export function PageCanvas({ page, zoom, selectedId, active, disabled, onSelect,
       <canvas ref={canvas} width={page.width} height={page.height} aria-label={label} role="img"
         className="absolute inset-0 h-full w-full" />
       {failed && <div className="absolute inset-0 grid place-items-center bg-zinc-50 text-sm text-ink-muted">⚠</div>}
-      <div ref={overlay} className="absolute inset-0 touch-none" style={{ cursor: drag.current?.kind === 'move' ? 'grabbing' : 'default' }}
+      <div ref={overlay} className="absolute inset-0 touch-none" style={{ cursor: grabbing ? 'grabbing' : 'default' }}
         onPointerDown={down} onPointerMove={move} onPointerUp={up}
-        onPointerCancel={() => { drag.current = null; setLive(null); setGuides({ vertical: [], horizontal: [] }) }}
+        onPointerCancel={() => { drag.current = null; setGrabbing(false); setLive(null); setGuides({ vertical: [], horizontal: [] }) }}
         onDoubleClick={event => {
           const hit = hitDesignNode(page.children, toPage(event))
           if (hit?.node.type === 'text' && editable(hit.node)) onEditText(hit.node.id)
@@ -160,28 +168,24 @@ export function PageCanvas({ page, zoom, selectedId, active, disabled, onSelect,
         })}
         {guides.vertical.map(x => <div key={`v${x}`} aria-hidden="true" className="pointer-events-none absolute top-0 bottom-0 w-px bg-[#ff3ea5]" style={{ left: x * zoom }} />)}
         {guides.horizontal.map(y => <div key={`h${y}`} aria-hidden="true" className="pointer-events-none absolute right-0 left-0 h-px bg-[#ff3ea5]" style={{ top: y * zoom }} />)}
-        {active && selected && !selected.hidden && (() => {
-          const { box, rotation } = shown(selected)
-          const locked = !editable(selected)
-          return <div className="pointer-events-none absolute" style={{ left: box.x * zoom, top: box.y * zoom, width: box.w * zoom, height: box.h * zoom,
-            transform: `rotate(${rotation}deg)` }}>
+        {selection && <div className="pointer-events-none absolute" style={{ left: selection.box.x * zoom, top: selection.box.y * zoom,
+            width: selection.box.w * zoom, height: selection.box.h * zoom, transform: `rotate(${selection.rotation}deg)` }}>
             <div className="absolute inset-0 border-2 border-[#3b82f6]" />
-            {!locked && <>
+            {!selection.locked && <>
               <div className="absolute left-1/2 h-5 w-px -translate-x-1/2 bg-[#3b82f6]" style={{ top: -22 }} />
-              <button type="button" aria-label="rotate" onPointerDown={event => startHandle(event, selected, 'rotate')}
+              <button type="button" aria-label="rotate" data-handle="rotate" onPointerDown={handleDown}
                 className="pointer-events-auto absolute left-1/2 size-4 -translate-x-1/2 cursor-grab rounded-full border-2 border-[#3b82f6] bg-white" style={{ top: -36 }} />
               {HANDLES.map(handle => {
                 const left = handle.includes('w') ? 0 : handle.includes('e') ? 100 : 50
                 const top = handle.includes('n') ? 0 : handle.includes('s') ? 100 : 50
                 const edge = handle.length === 1
-                return <button key={handle} type="button" aria-label={handle} onPointerDown={event => startHandle(event, selected, handle)}
+                return <button key={handle} type="button" aria-label={handle} data-handle={handle} onPointerDown={handleDown}
                   className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 border-2 border-[#3b82f6] bg-white ${edge ? 'rounded-full' : 'rounded-[3px]'}`}
                   style={{ left: `${left}%`, top: `${top}%`, width: edge && (handle === 'n' || handle === 's') ? 18 : edge ? 8 : 11,
                     height: edge && (handle === 'e' || handle === 'w') ? 18 : edge ? 8 : 11, cursor: HANDLE_CURSOR[handle] }} />
               })}
             </>}
-          </div>
-        })()}
+          </div>}
       </div>
     </div>
   )

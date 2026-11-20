@@ -119,7 +119,7 @@ it('saves native documents with a new preview and removes only the unused prior 
   expect(deleteUnused).toHaveBeenCalledWith('user', [id(7)])
   vi.mocked(createAsset).mockClear()
   value.set('expectedVersion', 'stale')
-  expect(await saveTemplateDocumentAction(value)).toEqual({ error: 'conflict' })
+  expect(await saveTemplateDocumentAction(value)).toEqual({ error: 'conflict', conflict: true })
   expect(createAsset).not.toHaveBeenCalled()
 })
 
@@ -129,7 +129,7 @@ it('cleans only the uploaded native preview when the atomic save conflicts', asy
   vi.mocked(saveCanvasTemplate).mockRejectedValue(new CanvasTemplateError('conflict'))
   const value = form()
   value.set('id', id(4)); value.set('doc', JSON.stringify(design)); value.set('expectedVersion', 'v')
-  expect(await saveTemplateDocumentAction(value)).toEqual({ error: 'conflict' })
+  expect(await saveTemplateDocumentAction(value)).toEqual({ error: 'conflict', conflict: true })
   expect(deleteUnused).toHaveBeenCalledExactlyOnceWith('user', [id(3)])
 })
 

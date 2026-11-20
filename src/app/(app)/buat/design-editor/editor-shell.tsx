@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import {
@@ -11,7 +11,7 @@ import { confirmDialog } from '@/components/confirm-dialog'
 import { fontFamilyOf } from '@/components/font-previews'
 import { colorHex, hexColor, walkNodes, type DesignDoc, type DesignNode, type DesignPage } from '@/lib/design-doc'
 import { renderDesignCanvas } from '@/lib/design-browser'
-import { applyDesignOperation, clonePage, cloneNode, type DesignOperation } from '@/lib/design-operations'
+import { applyDesignOperation, cloneNode, type DesignOperation } from '@/lib/design-operations'
 import { fieldReady } from '@/lib/design-fields'
 import { newTextNode } from '@/lib/design-nodes'
 import { saveTemplateDocumentAction } from '../canvas-template-actions'
@@ -47,10 +47,11 @@ export function DesignEditorShell({ initial, version: initialVersion }: { initia
   const [editingText, setEditingText] = useState<string | null>(null)
   const version = useRef(initialVersion)
   const savedJson = useRef(JSON.stringify(initial))
+  const [savedText, setSavedText] = useState(() => JSON.stringify(initial))
   const scroller = useRef<HTMLDivElement>(null)
   const pageRefs = useRef<(HTMLDivElement | null)[]>([])
   const docRef = useRef(doc)
-  docRef.current = doc
+  useLayoutEffect(() => { docRef.current = doc }, [doc])
 
   const page = doc.pages[Math.min(pageIndex, doc.pages.length - 1)]
   const selected = selectedId ? walkNodes(page.children).find(node => node.id === selectedId) ?? null : null
@@ -87,8 +88,9 @@ export function DesignEditorShell({ initial, version: initialVersion }: { initia
   }
 
   // ---------- autosave ----------
-  const dirty = JSON.stringify(doc) !== savedJson.current
-  useEffect(() => { if (dirty && status !== 'saving' && status !== 'conflict') setStatus('unsaved') }, [dirty, status])
+  const dirty = JSON.stringify(doc) !== savedText
+  // 'saved' with newer edits reads as unsaved; saving, failed and conflict keep their own label.
+  const shownStatus: Status = status === 'saved' && dirty ? 'unsaved' : status
   const save = useCallback(async () => {
     const current = docRef.current
     const json = JSON.stringify(current)
@@ -110,9 +112,10 @@ export function DesignEditorShell({ initial, version: initialVersion }: { initia
       }
       version.current = result.version
       savedJson.current = json
+      setSavedText(json)
       setStatus(JSON.stringify(docRef.current) === json ? 'saved' : 'unsaved')
     } catch { setStatus('failed') }
-  }, [])
+  }, [t])
   useEffect(() => {
     if (!dirty || status === 'saving' || status === 'conflict') return
     const timer = window.setTimeout(() => void save(), status === 'failed' ? 5000 : AUTOSAVE_MS)
@@ -211,7 +214,7 @@ export function DesignEditorShell({ initial, version: initialVersion }: { initia
     } catch { setError(t('renderFailed')) }
   }
 
-  const statusLabel = { saved: t('saved'), unsaved: t('unsaved'), saving: t('saving'), failed: t('saveFailed'), conflict: t('conflict') }[status]
+  const statusLabel = { saved: t('saved'), unsaved: t('unsaved'), saving: t('saving'), failed: t('saveFailed'), conflict: t('conflict') }[shownStatus]
   const pageGap = 72
 
   return (
@@ -231,7 +234,7 @@ export function DesignEditorShell({ initial, version: initialVersion }: { initia
             onBlur={event => { if (!event.target.value.trim()) setDoc(current => ({ ...current, title: t('untitled') })) }}
             className="w-full max-w-[420px] truncate rounded-md border border-transparent bg-transparent px-2 py-1 text-center text-[15px] font-semibold hover:border-hairline focus:border-accent focus:outline-none" />
         </div>
-        <span role="status" className={`text-xs ${status === 'failed' || status === 'conflict' ? 'text-red-600' : 'text-ink-muted'}`}>{statusLabel}</span>
+        <span role="status" className={`text-xs ${shownStatus === 'failed' || shownStatus === 'conflict' ? 'text-red-600' : 'text-ink-muted'}`}>{statusLabel}</span>
         <button type="button" className={ICON_BUTTON} aria-label={t('download')} title={t('download')} onClick={() => void download()}><Download size={18} /></button>
         <button type="button" disabled={!dirty || status === 'saving' || status === 'conflict'} onClick={() => void save()}
           className="h-9 rounded-lg bg-accent px-4 text-sm font-semibold text-white hover:bg-accent-deep disabled:opacity-50">{t('save')}</button>
