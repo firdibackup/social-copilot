@@ -10,6 +10,8 @@ import {
   PiGearSixDuotone,
   PiImages,
   PiImagesDuotone,
+  PiLayout,
+  PiLayoutDuotone,
   PiShieldCheck,
   PiShieldCheckDuotone,
   PiSlideshow,
@@ -31,7 +33,7 @@ export type NavIcon = ComponentType<NavIconProps>
 
 export interface NavItem {
   href: string
-  labelKey: 'calendar' | 'mimo' | 'create' | 'inbox' | 'analytics' | 'assets' | 'brand' | 'settings' | 'admin'
+  labelKey: 'calendar' | 'mimo' | 'create' | 'templates' | 'inbox' | 'analytics' | 'assets' | 'brand' | 'settings' | 'admin'
   /** Optional compact label for the phone's six-slot bottom bar. */
   shortLabelKey?: 'mimoShort'
   /** Regular weight, for every page but the current one. */
@@ -47,6 +49,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: '/kalender', labelKey: 'calendar', icon: PiCalendarDots, activeIcon: PiCalendarDotsDuotone },
   { href: '/mimo', labelKey: 'mimo', shortLabelKey: 'mimoShort', icon: MimoIcon },
   { href: '/buat', labelKey: 'create', icon: PiSlideshow, activeIcon: PiSlideshowDuotone },
+  { href: '/template', labelKey: 'templates', icon: PiLayout, activeIcon: PiLayoutDuotone, desktopOnly: true },
   { href: '/balasan', labelKey: 'inbox', icon: PiChatsCircle, activeIcon: PiChatsCircleDuotone },
   { href: '/analitik', labelKey: 'analytics', icon: PiChartLineUp, activeIcon: PiChartLineUpDuotone, desktopOnly: true },
   { href: '/aset', labelKey: 'assets', icon: PiImages, activeIcon: PiImagesDuotone, desktopOnly: true },

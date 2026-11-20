@@ -225,6 +225,9 @@ export function designAssetIds(doc: DesignDoc): string[] {
 export const hexColor = (hex: string): Color => ({ srgb: {
   r: parseInt(hex.slice(1, 3), 16) / 255, g: parseInt(hex.slice(3, 5), 16) / 255, b: parseInt(hex.slice(5, 7), 16) / 255, a: 1,
 } })
+/** `#rrggbb` of a color, ignoring alpha: what an `<input type="color">` shows. */
+export const colorHex = ({ srgb }: Color): string =>
+  `#${[srgb.r, srgb.g, srgb.b].map(v => Math.round(v * 255).toString(16).padStart(2, '0')).join('')}`
 
 /** Identity is supplied by the caller so repeated reads never assign fresh node IDs. */
 export function migrateLayerDoc(legacy: LayerDoc, identity: { id: string; pageId: string; nodeIds: string[] },
