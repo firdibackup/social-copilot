@@ -6,7 +6,7 @@ import { Suspense } from 'react'
 import { IntlMessages } from '@/i18n/client-messages'
 import { LoadingState } from '@/components/loading-state'
 import { Notice } from '@/components/notice'
-import { requireAccount, requireAdmin } from '@/lib/auth'
+import { requireAccount } from '@/lib/auth'
 import { getCanvasTemplate } from '@/lib/canvas-templates'
 import { describeError } from '@/lib/errors'
 import { isUuid } from '@/lib/params'
@@ -29,7 +29,6 @@ async function Editor({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   if (!isUuid(id)) notFound()
   const t = await getTranslations('editor.designEditor')
-  await requireAdmin()
   const { userId, accountId } = await requireAccount()
   let template: Awaited<ReturnType<typeof getCanvasTemplate>>
   try {
