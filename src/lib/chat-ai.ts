@@ -464,6 +464,7 @@ function userContent(turn: UserTurn): string | ContentPart[] {
 }
 
 interface ToolContext {
+  ownerRequest: string
   language: Locale
   userId: string
   accountId: string
@@ -674,6 +675,7 @@ async function draftScript(context: ToolContext, request: ScriptRequest): Promis
       context.density,
       context.language,
       sources,
+      context.ownerRequest,
     )
     return { ideaId: existing.id, title: request.title, script, state: 'saved' }
   }
@@ -693,6 +695,7 @@ async function draftScript(context: ToolContext, request: ScriptRequest): Promis
       context.density,
       context.language,
       sources,
+      context.ownerRequest,
     )
     return { ideaId, title: request.title, script, state: 'saved' }
   } catch (error) {
@@ -1003,7 +1006,7 @@ export async function answerChat(request: ChatRequest): Promise<ChatReply> {
           loadAccountBrandContext(userId, accountId),
           getDensityDefault(userId, accountId).catch(() => DEFAULT_DENSITY),
         ])
-        const context: ToolContext = { userId, accountId, brand, density, deepSearch, signal, language }
+        const context: ToolContext = { userId, accountId, brand, density, deepSearch, signal, language, ownerRequest: turn.text }
         const tools = chatTools(deepSearch)
         const messages: ConversationMessage[] = [
           { role: 'system', content: buildSystemPrompt(brand, deepSearch, session.summary, new Date(), language) },
