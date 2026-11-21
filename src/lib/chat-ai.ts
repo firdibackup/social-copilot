@@ -155,7 +155,7 @@ const ANALYZE_AND_DRAFT: ToolSchema = {
               idea: { type: 'string', description: `Judul ide, maksimal ${IDEA_MAX_LENGTH} karakter.` },
               direction: {
                 type: 'string',
-                description: 'Arahan untuk penulis skrip: sudut, gaya hook, pola kompetitor yang ditiru, atau perubahan yang diminta owner.',
+                description: 'Arahan untuk penulis skrip: sudut, audiens dan momen mereka, gaya hook, pola kompetitor yang ditiru, atau perubahan yang diminta owner. Jangan tentukan jumlah slide kecuali owner memintanya; penulis skrip memilih sendiri sesuai isi.',
               },
               pillar: { type: 'string', description: 'Nama pilar konten brand yang paling cocok, kalau ada.' },
               ideaId: { type: 'string', description: 'Hanya untuk revisi: ideaId skrip yang sudah dibuat.' },
