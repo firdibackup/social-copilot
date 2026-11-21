@@ -11,6 +11,7 @@ c.eval('const COVER_RULE="",HOOK_QUALITY_RULE="",INNER_SLIDE={seimbang:""}; cons
 c.eval('function guide(hook="auto",density="seimbang",slides=undefined,hooks=[]) {' + body + '}')
 guide = c.eval('guide()')
 assert 'cakupan fakta' in guide and 'jalan akses' in guide, 'Missing fact-scope check: elevation is not road flood evidence'
+assert 'sisa harga' in guide and 'plafon' in guide and 'disetujui bank' in guide, 'Missing distinction: arithmetic remainder is not approved financing'
 assert 'kata bilangan' in guide and 'item berbeda' in guide, 'List check covers hooks only, not body totals'
 content = (root / 'src/lib/content-ai.ts').read_text()
 assert "carouselGuide('auto', DEFAULT_DENSITY, undefined, hooks)" in content
