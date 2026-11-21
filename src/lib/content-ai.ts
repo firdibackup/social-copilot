@@ -1,4 +1,5 @@
 import 'server-only'
+import { createHash } from 'node:crypto'
 import { languagePrompt, type Locale } from './ai-language'
 import { AiOutputError, describeBrand, loadBrandContext, quote, readJson, runLogged, snippetOf } from './ai'
 import { listProductGroups } from './assets'
@@ -595,7 +596,10 @@ export function writeScript(
   return runLogged(userId, 'content_script', input, async () => {
     const brand = brandContext === undefined ? await loadBrandContext(userId) : brandContext
     const messages = buildScriptMessages(idea.title, brand, 'auto', brief, density, language, sources.assets, sources.references, ownerRequest)
-    const script = parseScriptAnswer(await chatCompletion(messages, undefined, signal))
+    const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
+    // Hashes only: reference bytes and private prompts never enter diagnostic logs.
+    Object.assign(input, { sourceHash: hash({ idea: idea.title, brand, brief, language, sources, ownerRequest }), messagesHash: hash(messages) })
+    const script = parseScriptAnswer(await chatCompletion(messages, undefined, signal, (response) => Object.assign(input, { response })))
     await save(script)
     return script
   })

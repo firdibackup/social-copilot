@@ -68,11 +68,29 @@ async function post(path: string, body: unknown, timeoutMs: number, accept?: str
   )
 }
 
+export interface CompletionMetadata {
+  model: string | null
+  finishReason: string | null
+  promptTokens: number | null
+  completionTokens: number | null
+}
+
+function completionMetadata(body: unknown): CompletionMetadata {
+  const choice = isObject(body) && Array.isArray(body.choices) ? body.choices[0] : null
+  const usage = isObject(body) && isObject(body.usage) ? body.usage : null
+  return {
+    model: isObject(body) && typeof body.model === 'string' ? body.model.slice(0, 200) : null,
+    finishReason: isObject(choice) && typeof choice.finish_reason === 'string' ? choice.finish_reason.slice(0, 80) : null,
+    promptTokens: typeof usage?.prompt_tokens === 'number' ? usage.prompt_tokens : null,
+    completionTokens: typeof usage?.completion_tokens === 'number' ? usage.completion_tokens : null,
+  }
+}
+
 /**
  * One chat completion, returning the answer's text. `stream: false` must be explicit: without it 9Router answers with
  * SSE. `model` defaults to the admin's text model (textModel()).
  */
-export async function chatCompletion(messages: ChatMessage[], model?: string, signal?: AbortSignal): Promise<string> {
+export async function chatCompletion(messages: ChatMessage[], model?: string, signal?: AbortSignal, onMetadata?: (metadata: CompletionMetadata) => void): Promise<string> {
   const response = await post(
     '/chat/completions',
     { model: model ?? (await textModel()), messages, stream: false, max_tokens: MAX_TOKENS },
@@ -83,6 +101,7 @@ export async function chatCompletion(messages: ChatMessage[], model?: string, si
   const body: unknown = await response.json().catch(() => null)
   signal?.throwIfAborted()
   if (!response.ok) throw new RouterApiError(errorMessage(body, response.status), response.status)
+  onMetadata?.(completionMetadata(body))
   return readContent(body)
 }
 
