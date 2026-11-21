@@ -15,6 +15,8 @@ ctx.eval('const MIN_SCRIPT_SLIDES=1,MAX_SLIDES=1,COVER_RULE="",SCRIPT_BODY={seim
 ctx.eval('function build(idea,brand,hook,brief,density,language,assets,references,ownerRequest) {'+body+'}')
 result = ctx.eval('JSON.stringify(build("Model title",null,"auto","Ask sales only","seimbang","id",[],[],"Jelaskan DP 5% dengan contoh."))')
 assert 'Jelaskan DP 5%' in result and 'Ask sales only' in result
+import json
+assert 'Ide:\n"Jelaskan DP 5%' in json.loads(result)[1]['content'], 'Model title still owns the task instead of the owner request'
 assert 'Usulan Mimo' in result and 'Permintaan owner' in result
 script_system = content[content.index('const SCRIPT_SYSTEM'):content.index('const IDEAS_SYSTEM')]
 assert 'pengetahuan umum yang pasti benar' in script_system, 'System-level writer forbids general knowledge allowed by user-level guide'

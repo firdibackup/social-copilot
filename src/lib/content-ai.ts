@@ -515,8 +515,8 @@ export function buildScriptMessages(
         'Format JSON: {"slides": [{"label": "…", "title": "…", "body": "…", "visual": "…", "layout": "…"}]}',
         ...(assets.length > 0 ? ['', `Foto asli milik brand (deskripsinya fakta yang boleh dipakai di teks, mis. bentuk atau suasana tempatnya; pakai juga fasilitas lain di sini yang relevan dengan audiens):\n${assets.map((asset) => `- ${asset.title}${asset.description ? ` — ${asset.description}` : ''}`).join('\n')}`] : []),
         '',
-        `Ide:\n${quote(idea)}`,
-        ...(ownerRequest ? [`Permintaan owner (verbatim; tujuan dan batasan ini mengungguli usulan Mimo):\n${quote(ownerRequest)}`] : []),
+        `Ide:\n${quote(ownerRequest || idea)}`,
+        ...(ownerRequest ? [`Permintaan owner di atas adalah tugas utama. Usulan Mimo untuk item ini (bukan batasan tambahan):\n${quote(idea)}`] : []),
         ...(brief
           ? [
               '',
