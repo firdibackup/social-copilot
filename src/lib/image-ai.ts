@@ -78,7 +78,7 @@ function describeInputImage(image: PromptImage, index: number, context: ImageCon
       return `${name} is an example ${slide} in this design style: follow its layout: where the text sits, text size and hierarchy, panels, cards and graphic elements, framing and composition. It belongs to another brand: do not copy its words, logo, brand name, people or products${colours}.`
     }
     case 'product':
-      return `${name} shows the exact product${image.note ? ` "${image.note}"` : ''}: preserve its shape, colour, packaging, label and visible branding exactly. Place this product naturally in the requested scene; do not redesign or replace it.`
+      return `${name} is the owner's real photo${image.note ? ` of "${image.note}"` : ''} (a product, place or person): show this exact one in the scene and preserve its shape, colour, materials, packaging, label and visible branding exactly. Do not redesign it or replace it with a generic one.`
     case 'sibling':
       return `${name} is another inner content slide of this carousel: keep its layout, text placement, colours, typography and lighting, with this slide's own scene and text.`
     case 'reference': {

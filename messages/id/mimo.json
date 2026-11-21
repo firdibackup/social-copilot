@@ -99,7 +99,7 @@
     "none": "Tanpa",
     "productUnavailable": "Produk tidak tersedia",
     "savedScriptHint": "Konten dengan skrip tersimpan tetap memakai teks skripnya.",
-    "noProducts": "Belum ada produk dengan foto aktif. Tambahkan di Aset untuk memakai foto produk.",
+    "noProducts": "Belum ada foto aktif di Aset. Tambahkan foto produk atau tempat supaya AI memakai foto asli.",
     "continue": "Lanjutkan",
     "cancel": "Batal",
     "emptyTitle": "Judul konten tidak boleh kosong.",

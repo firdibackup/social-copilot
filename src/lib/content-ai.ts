@@ -154,9 +154,9 @@ export interface ProductCandidate {
 const describeProducts = (products: ProductCandidate[]) =>
   products.length === 0
     ? ''
-    : `Produk yang boleh dipakai (ID harus disalin persis):\n${products
+    : `Foto asli milik brand (produk, tempat, orang; ID harus disalin persis):\n${products
         .map((product) => `- ${product.id}: ${product.title}${product.description ? ` — ${product.description}` : ''}`)
-        .join('\n')}\nUntuk setiap slide, pilih satu ID produk yang relevan atau null. Jangan mengarang produk.`
+        .join('\n')}\nUntuk setiap slide, utamakan foto asli ini daripada gambar karangan: kalau headline atau scene menyebut atau menyiratkan subjek salah satu foto, termasuk dengan kata lain (mis. "tempat olahraga" atau "gym" = Outdoor Gym, "taman bermain anak" = Natural Playground), isi productGroupId dengan ID itu dan tulis scene yang menampilkannya. Satu slide satu ID; slide yang membahas beberapa fasilitas memakai yang paling utama. null hanya kalau tidak ada foto yang cocok. Jangan mengarang ID.`
 
 /** The owner's script as prompt text: each slide's label, then the exact text of its image. */
 const describeScript = (script: ScriptSlide[]) =>

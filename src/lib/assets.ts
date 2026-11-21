@@ -394,7 +394,8 @@ export async function listProductGroups(userId: string, accountId: string): Prom
       .select('id, title, description, assets(id, is_active, origin)')
       .eq('user_id', userId)
       .eq('account_id', accountId)
-      .eq('category', 'product')
+      // Any real photo can carry a slide: a product, but also a place (Outdoor Gym), a person or a map. Logos go in via include_logo.
+      .neq('category', 'logo')
       .order('created_at', { ascending: false })
       .limit(40),
   )
@@ -416,7 +417,7 @@ export async function loadProductImages(userId: string, accountId: string, group
       .eq('id', groupId)
       .eq('user_id', userId)
       .eq('account_id', accountId)
-      .eq('category', 'product')
+      .neq('category', 'logo')
       .maybeSingle(),
   ) as {
     title: string

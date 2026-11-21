@@ -610,7 +610,7 @@ function BulkPlanCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk
 
         <fieldset disabled={!editable} className="mt-4 min-w-0">
           <legend className="text-xs font-medium text-ink">{t('allSettings')}</legend>
-          <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="min-w-0 text-xs text-ink-muted">
               {t('text')}
               <select
@@ -622,23 +622,6 @@ function BulkPlanCard({ part, context }: { part: Extract<ChatPart, { type: 'bulk
                 className={`${FIELD} mt-1 min-h-9 disabled:opacity-60`}
               >
                 {DENSITY_ORDER.map((key) => <option key={key} value={key}>{t(`density.${key}.label`)}</option>)}
-              </select>
-            </label>
-            <label className="min-w-0 text-xs text-ink-muted">
-              {t('product')}
-              <select
-                value={settings.productGroupId ?? ''}
-                onChange={(event) => setSettings((current) => ({ ...current, productGroupId: event.target.value || null }))}
-                className={`${FIELD} mt-1 min-h-9 disabled:opacity-60`}
-              >
-                <option value={AUTO_PRODUCT}>{t('automatic')}</option>
-                {context.products.map((product) => (
-                  <option key={product.id} value={product.id}>{product.label} ({product.imageCount})</option>
-                ))}
-                <option value="">{t('none')}</option>
-                {settings.productGroupId && settings.productGroupId !== AUTO_PRODUCT && !context.products.some((product) => product.id === settings.productGroupId) && (
-                  <option value={settings.productGroupId} disabled>{t('productUnavailable')}</option>
-                )}
               </select>
             </label>
             <div className="min-w-0 text-xs text-ink-muted">
