@@ -105,7 +105,7 @@ const IDEAS_SYSTEM = [
   'Kamu perencana konten Instagram untuk satu akun bisnis atau kreator di Indonesia.',
   'Aturan:',
   '- Tulis dalam Bahasa Indonesia yang natural.',
-  '- Ide harus cocok dengan brand dan hanya memakai fakta yang tertulis tentang brand.',
+  '- Ide harus cocok dengan brand. Klaim tentang brand hanya dari fakta yang tertulis; pengetahuan umum yang pasti benar (mis. arti istilah atau cara menghitung) boleh dipakai untuk isi edukasi.',
   `- ${VOICE_RULE}`,
   `- ${IDEA_QUALITY_RULE}`,
   `- ${HOOK_QUALITY_RULE} Title ide sudah berupa hook itu.`,

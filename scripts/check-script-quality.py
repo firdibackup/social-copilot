@@ -23,4 +23,9 @@ ctx.eval(structure.replace('export ', '').replace('slides: number', 'slides').re
 for count in range(4, 11):
     assert 'Bridge' not in ctx.eval(f'carouselStructure({count})'), 'Mandatory bridge produces filler'
 assert 'penjelasan, lalu 2–4' not in guide + content, 'Mandatory paragraph plus bullets duplicates copy'
+# Thin facts + "unknown details = hal yang perlu dicek" filled W ideas with ask/check advice (85% of inner slides).
+assert 'ditulis sebagai hal yang perlu dicek' not in guide, 'Unknown details routed to check/ask filler'
+assert 'paling banyak satu kalimat seperti itu per carousel' in guide, 'Deferral advice is unbounded'
+ideas_system = re.search(r'const IDEAS_SYSTEM = \[.*?\]\.join', content, re.S).group()
+assert 'pengetahuan umum yang pasti benar' in ideas_system, 'Cari Ide forbids general knowledge, script path allows it'
 print('PASS: production clipping, short text, structures 4–10, density constraints')
