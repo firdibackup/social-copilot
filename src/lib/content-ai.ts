@@ -367,6 +367,7 @@ export function planContent<T>(
 
 function withScriptReferences(prompt: string, references: ScriptReference[]): ChatMessage['content'] {
   return references.length === 0 ? prompt : [
+    { type: 'text', text: 'Sebelum menulis konten, ekstrak setiap referensi menjadi referenceLayouts: objek dengan kunci cover, isi, cta. Setiap nilai berisi bidangVisual (jumlah, posisi, ukuran), bidangTeks (posisi, perataan, hierarki), dan jarak (margin dan sela). Isi Layout tiap slide dengan menerapkan peta geometri perannya ini pada subjek Visual, bukan mendeskripsikan ulang gambar referensi. Keluarkan referenceLayouts sebagai properti pertama JSON, lalu ideas atau slides sesuai format yang diminta.' },
     { type: 'text', text: prompt },
     ...references.flatMap((reference): ContentPart[] => [
       { type: 'text', text: `Referensi desain: slide ${REFERENCE_LABELS[reference.label]}` },
