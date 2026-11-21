@@ -16,4 +16,6 @@ ctx.eval('function build(idea,brand,hook,brief,density,language,assets,reference
 result = ctx.eval('JSON.stringify(build("Model title",null,"auto","Ask sales only","seimbang","id",[],[],"Jelaskan DP 5% dengan contoh."))')
 assert 'Jelaskan DP 5%' in result and 'Ask sales only' in result
 assert 'Usulan Mimo' in result and 'Permintaan owner' in result
-print('PASS: owner provenance, both Mimo callers, production prompt construction')
+script_system = content[content.index('const SCRIPT_SYSTEM'):content.index('const IDEAS_SYSTEM')]
+assert 'pengetahuan umum yang pasti benar' in script_system, 'System-level writer forbids general knowledge allowed by user-level guide'
+print('PASS: owner provenance, both Mimo callers, production prompt construction, source authority')

@@ -95,7 +95,7 @@ const SCRIPT_SYSTEM = [
   `- ${VOICE_RULE}`,
   '- Jangan pakai Markdown seperti **tebal**, _miring_, atau judul. Teks ini ditulis apa adanya di gambar.',
   '- Tulis kata dan kalimat lengkap: jangan pakai singkatan seperti "yg", "dgn", "utk", "krn", "tdk", atau "&".',
-  '- Jangan mengarang fakta atau klaim yang tidak ada di ide atau fakta brand, misalnya harga, tanggal, lokasi, stok terbatas, atau "kualitas premium".',
+  '- Klaim tentang brand hanya dari fakta yang tertulis; pengetahuan umum yang pasti benar (mis. arti istilah atau cara menghitung) boleh dipakai untuk isi edukasi. Jangan mengarang harga, tanggal, lokasi, stok terbatas, atau "kualitas premium".',
   '- Hook dan isi ditulis dari sudut pandang audiens: apa yang mereka dapat atau alami, bukan daftar fitur penjual. Kalau ide atau arahan menyebut audiensnya (mis. keluarga muda), tunjukkan lewat momen nyata mereka, misalnya pagi sebelum kerja atau sore bersama anak. Momen seperti itu bukan klaim, jadi boleh ditulis tanpa jadi kaku.',
   '- Tiap slide membawa info atau sudut baru. Kalau poinnya habis, berhenti: lebih baik 3 slide padat daripada 4 slide dengan satu yang mengulang. Jangan mengulang frasa yang sama (mis. "pilihan aktivitas") di lebih dari satu slide.',
   JSON_ONLY,
