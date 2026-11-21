@@ -98,7 +98,7 @@
     "none": "None",
     "productUnavailable": "Product unavailable",
     "savedScriptHint": "Posts with saved scripts keep their existing text.",
-    "noProducts": "No products with active photos yet. Add them in Assets to use product photos.",
+    "noProducts": "No active photos in Assets yet. Add product or place photos so the AI uses real photos.",
     "continue": "Continue",
     "cancel": "Cancel",
     "emptyTitle": "Content title cannot be empty.",

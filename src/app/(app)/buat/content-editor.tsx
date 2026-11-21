@@ -226,7 +226,6 @@ export function ContentEditor({
   const [undo, setUndo] = useState<{ before: string; after: string } | null>(null)
   const [slideCount, setSlideCount] = useState(DEFAULT_SLIDES)
   const [format, setFormat] = useState<ImageFormat>('4:5')
-  const [productGroupId, setProductGroupId] = useState(AUTO_PRODUCT)
   const [referenceId, setReferenceId] = useState(AUTO_REFERENCE)
   const [density, setDensity] = useState<TextDensity>(defaultDensity)
   const [includeLogo, setIncludeLogo] = useState(false)
@@ -497,7 +496,8 @@ export function ContentEditor({
           slides: newSlides,
           format,
           referenceId: referenceId || null,
-          productGroupId: products.length > 0 ? productGroupId || null : null,
+          // The planner picks the owner's photo for each slide whenever one fits.
+          productGroupId: products.length > 0 ? AUTO_PRODUCT : null,
           // The planner picks the pillar itself; a post from an idea keeps the idea's.
           pillarId: idea?.pillarId ?? null,
           includeLogo,
@@ -625,19 +625,6 @@ export function ContentEditor({
         </select>
       </label>
       {references.length > 0 && <ReferencePicker references={references} value={referenceId} onChange={setReferenceId} />}
-      {products.length > 0 && (
-        <label className={CHIP}>
-           {t('message26')} <select value={productGroupId} onChange={(event) => setProductGroupId(event.target.value)} className={`${CHIP_SELECT} max-w-40`}>
-            <option value={AUTO_PRODUCT}>{t('message27')}</option>
-            <option value="">{t('message28')}</option>
-            {products.map((product) => (
-              <option key={product.id} value={product.id}>
-                {product.label} ({product.imageCount})
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
       <label
         className={CHIP}
         title={

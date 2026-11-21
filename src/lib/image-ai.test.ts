@@ -332,7 +332,7 @@ describe('drawImage', () => {
 
     expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([product, dataUrl('R', 400_000)])
     expect(drawn.sent).toEqual(['product', 'reference'])
-    expect(drawn.prompt).toContain('preserve its shape, colour, packaging, label and visible branding exactly')
+    expect(drawn.prompt).toContain('preserve its shape, colour, materials, packaging, label and visible branding exactly')
   })
 
   it('sends the current slide and the reference, and skips a logo that no longer fits 1 MB', async () => {
