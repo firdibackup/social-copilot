@@ -13,7 +13,6 @@ export const BULLET = /^(\s*[-•]\s)(.*)$/
 
 export const SCRIPT_LABEL_MAX_LENGTH = 40
 export const SCRIPT_TITLE_MAX_LENGTH = 120
-export const SCRIPT_NOTE_MAX_LENGTH = 300
 
 export interface ScriptSlide {
   /** What the slide is for the owner, e.g. "Hook", "IN", or "CTA"; not written on the image. */
@@ -32,9 +31,9 @@ type Json = Record<string, unknown>
 const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null
 const text = (value: unknown) => (typeof value === 'string' ? value.replace(/\r\n/g, '\n').trim() : '')
 
-/** The slide's Visual and Layout notes, single-line and clipped; absent when empty. */
+/** Non-rendered notes have no image-text limit; preserve complete geometry and asset instructions. */
 function notesOf(value: Json): Pick<ScriptSlide, 'visual' | 'layout'> {
-  const note = (item: unknown) => truncate(text(item).replace(/\s*\n\s*/g, ' '), SCRIPT_NOTE_MAX_LENGTH)
+  const note = (item: unknown) => text(item).replace(/\s*\n\s*/g, ' ')
   const visual = note(value.visual)
   const layout = note(value.layout)
   return { ...(visual ? { visual } : {}), ...(layout ? { layout } : {}) }
