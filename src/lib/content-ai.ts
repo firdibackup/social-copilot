@@ -1,4 +1,6 @@
 import 'server-only'
+import { retrieveHooks } from './hook-retrieval'
+import type { HookTemplate } from './hook-guide'
 import { createHash } from 'node:crypto'
 import { languagePrompt, type Locale } from './ai-language'
 import { AiOutputError, describeBrand, loadBrandContext, quote, readJson, runLogged, snippetOf } from './ai'
@@ -169,6 +171,7 @@ export function buildContentMessages(
   pillarId: string | null = null,
   density: TextDensity = DEFAULT_DENSITY,
   language: Locale = 'id',
+  hooks: HookTemplate[] = [],
 ): ChatMessage[] {
   if (script) return buildScriptedContentMessages(topic, script, brand, products, attachment, pillarId, language)
   const carousel = slides > 1
@@ -185,7 +188,7 @@ export function buildContentMessages(
           `- caption: 2–4 paragraf pendek, sekitar 300–700 karakter sebelum hashtag: kalimat pembuka yang menarik, isi, lalu ajakan bertindak (CTA). Tutup dengan 3–8 hashtag relevan di baris terakhir.${carousel ? ' Ajak pembaca menggeser carousel kalau sesuai.' : ''}`,
           `- slides: tepat ${slides} slide, berurutan.${carousel ? ` Susunannya: ${carouselStructure(slides)}.` : ''}`,
           `- ${carousel ? densityRule(density) : singleDensityRule(density)}`,
-          ...(carousel ? ['', carouselGuide(hook, density, slides), ''] : []),
+          ...(carousel ? ['', carouselGuide(hook, density, slides, hooks), ''] : []),
           `Format JSON: {"title": "…", "caption": "…", "slides": [{"headline": "…", "scene": "…", "productGroupId": ${products.length > 0 ? '"uuid atau null"' : 'null'}${attached}}]}`,
           ...(products.length > 0 ? ['', describeProducts(products)] : []),
           ...(attachment ? ['', ATTACHMENT_GUIDE] : []),
@@ -330,6 +333,8 @@ export function planContent<T>(
     input,
     async () => {
       const brand = brandContext === undefined ? await loadBrandContext(userId) : brandContext
+      const hooks = script ? { templates: [], source: 'approved-script' } : await retrieveHooks(request.topic)
+      Object.assign(input, { hookIds: hooks.templates.map((h) => h.id), hookSource: hooks.source })
       const plan = parseContentPlan(
         await chatCompletion(
           buildContentMessages(
@@ -343,6 +348,7 @@ export function planContent<T>(
             request.pillarId,
             request.density,
             language,
+            hooks.templates,
           ),
           undefined,
           signal,
@@ -380,7 +386,7 @@ function describeWritingBrand(brand: BrandContext): string {
   return describeBrand({ ...brand, strategy: brand.strategy ? { ...brand.strategy, pillars: brand.strategy.pillars.map((pillar) => ({ ...pillar, detail: '' })) } : null })
 }
 
-export function buildIdeasMessages(brand: BrandContext, recent: string[], language: Locale = 'id', sources: { assets: ProductCandidate[]; references: ScriptReference[] } = { assets: [], references: [] }): ChatMessage[] {
+export function buildIdeasMessages(brand: BrandContext, recent: string[], language: Locale = 'id', sources: { assets: ProductCandidate[]; references: ScriptReference[] } = { assets: [], references: [] }, hooks: HookTemplate[] = []): ChatMessage[] {
   const avoid = recent.length > 0 ? ['', `Jangan ulangi ide atau post yang sudah ada:\n${quote(recent.join('\n'))}`] : []
   const pillars = brand.strategy?.pillars ?? []
   const quota = pillarQuota(pillars, IDEAS_COUNT)
@@ -410,7 +416,7 @@ export function buildIdeasMessages(brand: BrandContext, recent: string[], langua
         '- Pada carousel 3 slide atau lebih, slide CTA berisi satu ajakan singkat. Pada carousel 2 slide, slide terakhir tetap menjawab janji hook sebagai Value + CTA.',
         `- ${densityRule(DEFAULT_DENSITY)}`,
         '',
-        carouselGuide('auto', DEFAULT_DENSITY),
+        carouselGuide('auto', DEFAULT_DENSITY, undefined, hooks),
         SCRIPT_EXAMPLES,
         scriptVisualRules(sources.references),
         `Foto asli milik brand (deskripsi adalah pengamatan visual, bukan bukti jarak, keamanan, layanan, atau manfaat kesehatan):\n${sources.assets.map((asset) => `- ${asset.title} — ${asset.description ?? ''}`).join('\n')}`,
@@ -462,8 +468,11 @@ export function suggestIdeas(
   language: Locale = 'id',
   sources: { assets: ProductCandidate[]; references: ScriptReference[] } = { assets: [], references: [] },
 ): Promise<SuggestedIdea[]> {
-  return runLogged(userId, 'content_ideas', { recent: recent.length }, async () => {
-    const messages = buildIdeasMessages(brand, recent, language, sources)
+  const input = { recent: recent.length }
+  return runLogged(userId, 'content_ideas', input, async () => {
+    const hooks = await retrieveHooks(describeWritingBrand(brand))
+    Object.assign(input, { hookIds: hooks.templates.map((h) => h.id), hookSource: hooks.source })
+    const messages = buildIdeasMessages(brand, recent, language, sources, hooks.templates)
     const ideas = parseIdeas(
       await chatCompletion(messages),
       brand.strategy?.pillars.map((pillar) => pillar.id),
@@ -499,6 +508,7 @@ export function buildScriptMessages(
   /** Reference slides (data URLs with their role) the Layout line is read from. */
   references: ScriptReference[] = [],
   ownerRequest = '',
+  hooks: HookTemplate[] = [],
 ): ChatMessage[] {
   const prompt = [
         `${brand ? describeWritingBrand(brand) : ''}Tugas: kembangkan ide di bawah menjadi skrip carousel Instagram, slide demi slide, yang memperjelas ide itu sampai pembaca benar-benar paham dan bisa langsung memakainya.`,
@@ -512,7 +522,7 @@ export function buildScriptMessages(
         '- Pada carousel 3 slide atau lebih, title pada slide CTA khusus: satu ajakan singkat; body kosong atau satu kalimat pendukung bila diperlukan. Pada carousel 2 slide, slide terakhir tetap memakai aturan slide isi agar janji hook terjawab.',
         `- ${densityRule(density)}`,
         '',
-        carouselGuide(hook, density),
+        carouselGuide(hook, density, undefined, hooks),
         '',
         SCRIPT_EXAMPLES,
         '',
@@ -595,7 +605,9 @@ export function writeScript(
   const input = { ideaId: idea.id, idea: idea.title, density, ...(brief ? { brief } : {}), ...(ownerRequest ? { ownerRequest } : {}) }
   return runLogged(userId, 'content_script', input, async () => {
     const brand = brandContext === undefined ? await loadBrandContext(userId) : brandContext
-    const messages = buildScriptMessages(idea.title, brand, 'auto', brief, density, language, sources.assets, sources.references, ownerRequest)
+    const hooks = await retrieveHooks([idea.title, ownerRequest, brief].join('\n'))
+    Object.assign(input, { hookIds: hooks.templates.map((h) => h.id), hookSource: hooks.source })
+    const messages = buildScriptMessages(idea.title, brand, 'auto', brief, density, language, sources.assets, sources.references, ownerRequest, hooks.templates)
     const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
     // Hashes only: reference bytes and private prompts never enter diagnostic logs.
     Object.assign(input, { sourceHash: hash({ idea: idea.title, brand, brief, language, sources, ownerRequest }), messagesHash: hash(messages) })

@@ -15,7 +15,8 @@ import {
 import { EMPTY_RULE, parseRuleInput, type AutoDmRuleInput } from './auto-dm-rules'
 import { isObject, lengthOf, truncate, type BrandContext } from './brand-options'
 import { HOOK_QUALITY_RULE, IDEA_QUALITY_RULE } from './carousel-guide'
-import { hookGuide } from './hook-guide'
+import { hookGuide, type HookTemplate } from './hook-guide'
+import { retrieveHooks } from './hook-retrieval'
 import { DM_APPROVED } from './inbox-rules'
 import { findContent, loadSummaryBatch, researchLimit, reserveDailyUsage, releaseDailyUsage, saveSummary, type ChatSession } from './chat'
 import {
@@ -343,7 +344,6 @@ const SYSTEM_RULES = [
   '- Kalau owner hanya minta daftar atau list ide, jawab dengan teks berisi persis sebanyak ide yang diminta (judul hook + satu kalimat sudut), tanpa tool. bulk_content hanya untuk owner yang minta dibuatkan kontennya.',
   `- Ide dan rencana konten: ${IDEA_QUALITY_RULE}`,
   `- Hook (judul ide dan poin slide 1): ${HOOK_QUALITY_RULE} Susun dari salah satu struktur knowledge hook di bawah.`,
-  hookGuide(),
   '- Pilih pilar sesuai porsinya di strategi: pilar dengan porsi terbesar didahulukan, pilar kecil hanya kalau jumlah konten cukup.',
   '- Jumlah slide mengikuti isi, bukan target: tiap slide wajib membawa poin baru. Kalau isinya singkat (mis. perbandingan dua pilihan), pakai 2–4 slide; lebih banyak hanya kalau ada lebih banyak poin berbeda.',
   '- Ide perbandingan (A atau B, A vs B) wajib punya satu slide perbandingan berdampingan dengan kriteria yang sama di garis besarnya, bukan A dan B di slide terpisah.',
@@ -359,10 +359,11 @@ const DEEP_SEARCH_OFF =
   '- Intel Kompetitor (riset akun Instagram lain) sedang mati. Kalau owner minta riset akun kompetitor, minta dia menyalakan tombol Intel Kompetitor di kotak pesan.'
 
 /** Mimo's system prompt: the rules, the brand, today, and what came before the verbatim messages. */
-export function buildSystemPrompt(brand: BrandContext | null, deepSearch: boolean, summary: string, now: Date, language: Locale = 'id'): string {
+export function buildSystemPrompt(brand: BrandContext | null, deepSearch: boolean, summary: string, now: Date, language: Locale = 'id', hooks: HookTemplate[] = []): string {
   const today = wibDateKey(now)
   return languagePrompt([
     ...SYSTEM_RULES,
+    hookGuide(hooks),
     deepSearch ? DEEP_SEARCH_ON : DEEP_SEARCH_OFF,
     '',
     // With the year: the model needs it to search for what is recent.
@@ -1007,9 +1008,11 @@ export async function answerChat(request: ChatRequest): Promise<ChatReply> {
           getDensityDefault(userId, accountId).catch(() => DEFAULT_DENSITY),
         ])
         const context: ToolContext = { userId, accountId, brand, density, deepSearch, signal, language, ownerRequest: turn.text }
+        const hooks = await retrieveHooks(turn.text)
+        Object.assign(input, { hookIds: hooks.templates.map((h) => h.id), hookSource: hooks.source })
         const tools = chatTools(deepSearch)
         const messages: ConversationMessage[] = [
-          { role: 'system', content: buildSystemPrompt(brand, deepSearch, session.summary, new Date(), language) },
+          { role: 'system', content: buildSystemPrompt(brand, deepSearch, session.summary, new Date(), language, hooks.templates) },
           ...history.map(
             (message): ConversationMessage =>
               message.role === 'user'

@@ -3,7 +3,7 @@
  * Kept short on purpose: it goes into every carousel request. The brand kit's voice wins over any wording here.
  */
 import { DEFAULT_DENSITY, type TextDensity } from './density-options'
-import { hookGuide } from './hook-guide'
+import { hookGuide, type HookTemplate } from './hook-guide'
 
 export const HOOK_ARCHETYPES = {
   authority: 'Otoritas: buka dari pengalaman atau hasil nyata yang tertulis di topik atau fakta brand.',
@@ -73,11 +73,11 @@ export function carouselStructure(slides: number): string {
 }
 
 /** The rules for a carousel, with the hook archetype this post uses and how much text its slides carry. */
-export function carouselGuide(hook: HookArchetype = 'auto', density: TextDensity = DEFAULT_DENSITY, slides?: number): string {
+export function carouselGuide(hook: HookArchetype = 'auto', density: TextDensity = DEFAULT_DENSITY, slides?: number, hooks: HookTemplate[] = []): string {
   return [
     'Panduan carousel (wajib):',
     `- ${COVER_RULE}`,
-    hookGuide(),
+    hookGuide(hooks),
     `- ${HOOK_QUALITY_RULE}`,
     ...(hook === 'auto' ? [] : [`- Arah struktur yang diminta: ${HOOK_ARCHETYPES[hook]} Gunakan hanya jika sesuai konteks dan bukti; gaya bahasa tetap mengikuti brand.`]),
     ...(slides ? [`- Struktur ${slides} slide: ${carouselStructure(slides)}.`] : []),
