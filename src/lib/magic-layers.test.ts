@@ -18,7 +18,9 @@ import {
   removePrompt,
   REMOVE_TEXT_PROMPT,
   splitSlide,
+  splitSubject,
   textMask,
+  withAlpha,
   type ShapeBox,
   type TextBlock,
 } from './magic-layers'
@@ -330,6 +332,15 @@ describe('splitSlide', () => {
     expect(result.log.objectFound).toBe(true)
   })
 
+  it('asks the stronger reader for the subject', async () => {
+    vi.mocked(chatCompletion)
+      .mockResolvedValueOnce('{"blocks":[{"text":"Promo","x":0.1,"y":0.05,"w":0.5,"h":0.1,"size":0.1}]}')
+      .mockResolvedValueOnce('{"subject":null}')
+    vi.mocked(generateImage).mockResolvedValue((await solid(1088, 1360, 0, 0, 0)).toString('base64'))
+    await splitSlide({ bytes: await solid(width, height, 200, 50, 50), width, height, splitObject: true })
+    expect(vi.mocked(chatCompletion).mock.calls[1][1]).toBe('cc/claude-opus-5-5')
+  })
+
   it('leaves the object out when no subject is found', async () => {
     vi.mocked(chatCompletion)
       .mockResolvedValueOnce('{"blocks":[{"text":"Promo","x":0.1,"y":0.05,"w":0.5,"h":0.1,"size":0.1}]}')
@@ -338,6 +349,96 @@ describe('splitSlide', () => {
     const result = await splitSlide({ bytes: await solid(width, height, 200, 50, 50), width, height, splitObject: true })
     expect(result.object).toBeNull()
     expect(generateImage).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('splitSubject', () => {
+  const width = 120
+  const height = 150
+  const SUBJECT = '{"subject":{"x":0.3,"y":0.4,"w":0.4,"h":0.4}}'
+  const near = (actual: number[], expected: number[]) => actual.every((value, index) => Math.abs(value - expected[index]) <= 12)
+  /** Green with a blue square in the middle third: what the green-screen edit answers. */
+  const greenScreen = async (w: number, h: number) => (await sharp({ create: { width: w, height: h, channels: 3, background: { r: 0, g: 255, b: 0 } } })
+    .composite([{ input: await solid(Math.round(w / 3), Math.round(h / 3), 20, 40, 220), left: Math.round(w / 3), top: Math.round(h / 3) }])
+    .png().toBuffer()).toString('base64')
+
+  beforeEach(() => {
+    vi.mocked(chatCompletion).mockReset()
+    vi.mocked(generateImage).mockReset()
+  })
+
+  it('finds no subject without generating an image, and leaves the source as it is', async () => {
+    vi.mocked(chatCompletion).mockResolvedValue('{"subject":null}')
+    const bytes = await solid(width, height, 200, 50, 50)
+    const result = await splitSubject({ bytes, width, height })
+    expect(result.object).toBeNull()
+    expect(result.cleaned).toBe(bytes)
+    expect(generateImage).not.toHaveBeenCalled()
+    expect(vi.mocked(chatCompletion).mock.calls[0][1]).toBe('cc/claude-opus-5-5')
+    expect(result.log).toMatchObject({ objectFound: false })
+  })
+
+  it('cuts the subject out at its box in source px and repaints only inside the subject mask', async () => {
+    vi.mocked(chatCompletion).mockResolvedValue(SUBJECT)
+    vi.mocked(generateImage)
+      .mockResolvedValueOnce(await greenScreen(1088, 1360))
+      .mockResolvedValueOnce((await solid(1088, 1360, 0, 0, 0)).toString('base64'))
+    const result = await splitSubject({ bytes: await solid(width, height, 200, 50, 50), width, height })
+
+    expect(vi.mocked(generateImage).mock.calls.map((call) => call[0].size)).toEqual(['1088x1360', '1088x1360'])
+    // The subject box (36, 60, 48 × 60) grown by 5% of the longer side.
+    expect(result.object?.box).toEqual({ x: 28, y: 52, w: 64, h: 76 })
+    const object = await sharp(result.object!.png).raw().toBuffer({ resolveWithObject: true })
+    expect([object.info.width, object.info.height, object.info.channels]).toEqual([64, 76, 4])
+    const alphaAt = (x: number, y: number) => object.data[(y * 64 + x) * 4 + 3]
+    expect(alphaAt(1, 1)).toBe(0) // green: keyed out
+    expect(alphaAt(32, 23)).toBe(255) // the blue square at the image's centre (60, 75)
+
+    const meta = await sharp(result.cleaned).metadata()
+    expect([meta.format, meta.width, meta.height]).toEqual(['jpeg', width, height])
+    const cleaned = await sharp(result.cleaned).raw().toBuffer()
+    const pixel = (x: number, y: number) => [...cleaned.subarray((y * width + x) * 3, (y * width + x) * 3 + 3)]
+    expect(near(pixel(60, 90), [0, 0, 0])).toBe(true) // inside the subject: the removal edit
+    expect(near(pixel(3, 3), [200, 50, 50])).toBe(true) // far from it: the source
+    expect(near(pixel(115, 145), [200, 50, 50])).toBe(true)
+    expect(result.log).toMatchObject({ objectFound: true, transparent: false })
+    expect(JSON.stringify(result.log)).not.toContain('base64')
+  })
+
+  it("keeps a transparent layer image's alpha, and pads an odd shape instead of stretching it", async () => {
+    // 200 × 100: its left half transparent, the right half opaque red.
+    const [w, h] = [200, 100]
+    const bytes = await sharp({ create: { width: w, height: h, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+      .composite([{ input: await sharp({ create: { width: 100, height: 100, channels: 4, background: { r: 200, g: 50, b: 50, alpha: 1 } } }).png().toBuffer(), left: 100, top: 0 }])
+      .png().toBuffer()
+    vi.mocked(chatCompletion).mockResolvedValue('{"subject":{"x":0.25,"y":0.2,"w":0.5,"h":0.6}}')
+    // 1:1 edits of the 200 × 200 frame: the image is its middle band (rows 256–768 of 1024), black; the padding white.
+    const framed = async () => (await sharp({ create: { width: 1024, height: 1024, channels: 3, background: '#ffffff' } })
+      .composite([{ input: await solid(1024, 512, 0, 0, 0), left: 0, top: 256 }]).png().toBuffer()).toString('base64')
+    vi.mocked(generateImage).mockResolvedValueOnce(await greenScreen(1024, 1024)).mockResolvedValueOnce(await framed())
+    const result = await splitSubject({ bytes: new Uint8Array(bytes), width: w, height: h })
+
+    expect(vi.mocked(generateImage).mock.calls[0][0].size).toBe('1024x1024')
+    const meta = await sharp(result.cleaned).metadata()
+    expect([meta.format, meta.width, meta.height, meta.hasAlpha]).toEqual(['png', w, h, true])
+    const cleaned = await sharp(result.cleaned).ensureAlpha().raw().toBuffer()
+    const rgba = (x: number, y: number) => [...cleaned.subarray((y * w + x) * 4, (y * w + x) * 4 + 4)]
+    expect(rgba(40, 50)[3]).toBe(0) // the source's transparent half stays transparent
+    expect(rgba(90, 50)[3]).toBe(0)
+    expect(near(rgba(120, 50), [0, 0, 0, 255])).toBe(true) // inside the subject: the edit's band, not its white padding
+    expect(near(rgba(195, 95), [200, 50, 50, 255])).toBe(true) // outside: the source
+    // The cut-out is never visible where the source was transparent.
+    const object = await sharp(result.object!.png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    const { box } = result.object!
+    const objectAlpha = (x: number, y: number) => object.data[((y - box.y) * object.info.width + (x - box.x)) * 4 + 3]
+    expect(objectAlpha(95, 50)).toBe(0)
+    expect(result.log).toMatchObject({ transparent: true })
+  })
+})
+
+describe('withAlpha', () => {
+  it('joins raw RGB and an alpha channel into RGBA', () => {
+    expect([...withAlpha(new Uint8Array([1, 2, 3, 4, 5, 6]), new Uint8Array([0, 255]))]).toEqual([1, 2, 3, 0, 4, 5, 6, 255])
   })
 })
 

@@ -104,14 +104,22 @@ export async function ownsAssets(userId: string, accountId: string, ids: string[
   return rows.length === unique.length
 }
 
-/** Simpan: the slide shows `newAssetId` with `doc`. Returns the images nothing uses any more. */
+/**
+ * Simpan: the slide shows `newAssetId` with `doc`. With `baseAssetId` (Pisahkan objek on the background) the doc is
+ * drawn over that new background from now on; the replaced one is among the returned ids when it was a layer image
+ * nothing else uses (never the slide's original). Returns the images nothing uses any more.
+ */
 export async function saveSlideLayers(
   userId: string,
-  input: { postId: string; oldAssetId: string; newAssetId: string; doc: LayerDoc; design: DesignDoc; expectedVersion: string | null },
+  input: {
+    postId: string; oldAssetId: string; newAssetId: string; doc: LayerDoc; design: DesignDoc; expectedVersion: string | null
+    baseAssetId?: string
+  },
 ): Promise<string[]> {
   const { data, error } = await db().rpc('save_slide_design', {
     p_user_id: userId, p_post_id: input.postId, p_old_asset_id: input.oldAssetId, p_new_asset_id: input.newAssetId,
     p_doc: input.doc, p_design: input.design, p_expected_version: input.expectedVersion,
+    ...(input.baseAssetId ? { p_base_asset_id: input.baseAssetId } : {}),
   })
   check(error)
   return idList(data)

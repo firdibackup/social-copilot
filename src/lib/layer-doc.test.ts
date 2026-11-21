@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   clampBox, commit, createHistory, docAssetIds, fontShorthand, hitTest, isOutside, LAYER_LIMITS, lineBaseline, lineStart,
   newTextLayer, newShapeLayer, duplicateLayer, parseLayerDoc, redo, reorder, resizeBox, snapBox, TEXT_WEIGHTS, undo, wrapText, type LayerDoc,
-  type TextLayer, newPathLayer, normalizePath, pathPointsAbsolute, type PathLayer,
+  type TextLayer, newPathLayer, normalizePath, pathPointsAbsolute, type PathLayer, newOverlayLayer, parseImageCrop,
 } from './layer-doc'
+import { OVERLAY_PRESETS } from './gradients'
 import { LINE_KINDS, SHAPE_KINDS } from './shape-paths'
 
 const ASSET = '11111111-1111-4111-8111-111111111111'
@@ -291,5 +292,48 @@ describe('path layers', () => {
     expect(hitTest([rotated], 105, 105)).toBeNull()
     expect(hitTest([{ ...rotated, hidden: true }], 200, 120)).toBeNull()
     expect(hitTest([{ ...rotated, locked: true }], 200, 120)).toBeNull()
+  })
+})
+
+describe('image crop and gradients', () => {
+  const image = { id: 'i1', kind: 'image', assetId: ASSET, role: 'upload', x: 0, y: 0, w: 100, h: 50 }
+  const shape = { id: 's1', kind: 'shape', shape: 'rect', x: 0, y: 0, w: 100, h: 50, color: '#112233', radius: 0,
+    strokeColor: '#000000', strokeWidth: 0 }
+  const gradient = { kind: 'linear', angle: 180, stops: [{ offset: 0, color: '#000000', alpha: 0 }, { offset: 1, color: '#ffffff', alpha: 0.8 }] }
+
+  it('accepts a crop inside the source', () => {
+    const result = parseLayerDoc(doc([{ ...image, crop: { x: 0.1, y: 0.2, w: 0.5, h: 0.8 } }]))
+    expect('doc' in result && result.doc.layers[0]).toMatchObject({ crop: { x: 0.1, y: 0.2, w: 0.5, h: 0.8 } })
+    expect(parseImageCrop({ x: 0, y: 0, w: 1, h: 1 })).toEqual({ x: 0, y: 0, w: 1, h: 1 })
+  })
+
+  it('refuses a crop out of range, too small, past the source, or with extra keys', () => {
+    for (const crop of [
+      null, { x: 0, y: 0, w: 1 }, { x: -0.1, y: 0, w: 0.5, h: 0.5 }, { x: 0.6, y: 0, w: 0.5, h: 0.5 }, { x: 0, y: 0.7, w: 0.5, h: 0.5 },
+      { x: 0, y: 0, w: 0.001, h: 0.5 }, { x: 0, y: 0, w: 1.2, h: 1 }, { x: 0, y: 0, w: 1, h: 1, z: 1 }, { x: '0', y: 0, w: 1, h: 1 },
+    ]) expect(parseLayerDoc(doc([{ ...image, crop }])), JSON.stringify(crop)).toEqual({ error: 'layer' })
+  })
+
+  it('keeps a valid gradient on shapes, paths and text, and refuses one on images or a bad one', () => {
+    const path = { id: 'p1', kind: 'path', x: 0, y: 0, w: 100, h: 50, points: [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }],
+      closed: true, fill: true, color: '#112233', strokeColor: '#000000', strokeWidth: 0 }
+    const result = parseLayerDoc(doc([{ ...shape, gradient }, { ...path, gradient }, { ...text, id: 't9', gradient }]))
+    if (!('doc' in result)) throw new Error(result.error)
+    for (const layer of result.doc.layers) {
+      expect('gradient' in layer && layer.gradient?.stops[1]).toEqual({ offset: 1, color: '#FFFFFF', alpha: 0.8 })
+    }
+    expect(parseLayerDoc(doc([{ ...image, gradient }]))).toEqual({ error: 'layer' })
+    expect(parseLayerDoc(doc([{ ...shape, gradient: { ...gradient, stops: [] } }]))).toEqual({ error: 'layer' })
+    expect(parseLayerDoc(doc([{ ...shape, gradient: { ...gradient, kind: 'conic' } }]))).toEqual({ error: 'layer' })
+  })
+
+  it('makes a full-canvas overlay from a preset without sharing it', () => {
+    const preset = OVERLAY_PRESETS[0]
+    const overlay = newOverlayLayer(sample, preset)
+    expect(overlay).toMatchObject({ kind: 'shape', shape: 'rect', x: 0, y: 0, w: 1080, h: 1350, strokeWidth: 0, name: preset.id })
+    expect(overlay.gradient).toEqual(preset.gradient)
+    expect(overlay.gradient).not.toBe(preset.gradient)
+    expect(newOverlayLayer(sample, preset, 'Bayangan').name).toBe('Bayangan')
+    expect(parseLayerDoc({ ...sample, layers: [...sample.layers, overlay] })).toHaveProperty('doc')
   })
 })

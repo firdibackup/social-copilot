@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { drawDoc, drawPath, drawShape, layerUploadAttempts, layoutText, textCss, type DrawContext } from './layer-canvas'
+import { drawDoc, drawImageLayer, drawPath, drawShape, layerUploadAttempts, layoutText, textCss, type DrawContext } from './layer-canvas'
 import type { LayerDoc, PathLayer, TextLayer } from './layer-doc'
 import { isLineKind, SHAPE_KINDS } from './shape-paths'
 
@@ -300,5 +300,61 @@ describe('layerUploadAttempts', () => {
     expect(attempts.slice(0, 4)).toEqual([0.9, 0.8, 0.7, 0.6].map((quality) => ({ width: 800, height: 1600, quality, type: 'image/jpeg' })))
     expect(attempts[4].width).toBeLessThan(800)
     expect(layerUploadAttempts(100, 100, '')[0].type).toBe('image/jpeg')
+  })
+})
+
+describe('image crop and gradient fills', () => {
+  /** A fake that also records gradients (and their colour stops) and what fillStyle each fill/fillText used. */
+  function gradientFake() {
+    const ctx = pathContext()
+    const make = (name: string) => (...args: number[]) => {
+      const gradient = { name, args, stops: [] as [number, string][], addColorStop(offset: number, color: string) { this.stops.push([offset, color]) } }
+      ctx.calls.push(['gradient', name, ...args])
+      return gradient as unknown as CanvasGradient
+    }
+    ctx.createLinearGradient = make('linear')
+    ctx.createRadialGradient = make('radial')
+    ctx.fill = () => { ctx.calls.push(['fill', ctx.fillStyle]) }
+    ctx.fillText = (text: string) => { ctx.calls.push(['fillText', text, ctx.fillStyle]) }
+    return ctx
+  }
+  const gradient = { kind: 'linear' as const, angle: 90, stops: [{ offset: 0, color: '#FF0000', alpha: 1 }, { offset: 1, color: '#000000', alpha: 0 }] }
+
+  it('draws the cropped part of the source stretched into the box', () => {
+    const ctx = fakeContext()
+    const source = { naturalWidth: 400, naturalHeight: 200 } as unknown as CanvasImageSource
+    drawImageLayer(ctx, { id: 'i', kind: 'image', assetId: 'a', role: 'upload', x: 10, y: 20, w: 300, h: 50, crop: { x: 0.25, y: 0.5, w: 0.5, h: 0.5 } }, source)
+    expect(ctx.calls).toEqual([['drawImage', source, 100, 100, 200, 100, 10, 20, 300, 50]])
+    // Uncropped, or a source of unknown size: the plain 5-argument draw.
+    const plain = fakeContext()
+    drawImageLayer(plain, { id: 'i', kind: 'image', assetId: 'a', role: 'upload', x: 1, y: 2, w: 3, h: 4 }, source)
+    expect(plain.calls).toEqual([['drawImage', source, 1, 2, 3, 4]])
+  })
+
+  it('fills shapes, paths and text with the gradient across their box, alpha as rgba', () => {
+    const ctx = gradientFake()
+    drawShape(ctx, { id: 's', kind: 'shape', shape: 'rect', x: 10, y: 20, w: 200, h: 100, color: '#123456', radius: 0,
+      strokeColor: '#000000', strokeWidth: 0, gradient })
+    const created = ctx.calls.find((call) => call[0] === 'gradient')
+    expect(created).toEqual(['gradient', 'linear', 10, 70, 210, 70])
+    const fill = ctx.calls.find((call) => call[0] === 'fill')?.[1] as unknown as { stops: [number, string][] }
+    expect(fill.stops).toEqual([[0, 'rgba(255,0,0,1)'], [1, 'rgba(0,0,0,0)']])
+
+    const path = gradientFake()
+    drawPath(path, { id: 'p', kind: 'path', x: 0, y: 0, w: 60, h: 80, points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }], closed: true,
+      fill: true, color: '#123456', strokeColor: '#000000', strokeWidth: 0, gradient: { ...gradient, kind: 'radial' } })
+    expect(path.calls.find((call) => call[0] === 'gradient')).toEqual(['gradient', 'radial', 30, 40, 0, 30, 40, 50])
+
+    const text = gradientFake()
+    drawDoc(text, { v: 1, width: 1080, height: 1350, layers: [{ ...layer, gradient }] }, {} as CanvasImageSource, new Map(), (font) => font)
+    const drawn = text.calls.find((call) => call[0] === 'fillText')
+    expect((drawn?.[2] as unknown as { name: string }).name).toBe('linear')
+  })
+
+  it('keeps the plain colour for unfilled paths and contexts without gradients', () => {
+    const ctx = pathContext()
+    drawShape(ctx, { id: 's', kind: 'shape', shape: 'rect', x: 0, y: 0, w: 10, h: 10, color: '#123456', radius: 0,
+      strokeColor: '#000000', strokeWidth: 0, gradient })
+    expect(ctx.fillStyle).toBe('#123456')
   })
 })

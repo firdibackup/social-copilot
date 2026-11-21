@@ -56,6 +56,28 @@ export class NoTextError extends Error {
   override name = 'NoTextError'
 }
 
+/** Pisahkan objek found no main person or product: nothing was stored, and the caller refunds. */
+export class NoSubjectError extends Error {
+  override name = 'NoSubjectError'
+}
+
+/** The main subject cut out of an image, and that image with the subject removed. */
+export interface SubjectSplit {
+  /**
+   * The subject as a PNG with transparency, and `box`: where that PNG sits in the source image, in source px (the
+   * PNG is exactly box.w × box.h). Null when no main subject was found.
+   */
+  object: { png: Uint8Array; box: PixelBox } | null
+  /**
+   * The source of exactly width × height with the subject removed: repainted only inside the subject's (feathered)
+   * box, every other pixel is the source's. A PNG keeping the source's own alpha channel when the source has
+   * transparency (an image layer), a JPEG otherwise. The source bytes unchanged when `object` is null.
+   */
+  cleaned: Uint8Array
+  /** What the generation log keeps: prompts and sizes, never image data. */
+  log: Record<string, unknown>
+}
+
 export interface SplitResult {
   /** The clean background: a JPEG of exactly width × height. */
   background: Uint8Array
@@ -349,6 +371,49 @@ async function encodeJpeg(raw: Uint8Array, width: number, height: number): Promi
   throw new SlideImageError('Foto tidak bisa diproses. Coba foto lain.')
 }
 
+/**
+ * The source's alpha channel at width × height (cropped like rawRgb), or null when it is fully opaque: then
+ * nothing about transparency needs keeping.
+ */
+async function rawAlpha(bytes: Uint8Array, width: number, height: number): Promise<Uint8Array | null> {
+  try {
+    if (!(await sharp(bytes).metadata()).hasAlpha) return null
+    const { data, info } = await sharp(bytes).autoOrient().resize(width, height, { fit: 'cover' }).toColourspace('srgb')
+      .ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    const alpha = new Uint8Array(width * height)
+    for (let pixel = 0; pixel < alpha.length; pixel++) alpha[pixel] = data[pixel * info.channels + info.channels - 1]
+    return alpha.every((value) => value === 255) ? null : alpha
+  } catch (error) {
+    throw new SlideImageError(error instanceof Error ? error.message : 'Gambar tidak bisa dibaca')
+  }
+}
+
+/** Raw RGB plus a separate alpha channel as raw RGBA. */
+export function withAlpha(rgb: Uint8Array, alpha: Uint8Array): Uint8Array {
+  const out = new Uint8Array(alpha.length * 4)
+  for (let pixel = 0; pixel < alpha.length; pixel++) {
+    out[pixel * 4] = rgb[pixel * 3]
+    out[pixel * 4 + 1] = rgb[pixel * 3 + 1]
+    out[pixel * 4 + 2] = rgb[pixel * 3 + 2]
+    out[pixel * 4 + 3] = alpha[pixel]
+  }
+  return out
+}
+
+/** Raw RGBA as a stored-size PNG: lossless when it fits, else palette-quantised (transparency kept). */
+async function encodePng(rgba: Uint8Array, width: number, height: number): Promise<Uint8Array> {
+  const image = () => sharp(rgba, { raw: { width, height, channels: 4 } })
+  for (const encode of [
+    () => image().png({ compressionLevel: 9 }),
+    () => image().png({ compressionLevel: 9, palette: true, quality: 90 }),
+    () => image().png({ compressionLevel: 9, palette: true, quality: 70, colours: 128 }),
+  ]) {
+    const data = await encode().toBuffer()
+    if (data.length <= TARGET_STORED_BYTES) return new Uint8Array(data)
+  }
+  throw new SlideImageError('Foto tidak bisa diproses. Coba foto lain.')
+}
+
 /** The original with the edited image (any size, normalised to width × height) only where the mask is set, as JPEG. */
 export async function compositeMasked(original: Uint8Array, edited: Uint8Array, width: number, height: number, mask: Uint8Array): Promise<Uint8Array> {
   const [base, fill] = await Promise.all([rawRgb(original, width, height), rawRgb(edited, width, height)])
@@ -494,25 +559,96 @@ export async function splitSlide(
   let object: SplitResult['object'] = null
   if (splitObject) {
     signal?.throwIfAborted()
-    const clean = await toReferenceDataUrl(await encodeJpeg(background, width, height))
-    const subject = parseSubject(await ask(SUBJECT_PROMPT, clean, 'subject', signal), width, height)
-    Object.assign(log, { subjectPrompt: SUBJECT_PROMPT, objectFound: subject !== null })
-    if (subject) {
-      signal?.throwIfAborted()
-      const green = await rawRgb(await edit(GREEN_SCREEN_PROMPT, clean, size, signal), width, height)
-      const crop = grownBox(subject, CROP_PAD, width, height)
-      const png = await sharp(chromaKey(green, width, height), { raw: { width, height, channels: 4 } }).extract(crop).png().toBuffer()
-      signal?.throwIfAborted()
-      const removed = await rawRgb(await edit(REMOVE_SUBJECT_PROMPT, clean, size, signal), width, height)
-      background = compositeRaw(background, removed, textMask(width, height, [subject], SUBJECT_PAD, SUBJECT_FEATHER))
-      object = { png: new Uint8Array(png), x: crop.left, y: crop.top, w: crop.width, h: crop.height }
-      Object.assign(log, { greenScreenPrompt: GREEN_SCREEN_PROMPT, removeSubjectPrompt: REMOVE_SUBJECT_PROMPT, objectBytes: png.length })
-    }
+    const cut = await cutSubject(background, null, width, height, signal)
+    Object.assign(log, cut.log)
+    background = cut.cleaned
+    if (cut.object) object = { png: cut.object.png, ...cut.object.box }
   }
 
   const jpeg = await encodeJpeg(background, width, height)
   log.backgroundBytes = jpeg.length
   return { background: jpeg, blocks, images, shapes, object, log }
+}
+
+/**
+ * Where an image of width × height sits in a frame of the edit size's shape: the edit model only answers in 4:5 or
+ * 1:1, so any other shape (an image layer) is padded rather than stretched, and the edit cropped back to it.
+ */
+function editFrame(width: number, height: number) {
+  const size = imageSize(width, height)
+  const [sizeWidth, sizeHeight] = size.split('x').map(Number)
+  const aspect = sizeWidth / sizeHeight
+  const frameWidth = width / height > aspect ? width : Math.round(height * aspect)
+  const frameHeight = width / height > aspect ? Math.round(width / aspect) : height
+  const left = Math.floor((frameWidth - width) / 2)
+  const top = Math.floor((frameHeight - height) / 2)
+  return { size, frameWidth, frameHeight, left, top }
+}
+
+/** Raw RGB of width × height as a vision/edit reference, padded white into `frame` when given. */
+async function rawReference(rgb: Uint8Array, width: number, height: number, frame?: ReturnType<typeof editFrame>): Promise<string> {
+  let image = sharp(rgb, { raw: { width, height, channels: 3 } })
+  if (frame && (frame.frameWidth !== width || frame.frameHeight !== height)) {
+    image = image.extend({
+      left: frame.left, top: frame.top, right: frame.frameWidth - width - frame.left, bottom: frame.frameHeight - height - frame.top,
+      background: '#ffffff',
+    })
+  }
+  return toReferenceDataUrl(new Uint8Array(await image.jpeg({ quality: 92 }).toBuffer()))
+}
+
+/** An edit of the framed reference, back as raw RGB of exactly the image's width × height. */
+async function editRaw(prompt: string, reference: string, frame: ReturnType<typeof editFrame>, width: number, height: number, signal?: AbortSignal) {
+  const framed = await rawRgb(await edit(prompt, reference, frame.size, signal), frame.frameWidth, frame.frameHeight)
+  if (frame.frameWidth === width && frame.frameHeight === height) return framed
+  return sharp(framed, { raw: { width: frame.frameWidth, height: frame.frameHeight, channels: 3 } })
+    .extract({ left: frame.left, top: frame.top, width, height }).raw().toBuffer()
+}
+
+/**
+ * The subject step on raw RGB of width × height: the stronger reader finds the main subject, one edit isolates it on
+ * green (keyed out, then cropped to its box grown a little), and one edit removes it, kept only inside its feathered
+ * box. `alpha` (the source's own transparency) also bounds the cut-out's. `cleaned` is raw RGB, the input itself when
+ * no subject is found (then no image is generated).
+ */
+async function cutSubject(rgb: Uint8Array, alpha: Uint8Array | null, width: number, height: number, signal?: AbortSignal) {
+  const model = textReaderModel()
+  const subject = parseSubject(await ask(SUBJECT_PROMPT, await rawReference(rgb, width, height), 'subject', signal, model), width, height)
+  const log: Record<string, unknown> = { subjectModel: model, subjectPrompt: SUBJECT_PROMPT, objectFound: subject !== null }
+  if (!subject) return { object: null, cleaned: rgb, log }
+  signal?.throwIfAborted()
+  const frame = editFrame(width, height)
+  const reference = await rawReference(rgb, width, height, frame)
+  const green = await editRaw(GREEN_SCREEN_PROMPT, reference, frame, width, height, signal)
+  const keyed = chromaKey(green, width, height)
+  if (alpha) for (let pixel = 0; pixel < alpha.length; pixel++) keyed[pixel * 4 + 3] = Math.round((keyed[pixel * 4 + 3] * alpha[pixel]) / 255)
+  const crop = grownBox(subject, CROP_PAD, width, height)
+  const region = await sharp(keyed, { raw: { width, height, channels: 4 } }).extract(crop).raw().toBuffer()
+  const png = await encodePng(region, crop.width, crop.height)
+  signal?.throwIfAborted()
+  const removed = await editRaw(REMOVE_SUBJECT_PROMPT, reference, frame, width, height, signal)
+  const cleaned = compositeRaw(rgb, removed, textMask(width, height, [subject], SUBJECT_PAD, SUBJECT_FEATHER))
+  Object.assign(log, { size: frame.size, greenScreenPrompt: GREEN_SCREEN_PROMPT, removeSubjectPrompt: REMOVE_SUBJECT_PROMPT, objectBytes: png.length })
+  return { object: { png, box: { x: crop.left, y: crop.top, w: crop.width, h: crop.height } }, cleaned, log }
+}
+
+/**
+ * Pisahkan objek in the editor: the main person/product of `bytes` (the slide's background or an image layer, any
+ * size) cut out as a transparent PNG with its box in source px, and the source with it removed, the same size. Only
+ * the subject's feathered box is repainted; a source with transparency keeps its alpha channel. One vision call and,
+ * when a subject is found, two image edits.
+ */
+export async function splitSubject(
+  input: { bytes: Uint8Array; width: number; height: number },
+  signal?: AbortSignal,
+): Promise<SubjectSplit> {
+  const { bytes, width, height } = input
+  const [rgb, alpha] = await Promise.all([rawRgb(bytes, width, height), rawAlpha(bytes, width, height)])
+  const cut = await cutSubject(rgb, alpha, width, height, signal)
+  const log = { ...cut.log, inputBytes: bytes.length, transparent: alpha !== null }
+  if (!cut.object) return { object: null, cleaned: bytes, log }
+  const cleaned = alpha ? await encodePng(withAlpha(cut.cleaned, alpha), width, height) : await encodeJpeg(cut.cleaned, width, height)
+  return { object: cut.object, cleaned, log: { ...log, cleanedBytes: cleaned.length } }
 }
 
 const pxBox = (box: PixelBox) => ({

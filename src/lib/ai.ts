@@ -111,7 +111,10 @@ export type LoggedTask =
   | 'deep_search'
   /** The rolling summary of a Mimo conversation, written after the answer. */
   | 'chat_summary'
-  /** ✨ Lapisan ajaib: a finished slide split into a clean background and editable text (units: magicLayerUnits). */
+  /**
+   * ✨ Lapisan ajaib: a finished slide split into a clean background and editable text (units: magicLayerUnits),
+   * and the editor's "Pisahkan objek" on the background or an image layer (units: OBJECT_SPLIT_UNITS).
+   */
   | 'magic_layers'
 
 interface GenerationLog {

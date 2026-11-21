@@ -9,7 +9,9 @@ import {
   copyPathPoints, isLineKind, isPathPoints, isShapeKind, isStrokeDash, pathBounds, PATH_LIMITS,
   type PathPoint, type PathVector, type ShapeKind, type StrokeDash,
 } from './shape-paths'
+import { copyGradient, parseGradient, type Gradient, type GradientPreset } from './gradients'
 export type { PathPoint, PathVector, ShapeKind, StrokeDash } from './shape-paths'
+export type { Gradient, GradientStop, GradientPreset } from './gradients'
 
 export interface Box { id: string; x: number; y: number; w: number; h: number }
 export interface LayerFlags {
@@ -45,9 +47,17 @@ export interface TextLayer extends Box, LayerFlags {
   opacity?: number
   /** A soft drop shadow. */
   shadow?: boolean
+  /** Fills the glyphs (and underline) across the layer box instead of `color`. */
+  gradient?: Gradient
 }
 
 export type ImageRole = 'logo' | 'product' | 'object' | 'upload'
+
+/**
+ * The visible part of the source image, as fractions 0..1 of its natural width and height: x + w ≤ 1, y + h ≤ 1,
+ * w and h ≥ LAYER_LIMITS.crop.min.
+ */
+export interface ImageCrop { x: number; y: number; w: number; h: number }
 
 export interface ImageLayer extends Box, LayerFlags {
   kind: 'image'
@@ -55,6 +65,11 @@ export interface ImageLayer extends Box, LayerFlags {
   role: ImageRole
   /** 0.1–1, default 1. */
   opacity?: number
+  /**
+   * Absent shows the whole image. The cropped region is drawn stretched into the box, so a box of another aspect
+   * than the region squashes the image (a free resize).
+   */
+  crop?: ImageCrop
 }
 
 export interface ShapeLayer extends Box, LayerFlags {
@@ -69,6 +84,8 @@ export interface ShapeLayer extends Box, LayerFlags {
   /** Absent means a solid stroke. */
   dash?: StrokeDash
   opacity?: number
+  /** Fills across the box instead of `color` (closed kinds only; line kinds are never filled). */
+  gradient?: Gradient
 }
 
 /**
@@ -88,6 +105,8 @@ export interface PathLayer extends Box, LayerFlags {
   strokeWidth: number
   dash?: StrokeDash
   opacity?: number
+  /** Fills across the box instead of `color`, when `fill` is on. */
+  gradient?: Gradient
 }
 
 export type Layer = TextLayer | ImageLayer | ShapeLayer | PathLayer
@@ -111,6 +130,8 @@ export const LAYER_LIMITS = {
   side: { min: 100, max: 2000 },
   /** The smallest box a resize leaves, in canvas px. */
   minBox: 24,
+  /** An image crop's smallest side, as a fraction of the source image. */
+  crop: { min: 0.01 },
   history: 30,
 } as const
 
@@ -125,10 +146,13 @@ const ALIGNS: ReadonlySet<string> = new Set(['left', 'center', 'right'])
 const BOX_KEYS = ['id', 'x', 'y', 'w', 'h', 'kind', 'name', 'rotation', 'locked', 'hidden', 'field']
 const TEXT_FLAGS = ['italic', 'underline', 'uppercase', 'shadow'] as const
 const TEXT_KEYS = new Set([...BOX_KEYS, 'text', 'font', 'size', 'weight', 'color', 'align', 'lineHeight',
-  ...TEXT_FLAGS, 'letterSpacing', 'opacity'])
-const IMAGE_KEYS = new Set([...BOX_KEYS, 'assetId', 'role', 'opacity'])
-const SHAPE_KEYS = new Set([...BOX_KEYS, 'shape', 'color', 'radius', 'strokeColor', 'strokeWidth', 'dash', 'opacity'])
-const PATH_KEYS = new Set([...BOX_KEYS, 'points', 'closed', 'color', 'fill', 'strokeColor', 'strokeWidth', 'dash', 'opacity'])
+  ...TEXT_FLAGS, 'letterSpacing', 'opacity', 'gradient'])
+const IMAGE_KEYS = new Set([...BOX_KEYS, 'assetId', 'role', 'opacity', 'crop'])
+const SHAPE_KEYS = new Set([...BOX_KEYS, 'shape', 'color', 'radius', 'strokeColor', 'strokeWidth', 'dash', 'opacity', 'gradient'])
+const PATH_KEYS = new Set([...BOX_KEYS, 'points', 'closed', 'color', 'fill', 'strokeColor', 'strokeWidth', 'dash', 'opacity', 'gradient'])
+const CROP_KEYS: ReadonlySet<string> = new Set(['x', 'y', 'w', 'h'])
+/** Float slack for a crop edge computed by the gesture math. */
+const CROP_EPSILON = 1e-9
 const WEIGHTS: ReadonlySet<unknown> = new Set(TEXT_WEIGHTS)
 const DOC_KEYS = new Set(['v', 'width', 'height', 'layers'])
 
@@ -140,6 +164,16 @@ const isObject = (value: unknown): value is Json => typeof value === 'object' &&
 const onlyKeys = (value: Json, keys: ReadonlySet<string>) => Object.keys(value).every((key) => keys.has(key))
 const finite = (value: unknown, min: number, max: number): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max
+
+/** A stored crop checked strictly, as a fresh copy, or null. */
+export function parseImageCrop(value: unknown): ImageCrop | null {
+  if (!isObject(value) || !onlyKeys(value, CROP_KEYS)) return null
+  const { x, y, w, h } = value
+  const min = LAYER_LIMITS.crop.min
+  if (!finite(x, 0, 1 - min) || !finite(y, 0, 1 - min) || !finite(w, min, 1) || !finite(h, min, 1)) return null
+  if (x + w > 1 + CROP_EPSILON || y + h > 1 + CROP_EPSILON) return null
+  return { x, y, w, h }
+}
 
 /** Why a doc was refused; the server answers with one generic message. */
 export type LayerDocError = 'shape' | 'size' | 'too_many' | 'layer' | 'duplicate_id'
@@ -184,6 +218,9 @@ function parseLayer(value: unknown, width: number, height: number): Layer | null
   const { opacity } = value
   if (opacity !== undefined && !finite(opacity, LAYER_LIMITS.opacity.min, LAYER_LIMITS.opacity.max)) return null
   const extra: { opacity?: number } = opacity === undefined ? {} : { opacity }
+  let gradient: Gradient | null = null
+  if (value.gradient !== undefined && (value.kind === 'image' || !(gradient = parseGradient(value.gradient)))) return null
+  const fill: { gradient?: Gradient } = gradient ? { gradient } : {}
   if (value.kind === 'text') {
     if (!onlyKeys(value, TEXT_KEYS)) return null
     const { text, font, size, weight, color, align, lineHeight, letterSpacing } = value
@@ -195,7 +232,7 @@ function parseLayer(value: unknown, width: number, height: number): Layer | null
     if (typeof align !== 'string' || !ALIGNS.has(align)) return null
     const spacing = LAYER_LIMITS.letterSpacing
     if (letterSpacing !== undefined && !finite(letterSpacing, spacing.min, spacing.max)) return null
-    const style: Partial<TextLayer> = { ...extra, ...(letterSpacing === undefined ? {} : { letterSpacing }) }
+    const style: Partial<TextLayer> = { ...extra, ...(letterSpacing === undefined ? {} : { letterSpacing }), ...fill }
     for (const flag of TEXT_FLAGS) {
       const on = value[flag]
       if (on === undefined) continue
@@ -211,13 +248,16 @@ function parseLayer(value: unknown, width: number, height: number): Layer | null
     if (!onlyKeys(value, IMAGE_KEYS)) return null
     if (typeof value.assetId !== 'string' || !UUID.test(value.assetId)) return null
     if (typeof value.role !== 'string' || !ROLES.has(value.role)) return null
-    return { ...box, kind: 'image', assetId: value.assetId.toLowerCase(), role: value.role as ImageRole, ...extra }
+    const crop = value.crop === undefined ? undefined : parseImageCrop(value.crop)
+    if (crop === null) return null
+    return { ...box, kind: 'image', assetId: value.assetId.toLowerCase(), role: value.role as ImageRole, ...extra,
+      ...(crop ? { crop } : {}) }
   }
   if (value.kind === 'shape' || value.kind === 'path') {
     if (typeof value.color !== 'string' || !HEX.test(value.color) || typeof value.strokeColor !== 'string' || !HEX.test(value.strokeColor)
       || !finite(value.strokeWidth, 0, 100) || (value.dash !== undefined && !isStrokeDash(value.dash))) return null
     const paint = { color: value.color.toUpperCase(), strokeColor: value.strokeColor.toUpperCase(), strokeWidth: value.strokeWidth,
-      ...(value.dash !== undefined ? { dash: value.dash } : {}), ...extra }
+      ...(value.dash !== undefined ? { dash: value.dash } : {}), ...extra, ...fill }
     if (value.kind === 'path') {
       if (!onlyKeys(value, PATH_KEYS) || !isPathPoints(value.points) || typeof value.closed !== 'boolean'
         || typeof value.fill !== 'boolean') return null
@@ -485,6 +525,16 @@ export function newShapeLayer(doc: LayerDoc, shape: ShapeKind): ShapeLayer {
   return { id: newLayerId(doc), kind: 'shape', shape, color: '#6558F5', radius: 0,
     strokeColor: '#171827', strokeWidth: line ? 6 : 0,
     x: Math.round((doc.width - w) / 2), y: Math.round((doc.height - h) / 2), w, h }
+}
+
+/**
+ * A see-through gradient over the whole slide (an OVERLAY_PRESETS entry, or any gradient preset): a full-canvas rect
+ * with no stroke, named after the preset unless `name` is given. The preset itself is copied, never shared.
+ */
+export function newOverlayLayer(doc: LayerDoc, preset: GradientPreset, name: string = preset.id): ShapeLayer {
+  const gradient = copyGradient(preset.gradient)
+  return { id: newLayerId(doc), kind: 'shape', shape: 'rect', name: name.slice(0, 120), color: gradient.stops[0].color,
+    gradient, radius: 0, strokeColor: '#000000', strokeWidth: 0, x: 0, y: 0, w: doc.width, h: doc.height }
 }
 
 // ---------- Free vector paths ----------

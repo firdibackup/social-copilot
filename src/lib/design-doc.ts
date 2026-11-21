@@ -3,10 +3,17 @@ import { isFontName, parseLayerDoc, type LayerDoc } from './layer-doc'
 import { isFieldConfig, type FieldConfig } from './design-fields'
 import { inspectCaption } from './caption'
 import { copyPathPoints, isPathPoints, isShapeKind, isStrokeDash, type PathPoint, type ShapeKind, type StrokeDash } from './shape-paths'
+import { designGradientAngle, type Gradient } from './gradients'
 export type { FieldConfig } from './design-fields'
 
 export type Color = { srgb: { r: number; g: number; b: number; a: number } }
 export type Rect = { x: number; y: number; width: number; height: number }
+/**
+ * `angle` is in degrees from the +x axis (0 = towards the right, 90 = towards the bottom), i.e. CSS angle − 90.
+ * Radial gradients run from the centre to the farthest corner. Each stop's colour carries its own alpha.
+ * An image `crop` is the visible part of the source as fractions 0..1 of its natural width and height
+ * (x + width ≤ 1, y + height ≤ 1); absent is the whole image.
+ */
 export type Paint =
   | { type: 'none' }
   | { type: 'solid'; color: Color }
@@ -95,15 +102,17 @@ function color(v: unknown): v is Color {
   const channels = v.srgb
   return keys(channels, ['r', 'g', 'b', 'a']) && ['r', 'g', 'b', 'a'].every((key) => number(channels[key], 0, 1))
 }
-const rect = (v: unknown): v is Rect => object(v) && keys(v, ['x', 'y', 'width', 'height'])
-  && number(v.x, -8000, 8000) && number(v.y, -8000, 8000) && number(v.width, 0.01, 8000) && number(v.height, 0.01, 8000)
+/** A crop in fractions of the source image; the small slack absorbs float error from the editor's crop math. */
+const cropRect = (v: unknown): v is Rect => object(v) && keys(v, ['x', 'y', 'width', 'height'])
+  && number(v.x, 0, 0.99) && number(v.y, 0, 0.99) && number(v.width, 0.01, 1) && number(v.height, 0.01, 1)
+  && v.x + v.width <= 1 + 1e-9 && v.y + v.height <= 1 + 1e-9
 
 function paint(v: unknown): v is Paint {
   if (!object(v)) return false
   if (v.type === 'none') return keys(v, ['type'])
   if (v.type === 'solid') return keys(v, ['type', 'color']) && color(v.color)
   if (v.type === 'image') return keys(v, ['type', 'assetId', 'fit', 'crop', 'maskAssetId']) && assetId(v.assetId)
-    && oneOf(v.fit, ['cover', 'contain', 'stretch']) && (v.crop === undefined || rect(v.crop))
+    && oneOf(v.fit, ['cover', 'contain', 'stretch']) && (v.crop === undefined || cropRect(v.crop))
     && (v.maskAssetId === undefined || assetId(v.maskAssetId))
   if (v.type !== 'gradient' || !keys(v, ['type', 'kind', 'angle', 'stops']) || !oneOf(v.kind, ['linear', 'radial'])
     || !number(v.angle, -360, 360) || !Array.isArray(v.stops) || v.stops.length < 2 || v.stops.length > 16) return false
@@ -238,6 +247,12 @@ export const hexColor = (hex: string): Color => ({ srgb: {
 export const colorHex = ({ srgb }: Color): string =>
   `#${[srgb.r, srgb.g, srgb.b].map(v => Math.round(v * 255).toString(16).padStart(2, '0')).join('')}`
 
+/** A layer gradient as a design Paint: the same colours, alphas and offsets, with the angle in design convention. */
+export const gradientPaint = (gradient: Gradient): Extract<Paint, { type: 'gradient' }> => ({
+  type: 'gradient', kind: gradient.kind, angle: designGradientAngle(gradient.angle),
+  stops: gradient.stops.map((stop) => ({ offset: stop.offset, color: { srgb: { ...hexColor(stop.color).srgb, a: stop.alpha } } })),
+})
+
 /** Identity is supplied by the caller so repeated reads never assign fresh node IDs. */
 export function migrateLayerDoc(legacy: LayerDoc, identity: { id: string; pageId: string; nodeIds: string[] },
   baseAssetId: string, originalAssetId: string | null = null, title = ''): DesignDoc {
@@ -252,16 +267,17 @@ export function migrateLayerDoc(legacy: LayerDoc, identity: { id: string; pageId
       ...(layer.field ? { data: { carousely: { field: layer.field } } } : {}) }
     if (layer.kind === 'shape' || layer.kind === 'path') {
       const stroke = { color: hexColor(layer.strokeColor), width: layer.strokeWidth, ...(layer.dash ? { dash: layer.dash } : {}) }
-      if (layer.kind === 'shape') return { ...base, type: 'shape', kind: layer.shape, cornerRadius: layer.radius,
-        fill: { type: 'solid', color: hexColor(layer.color) }, stroke }
+      const fill: Paint = layer.gradient ? gradientPaint(layer.gradient) : { type: 'solid', color: hexColor(layer.color) }
+      if (layer.kind === 'shape') return { ...base, type: 'shape', kind: layer.shape, cornerRadius: layer.radius, fill, stroke }
       return { ...base, type: 'shape', kind: 'path', cornerRadius: 0,
-        fill: layer.fill ? { type: 'solid', color: hexColor(layer.color) } : { type: 'none' }, stroke,
+        fill: layer.fill ? fill : { type: 'none' }, stroke,
         path: { points: copyPathPoints(layer.points), closed: layer.closed } }
     }
-    if (layer.kind === 'image') return { ...base, type: 'image', fill: { type: 'image', assetId: layer.assetId, fit: 'stretch' },
+    if (layer.kind === 'image') return { ...base, type: 'image', fill: { type: 'image', assetId: layer.assetId, fit: 'stretch',
+      ...(layer.crop ? { crop: { x: layer.crop.x, y: layer.crop.y, width: layer.crop.w, height: layer.crop.h } } : {}) },
       data: { carousely: { ...base.data?.carousely, role: layer.role } } }
     const style: TextStyle = { fontFamily: layer.font, fontStyle: layer.italic ? 'Italic' : 'Regular', fontSize: layer.size,
-      axes: { wght: layer.weight }, fill: { type: 'solid', color: hexColor(layer.color) }, underline: layer.underline ?? false,
+      axes: { wght: layer.weight }, fill: layer.gradient ? gradientPaint(layer.gradient) : { type: 'solid', color: hexColor(layer.color) }, underline: layer.underline ?? false,
       letterSpacing: (layer.letterSpacing ?? 0) * 100, case: layer.uppercase ? 'upper' : 'none' }
     return { ...base, type: 'text', box: { mode: 'autoHeight', width: layer.w, height: layer.h,
       autoFit: { enabled: false, min: 12, max: 400 }, verticalAlign: 'top' },

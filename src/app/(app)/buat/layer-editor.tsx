@@ -1,8 +1,8 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import {
-  ArrowDownToLine, ArrowUpToLine, Bold, CaseUpper, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Flag, Image as ImageIcon, ImagePlus,
+  ArrowDownToLine, Crop, Scissors, ArrowUpToLine, Bold, CaseUpper, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Flag, Image as ImageIcon, ImagePlus,
   Italic, LoaderCircle, Redo2, RotateCcw, Sparkles, Stamp, TextAlignCenter, TextAlignEnd, TextAlignStart, Trash2, TriangleAlert, Type,
   Underline, Undo2, Upload, X, Shapes, Copy, LockKeyhole, EyeOff,
 } from 'lucide-react'
@@ -15,19 +15,26 @@ import type { Asset } from '@/lib/assets'
 import { DEFAULT_HEADING_FONT } from '@/lib/design-styles'
 import { FIELD_PROMPT_LIMIT, fieldMaxChars, fieldReady } from '@/lib/design-fields'
 import { flattenDoc, loadFonts, prepareLayerUpload } from '@/lib/layer-canvas'
+import type { GradientPreset } from '@/lib/gradients'
 import {
-  createHistory, duplicateLayer, emptyDoc, isFontName, isOutside, LAYER_LIMITS, layerDraftKey, newImageLayer, newPathLayer, newTextLayer, newShapeLayer, normalizePath, pathPointsAbsolute, redo, reorder, TEXT_WEIGHTS, undo,
+  createHistory, duplicateLayer, emptyDoc, isFontName, isOutside, LAYER_LIMITS, layerDraftKey, layerImageUrl, newImageLayer, newOverlayLayer, newPathLayer, newTextLayer, newShapeLayer, normalizePath, pathPointsAbsolute, redo, reorder, TEXT_WEIGHTS, undo,
   type History, type ImageLayer, type Layer, type LayerDoc, type Reorder, type StrokeDash, type TextAlign, type TextLayer, type TextWeight, type ShapeLayer, type PathLayer,
 } from '@/lib/layer-doc'
 import { isLineKind } from '@/lib/shape-paths'
 import type { PostMedia } from '@/lib/posts'
 import {
-  loadSlideLayersAction, logoLayerAssetAction, magicFeedbackAction, resetSlideLayersAction, saveSlideLayersAction, uploadLayerImageAction,
+  loadSlideLayersAction, logoLayerAssetAction, magicFeedbackAction, resetSlideLayersAction, saveSlideLayersAction, splitObjectAction, uploadLayerImageAction,
 } from './layer-actions'
+import { cancelGeneration } from './cancel-generation'
+import { withCropOf } from './layer-editor-crop'
+import { FillControl, OverlayMenu, withFill } from './layer-editor-fill'
+import { SplitObjectDialog, type SplitRun, type SplitSource } from './layer-editor-split'
+import { placeBackgroundSplit, placeLayerSplit } from './layer-editor-split-place'
 import { familyOf, fitDoc, LayerCanvas, type BaseTone } from './layer-editor-canvas'
-import { addLayer, AMEND_MS, editStep, nudgeLayer, readDraft, removeLayer, sameDoc, updateLayer } from './layer-editor-gesture'
+import { addLayer, AMEND_MS, editStep, nudgeLayer, readDraft, removeLayer, replaceLayer, sameDoc, updateLayer } from './layer-editor-gesture'
 import type { PenResult } from './layer-editor-pen'
 import { DashIcon, ShapeMenu } from './layer-editor-shapes'
+import { copiedLayer, copyLayer, isTyping, pasteCopied, shortcutFor } from './layer-editor-shortcuts'
 import { Thumbnail } from './thumbnail'
 import { serializeLayerDraft } from '@/lib/layer-draft'
 
@@ -56,7 +63,12 @@ interface LayerEditorProps {
   onClose: () => void
   /** Closes the editor and opens ✨ Lapisan ajaib for this slide; unset hides the offer. */
   onMagicLayers?: () => void
+  /** What Pisahkan objek costs and what's left; unset hides it. */
+  billing?: { rate: number; planCredits: number; credits: number | null; trial: number | null }
 }
+
+/** A background swapped by Pisahkan objek: `doc` is the step that did it, so undoing it brings the old one back. */
+interface BackgroundSwap { doc: LayerDoc; assetId: string }
 
 /** What the panel shows while adding an image: where it comes from, then the library. */
 type Adding = 'image' | 'library' | null
@@ -75,8 +87,9 @@ const CHIP = 'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-l
  * Edit desain: the slide as layers over its background, full screen. Changes stay in the browser (and a draft in
  * localStorage) until Simpan flattens them into a new slide image.
  */
-export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlush, onClose, onMagicLayers }: LayerEditorProps) {
+export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlush, onClose, onMagicLayers, billing }: LayerEditorProps) {
   const t = useTranslations('editor.layerEditor')
+  const locale = useLocale()
   const router = useRouter()
   const storageFull = useStorageFull()
   const dialog = useRef<HTMLDialogElement>(null)
@@ -102,6 +115,18 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
   const [, setFontTick] = useState(0)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [drawing, setDrawing] = useState(false)
+  /** Potong: the image being cropped, as it is so far; committed as one step when done. */
+  const [cropDraft, setCropDraftState] = useState<ImageLayer | null>(null)
+  // Mirrors cropDraft for handlers that can run twice before a render (a press outside, then the button pressed).
+  const cropRef = useRef<ImageLayer | null>(null)
+  const setCropDraft = (next: ImageLayer | null) => {
+    cropRef.current = next
+    setCropDraftState(next)
+  }
+  const [splitOpen, setSplitOpen] = useState(false)
+  const [splitOperation, setSplitOperation] = useState<string | null>(null)
+  const [cancellingSplit, setCancellingSplit] = useState(false)
+  const [swap, setSwap] = useState<BackgroundSwap | null>(null)
 
   useEffect(() => {
     const node = dialog.current
@@ -150,7 +175,10 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
 
   const doc = history?.present ?? null
   const readOnly = loaded?.readOnly ?? true
-  const dirty = Boolean(loaded && doc && !readOnly && !sameDoc(doc, loaded.initial))
+  // The swap holds while its step is done (in the past or trimmed from it), not once it has been undone.
+  const swapped = swap && history && !history.future.includes(swap.doc) ? swap.assetId : null
+  const background = swapped ?? loaded?.baseAssetId ?? media.assetId
+  const dirty = Boolean(loaded && doc && !readOnly && (swapped !== null || !sameDoc(doc, loaded.initial)))
 
   // Fonts arrive after the first layout: measure again, and refit the boxes, once they have.
   const fontKey = doc ? [...new Set(doc.layers.flatMap((layer) => (layer.kind === 'text' ? [`${layer.font}:${layer.weight}`] : [])))].join('|') : ''
@@ -199,6 +227,8 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
     const now = clock()
     const amend = Boolean(key && lastEdit.current?.key === key && now - lastEdit.current.at < AMEND_MS)
     lastEdit.current = key ? { key, at: now } : null
+    // A new edit after undoing Pisahkan objek drops that step for good, and with it the new background.
+    if (swap && history?.future.includes(swap.doc)) setSwap(null)
     setHistory((current) => (current ? editStep(current, fitDoc(next), amend) : current))
   }
 
@@ -207,6 +237,27 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
     if (doc && selected) edit(updateLayer(doc, selected.id, change), key && `${key}:${selected.id}`)
   }
   const full = (doc?.layers.length ?? 0) >= LAYER_LIMITS.layers
+
+  /** Potong: on a picture (double click, or the panel's button). */
+  function startCrop(id: string) {
+    const layer = doc?.layers.find((item) => item.id === id)
+    if (!layer || layer.kind !== 'image' || layer.locked || layer.hidden || readOnly || working) return
+    setDrawing(false)
+    setAdding(null)
+    setSelectedId(id)
+    setCropDraft(layer)
+  }
+
+  /** Selesai: the crop session as one history step (none when nothing changed). */
+  function finishCrop() {
+    const draft = cropRef.current
+    setCropDraft(null)
+    if (!draft || !doc) return
+    const layer = doc.layers.find((item) => item.id === draft.id)
+    if (!layer || layer.kind !== 'image') return
+    const next = withCropOf(layer, draft)
+    if (JSON.stringify(next) !== JSON.stringify(layer)) edit(replaceLayer(doc, next))
+  }
 
   function stepHistory(direction: 'undo' | 'redo') {
     lastEdit.current = null
@@ -234,6 +285,53 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
     edit(addLayer(doc, layer))
     setSelectedId(layer.id)
     setSheetOpen(true)
+  }
+
+  /** Overlay gradien: the slide-sized gradient goes under the text, so it lifts the words off the photo. */
+  function addOverlay(preset: GradientPreset) {
+    if (!doc || full) return
+    setDrawing(false)
+    const layer = newOverlayLayer(doc, preset, t(`gradients.${preset.id}` as 'gradients.shadeBottom'))
+    const text = doc.layers.findIndex((item) => item.kind === 'text')
+    const layers = [...doc.layers]
+    layers.splice(text < 0 ? layers.length : text, 0, layer)
+    edit({ ...doc, layers })
+    setSelectedId(layer.id)
+    setSheetOpen(true)
+  }
+
+  /** Pisahkan objek, from the background or the selected picture; the result lands as one step. */
+  async function runSplit(source: SplitSource): Promise<SplitRun> {
+    if (!doc || readOnly) return { error: t('failed') }
+    const layer = source === 'layer' && selected?.kind === 'image' ? selected : null
+    if (source === 'layer' && !layer) return { error: t('split.layerHint') }
+    if (full) return { error: t('split.full') }
+    const operationId = crypto.randomUUID()
+    setSplitOperation(operationId)
+    const result = await splitObjectAction({
+      postId, assetId: media.assetId, operationId,
+      source: layer ? { kind: 'layer', layerAssetId: layer.assetId } : { kind: 'background' },
+    }).catch(() => ({ error: t('split.failed') }))
+    setSplitOperation(null)
+    if ('error' in result) return storageFull(result.error) ? { error: null } : { error: result.error }
+    // The dialog is modal while it runs, so `doc` is still the doc it started from.
+    const placed = layer ? placeLayerSplit(doc, layer.id, result) : placeBackgroundSplit(doc, result)
+    if (!placed) return { error: t('split.full') }
+    const next = fitDoc(placed.doc)
+    edit(next)
+    if (!layer) setSwap({ doc: next, assetId: result.cleaned.assetId })
+    setSelectedId(placed.layer.id)
+    setSheetOpen(true)
+    setSplitOpen(false)
+    return { ok: true }
+  }
+
+  async function cancelSplit() {
+    if (!splitOperation || cancellingSplit) return
+    setCancellingSplit(true)
+    const result = await cancelGeneration(postId, 'edit', splitOperation, locale)
+    setCancellingSplit(false)
+    if (result.error) setError(result.error)
   }
 
   /** Bentuk bebas: the canvas takes pen points until the outline is finished or cancelled. */
@@ -360,10 +458,11 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
     setError(null)
     setSelectedId(null)
     setDrawing(false)
+    setCropDraft(null)
     setWorking(t('saving'))
     try {
       if (!(await onFlush())) throw new Error(t('flushFailed'))
-      const prepared = await flattenDoc(doc, loaded.baseAssetId, familyOf)
+      const prepared = await flattenDoc(doc, background, familyOf)
       const form = new FormData()
       form.set('file', prepared.blob, 'slide.jpg')
       form.set('width', String(prepared.width))
@@ -372,6 +471,8 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
       form.set('oldAssetId', media.assetId)
       form.set('doc', JSON.stringify(doc))
       form.set('expectedVersion', loaded.version ?? '')
+      // Pisahkan objek on the background: the cleaned image becomes the doc's background.
+      if (swapped && swapped !== loaded.baseAssetId) form.set('backgroundAssetId', swapped)
       const result = await saveSlideLayersAction(form).catch(() => ({ error: t('failed') }))
       if ('error' in result) {
         setWorking(null)
@@ -416,39 +517,81 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
     }
   }
 
+  /** ⌘C / ⌘X: the selected layer into the editor's clipboard, which every slide of this editor shares. */
+  function copySelected(cut: boolean) {
+    if (!doc || !selected) return
+    copyLayer(selected)
+    if (cut && !selected.locked && !readOnly) remove()
+  }
+
+  function paste() {
+    if (!doc || readOnly) return
+    const result = pasteCopied(doc)
+    if (!result) {
+      if (copiedLayer() && full) setError(t('full', { max: LAYER_LIMITS.layers }))
+      return
+    }
+    setDrawing(false)
+    setAdding(null)
+    edit(result.doc)
+    setSelectedId(result.layer.id)
+  }
+
+  /**
+   * Canva-style shortcuts (layer-editor-shortcuts.ts). Zoom and the shortcut list are the canvas's own, on the
+   * document so they work wherever focus is. Ignored while typing in a field and while the pen is drawing (it owns
+   * Enter, Esc, Backspace and Ctrl+Z, which take back a point).
+   */
   function onKeyDown(event: React.KeyboardEvent) {
-    const target = event.target as HTMLElement
-    // While drawing, the pen owns the keys (Enter, Esc, Backspace, Ctrl+Z take back a point).
-    if (target.closest('input, textarea, select, [contenteditable="true"]') || !doc || drawing) return
-    const mod = event.metaKey || event.ctrlKey
-    const key = event.key.toLowerCase()
-    if (mod && key === 'z') {
-      event.preventDefault()
-      stepHistory(event.shiftKey ? 'redo' : 'undo')
+    // Cropping: Enter is Selesai (Esc too, through the dialog's cancel); no other shortcut runs meanwhile.
+    if (cropDraft) {
+      if (event.key === 'Enter' && !(event.target as Element).closest('button, input, select, textarea')) {
+        event.preventDefault()
+        finishCrop()
+      }
       return
     }
-    if (mod && key === 'y') {
+    if (isTyping(event.target) || !doc || drawing || working) return
+    const shortcut = shortcutFor(event)
+    if (!shortcut || shortcut.kind === 'zoom' || shortcut.kind === 'help') return
+    // Keys on a button (Delete on the layer list, ⌘C on Simpan…) still mean the slide; only Enter/Space are its own.
+    const run = (action: () => void) => {
       event.preventDefault()
-      stepHistory('redo')
-      return
+      action()
     }
-    if (!selected || readOnly) return
-    if (mod && key === 'd') {
-      event.preventDefault()
-      duplicate()
-      return
+    switch (shortcut.kind) {
+      case 'undo': return run(() => stepHistory('undo'))
+      case 'redo': return run(() => stepHistory('redo'))
+      case 'paste': return copiedLayer() ? run(paste) : undefined
+      case 'selectTop': {
+        // One layer at a time: ⌘A picks the top visible one.
+        const top = doc.layers.findLast((layer) => !layer.hidden)
+        return run(() => { if (top) { setAdding(null); setSelectedId(top.id); setSheetOpen(true) } })
+      }
+      case 'add': {
+        if (readOnly || full) return
+        return run(() => {
+          setAdding(null)
+          if (shortcut.what === 'text') addText()
+          else addShape(shortcut.what)
+        })
+      }
     }
-    if (mod || selected.locked) return
-    if (event.key === 'Delete' || event.key === 'Backspace') {
-      event.preventDefault()
-      remove()
-      return
+    if (!selected) return
+    if (shortcut.kind === 'copy') return run(() => copySelected(false))
+    if (readOnly) return
+    switch (shortcut.kind) {
+      case 'cut': return run(() => copySelected(true))
+      case 'duplicate': return run(duplicate)
+      case 'lock': return run(() => editSelected((layer) => ({ ...layer, locked: !layer.locked })))
     }
-    const step = event.shiftKey ? 10 : 1
-    const offset = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[event.key]
-    if (!offset) return
-    event.preventDefault()
-    editSelected((layer) => nudgeLayer(layer, offset[0], offset[1], doc), 'nudge')
+    // A locked layer stays put, as in the panel.
+    if (selected.locked) return
+    switch (shortcut.kind) {
+      case 'reorder': return run(() => edit(reorder(doc, selected.id, shortcut.to)))
+      case 'remove': return run(remove)
+      case 'nudge': return run(() => editSelected((layer) => nudgeLayer(layer, shortcut.dx, shortcut.dy, doc), 'nudge'))
+    }
   }
 
   const labelOf = (layer: Layer) =>
@@ -464,7 +607,8 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
       onCancel={(event) => {
         // Esc: let go of the selection first, then close.
         event.preventDefault()
-        if (drawing) setDrawing(false)
+        if (cropDraft) finishCrop()
+        else if (drawing) setDrawing(false)
         else if (adding) setAdding(null)
         else if (selectedId) setSelectedId(null)
         else void close()
@@ -490,6 +634,14 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
               <button type="button" onClick={() => stepHistory('redo')} disabled={history.future.length === 0 || working !== null} aria-label={t('redo')} title={`${t('redo')} (Ctrl+Shift+Z)`} className={TOOL}>
                 <Redo2 size={18} aria-hidden="true" />
               </button>
+              {billing && (
+                <button type="button" onClick={() => { finishCrop(); setDrawing(false); setSplitOpen(true) }} disabled={working !== null || full}
+                  aria-haspopup="dialog" title={t('split.button')}
+                  className={`${TOOL} gap-1.5 md:w-auto md:px-3 md:text-sm md:font-medium`}>
+                  <Scissors size={17} aria-hidden="true" />
+                  <span className="max-md:sr-only">{t('split.button')}</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => void save()}
@@ -558,8 +710,8 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                 onPointerDown={(event) => { if (event.target === event.currentTarget && !drawing) setSelectedId(null) }}
               >
                 <LayerCanvas
-                  doc={doc}
-                  baseAssetId={loaded.baseAssetId}
+                  doc={cropDraft ? updateLayer(doc, cropDraft.id, (layer) => (layer.kind === 'image' ? withCropOf(layer, cropDraft) : layer)) : doc}
+                  baseAssetId={background}
                   selectedId={selectedId}
                   readOnly={readOnly || working !== null}
                   labelOf={labelOf}
@@ -576,6 +728,10 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                   onBaseTone={setBaseTone}
                   drawing={drawing && !readOnly && working === null}
                   onDrawEnd={finishDrawing}
+                  cropping={cropDraft}
+                  onCropChange={setCropDraft}
+                  onCropStart={startCrop}
+                  onCropEnd={finishCrop}
                 />
               </div>
               {working && (
@@ -652,6 +808,10 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                       onRemove={remove}
                       onDuplicate={duplicate}
                       onBack={() => setSelectedId(null)}
+                      cropping={cropDraft?.id === selected.id}
+                      onCrop={() => (cropDraft ? finishCrop() : startCrop(selected.id))}
+                      onSplit={billing ? () => setSplitOpen(true) : undefined}
+                      splitDisabled={full}
                     />
                   ) : (
                     <div className="min-w-0 space-y-5">
@@ -681,6 +841,8 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                       </section>
 
                       <ShapeMenu disabled={full} drawing={drawing} onAdd={addShape} onDraw={() => (drawing ? setDrawing(false) : startDrawing())} />
+
+                      <OverlayMenu backgroundUrl={layerImageUrl(background)} disabled={full} onAdd={addOverlay} />
 
                       <section>
                         <h3 className="mb-2 text-xs font-semibold tracking-wide text-ink-soft uppercase">{t('layers')}</h3>
@@ -733,6 +895,21 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
           </div>
         )}
       </div>
+      {splitOpen && billing && doc && (
+        <SplitObjectDialog
+          backgroundAssetId={background}
+          layerAssetId={selected?.kind === 'image' ? selected.assetId : null}
+          backgroundLocked={swapped !== null}
+          rate={billing.rate}
+          planCredits={billing.planCredits}
+          credits={billing.credits}
+          trial={billing.trial}
+          onRun={runSplit}
+          onCancelRun={() => void cancelSplit()}
+          cancelling={cancellingSplit}
+          onClose={() => setSplitOpen(false)}
+        />
+      )}
     </dialog>
   )
 }
@@ -794,10 +971,18 @@ interface LayerPanelProps {
   onRemove: () => void
   onDuplicate: () => void
   onBack: () => void
+  /** Potong is on for this image. */
+  cropping: boolean
+  onCrop: () => void
+  /** Pisahkan objek; unset hides it. */
+  onSplit?: () => void
+  splitDisabled: boolean
 }
 
 /** The selected layer's properties: text grouped as Huruf / Paragraf / Efek, images get their opacity. */
-function LayerPanel({ layer, doc, label, textArea, onChange, onReorder, onRemove, onDuplicate, onBack }: LayerPanelProps) {
+function LayerPanel({
+  layer, doc, label, textArea, onChange, onReorder, onRemove, onDuplicate, onBack, cropping, onCrop, onSplit, splitDisabled,
+}: LayerPanelProps) {
   const t = useTranslations('editor.layerEditor')
   const index = doc.layers.findIndex((item) => item.id === layer.id)
   const last = doc.layers.length - 1
@@ -905,10 +1090,11 @@ function LayerPanel({ layer, doc, label, textArea, onChange, onReorder, onRemove
               return normal ? { ...current, ...normal.box, points: normal.points, closed } : { ...current, closed }
             })} />
           </div>}
-          <div className={`grid min-w-0 gap-2 ${showFill ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            {showFill && <ColorField label={t('color')} value={layer.color} onChange={(color) => setPaint({ color }, 'color')} />}
-            <ColorField label={t('strokeColor')} value={layer.strokeColor} onChange={(strokeColor) => setPaint({ strokeColor }, 'strokeColor')} />
-          </div>
+          {showFill && (
+            <FillControl id="shape-fill" label={t('fill.label')} fill={{ color: layer.color, gradient: layer.gradient }}
+              onChange={(fill, key) => onChange((current) => withFill(current, fill), key)} />
+          )}
+          <ColorField label={t('strokeColor')} value={layer.strokeColor} onChange={(strokeColor) => setPaint({ strokeColor }, 'strokeColor')} />
           <Slider id="shape-stroke" label={t('strokeWidth')} min={line ? 1 : 0} max={100} step={1} value={layer.strokeWidth} display={`${layer.strokeWidth}px`}
             onChange={(strokeWidth) => setPaint({ strokeWidth }, 'strokeWidth')} />
           <div>
@@ -994,19 +1180,9 @@ function LayerPanel({ layer, doc, label, textArea, onChange, onReorder, onRemove
                   <CaseUpper size={17} aria-hidden="true" />
                 </Toggle>
               </div>
-              <label className="relative ml-auto flex h-10 min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-hairline bg-white pr-2.5 pl-1.5 text-xs tabular-nums">
-                <span aria-hidden="true" className="size-6 shrink-0 rounded-md shadow-[inset_0_0_0_1px_rgba(23,24,39,0.15)]" style={{ background: text.color }} />
-                {text.color.toUpperCase()}
-                <input
-                  type="color"
-                  aria-label={t('color')}
-                  title={t('color')}
-                  value={text.color.toLowerCase()}
-                  onChange={(event) => setText({ color: event.target.value.toUpperCase() }, 'color')}
-                  className="absolute inset-0 size-full cursor-pointer opacity-0"
-                />
-              </label>
             </div>
+            <FillControl id="text-fill" label={t('fill.label')} fill={{ color: text.color, gradient: text.gradient }}
+              onChange={(fill, key) => onChange((current) => withFill(current, fill), key)} />
           </Group>
 
           <Group title={t('groups.paragraph')}>
@@ -1061,6 +1237,21 @@ function LayerPanel({ layer, doc, label, textArea, onChange, onReorder, onRemove
 
       {layer.kind === 'image' && (
         <Group title={t('groups.image')}>
+          <div className={`grid min-w-0 gap-2 ${onSplit ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            {/* Not "outside" the crop: pressing it while cropping is Selesai, not a new crop. */}
+            <button type="button" data-crop-ui="" onClick={onCrop} aria-pressed={cropping}
+              className={`${CHIP} min-w-0 ${cropping ? 'border-accent bg-accent text-white hover:bg-accent-deep' : ''}`}>
+              <Crop size={15} aria-hidden="true" className="shrink-0" />
+              <span className="truncate">{cropping ? t('cropping.done') : t('cropping.start')}</span>
+            </button>
+            {onSplit && (
+              <button type="button" onClick={onSplit} disabled={splitDisabled} aria-haspopup="dialog" className={`${CHIP} min-w-0`}>
+                <Scissors size={15} aria-hidden="true" className="shrink-0" />
+                <span className="truncate">{t('split.button')}</span>
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] leading-relaxed text-ink-soft">{t('imageResizeHint')}</p>
           <OpacitySlider value={layer.opacity ?? 1} onChange={setOpacity} />
         </Group>
       )}

@@ -6,7 +6,7 @@ import { refresh } from 'next/cache'
 import sharp from 'sharp'
 import { runLogged } from '@/lib/ai'
 import { imageModel } from '@/lib/app-settings'
-import { magicLayerUnits } from '@/lib/billing-options'
+import { magicLayerUnits, OBJECT_SPLIT_UNITS } from '@/lib/billing-options'
 import { createAsset, deleteAsset, InvalidImageError, loadAssetBytes } from '@/lib/assets'
 import { requireAccount } from '@/lib/auth'
 import { getBrandVisual, loadLogoBytes } from '@/lib/brand'
@@ -15,7 +15,9 @@ import { describeError } from '@/lib/errors'
 import { editAttemptActive, GenerationCancelled, watchGeneration } from '@/lib/generation-cancellation'
 import { imageErrorMessage } from '@/lib/image-ai'
 import { docAssetIds, isFontName, parseLayerDoc, type LayerDoc } from '@/lib/layer-doc'
-import { buildDoc, GRAPHIC_KINDS, NoTextError, splitSlide, type GraphicKind, type PlacedGraphic } from '@/lib/magic-layers'
+import {
+  buildDoc, GRAPHIC_KINDS, NoSubjectError, NoTextError, splitSlide, splitSubject, type GraphicKind, type PlacedGraphic,
+} from '@/lib/magic-layers'
 import { isUuid } from '@/lib/params'
 import { getPost, type Post } from '@/lib/posts'
 import {
@@ -116,6 +118,10 @@ export async function loadSlideLayersAction(input: { postId: string; assetId: st
 /**
  * Simpan: FormData with `file` (the flattened JPEG from toInstagramJpeg), `width`, `height`, `postId`, `oldAssetId`
  * and `doc` (JSON of a LayerDoc). Free. The slide shows the new image afterwards.
+ * Optional `backgroundAssetId` (uuid): a new background for the doc, e.g. splitObjectAction's `cleaned` for the
+ * background source. It must be the account's image of exactly doc.width × doc.height; absent, empty or equal to
+ * the current background keeps it. A replaced background is deleted only when it was a layer image nothing else
+ * uses, never the slide's original.
  */
 export async function saveSlideLayersAction(formData: FormData): Promise<{ assetId: string } | { error: string }> {
   const t = await getTranslations('editor.layerActions')
@@ -136,6 +142,9 @@ export async function saveSlideLayersAction(formData: FormData): Promise<{ asset
   const versionValue = formData.get('expectedVersion')
   if (typeof versionValue !== 'string' || (versionValue !== '' && !/^\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z|[+-]\d{2}:\d{2})$/.test(versionValue))) return { error: t('invalid') }
   const expectedVersion = versionValue || null
+  const backgroundValue = formData.get('backgroundAssetId')
+  if (backgroundValue !== null && backgroundValue !== '' && !isUuid(backgroundValue)) return { error: t('invalid') }
+  const requested = isUuid(backgroundValue) ? backgroundValue : null
 
   let newAssetId: string | null = null
   try {
@@ -148,9 +157,12 @@ export async function saveSlideLayersAction(formData: FormData): Promise<{ asset
     const stored = await getSlideLayers(userId, oldAssetId)
     if (stored && !stored.doc) return { error: t('corruptDoc') }
     if ((stored?.version ?? null) !== expectedVersion) return { error: t('conflict') }
-    const background = stored?.baseAssetId ?? oldAssetId
+    const current = stored?.baseAssetId ?? oldAssetId
+    // Pisahkan objek on the background swaps it; the same id as the current one is no swap.
+    const swap = requested && requested !== current ? requested : null
+    const background = swap ?? current
     const size = (await assetSizes(userId, accountId, [background]))[background]
-    if (!size) return { error: t('notFound') }
+    if (!size) return { error: t(swap ? 'badImage' : 'notFound') }
     if (size.width !== doc.width || size.height !== doc.height) return { error: t('badDoc') }
     if (!(await hasStorageRoom(userId))) return { error: storageFullMessage(locale) }
 
@@ -158,8 +170,12 @@ export async function saveSlideLayersAction(formData: FormData): Promise<{ asset
       { accountId, origin: 'ai', locale })
     newAssetId = asset.id
     const original = stored ? stored.originalAssetId : oldAssetId
+    // Seeded as getSlideLayers re-derives it (original, else the background being saved), or it reads as corrupt.
     const design = slideDesign(doc, original ?? background, background, original)
-    const unused = await saveSlideLayers(userId, { postId, oldAssetId, newAssetId, doc, design, expectedVersion })
+    // The replaced background comes back among `unused` when nothing else draws it; never the original.
+    const unused = await saveSlideLayers(userId, {
+      postId, oldAssetId, newAssetId, doc, design, expectedVersion, ...(swap ? { baseAssetId: swap } : {}),
+    })
     newAssetId = null
     await deleteUnused(userId, unused)
     refresh()
@@ -259,6 +275,121 @@ export async function magicLayersAction(input: {
     if (error instanceof GenerationCancelled || watch?.signal.reason instanceof GenerationCancelled) return { error: t('cancelled') }
     if (error instanceof LayerError) return { error: t(MESSAGE_OF[error.code]) }
     console.error('[lapisan] lapisan ajaib gagal:', describeError(error))
+    return { error: imageErrorMessage(error) }
+  } finally {
+    watch?.stop()
+    if (started) await db().from('slide_edit_jobs').update({ status: 'failed' }).eq('id', operationId)
+      .eq('user_id', userId).eq('status', 'running')
+  }
+}
+
+/** What "Pisahkan objek" runs on: the slide's background, or one image layer of the doc (by its asset). */
+export type ObjectSplitSource = { kind: 'background' } | { kind: 'layer'; layerAssetId: string }
+
+/**
+ * "Pisahkan objek"'s result. Both images are already stored (under <user>/layers/, unreferenced until the editor
+ * saves a doc using them); the doc itself is not changed.
+ * - `object`: the main subject as a transparent PNG of exactly width × height. `box` is where it sits in the SOURCE
+ *   image, in source px (for the background these are canvas px; for a layer, scale by layer.w / source width and
+ *   layer.h / source height and offset by layer.x/y; box.w × box.h equals width × height).
+ * - `cleaned`: the source with the subject removed, the same size as the source (a PNG keeping its transparency
+ *   for a transparent layer image, else a JPEG). It replaces the source: the layer's assetId, or the background.
+ */
+export type SplitObjectResult =
+  | {
+    object: { assetId: string; width: number; height: number; box: { x: number; y: number; w: number; h: number } }
+    cleaned: { assetId: string; width: number; height: number }
+  }
+  | { error: string }
+
+/**
+ * Pisahkan objek in the editor (OBJECT_SPLIT_UNITS of the magic_layers rate), inline like magicLayersAction; cancel
+ * with cancelGeneration(postId, 'edit', operationId). `assetId` is the slide image the layers belong to (the same key
+ * as magicLayersAction). Refunded when no subject is found, on failure and on cancel.
+ */
+export async function splitObjectAction(input: {
+  postId: string
+  assetId: string
+  source: ObjectSplitSource
+  operationId: string
+}): Promise<SplitObjectResult> {
+  const t = await getTranslations('editor.layerActions')
+  const locale = await getLocale()
+  const { userId, accountId } = await requireAccount()
+  const { postId, assetId, operationId, source } = input ?? {}
+  const layerAssetId = source?.kind === 'layer' ? source.layerAssetId : null
+  if (!isUuid(postId) || !isUuid(assetId) || !isUuid(operationId)
+    || (source?.kind !== 'background' && !(source?.kind === 'layer' && isUuid(layerAssetId)))) return { error: t('invalid') }
+  if (!(await hasStorageRoom(userId))) return { error: storageFullMessage(locale) }
+
+  let watch: Awaited<ReturnType<typeof watchGeneration>> | undefined
+  let started = false
+  // Images stored so far; they go again unless the result reached the editor.
+  const created: string[] = []
+  try {
+    const begin = await db().rpc('begin_slide_edit', {
+      p_user_id: userId, p_account_id: accountId, p_post_id: postId, p_id: operationId,
+    })
+    if (begin.error?.message === 'post_locked') return { error: t('locked') }
+    started = unwrap(begin) === true
+    if (!started) return { error: t('busy') }
+    watch = await watchGeneration(() => editAttemptActive(userId, operationId))
+    // Checked before runLogged charges anything.
+    const post = await getPost(userId, postId, accountId)
+    if (!post?.media.some((item) => item.assetId === assetId)) return { error: t('notFound') }
+    if (!isEditable(post)) return { error: t('locked') }
+    const stored = await getSlideLayers(userId, assetId)
+    if (stored && !stored.doc) return { error: t('corruptDoc') }
+    // The background is the layers' clean one, or the flat slide image itself. A layer image must be the account's own.
+    const sourceId = layerAssetId ?? stored?.baseAssetId ?? assetId
+    const size = (await assetSizes(userId, accountId, [sourceId]))[sourceId]
+    if (!size) return { error: t(layerAssetId ? 'splitSourceMissing' : 'notFound') }
+
+    const result = await runLogged(
+      userId,
+      'magic_layers',
+      { postId, assetId, source: layerAssetId ? 'layer' : 'background', sourceAssetId: sourceId },
+      async () => {
+        const bytes = await loadAssetBytes(userId, sourceId)
+        if (!bytes) throw new LayerError(layerAssetId ? 'invalid_media' : 'slide_not_found')
+        const split = await splitSubject({ bytes, width: size.width, height: size.height }, watch!.signal)
+        if (!split.object) throw new NoSubjectError('Tidak ada objek utama di gambar ini')
+        await watch!.check()
+        // Already paid for, so past the quota too (like a slide job).
+        const store = async (image: Uint8Array, width: number, height: number) => {
+          const asset = await createAsset(userId, new Blob([image.slice().buffer]), width, height,
+            { accountId, origin: 'ai', layer: true, enforceQuota: false, locale })
+          created.push(asset.id)
+          return asset
+        }
+        const { png, box } = split.object
+        const object = await store(png, box.w, box.h)
+        const cleaned = await store(split.cleaned, size.width, size.height)
+        // Closing the job is the commit: a cancel that got in first wins, and runLogged refunds.
+        const closed = unwrap(await db().from('slide_edit_jobs').update({ status: 'ready' }).eq('id', operationId)
+          .eq('user_id', userId).eq('status', 'running').select('id')) as { id: string }[] | null
+        if (!closed?.length) throw new GenerationCancelled()
+        created.length = 0
+        return {
+          value: {
+            object: { assetId: object.id, width: box.w, height: box.h, box: { ...box } },
+            cleaned: { assetId: cleaned.id, width: size.width, height: size.height },
+          },
+          log: split.log,
+        }
+      },
+      { model: await imageModel(), units: OBJECT_SPLIT_UNITS, logOutput: (done) => done.log },
+    )
+    return result.value
+  } catch (error) {
+    await cleanUp(userId, created)
+    // runLogged has refunded: the error came from inside it.
+    if (error instanceof NoSubjectError) return { error: t('noSubject') }
+    if (error instanceof GenerationCancelled || watch?.signal.reason instanceof GenerationCancelled) return { error: t('splitCancelled') }
+    if (error instanceof StorageFullError) return { error: storageFullMessage(locale) }
+    if (error instanceof FileTooLargeError) return { error: fileTooLargeMessage(locale) }
+    if (error instanceof LayerError) return { error: t(error.code === 'invalid_media' && layerAssetId ? 'splitSourceMissing' : MESSAGE_OF[error.code]) }
+    console.error('[lapisan] pisahkan objek gagal:', describeError(error))
     return { error: imageErrorMessage(error) }
   } finally {
     watch?.stop()

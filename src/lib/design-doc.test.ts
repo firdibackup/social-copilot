@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { designAssetIds, hexColor, migrateLayerDoc, parseDesignDoc, type DesignDoc, type GroupNode, type ShapeNode, type TextNode } from './design-doc'
-import type { LayerDoc } from './layer-doc'
+import type { LayerDoc, TextLayer } from './layer-doc'
 import { SHAPE_KINDS } from './shape-paths'
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
@@ -150,5 +150,41 @@ describe('design validation', () => {
     doc.assets = []
     doc.fonts = [{ family: 'Inter', assetId: id(11) }]
     expect(designAssetIds(doc).sort()).toEqual([id(6), id(8), id(9), id(11)].sort())
+  })
+})
+
+describe('crop and gradient migration', () => {
+  const gradient = { kind: 'linear' as const, angle: 180, stops: [{ offset: 0, color: '#000000', alpha: 0 }, { offset: 1, color: '#FF8000', alpha: 0.5 }] }
+  const layers: LayerDoc['layers'] = [
+    { id: 'i1', kind: 'image', assetId: id(7), role: 'upload', x: 0, y: 0, w: 300, h: 100, crop: { x: 0.25, y: 0, w: 0.5, h: 1 } },
+    { id: 's1', kind: 'shape', shape: 'ellipse', x: 0, y: 0, w: 100, h: 100, color: '#112233', radius: 0, strokeColor: '#000000',
+      strokeWidth: 0, gradient },
+    { id: 'p1', kind: 'path', x: 0, y: 0, w: 100, h: 100, points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }], closed: true,
+      fill: true, color: '#112233', strokeColor: '#000000', strokeWidth: 0, gradient: { ...gradient, kind: 'radial' } },
+    { ...(legacy.layers[0] as TextLayer), id: 't2', gradient },
+  ]
+  const migrate = () => migrateLayerDoc({ ...legacy, layers }, { id: id(1), pageId: id(2), nodeIds: layers.map((_, n) => id(100 + n)) }, id(6))
+
+  it('carries the crop as fractions and gradients with per-stop alpha, through parseDesignDoc', () => {
+    const doc = migrate()
+    expect(parseDesignDoc(JSON.parse(JSON.stringify(doc)))).toEqual({ doc })
+    const [image, shape, path, text] = doc.pages[0].children
+    expect(image).toMatchObject({ fill: { type: 'image', fit: 'stretch', crop: { x: 0.25, y: 0, width: 0.5, height: 1 } } })
+    const paint = { type: 'gradient', kind: 'linear', angle: 90, stops: [
+      { offset: 0, color: { srgb: { r: 0, g: 0, b: 0, a: 0 } } }, { offset: 1, color: { srgb: { r: 1, g: 128 / 255, b: 0, a: 0.5 } } }] }
+    expect((shape as ShapeNode).fill).toEqual(paint)
+    expect((path as ShapeNode).fill).toMatchObject({ type: 'gradient', kind: 'radial' })
+    expect((text as TextNode).content[0].runs[0].style.fill).toEqual(paint)
+  })
+
+  it('refuses crops outside the source fractions', () => {
+    for (const crop of [{ x: -0.1, y: 0, width: 0.5, height: 1 }, { x: 0.6, y: 0, width: 0.5, height: 1 }, { x: 0, y: 0, width: 2, height: 1 },
+      { x: 0, y: 0, width: 0.001, height: 1 }]) {
+      const doc = migrate()
+      const image = doc.pages[0].children[0]
+      if (image.type !== 'image') throw new Error('fixture')
+      image.fill.crop = crop
+      expect(parseDesignDoc(doc)).toEqual({ error: 'invalid' })
+    }
   })
 })

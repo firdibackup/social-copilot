@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { refresh } from 'next/cache'
 import { runLogged } from '@/lib/ai'
 import { createAsset, deleteAsset, InvalidImageError, loadAssetBytes } from '@/lib/assets'
-import { buildDoc, NoTextError, splitSlide } from '@/lib/magic-layers'
+import { buildDoc, NoTextError, splitSlide, splitSubject } from '@/lib/magic-layers'
 import { getPost } from '@/lib/posts'
 import {
   assetSizes,
@@ -19,7 +19,9 @@ import { FileTooLargeError, StorageFullError } from '@/lib/storage-quota'
 import { fileTooLargeMessage, storageFullMessage } from '@/lib/storage-quota-options'
 import { db } from '@/lib/supabase'
 import { queryMock } from '@/test/query-mock'
-import { loadSlideLayersAction, magicLayersAction, resetSlideLayersAction, saveSlideLayersAction, uploadLayerImageAction } from './layer-actions'
+import {
+  loadSlideLayersAction, magicLayersAction, resetSlideLayersAction, saveSlideLayersAction, splitObjectAction, uploadLayerImageAction,
+} from './layer-actions'
 
 vi.mock('next-intl/server', async () => {
   const { createTranslator } = await import('next-intl')
@@ -54,6 +56,7 @@ vi.mock('@/lib/assets', async (importOriginal) => ({
 vi.mock('@/lib/magic-layers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/magic-layers')>()),
   splitSlide: vi.fn(),
+  splitSubject: vi.fn(),
   buildDoc: vi.fn(),
 }))
 vi.mock('@/lib/slide-layers', async (importOriginal) => ({
@@ -178,6 +181,62 @@ describe('saveSlideLayersAction', () => {
     expect(await saveSlideLayersAction(form())).toEqual({ error: expect.stringContaining('tidak dapat dibaca') })
     expect(createAsset).not.toHaveBeenCalled()
   })
+
+  describe('with backgroundAssetId', () => {
+    const CLEANED = '00000000-0000-4000-8000-000000000007'
+    const BASE = '00000000-0000-4000-8000-000000000004'
+    const VERSION = '2026-11-05T00:00:00+00:00'
+    const swapForm = (background: string, version = '') => {
+      const data = form()
+      data.set('backgroundAssetId', background)
+      data.set('expectedVersion', version)
+      return data
+    }
+
+    it("saves a flat slide over the new background, keeping the slide's image as the original", async () => {
+      vi.mocked(assetSizes).mockResolvedValue({ [CLEANED]: { width: 1080, height: 1350 } })
+      vi.mocked(saveSlideLayers).mockResolvedValue([])
+      expect(await saveSlideLayersAction(swapForm(CLEANED))).toEqual({ assetId: NEW })
+      expect(assetSizes).toHaveBeenCalledWith(USER, 'ig-1', [CLEANED])
+      expect(saveSlideLayers).toHaveBeenCalledWith(USER, expect.objectContaining({ oldAssetId: OLD, newAssetId: NEW, baseAssetId: CLEANED }))
+      const { design } = vi.mocked(saveSlideLayers).mock.calls[0][1]
+      expect(JSON.stringify(design)).toContain(CLEANED)
+      expect(JSON.stringify(design)).toContain(OLD)
+    })
+
+    it('replaces a layered background and deletes what the save reports unused', async () => {
+      vi.mocked(getSlideLayers).mockResolvedValue({ doc: DOC as never, design: null, version: VERSION, baseAssetId: BASE, originalAssetId: OLD })
+      vi.mocked(assetSizes).mockResolvedValue({ [CLEANED]: { width: 1080, height: 1350 } })
+      vi.mocked(saveSlideLayers).mockResolvedValue([BASE])
+      expect(await saveSlideLayersAction(swapForm(CLEANED, VERSION))).toEqual({ assetId: NEW })
+      expect(saveSlideLayers).toHaveBeenCalledWith(USER, expect.objectContaining({ baseAssetId: CLEANED, expectedVersion: VERSION }))
+      expect(deleteUnused).toHaveBeenCalledWith(USER, [BASE])
+    })
+
+    it("refuses a background that isn't the account's before uploading", async () => {
+      vi.mocked(assetSizes).mockResolvedValue({})
+      expect(await saveSlideLayersAction(swapForm(CLEANED))).toEqual({ error: expect.stringContaining('Gambar lapisan tidak ditemukan') })
+      expect(createAsset).not.toHaveBeenCalled()
+      expect(saveSlideLayers).not.toHaveBeenCalled()
+    })
+
+    it('refuses a background not sized like the doc, and a malformed id', async () => {
+      vi.mocked(assetSizes).mockResolvedValue({ [CLEANED]: { width: 640, height: 480 } })
+      expect(await saveSlideLayersAction(swapForm(CLEANED))).toEqual({ error: expect.stringContaining('Data lapisan tidak valid') })
+      expect(await saveSlideLayersAction(swapForm('nope'))).toEqual({ error: expect.stringContaining('tidak valid') })
+      expect(createAsset).not.toHaveBeenCalled()
+    })
+
+    it('keeps the current background when the field is absent, empty or the same id', async () => {
+      vi.mocked(saveSlideLayers).mockResolvedValue([])
+      expect(await saveSlideLayersAction(form())).toEqual({ assetId: NEW })
+      expect(await saveSlideLayersAction(swapForm(''))).toEqual({ assetId: NEW })
+      expect(await saveSlideLayersAction(swapForm(OLD))).toEqual({ assetId: NEW })
+      for (const [, input] of vi.mocked(saveSlideLayers).mock.calls) expect(input).not.toHaveProperty('baseAssetId')
+      expect(assetSizes).toHaveBeenCalledTimes(3)
+      expect(assetSizes).toHaveBeenCalledWith(USER, 'ig-1', [OLD])
+    })
+  })
 })
 
 describe('magicLayersAction', () => {
@@ -193,7 +252,7 @@ describe('magicLayersAction', () => {
     expect(await magicLayersAction(input)).toEqual({ error: expect.stringContaining('Tidak ada teks atau elemen') })
     expect(createAsset).not.toHaveBeenCalled()
     expect(runLogged).toHaveBeenCalledWith(USER, 'magic_layers', expect.anything(), expect.any(Function),
-      expect.objectContaining({ units: 3 }))
+      expect.objectContaining({ units: 5 }))
     expect(rpc).toHaveBeenCalledWith('begin_slide_edit', expect.objectContaining({ p_id: OP }))
     expect(db().from).toHaveBeenCalledWith('slide_edit_jobs')
   })
@@ -266,6 +325,116 @@ describe('magicLayersAction', () => {
     vi.mocked(getSlideLayers).mockResolvedValue({ doc: null, design: null, version: '2026-11-05T00:00:00+00:00', baseAssetId: OLD, originalAssetId: OLD })
     expect(await magicLayersAction(input)).toEqual({ error: expect.stringContaining('sudah punya lapisan') })
     expect(runLogged).not.toHaveBeenCalled()
+  })
+})
+
+describe('splitObjectAction', () => {
+  const BASE = '00000000-0000-4000-8000-000000000004'
+  const LAYER = '00000000-0000-4000-8000-000000000005'
+  const OBJECT = '00000000-0000-4000-8000-000000000006'
+  const CLEANED = '00000000-0000-4000-8000-000000000007'
+  const input = { postId: POST, assetId: OLD, operationId: OP, source: { kind: 'background' as const } }
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1])
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 2])
+  const found = { object: { png, box: { x: 30, y: 40, w: 200, h: 300 } }, cleaned: jpeg, log: { objectFound: true } }
+  const layered = { doc: DOC as never, design: null, version: '2026-11-05T00:00:00+00:00', baseAssetId: BASE, originalAssetId: OLD }
+
+  beforeEach(() => {
+    vi.mocked(loadAssetBytes).mockResolvedValue(new Uint8Array([0xff, 0xd8, 0xff]))
+    vi.mocked(createAsset)
+      .mockResolvedValueOnce({ id: OBJECT, width: 200, height: 300 } as never)
+      .mockResolvedValueOnce({ id: CLEANED, width: 1080, height: 1350 } as never)
+    // Closing the edit job finds it still running.
+    const { query } = queryMock({ data: [{ id: OP }], error: null })
+    vi.mocked(db).mockReturnValue({ ...query, rpc } as never)
+  })
+
+  it("splits a flat slide's own image, stores both images and charges 4 units", async () => {
+    vi.mocked(assetSizes).mockResolvedValue({ [OLD]: { width: 1080, height: 1350 } })
+    vi.mocked(splitSubject).mockResolvedValue(found)
+    expect(await splitObjectAction(input)).toEqual({
+      object: { assetId: OBJECT, width: 200, height: 300, box: { x: 30, y: 40, w: 200, h: 300 } },
+      cleaned: { assetId: CLEANED, width: 1080, height: 1350 },
+    })
+    expect(runLogged).toHaveBeenCalledWith(USER, 'magic_layers', expect.objectContaining({ source: 'background', sourceAssetId: OLD }),
+      expect.any(Function), expect.objectContaining({ units: 4 }))
+    expect(loadAssetBytes).toHaveBeenCalledWith(USER, OLD)
+    expect(splitSubject).toHaveBeenCalledWith({ bytes: expect.any(Uint8Array), width: 1080, height: 1350 }, expect.anything())
+    expect(createAsset).toHaveBeenNthCalledWith(1, USER, expect.any(Blob), 200, 300, expect.objectContaining({ layer: true, origin: 'ai', enforceQuota: false }))
+    expect(createAsset).toHaveBeenNthCalledWith(2, USER, expect.any(Blob), 1080, 1350, expect.objectContaining({ layer: true, origin: 'ai', enforceQuota: false }))
+    expect(new Uint8Array(await (vi.mocked(createAsset).mock.calls[0][1] as Blob).arrayBuffer())).toEqual(png)
+    expect(new Uint8Array(await (vi.mocked(createAsset).mock.calls[1][1] as Blob).arrayBuffer())).toEqual(jpeg)
+    expect(rpc).toHaveBeenCalledWith('begin_slide_edit', expect.objectContaining({ p_id: OP }))
+    expect(deleteAsset).not.toHaveBeenCalled()
+    expect(saveSlideLayers).not.toHaveBeenCalled()
+  })
+
+  it("splits the layers' clean background, not the slide image", async () => {
+    vi.mocked(getSlideLayers).mockResolvedValue(layered)
+    vi.mocked(assetSizes).mockResolvedValue({ [BASE]: { width: 1080, height: 1350 } })
+    vi.mocked(splitSubject).mockResolvedValue(found)
+    expect(await splitObjectAction(input)).toMatchObject({ cleaned: { assetId: CLEANED } })
+    expect(assetSizes).toHaveBeenCalledWith(USER, 'ig-1', [BASE])
+    expect(loadAssetBytes).toHaveBeenCalledWith(USER, BASE)
+  })
+
+  it("splits an image layer at its own natural size, once it is the account's", async () => {
+    vi.mocked(getSlideLayers).mockResolvedValue(layered)
+    vi.mocked(assetSizes).mockResolvedValue({ [LAYER]: { width: 640, height: 480 } })
+    vi.mocked(splitSubject).mockResolvedValue(found)
+    const result = await splitObjectAction({ ...input, source: { kind: 'layer', layerAssetId: LAYER } })
+    expect(result).toMatchObject({ cleaned: { assetId: CLEANED, width: 640, height: 480 } })
+    expect(assetSizes).toHaveBeenCalledWith(USER, 'ig-1', [LAYER])
+    expect(splitSubject).toHaveBeenCalledWith({ bytes: expect.any(Uint8Array), width: 640, height: 480 }, expect.anything())
+    expect(createAsset).toHaveBeenNthCalledWith(2, USER, expect.any(Blob), 640, 480, expect.anything())
+  })
+
+  it("refuses someone else's layer image before charging", async () => {
+    vi.mocked(assetSizes).mockResolvedValue({})
+    expect(await splitObjectAction({ ...input, source: { kind: 'layer', layerAssetId: LAYER } }))
+      .toEqual({ error: expect.stringContaining('Gambar lapisan ini tidak ditemukan') })
+    expect(runLogged).not.toHaveBeenCalled()
+    expect(loadAssetBytes).not.toHaveBeenCalled()
+  })
+
+  it('refuses an invalid source and a slide of another post', async () => {
+    expect(await splitObjectAction({ ...input, source: { kind: 'layer', layerAssetId: 'nope' } })).toEqual({ error: expect.stringContaining('tidak valid') })
+    expect(await splitObjectAction({ ...input, source: { kind: 'other' } as never })).toEqual({ error: expect.stringContaining('tidak valid') })
+    vi.mocked(getPost).mockResolvedValue(post({ media: [] }) as never)
+    expect(await splitObjectAction(input)).toEqual({ error: expect.stringContaining('Slide tidak ditemukan') })
+    vi.mocked(getPost).mockResolvedValue(post({ isLocked: true }) as never)
+    expect(await splitObjectAction(input)).toEqual({ error: expect.stringContaining('sudah diterbitkan') })
+    expect(runLogged).not.toHaveBeenCalled()
+  })
+
+  it('refunds and stores nothing when there is no main subject', async () => {
+    vi.mocked(assetSizes).mockResolvedValue({ [OLD]: { width: 1080, height: 1350 } })
+    vi.mocked(splitSubject).mockResolvedValue({ object: null, cleaned: jpeg, log: {} })
+    expect(await splitObjectAction(input)).toEqual({ error: expect.stringContaining('Tidak ada objek utama') })
+    // The error came out of runLogged's own callback, so runLogged released the reservation.
+    await expect(vi.mocked(runLogged).mock.results[0].value).rejects.toThrow()
+    expect(createAsset).not.toHaveBeenCalled()
+    expect(db().from).toHaveBeenCalledWith('slide_edit_jobs')
+  })
+
+  it('deletes what it stored when the run was cancelled before it closed', async () => {
+    vi.mocked(assetSizes).mockResolvedValue({ [OLD]: { width: 1080, height: 1350 } })
+    vi.mocked(splitSubject).mockResolvedValue(found)
+    const { query } = queryMock({ data: [], error: null })
+    vi.mocked(db).mockReturnValue({ ...query, rpc } as never)
+    expect(await splitObjectAction(input)).toEqual({ error: expect.stringContaining('Pisahkan objek dibatalkan') })
+    expect(deleteAsset).toHaveBeenCalledWith(USER, OBJECT)
+    expect(deleteAsset).toHaveBeenCalledWith(USER, CLEANED)
+  })
+
+  it('deletes the cut-out when storing the cleaned image fails', async () => {
+    vi.mocked(assetSizes).mockResolvedValue({ [OLD]: { width: 1080, height: 1350 } })
+    vi.mocked(splitSubject).mockResolvedValue(found)
+    vi.mocked(createAsset).mockReset()
+      .mockResolvedValueOnce({ id: OBJECT, width: 200, height: 300 } as never)
+      .mockRejectedValueOnce(new FileTooLargeError('id'))
+    expect(await splitObjectAction(input)).toEqual({ error: fileTooLargeMessage('id') })
+    expect(deleteAsset).toHaveBeenCalledWith(USER, OBJECT)
   })
 })
 

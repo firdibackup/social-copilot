@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { createHistory, redo, undo, type ImageLayer, type LayerDoc, type TextLayer } from '@/lib/layer-doc'
-import { editStep, fitTextHeights, handlesFor, moveLayer, nudgeLayer, readDraft, resizeLayer, resizeRotatedLayer } from './layer-editor-gesture'
+import { createHistory, parseLayerDoc, redo, undo, type ImageLayer, type LayerDoc, type TextLayer } from '@/lib/layer-doc'
+import {
+  editStep, fitTextHeights, handlesFor, imageFullRect, moveLayer, nudgeLayer, panCrop, readDraft, resetCrop, resizeLayer,
+  resizeRotatedLayer, zoomCrop,
+} from './layer-editor-gesture'
 
 const ASSET = '11111111-1111-4111-8111-111111111111'
 const canvas = { width: 1080, height: 1350 }
@@ -120,5 +123,110 @@ describe('readDraft', () => {
   it('ignores a text height that only followed the fonts', () => {
     const refitted = { ...doc, layers: [{ ...text, h: 999 }, image] }
     expect(readDraft(JSON.stringify(refitted), doc)).toBeNull()
+  })
+})
+
+describe('image resize and crop', () => {
+  // 200×100 box showing the whole source.
+  const photo: ImageLayer = { id: 'p1', kind: 'image', assetId: ASSET, role: 'upload', x: 100, y: 100, w: 200, h: 100 }
+  const close = (actual: object, expected: Record<string, number>) => {
+    for (const [key, value] of Object.entries(expected)) expect((actual as Record<string, number>)[key], key).toBeCloseTo(value)
+  }
+
+  it('keeps proportions at a corner unless free (Shift), which stretches', () => {
+    const kept = resizeLayer(photo, 'se', 100, 0)
+    expect(kept.w / kept.h).toBeCloseTo(2)
+    const free = resizeLayer(photo, 'se', 100, 100, { free: true })
+    expect(free).toMatchObject({ x: 100, y: 100, w: 300, h: 200 })
+    expect('crop' in free).toBe(false)
+  })
+
+  it('crops from a side handle, keeping the picture in place, and stops at the source edge', () => {
+    const cropped = resizeLayer(photo, 'e', -50, 30) as ImageLayer
+    expect(cropped).toMatchObject({ x: 100, y: 100, w: 150, h: 100 })
+    close(cropped.crop!, { x: 0, y: 0, w: 0.75, h: 1 })
+    expect(imageFullRect(cropped)).toEqual({ x: 100, y: 100, w: 200, h: 100 })
+    const west = resizeLayer(photo, 'w', 40, 0) as ImageLayer
+    expect(west).toMatchObject({ x: 140, w: 160 })
+    close(west.crop!, { x: 0.2, w: 0.8 })
+    close(imageFullRect(west), { x: 100, y: 100, w: 200, h: 100 })
+    const north = resizeLayer(photo, 'n', 0, 30) as ImageLayer
+    expect(north).toMatchObject({ y: 130, h: 70 })
+    close(north.crop!, { y: 0.3, h: 0.7 })
+    // Can't uncover more than the source: dragging out past the edge stops there and drops the crop.
+    const back = resizeLayer(west, 'w', -500, 0) as ImageLayer
+    expect(back).toMatchObject({ x: 100, w: 200 })
+    expect(back.crop).toBeUndefined()
+    expect(resizeLayer(photo, 'e', 300, 0)).toMatchObject({ w: 200 })
+    // Never below the smallest box.
+    expect(resizeLayer(photo, 'e', -1000, 0).w).toBe(24)
+  })
+
+  it('stretches a side with Shift instead of cropping', () => {
+    const next = resizeLayer(photo, 'e', 50, 0, { free: true }) as ImageLayer
+    expect(next).toMatchObject({ w: 250, h: 100 })
+    expect(next.crop).toBeUndefined()
+  })
+
+  it('keeps a crop proportional at a corner (the crop is stretched with the box)', () => {
+    const cropped = resizeLayer(photo, 'e', -100, 0) as ImageLayer
+    const bigger = resizeLayer(cropped, 'se', 100, 0) as ImageLayer
+    expect(bigger).toMatchObject({ w: 200, h: 200 })
+    expect(bigger.crop).toEqual(cropped.crop)
+  })
+
+  it('crops a rotated image with the opposite edge fixed on screen', () => {
+    const rotated = { ...photo, rotation: 90 }
+    // Rotated 90°, the layer's east edge points down the screen; dragging up 50 px pulls it in by 50.
+    const next = resizeRotatedLayer(rotated, 'e', 0, -50) as ImageLayer
+    expect(next.w).toBeCloseTo(150)
+    close(next.crop!, { x: 0, w: 0.75 })
+    // The west edge's middle stays put: centre (200,150), rotated 90° → screen (200, 50).
+    const westMid = (layer: ImageLayer) => ({ x: layer.x + layer.w / 2, y: layer.y + layer.h / 2 - layer.w / 2 })
+    close(westMid(next), westMid(rotated))
+    const free = resizeRotatedLayer(rotated, 'se', 0, 100, { free: true })
+    expect(free.w).toBeCloseTo(300)
+    expect(free.h).toBeCloseTo(100)
+  })
+
+  it('pans inside the frame, stopping at the image edges', () => {
+    const cropped = resizeLayer(photo, 'e', -100, 0) as ImageLayer
+    expect(cropped.crop).toEqual({ x: 0, y: 0, w: 0.5, h: 1 })
+    // Dragging the picture left by 40 shows more of its right side.
+    const panned = panCrop(cropped, -40, 0)
+    close(panned.crop!, { x: 0.2, w: 0.5 })
+    expect(panned).toMatchObject({ x: 100, y: 100, w: 100, h: 100 })
+    expect(panCrop(cropped, -1000, 0).crop).toEqual({ x: 0.5, y: 0, w: 0.5, h: 1 })
+    expect(panCrop(cropped, 1000, 1000).crop).toEqual({ x: 0, y: 0, w: 0.5, h: 1 })
+    // Rotated 90°, the layer's +x points down the screen, so a drag up slides the picture towards its -x.
+    close(panCrop({ ...cropped, rotation: 90 }, 0, -40).crop!, { x: 0.2 })
+  })
+
+  it('zooms about an anchor and never shows less than the frame', () => {
+    const zoomed = zoomCrop(photo, 2)
+    close(zoomed.crop!, { x: 0.25, y: 0.25, w: 0.5, h: 0.5 })
+    expect(zoomed).toMatchObject({ x: 100, y: 100, w: 200, h: 100 })
+    // Anchored on the frame's top-left corner, that corner of the picture stays.
+    close(zoomCrop(photo, 2, { x: 100, y: 100 }).crop!, { x: 0, y: 0, w: 0.5, h: 0.5 })
+    // Zooming out stops when the picture just covers the frame.
+    expect(zoomCrop(zoomed, 0.1).crop).toBeUndefined()
+    expect(zoomCrop(photo, 0.5)).toEqual(photo)
+    expect(zoomCrop(photo, 1e6).crop!.w).toBeCloseTo(0.01)
+    expect(zoomCrop(photo, Number.NaN)).toBe(photo)
+  })
+
+  it('resets the crop by showing the whole image at the same scale, and produces valid docs', () => {
+    const cropped = panCrop(zoomCrop(photo, 2), 10, 0)
+    const reset = resetCrop(cropped)
+    expect(reset.crop).toBeUndefined()
+    close(reset, imageFullRect(cropped))
+    expect(resetCrop(photo)).toBe(photo)
+    const rotated = resetCrop({ ...cropped, rotation: 30 })
+    expect(rotated.w).toBeCloseTo(400)
+    const locked = { ...cropped, locked: true }
+    for (const step of [resetCrop(locked), panCrop(locked, 5, 5), zoomCrop(locked, 2)]) expect(step).toBe(locked)
+    const result = parseLayerDoc({ ...doc, layers: [cropped, { ...resizeLayer(photo, 'w', 33.3333, 0), id: 'p2' },
+      { ...zoomCrop(photo, 3.7), id: 'p3' }] })
+    expect(result).toHaveProperty('doc')
   })
 })

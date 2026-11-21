@@ -198,7 +198,7 @@
     "contentLayoutAndCaption": "Content layout and caption",
     "alreadyPaidSlides": "Already-paid slides",
     "editImage": "Edit image",
-    "magicLayers": "Magic layers (per unit; 2x per slide, 3x with object)",
+    "magicLayers": "Magic layers (per unit; 3x per slide, 5x with object, 4x object split in the editor)",
     "editCaption": "Edit caption",
     "writeThreads": "Write Threads",
     "editThreads": "Edit Threads",

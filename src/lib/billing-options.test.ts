@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { contentCost, formatCreditShare, formatRupiah, TASK_CREDITS, usedPercent } from './billing-options'
+import { contentCost, formatCreditShare, formatRupiah, magicLayerUnits, OBJECT_SPLIT_UNITS, TASK_CREDITS, usedPercent } from './billing-options'
 
 describe('TASK_CREDITS', () => {
   it('makes Mimo free: its chat, research and summary rows only count toward the daily limits', () => {
@@ -7,6 +7,16 @@ describe('TASK_CREDITS', () => {
     expect(TASK_CREDITS.deep_search).toBe(0)
     expect(TASK_CREDITS.chat_summary).toBe(0)
     expect(TASK_CREDITS.content_script).toBe(3)
+  })
+})
+
+describe('magic layer units', () => {
+  it('prices Lapisan ajaib at 3 units, 5 with the object, and the editor\'s Pisahkan objek at 4', () => {
+    expect(magicLayerUnits(false)).toBe(3)
+    expect(magicLayerUnits(true)).toBe(5)
+    expect(OBJECT_SPLIT_UNITS).toBe(4)
+    expect(TASK_CREDITS.magic_layers * magicLayerUnits(false)).toBe(30)
+    expect(TASK_CREDITS.magic_layers * OBJECT_SPLIT_UNITS).toBe(40)
   })
 })
 

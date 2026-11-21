@@ -1,6 +1,7 @@
 /** Canvas 2D document renderer, usable in the editor and headless Chromium. No DOM or network access. */
 import type { Color, DesignNode, DesignPage, Paint, ShapeNode, TextNode, TextStyle } from './design-doc'
 import { isLineKind, shapeFillRule, strokeStyle, traceShape, tracePath } from './shape-paths'
+import { gradientGeometry } from './gradients'
 
 export type DesignImages = ReadonlyMap<string, { image: CanvasImageSource; width: number; height: number }>
 export const colorCss = ({ srgb: { r, g, b, a } }: Color) => `rgba(${r * 255},${g * 255},${b * 255},${a})`
@@ -75,12 +76,10 @@ export function layoutDesignText(ctx: CanvasRenderingContext2D, node: TextNode, 
 function paintStyle(ctx: CanvasRenderingContext2D, paint: Exclude<Paint, { type: 'image' }>, w: number, h: number) {
   if (paint.type === 'none') return 'rgba(0,0,0,0)'
   if (paint.type === 'solid') return colorCss(paint.color)
-  const angle = paint.angle * Math.PI / 180
-  const length = Math.abs(w * Math.cos(angle)) + Math.abs(h * Math.sin(angle))
-  const dx = Math.cos(angle) * length / 2
-  const dy = Math.sin(angle) * length / 2
-  const gradient = paint.kind === 'radial' ? ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) / 2)
-    : ctx.createLinearGradient(w / 2 - dx, h / 2 - dy, w / 2 + dx, h / 2 + dy)
+  // Design angles run from the +x axis; gradientGeometry takes CSS angles (0 = up), the same line 90° on.
+  const geometry = gradientGeometry({ kind: paint.kind, angle: paint.angle + 90 }, { x: 0, y: 0, w, h })
+  const gradient = geometry.kind === 'radial' ? ctx.createRadialGradient(geometry.cx, geometry.cy, 0, geometry.cx, geometry.cy, geometry.r)
+    : ctx.createLinearGradient(geometry.x0, geometry.y0, geometry.x1, geometry.y1)
   for (const stop of paint.stops) gradient.addColorStop(stop.offset, colorCss(stop.color))
   return gradient
 }
@@ -88,7 +87,10 @@ function paintStyle(ctx: CanvasRenderingContext2D, paint: Exclude<Paint, { type:
 function drawImage(ctx: CanvasRenderingContext2D, paint: Extract<Paint, { type: 'image' }>, w: number, h: number, images: DesignImages) {
   const source = images.get(paint.assetId)
   if (!source) throw new Error(`image_unavailable:${paint.assetId}`)
-  const crop = paint.crop ?? { x: 0, y: 0, width: source.width, height: source.height }
+  // The crop is in fractions of the source, so it holds whatever resolution the asset is served at.
+  const fraction = paint.crop ?? { x: 0, y: 0, width: 1, height: 1 }
+  const crop = { x: fraction.x * source.width, y: fraction.y * source.height,
+    width: fraction.width * source.width, height: fraction.height * source.height }
   const scale = paint.fit === 'contain' ? Math.min(w / crop.width, h / crop.height) : Math.max(w / crop.width, h / crop.height)
   const dw = paint.fit === 'stretch' ? w : crop.width * scale
   const dh = paint.fit === 'stretch' ? h : crop.height * scale

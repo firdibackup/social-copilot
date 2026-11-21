@@ -972,6 +972,7 @@ export function ContentEditor({
           onSlideChange={setLayerSlide}
           onFlush={flush}
           onClose={() => setLayerSlide(null)}
+          billing={{ rate: TASK_CREDITS.magic_layers, planCredits, credits, trial }}
           onMagicLayers={() => {
             setLayerSlide(null)
             setNotice(null)

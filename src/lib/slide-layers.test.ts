@@ -124,6 +124,15 @@ describe('layer RPCs', () => {
     })
   })
 
+  it('passes a new background only when there is one', async () => {
+    const { rpc } = answer([], { data: ['base'], error: null })
+    const cleaned = '00000000-0000-4000-8000-000000000009'
+    const design = slideDesign(DOC, BASE, cleaned, BASE)
+    expect(await saveSlideLayers('user-1', { postId: 'p', oldAssetId: 'old', newAssetId: 'new', doc: DOC, design, expectedVersion: VERSION,
+      baseAssetId: cleaned })).toEqual(['base'])
+    expect(rpc).toHaveBeenCalledWith('save_slide_design', expect.objectContaining({ p_base_asset_id: cleaned }))
+  })
+
   it('maps raise codes to LayerError and keeps other errors as database errors', async () => {
     answer([], { data: null, error: { message: 'post_locked' } })
     const refusal = await resetSlideLayers('user-1', 'p', 'a').catch((error) => error)

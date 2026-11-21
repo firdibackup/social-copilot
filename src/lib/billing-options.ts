@@ -52,15 +52,21 @@ export const TASK_CREDITS: Record<LoggedTask, number> = {
   chat: 0,
   deep_search: 0,
   chat_summary: 0,
-  /** Per unit: see magicLayerUnits. Not in the trial. */
+  /** Per unit: see magicLayerUnits and OBJECT_SPLIT_UNITS. Not in the trial. */
   magic_layers: 10,
 }
 
 /**
- * Units of the magic_layers rate one run costs: 2 for the text (it is read by a stronger vision model), one more
- * for splitting out the person/object (beta).
+ * Units of the magic_layers rate one Lapisan ajaib run costs: 3 for reading the slide with the stronger (Opus)
+ * vision model plus the edit that erases it, 2 more for splitting out the person/object (beta) with its two edits.
  */
-export const magicLayerUnits = (splitObject: boolean) => (splitObject ? 3 : 2)
+export const magicLayerUnits = (splitObject: boolean) => (splitObject ? 5 : 3)
+
+/**
+ * Units of the magic_layers rate the editor's own "Pisahkan objek" costs (on the background or an image layer):
+ * the Opus subject detection plus two image edits (the green-screen cut-out and the removal).
+ */
+export const OBJECT_SPLIT_UNITS = 4
 
 /** One-time free credits for a user who has never paid or whose period ended. They never reset. */
 export const TRIAL_CREDITS = 3

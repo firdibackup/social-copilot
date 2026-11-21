@@ -7,8 +7,9 @@ import { storedJpegAttempts, toInstagramJpeg, type PreparedImage } from './image
 import { MAX_STORED_BYTES } from './storage-quota-options'
 import {
   fontShorthand, layerImageUrl, lineBaseline, lineBox, lineStart, textHeight, wrapText,
-   type LayerDoc, type TextLayer, type ShapeLayer, type PathLayer,
+   type ImageLayer, type LayerDoc, type TextLayer, type ShapeLayer, type PathLayer,
 } from './layer-doc'
+import { gradientStyle, type Gradient } from './gradients'
 import { isLineKind, shapeFillRule, strokeStyle, traceShape, tracePath, type PathContext, type ShapeKind } from './shape-paths'
 import type { FontName } from './design-styles'
 import { loadFont } from './font-loader'
@@ -125,6 +126,7 @@ export interface DrawContext extends MeasureContext {
   textBaseline: CanvasTextBaseline
   textAlign: CanvasTextAlign
   drawImage(image: CanvasImageSource, dx: number, dy: number, dw: number, dh: number): void
+  drawImage(image: CanvasImageSource, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number): void
   fillText(text: string, x: number, y: number): void
   // Optional so small fakes stay small; a real canvas has them all.
   globalAlpha?: number
@@ -153,6 +155,33 @@ export interface DrawContext extends MeasureContext {
   lineWidth?: number
   lineCap?: CanvasLineCap
   lineJoin?: CanvasLineJoin
+  createLinearGradient?(x0: number, y0: number, x1: number, y1: number): CanvasGradient
+  createRadialGradient?(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number): CanvasGradient
+}
+
+/** The natural size of an image source, or null when it can't be told (then a crop can't be applied). */
+function sourceSize(image: CanvasImageSource): { width: number; height: number } | null {
+  const source = image as Partial<{ naturalWidth: number; naturalHeight: number; videoWidth: number; videoHeight: number;
+    width: number | { baseVal?: { value: number } }; height: number | { baseVal?: { value: number } } }>
+  const width = source.naturalWidth || source.videoWidth || (typeof source.width === 'number' ? source.width : 0)
+  const height = source.naturalHeight || source.videoHeight || (typeof source.height === 'number' ? source.height : 0)
+  return width > 0 && height > 0 ? { width, height } : null
+}
+
+/** An image layer: its crop (fractions of the source) stretched into its box. */
+export function drawImageLayer(ctx: DrawContext, layer: ImageLayer, image: CanvasImageSource): void {
+  const size = layer.crop ? sourceSize(image) : null
+  if (!layer.crop || !size) { ctx.drawImage(image, layer.x, layer.y, layer.w, layer.h); return }
+  const { crop } = layer
+  ctx.drawImage(image, crop.x * size.width, crop.y * size.height, crop.w * size.width, crop.h * size.height,
+    layer.x, layer.y, layer.w, layer.h)
+}
+
+/** `gradient` over the layer box when the context can make one, else the plain colour. */
+function fillOf(ctx: DrawContext, color: string, gradient: Gradient | undefined, box: { x: number; y: number; w: number; h: number }) {
+  if (!gradient || !ctx.createLinearGradient || !ctx.createRadialGradient) return color
+  return gradientStyle({ createLinearGradient: ctx.createLinearGradient.bind(ctx), createRadialGradient: ctx.createRadialGradient.bind(ctx) },
+    gradient, box)
 }
 
 const SHADOW_COLOR = 'rgba(0,0,0,0.45)'
@@ -187,7 +216,7 @@ export function drawDoc(
     if (layer.opacity !== undefined) ctx.globalAlpha = alpha * layer.opacity
     if (layer.kind === 'image') {
       const image = images.get(layer.assetId)
-      if (image) ctx.drawImage(image, layer.x, layer.y, layer.w, layer.h)
+      if (image) drawImageLayer(ctx, layer, image)
     } else if (layer.kind === 'shape') {
       drawShape(ctx, layer)
     } else if (layer.kind === 'path') {
@@ -214,7 +243,7 @@ const pathOf = (ctx: DrawContext): PathContext => ({
 
 /** Fills (when asked) then strokes the current path in the layer's colours and dash. */
 function paintPath(ctx: DrawContext, layer: ShapeLayer | PathLayer, fill: boolean, rule: CanvasFillRule, kind: ShapeKind | 'path') {
-  ctx.fillStyle = layer.color
+  ctx.fillStyle = fill ? fillOf(ctx, layer.color, layer.gradient, layer) : layer.color
   ctx.strokeStyle = layer.strokeColor
   ctx.lineWidth = layer.strokeWidth
   const style = strokeStyle(layer.dash, layer.strokeWidth, kind)
@@ -241,7 +270,7 @@ export function drawPath(ctx: DrawContext, layer: PathLayer): void {
 
 function drawText(ctx: DrawContext, layer: TextLayer, family: string): void {
   const { lines } = layoutText(ctx, layer, family)
-  ctx.fillStyle = layer.color
+  ctx.fillStyle = fillOf(ctx, layer.color, layer.gradient, layer)
   ctx.textBaseline = 'alphabetic'
   ctx.textAlign = 'left'
   if (layer.shadow) {
