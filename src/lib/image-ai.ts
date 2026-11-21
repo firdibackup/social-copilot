@@ -231,7 +231,7 @@ export function buildImagePrompt(
         `Text: render exactly this text and no other words: "${input.headline}".${breaks} Make it large, legible and fully inside the frame.${fonts}`,
       )
       lines.push(TEXT_IN_FULL)
-      if (role === 'isi') lines.push(TEXT_LEADS)
+      if (role === 'isi' && !ownLayout) lines.push(TEXT_LEADS)
       lines.push(TYPOGRAPHY_RULES)
     }
   } else {
