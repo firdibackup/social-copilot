@@ -112,6 +112,8 @@ const SCRIPT_SYSTEM = [
   '- Jangan pakai Markdown seperti **tebal**, _miring_, atau judul. Teks ini ditulis apa adanya di gambar.',
   '- Tulis kata dan kalimat lengkap: jangan pakai singkatan seperti "yg", "dgn", "utk", "krn", "tdk", atau "&".',
   '- Jangan mengarang fakta atau klaim yang tidak ada di ide atau fakta brand, misalnya harga, tanggal, lokasi, stok terbatas, atau "kualitas premium".',
+  '- Hook dan isi ditulis dari sudut pandang audiens: apa yang mereka dapat atau alami, bukan daftar fitur penjual. Kalau ide atau arahan menyebut audiensnya (mis. keluarga muda), tunjukkan lewat momen nyata mereka, misalnya pagi sebelum kerja atau sore bersama anak. Momen seperti itu bukan klaim, jadi boleh ditulis tanpa jadi kaku.',
+  '- Tiap slide membawa info atau sudut baru. Kalau poinnya habis, berhenti: lebih baik 3 slide padat daripada 4 slide dengan satu yang mengulang. Jangan mengulang frasa yang sama (mis. "pilihan aktivitas") di lebih dari satu slide.',
   JSON_ONLY,
 ].join('\n')
 
@@ -502,7 +504,7 @@ export function buildScriptMessages(
         '- visual: 1 kalimat untuk owner, tidak ditulis di gambar: foto atau aset apa yang tampil. Kalau subjek slide cocok dengan salah satu foto asli di bawah, sebut namanya persis (mis. "Foto Outdoor Gym dari Aset"); kalau tidak ada yang cocok, jelaskan gambar yang akan dibuat. Slide CTA juga memakai foto yang nyambung dengan topik post (mis. fasilitas yang dibahas), bukan foto umum yang tidak berhubungan.',
         `- layout: 1 kalimat, tidak ditulis di gambar: susunan slide itu (posisi judul, poin, foto, dan elemen grafis).${references.length > 0 ? ' Salin susunan dari gambar referensi desain di bawah: cover mengikuti referensi cover, slide isi referensi isi, CTA referensi CTA. Sebut konkret: foto full-bleed atau di dalam bingkai dan seberapa besar, latar polos atau di atas foto, pembagian band atau kolom, posisi dan perataan judul serta teks isi. Jangan mengarang susunan lain; warna dan font selalu dari brand.' : ' Pilih susunan yang paling jelas untuk isi slide itu; warna dan font selalu dari brand.'}`,
         'Format JSON: {"slides": [{"label": "…", "title": "…", "body": "…", "visual": "…", "layout": "…"}]}',
-        ...(assets.length > 0 ? ['', `Foto asli milik brand:\n${assets.map((asset) => `- ${asset.title}${asset.description ? ` — ${asset.description}` : ''}`).join('\n')}`] : []),
+        ...(assets.length > 0 ? ['', `Foto asli milik brand (deskripsinya fakta yang boleh dipakai di teks, mis. bentuk atau suasana tempatnya; pakai juga fasilitas lain di sini yang relevan dengan audiens):\n${assets.map((asset) => `- ${asset.title}${asset.description ? ` — ${asset.description}` : ''}`).join('\n')}`] : []),
         '',
         `Ide:\n${quote(idea)}`,
         ...(brief
@@ -512,7 +514,7 @@ export function buildScriptMessages(
             ]
           : []),
         '',
-        `Hanya pakai fakta dari ${brand?.facts ? 'ide dan fakta brand di atas' : 'ide di atas'}, ditambah pengetahuan umum yang pasti benar untuk konten edukasi. ${NO_INVENTED_CLAIMS}`,
+        `Hanya pakai fakta dari ${brand?.facts ? 'ide dan fakta brand di atas' : 'ide di atas'}${assets.length > 0 ? ', deskripsi foto asli brand' : ''}, ditambah pengetahuan umum yang pasti benar untuk konten edukasi. ${NO_INVENTED_CLAIMS}`,
       ].join('\n')
   const content: ChatMessage['content'] = references.length === 0 ? prompt : [
     { type: 'text', text: prompt },
