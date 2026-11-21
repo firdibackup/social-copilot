@@ -1,5 +1,6 @@
 import 'server-only'
 import { retrieveHooks } from './hook-retrieval'
+import { caseGuide, retrieveCases } from './case-retrieval'
 import type { HookTemplate } from './hook-guide'
 import { createHash } from 'node:crypto'
 import { languagePrompt, type Locale } from './ai-language'
@@ -386,7 +387,7 @@ function describeWritingBrand(brand: BrandContext): string {
   return describeBrand({ ...brand, strategy: brand.strategy ? { ...brand.strategy, pillars: brand.strategy.pillars.map((pillar) => ({ ...pillar, detail: '' })) } : null })
 }
 
-export function buildIdeasMessages(brand: BrandContext, recent: string[], language: Locale = 'id', sources: { assets: ProductCandidate[]; references: ScriptReference[] } = { assets: [], references: [] }, hooks: HookTemplate[] = []): ChatMessage[] {
+export function buildIdeasMessages(brand: BrandContext, recent: string[], language: Locale = 'id', sources: { assets: ProductCandidate[]; references: ScriptReference[]; accountId?: string } = { assets: [], references: [] }, hooks: HookTemplate[] = []): ChatMessage[] {
   const avoid = recent.length > 0 ? ['', `Jangan ulangi ide atau post yang sudah ada:\n${quote(recent.join('\n'))}`] : []
   const pillars = brand.strategy?.pillars ?? []
   const quota = pillarQuota(pillars, IDEAS_COUNT)
@@ -466,13 +467,16 @@ export function suggestIdeas(
   recent: string[],
   save: (ideas: SuggestedIdea[]) => Promise<void>,
   language: Locale = 'id',
-  sources: { assets: ProductCandidate[]; references: ScriptReference[] } = { assets: [], references: [] },
+  sources: { assets: ProductCandidate[]; references: ScriptReference[]; accountId?: string } = { assets: [], references: [] },
 ): Promise<SuggestedIdea[]> {
   const input = { recent: recent.length }
   return runLogged(userId, 'content_ideas', input, async () => {
     const hooks = await retrieveHooks(describeWritingBrand(brand))
     Object.assign(input, { hookIds: hooks.templates.map((h) => h.id), hookSource: hooks.source })
+    const cases = await retrieveCases(userId, sources.accountId, describeWritingBrand(brand))
+    Object.assign(input, { caseIds: cases.map((c) => c.id) })
     const messages = buildIdeasMessages(brand, recent, language, sources, hooks.templates)
+    if (cases.length) messages.push({ role: 'user', content: caseGuide(cases) })
     const ideas = parseIdeas(
       await chatCompletion(messages),
       brand.strategy?.pillars.map((pillar) => pillar.id),
@@ -572,18 +576,19 @@ export function parseScriptAnswer(content: string): ScriptSlide[] {
  * lines. Best effort: without them the script is still written.
  * ponytail: one random reference group; the post may later pin another, whose layout then wins in the image.
  */
-export async function loadScriptSources(userId: string, accountId: string): Promise<{ assets: ProductCandidate[]; references: ScriptReference[] }> {
+export async function loadScriptSources(userId: string, accountId: string): Promise<{ assets: ProductCandidate[]; references: ScriptReference[]; accountId?: string }> {
   try {
     const [groups, pool] = await Promise.all([listProductGroups(userId, accountId), listReferencePool(userId, accountId, null)])
     const ids = [...new Set(planReferenceImages(pool, ['cover', 'isi', 'cta'], pickFirst).filter((id): id is string => id !== null))]
     const loaded = await Promise.all(ids.map((id) => loadReferenceImage(userId, id)))
     return {
+      accountId,
       assets: groups.map(({ id, title, description }) => ({ id, title, description })),
       references: loaded.flatMap((image) => (image ? [{ dataUrl: image.dataUrl, label: image.label }] : [])),
     }
   } catch (error) {
     console.error('[konten] aset/referensi untuk skrip gagal dimuat, lanjut tanpa:', describeError(error))
-    return { assets: [], references: [] }
+    return { assets: [], references: [], accountId }
   }
 }
 
@@ -599,7 +604,7 @@ export function writeScript(
   density: TextDensity = DEFAULT_DENSITY,
   language: Locale = 'id',
   /** What the Visual and Layout lines are written from; the log keeps only their counts. */
-  sources: { assets: ProductCandidate[]; references: ScriptReference[] } = { assets: [], references: [] },
+  sources: { assets: ProductCandidate[]; references: ScriptReference[]; accountId?: string } = { assets: [], references: [] },
   ownerRequest = '',
 ): Promise<ScriptSlide[]> {
   const input = { ideaId: idea.id, idea: idea.title, density, ...(brief ? { brief } : {}), ...(ownerRequest ? { ownerRequest } : {}) }
@@ -607,7 +612,10 @@ export function writeScript(
     const brand = brandContext === undefined ? await loadBrandContext(userId) : brandContext
     const hooks = await retrieveHooks([idea.title, ownerRequest, brief].join('\n'))
     Object.assign(input, { hookIds: hooks.templates.map((h) => h.id), hookSource: hooks.source })
+    const cases = await retrieveCases(userId, sources.accountId, [idea.title, ownerRequest].join('\n'))
+    Object.assign(input, { caseIds: cases.map((c) => c.id) })
     const messages = buildScriptMessages(idea.title, brand, 'auto', brief, density, language, sources.assets, sources.references, ownerRequest, hooks.templates)
+    if (cases.length) messages.push({ role: 'user', content: caseGuide(cases) })
     const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
     // Hashes only: reference bytes and private prompts never enter diagnostic logs.
     Object.assign(input, { sourceHash: hash({ idea: idea.title, brand, brief, language, sources, ownerRequest }), messagesHash: hash(messages) })

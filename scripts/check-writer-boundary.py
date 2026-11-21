@@ -12,7 +12,7 @@ fn = content[content.index('export function buildScriptMessages('):content.index
 body = fn[fn.index('  const prompt ='):fn.rindex('}')]
 ctx = quickjs.Context()
 ctx.eval('const MIN_SCRIPT_SLIDES=1,MAX_SLIDES=1,COVER_RULE="",SCRIPT_BODY={seimbang:""},HEADLINE_MAX_LENGTH=300,SCRIPT_EXAMPLES="",NO_INVENTED_CLAIMS="",SCRIPT_SYSTEM=""; const describeBrand=()=>"",carouselStructure=()=>"",densityRule=()=>"",carouselGuide=()=>"",scriptVisualRules=()=>"",quote=JSON.stringify,withScriptReferences=x=>x,languagePrompt=x=>x;')
-ctx.eval('function build(idea,brand,hook,brief,density,language,assets,references,ownerRequest) {'+body+'}')
+ctx.eval('function build(idea,brand,hook,brief,density,language,assets,references,ownerRequest,hooks=[]) {'+body+'}')
 result = ctx.eval('JSON.stringify(build("Model title",null,"auto","Ask sales only","seimbang","id",[],[],"Jelaskan DP 5% dengan contoh."))')
 assert 'Jelaskan DP 5%' in result and 'Ask sales only' in result
 assert 'Usulan Mimo' in result and 'Permintaan owner' in result
