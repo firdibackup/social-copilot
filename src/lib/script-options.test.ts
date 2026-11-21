@@ -91,6 +91,16 @@ describe('readScriptText', () => {
   })
 })
 
+describe('Visual and Layout notes', () => {
+  it('round-trips through the composer text and never reaches the image text', () => {
+    const slide = { ...SLIDE, visual: 'Foto Outdoor Gym dari Aset', layout: 'Judul di atas, foto penuh di bawah' }
+    const read = readScriptText(scriptToText([slide]))
+    expect(read).toEqual({ intro: '', script: [slide] })
+    expect(scriptHeadline(slide)).toBe(scriptHeadline(SLIDE))
+    expect(cleanScriptSlide({ ...SLIDE, visual: ' Foto\nGym ', layout: '' })).toEqual({ ...SLIDE, visual: 'Foto Gym' })
+  })
+})
+
 describe('scriptLines', () => {
   it('names what each line is and which slide it belongs to', () => {
     expect(scriptLines('Arahan\nSlide 1 — Hook\n\nJudul\nIsi')).toEqual([

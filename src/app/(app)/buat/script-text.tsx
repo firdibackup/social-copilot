@@ -181,7 +181,7 @@ export function formatScript(text: string): ReactNode {
             {bullet[2]}
           </>
         ) : (
-          <span className={kind === 'intro' ? 'text-ink-muted' : undefined}>{line}</span>
+          <span className={kind === 'intro' || kind === 'visual' || kind === 'layout' ? 'text-ink-muted' : undefined}>{line}</span>
         )}
       </Fragment>
     )

@@ -53,7 +53,6 @@ export const FAILED = 'Gagal menghubungi server. Coba lagi.'
 /** Fields the AI filled that the owner hasn't saved yet. */
 const SUGGESTED = 'border-amber-300 bg-amber-50/40'
 const LOGO_TYPES = 'image/png,image/jpeg,image/webp'
-const MAX_REFERENCE_SUGGESTIONS = 10
 
 /** The editable part of the kit; the logo has its own actions. */
 function fieldsOf(kit: BrandKit): BrandFields {
@@ -180,7 +179,6 @@ export function BrandForm({ kit, references, instagramUsername, visualLimit }: B
           colors={fields.colors}
           onChange={(colors) => update('colors', colors)}
           websiteColors={website?.colors ?? []}
-          references={references}
         />
         <FontFields fields={fields} suggested={suggested} fonts={website?.fonts ?? []} onChange={update} />
         <VisualStyleField
@@ -488,24 +486,13 @@ const ROLE_ORDER = Object.keys(COLOR_ROLES) as ColorRole[]
 const nextRole = (colors: BrandColor[]): ColorRole =>
   ROLE_ORDER.find((role) => !colors.some((color) => color.role === role)) ?? 'aksen'
 
-/** The colours most often found across the references' palettes. */
-function referenceColors(references: BrandReference[]): string[] {
-  const counts = new Map<string, number>()
-  for (const hex of references.flatMap((reference) => reference.palette)) counts.set(hex, (counts.get(hex) ?? 0) + 1)
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([hex]) => hex)
-    .slice(0, MAX_REFERENCE_SUGGESTIONS)
-}
-
 interface PaletteFieldProps {
   colors: BrandColor[]
   onChange: (colors: BrandColor[]) => void
   websiteColors: string[]
-  references: BrandReference[]
 }
 
-function PaletteField({ colors, onChange, websiteColors, references }: PaletteFieldProps) {
+function PaletteField({ colors, onChange, websiteColors }: PaletteFieldProps) {
   const t = useTranslations('brand')
   const full = colors.length >= MAX_COLORS
   const used = new Set(colors.map((color) => color.hex))
@@ -558,7 +545,6 @@ function PaletteField({ colors, onChange, websiteColors, references }: PaletteFi
         <Plus size={16} aria-hidden="true" />
         {t('brandForm.text45')}</button>
       <Swatches title={t('brandForm.text46')} colors={websiteColors} used={used} disabled={full} onPick={add} />
-      <Swatches title={t('brandForm.text47')} colors={referenceColors(references)} used={used} disabled={full} onPick={add} />
     </div>
   )
 }

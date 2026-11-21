@@ -828,12 +828,11 @@ function PostPicker({ result, source, room, imported, onDone }: PostPickerProps)
 function ReferenceCard({ reference }: { reference: BrandReference }) {
   const t = useTranslations('brand')
   const [note, setNote] = useState(reference.note)
-  const [description, setDescription] = useState(reference.description)
-  const [saved, setSaved] = useState({ note: reference.note, description: reference.description })
+  const [saved, setSaved] = useState({ note: reference.note })
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function persist(field: 'note' | 'description', value: string) {
+  async function persist(field: 'note', value: string) {
     if (value.trim() === saved[field]) return
     const failure = await updateReferenceAction(reference.id, { [field]: value }).catch(() => t('shared.failed'))
     setError(failure)
@@ -903,18 +902,6 @@ function ReferenceCard({ reference }: { reference: BrandReference }) {
             rows={2}
             maxLength={NOTE_MAX_LENGTH}
             placeholder={t('referencesPanel.text50')}
-            className={FIELD}
-          />
-        </label>
-        <label className={LABEL}>
-          <span className="text-xs">{t('referencesPanel.text51')}</span>
-          <textarea
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            onBlur={() => void persist('description', description)}
-            rows={3}
-            maxLength={DESCRIPTION_MAX_LENGTH}
-            placeholder={t('referencesPanel.text52')}
             className={FIELD}
           />
         </label>

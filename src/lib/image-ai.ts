@@ -84,12 +84,12 @@ function describeInputImage(image: PromptImage, index: number, context: ImageCon
     case 'reference': {
       const note = image.note ? ` The owner's note about it: "${image.note}".` : ''
       if (image.label && image.label !== 'single') {
-        return `${name} is ${REFERENCE_SLIDES[image.label]} of the owner's reference carousel: copy its visual design for this slide: layout, colours, typography, graphic elements, framing and composition. Do not copy its words, people or products.${note}`
+        return `${name} is ${REFERENCE_SLIDES[image.label]} of the owner's reference carousel: copy its layout for this slide: where the text and photo sit, text size and hierarchy, graphic elements, framing and composition. Take the colours and fonts from the brand below, never from it. Do not copy its words, people or products.${note}`
       }
       if (givesLayout(image, context.role)) {
-        return `${name} is a design reference: follow its style, composition and mood, not its content.${note}`
+        return `${name} is a design reference: follow its layout, composition and mood, not its content, colours or fonts.${note}`
       }
-      return `${name} is a general style reference: take its colours, type feel and mood, but use this slide’s own layout for its role. Do not copy its words, people or products.${note}`
+      return `${name} is a general style reference: take only its mood and graphic feel, and use this slide’s own layout for its role. Its colours and fonts don't apply: use the brand's. Do not copy its words, people or products.${note}`
     }
     case 'logo':
       return `${name} is the brand logo: place it small and unaltered in one corner.`
@@ -102,13 +102,13 @@ function describeBrandVisual(brand: BrandVisual, styled: boolean): string[] {
   if (brand.visualStyle) {
     lines.push(
       styled
-        ? `Visual style of the owner's past posts (take its mood and imagery; the design style above decides the typography): ${brand.visualStyle}`
+        ? `Visual style of the owner's past posts (take only its mood and imagery; colours and fonts follow the brand settings): ${brand.visualStyle}`
         : `Visual style: ${brand.visualStyle}`,
     )
   }
   if (brand.colors.length > 0) {
     const colors = brand.colors.map((color) => `${ROLE_NAMES[color.role]} ${color.hex}`).join(', ')
-    lines.push(`Brand colours: ${colors}. Use them for backgrounds, graphic elements and text.`)
+    lines.push(`Brand colours: ${colors}. Use them for backgrounds, graphic elements and text, even where an input image uses other colours.`)
   }
   const fonts = [brand.headingFont && `headings ${brand.headingFont}`, brand.bodyFont && `body ${brand.bodyFont}`].filter(Boolean)
   if (fonts.length > 0) lines.push(`Brand fonts: ${fonts.join(', ')}.`)
@@ -212,14 +212,13 @@ export function buildImagePrompt(
   }
   if (!textDesign && !reference) lines.push(LAYOUT_RULES)
 
-  const headingFont = reference ? DEFAULT_HEADING_FONT : brand?.headingFont || style?.headingFont || DEFAULT_HEADING_FONT
-  const bodyFont = reference ? DEFAULT_BODY_FONT : brand?.bodyFont || style?.bodyFont || DEFAULT_BODY_FONT
+  // The owner's fonts on every slide, reference or not, so a carousel never switches typefaces.
+  const headingFont = brand?.headingFont || style?.headingFont || DEFAULT_HEADING_FONT
+  const bodyFont = brand?.bodyFont || style?.bodyFont || DEFAULT_BODY_FONT
   if (input.headline) {
     const multiline = input.headline.includes('\n')
     const breaks = multiline ? ' Keep its line breaks; the first line is the headline.' : ''
-    const fonts = reference
-      ? ' Match the typography, weights and hierarchy of the owner reference.'
-      : multiline
+    const fonts = multiline
         ? ` Set the first line in ${headingFont} bold and the other lines in ${bodyFont} regular, clearly smaller (or close matches).`
         : ` Set it in ${headingFont} bold, or a close match.`
     if (textDesign) {
@@ -240,7 +239,8 @@ export function buildImagePrompt(
     lines.push(`Text: none. No words, letters, numbers, captions or watermarks${logo ? ' other than the logo' : ', and no logos'}.`)
   }
   lines.push(MODERN_LOOK)
-  if (brand && !reference) lines.push(...describeBrandVisual(brand, style !== null))
+  // A reference lends its layout only: the palette and fonts the owner set up always apply.
+  if (brand) lines.push(...describeBrandVisual(brand, style !== null || reference))
   // Last and outside the reference check: the owner's limits beat a reference, a style and the scene.
   if (brand?.designRules) lines.push(`Owner's design rules (always follow, they override the scene and any reference): ${brand.designRules}`)
   return lines.join('\n')

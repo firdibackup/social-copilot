@@ -11,7 +11,7 @@ import { contentAttemptActive, GenerationCancelled } from './generation-cancella
 
 vi.mock('./ai', () => ({ loadAccountBrandContext: vi.fn(), aiErrorMessage: () => 'AI gagal' }))
 vi.mock('./connection', () => ({ getConnectedAccountId: vi.fn() }))
-vi.mock('./content-ai', () => ({ planContent: vi.fn(), writeScript: vi.fn() }))
+vi.mock('./content-ai', () => ({ planContent: vi.fn(), writeScript: vi.fn(), loadScriptSources: vi.fn(async () => ({ assets: [], references: [] })) }))
 vi.mock('./content-jobs', () => ({ failContentJob: vi.fn() }))
 vi.mock('./generation-cancellation', async (original) => ({ ...(await original<typeof import('./generation-cancellation')>()), contentAttemptActive: vi.fn() }))
 vi.mock('./ideas', () => ({ getAccountIdea: vi.fn() }))
@@ -63,7 +63,7 @@ describe('durable content worker', () => {
 
     expect(getAccountIdea).toHaveBeenCalledWith('owner', 'instagram', 'idea')
     expect(loadAccountBrandContext).toHaveBeenCalledWith('owner', 'instagram')
-    expect(writeScript).toHaveBeenCalledWith('owner', expect.anything(), expect.any(Function), '', null, expect.any(AbortSignal), 'lengkap', 'id')
+    expect(writeScript).toHaveBeenCalledWith('owner', expect.anything(), expect.any(Function), '', null, expect.any(AbortSignal), 'lengkap', 'id', { assets: [], references: [] })
     expect(rpc).toHaveBeenCalledWith('finish_script_job', { p_post_id: 'draft', p_lease: 'worker-lease', p_script: [] })
     expect(failContentJob).not.toHaveBeenCalled()
   })
@@ -74,13 +74,13 @@ describe('durable content worker', () => {
 
     await processContentJob({ ...job, payload: { density: 'lengkap', brief: 'Tulis tepat 4 slide.' } })
 
-    expect(writeScript).toHaveBeenCalledWith('owner', expect.anything(), expect.any(Function), 'Tulis tepat 4 slide.', null, expect.any(AbortSignal), 'lengkap', 'id')
+    expect(writeScript).toHaveBeenCalledWith('owner', expect.anything(), expect.any(Function), 'Tulis tepat 4 slide.', null, expect.any(AbortSignal), 'lengkap', 'id', { assets: [], references: [] })
   })
 
   it('passes a queued English locale to script generation without request cookies', async () => {
     vi.mocked(getAccountIdea).mockResolvedValue({ id: 'idea', title: 'Coffee', script: null, pillarId: null })
     await processContentJob({ ...job, payload: { ...job.payload, language: 'en' } })
-    expect(vi.mocked(writeScript).mock.calls[0].at(-1)).toBe('en')
+    expect(vi.mocked(writeScript).mock.calls[0].at(-2)).toBe('en')
   })
 
   it('recovers English after the SQL auto-script transition rebuilds the payload', async () => {

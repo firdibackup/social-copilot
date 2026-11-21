@@ -13,6 +13,7 @@ export const BULLET = /^(\s*[-•]\s)(.*)$/
 
 export const SCRIPT_LABEL_MAX_LENGTH = 40
 export const SCRIPT_TITLE_MAX_LENGTH = 120
+export const SCRIPT_NOTE_MAX_LENGTH = 300
 
 export interface ScriptSlide {
   /** What the slide is for the owner, e.g. "Hook", "IN", or "CTA"; not written on the image. */
@@ -21,12 +22,23 @@ export interface ScriptSlide {
   title: string
   /** The rest of the slide's text: sentences or points, one per line. */
   body: string
+  /** For the owner and the image, never written on it: which photo or asset the slide shows, and how it is laid out. */
+  visual?: string
+  layout?: string
 }
 
 type Json = Record<string, unknown>
 
 const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null
 const text = (value: unknown) => (typeof value === 'string' ? value.replace(/\r\n/g, '\n').trim() : '')
+
+/** The slide's Visual and Layout notes, single-line and clipped; absent when empty. */
+function notesOf(value: Json): Pick<ScriptSlide, 'visual' | 'layout'> {
+  const note = (item: unknown) => truncate(text(item).replace(/\s*\n\s*/g, ' '), SCRIPT_NOTE_MAX_LENGTH)
+  const visual = note(value.visual)
+  const layout = note(value.layout)
+  return { ...(visual ? { visual } : {}), ...(layout ? { layout } : {}) }
+}
 
 /** Everything the slide's image shows: the heading, then the body. */
 export const scriptHeadline = (slide: ScriptSlide) => [slide.title, slide.body].filter(Boolean).join('\n')
@@ -38,7 +50,7 @@ export function cleanScriptSlide(value: unknown): ScriptSlide | null {
   const title = truncate(text(value.title), SCRIPT_TITLE_MAX_LENGTH)
   const room = HEADLINE_MAX_LENGTH - (title ? lengthOf(title) + 1 : 0)
   const body = truncate(text(value.body), room).trimEnd()
-  return title || body ? { label, title, body } : null
+  return title || body ? { label, title, body, ...notesOf(value) } : null
 }
 
 /** Why the slide can't be made as written, or null. A single post's one slide gets the single post's text limit. */
@@ -66,13 +78,16 @@ export function parseScript(value: unknown, locale: Locale = 'id'): { script: Sc
   const script: ScriptSlide[] = []
   for (const [index, raw] of value.entries()) {
     if (!isObject(raw)) return { error: t('message8') }
-    const slide = { label: text(raw.label), title: text(raw.title), body: text(raw.body) }
+    const slide = { label: text(raw.label), title: text(raw.title), body: text(raw.body), ...notesOf(raw) }
     const problem = slideProblem(slide, index + 1, value.length === 1, locale)
     if (problem) return { error: problem }
     script.push(slide)
   }
   return { script }
 }
+
+// "Visual: …" or "Layout: …" in a slide: a note for the owner and the image, not text on it.
+const NOTE_LINE = /^\s*(visual|layout)\s*:/i
 
 // "Slide 2 — Isi", also with "-", "–" or ":" or without a label; "Slide 2 hari lagi" is text.
 const SLIDE_LINE = /^\s*slide\s+\d+\s*(?:[—–:-]\s*(.*?))?\s*$/i
@@ -81,13 +96,19 @@ const SLIDE_LINE = /^\s*slide\s+\d+\s*(?:[—–:-]\s*(.*?))?\s*$/i
 export const scriptToText = (script: ScriptSlide[]): string =>
   script
     .map((slide, index) =>
-      [`Slide ${index + 1}${slide.label ? ` — ${slide.label}` : ''}`, slide.title, slide.body].filter(Boolean).join('\n'),
+      [
+        `Slide ${index + 1}${slide.label ? ` — ${slide.label}` : ''}`,
+        slide.title,
+        slide.body,
+        slide.visual && `Visual: ${slide.visual}`,
+        slide.layout && `Layout: ${slide.layout}`,
+      ].filter(Boolean).join('\n'),
     )
     .join('\n\n')
 
 export interface ScriptLine {
   /** Text above the first slide line, a slide line, a slide's title (its first line with text), or the rest. */
-  kind: 'intro' | 'slide' | 'title' | 'body'
+  kind: 'intro' | 'slide' | 'title' | 'body' | 'visual' | 'layout'
   /** The slide's index, -1 above the first slide line. */
   slide: number
 }
@@ -103,6 +124,8 @@ export function scriptLines(value: string): ScriptLine[] {
       return { kind: 'slide', slide }
     }
     if (slide < 0) return { kind: 'intro', slide }
+    const note = NOTE_LINE.exec(line)?.[1]?.toLowerCase()
+    if (note === 'visual' || note === 'layout') return { kind: note, slide }
     if (titled || !line.trim()) return { kind: 'body', slide }
     titled = true
     return { kind: 'title', slide }
@@ -120,11 +143,18 @@ export function splitScriptText(value: string): { intro: string; slides: ScriptS
       .filter((_, at) => lines[at].slide === slide && lines[at].kind === kind)
       .join('\n')
       .trim()
-  const slides = Array.from({ length: count }, (_, slide) => ({
-    label: join(slide, 'slide').match(SLIDE_LINE)?.[1] ?? '',
-    title: join(slide, 'title'),
-    body: join(slide, 'body'),
-  }))
+  const note = (slide: number, kind: 'visual' | 'layout') => join(slide, kind).replace(NOTE_LINE, '').trim()
+  const slides = Array.from({ length: count }, (_, slide) => {
+    const visual = note(slide, 'visual')
+    const layout = note(slide, 'layout')
+    return {
+      label: join(slide, 'slide').match(SLIDE_LINE)?.[1] ?? '',
+      title: join(slide, 'title'),
+      body: join(slide, 'body'),
+      ...(visual ? { visual } : {}),
+      ...(layout ? { layout } : {}),
+    }
+  })
   return { intro: join(-1, 'intro'), slides }
 }
 

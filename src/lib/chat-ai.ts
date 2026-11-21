@@ -30,7 +30,7 @@ import {
   type CompetitorView,
   type ScriptItem,
 } from './chat-options'
-import { IDEA_MAX_LENGTH, writeScript } from './content-ai'
+import { IDEA_MAX_LENGTH, loadScriptSources, writeScript } from './content-ai'
 import { DEFAULT_SLIDES, MAX_SLIDES } from './content-options'
 import { getDensityDefault } from './density'
 import { DEFAULT_DENSITY, type TextDensity } from './density-options'
@@ -656,6 +656,7 @@ export function scriptRequests(value: unknown, strategy: ContentStrategy | null)
 /** One script: a new idea in Buat, or the revision of one Mimo wrote. A new idea whose script fails is removed. */
 async function draftScript(context: ToolContext, request: ScriptRequest): Promise<ScriptItem> {
   const { userId } = context
+  const sources = await loadScriptSources(userId, context.accountId)
   if (request.ideaId) {
     const existing = await getAccountIdea(userId, context.accountId, request.ideaId)
     if (!existing) throw new ToolInputError('Ide itu tidak ada di akun Instagram ini (mungkin dibuang atau sudah jadi post).')
@@ -672,6 +673,7 @@ async function draftScript(context: ToolContext, request: ScriptRequest): Promis
       context.signal,
       context.density,
       context.language,
+      sources,
     )
     return { ideaId: existing.id, title: request.title, script, state: 'saved' }
   }
@@ -690,6 +692,7 @@ async function draftScript(context: ToolContext, request: ScriptRequest): Promis
       context.signal,
       context.density,
       context.language,
+      sources,
     )
     return { ideaId, title: request.title, script, state: 'saved' }
   } catch (error) {

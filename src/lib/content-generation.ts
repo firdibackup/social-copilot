@@ -5,7 +5,7 @@ import { loadAttachment } from './attachments'
 import { getBrandVisual, listReferencePool } from './brand'
 import { pickFirst, pickRandom, planReferenceImages, slideRoles, type SlideRole } from './brand-options'
 import { getConnectedAccountId } from './connection'
-import { planContent, writeScript } from './content-ai'
+import { loadScriptSources, planContent, writeScript } from './content-ai'
 import { failContentJob, type ContentJob } from './content-jobs'
 import { AUTO_PRODUCT, AUTO_REFERENCE, type ContentRequest } from './content-options'
 import { styleIdForBrand } from './design-styles'
@@ -34,7 +34,7 @@ export async function processContentJob(job: ContentJob): Promise<void> {
       await writeScript(job.user_id, idea, async (script) => {
         await watch!.check()
         unwrap(await db().rpc('finish_script_job', { p_post_id: job.post_id, p_lease: job.lease, p_script: script }))
-      }, job.payload.brief ?? '', brand, watch.signal, job.payload.density, language)
+      }, job.payload.brief ?? '', brand, watch.signal, job.payload.density, language, await loadScriptSources(job.user_id, job.account_id))
       return
     }
     const request = job.payload.request
