@@ -462,7 +462,7 @@ export function suggestIdeas(
   sources: { assets: ProductCandidate[]; references: ScriptReference[] } = { assets: [], references: [] },
 ): Promise<SuggestedIdea[]> {
   return runLogged(userId, 'content_ideas', { recent: recent.length }, async () => {
-    const messages = buildIdeasMessages(brand, recent, language, sources)
+    const messages = buildIdeasMessages(brand, [], language, sources)
     const ideas = parseIdeas(
       await chatCompletion(messages),
       brand.strategy?.pillars.map((pillar) => pillar.id),
@@ -567,7 +567,7 @@ export async function loadScriptSources(userId: string, accountId: string): Prom
     const ids = [...new Set(planReferenceImages(pool, ['cover', 'isi', 'cta'], pickFirst).filter((id): id is string => id !== null))]
     const loaded = await Promise.all(ids.map((id) => loadReferenceImage(userId, id)))
     return {
-      assets: groups.map(({ id, title }) => ({ id, title, description: '' })),
+      assets: groups.map(({ id, title, description }) => ({ id, title, description })),
       references: loaded.flatMap((image) => (image ? [{ dataUrl: image.dataUrl, label: image.label }] : [])),
     }
   } catch (error) {
