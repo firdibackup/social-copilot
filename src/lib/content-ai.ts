@@ -516,7 +516,7 @@ export function buildScriptMessages(
         ...(assets.length > 0 ? ['', `Foto asli milik brand (deskripsinya fakta yang boleh dipakai di teks, mis. bentuk atau suasana tempatnya; pakai juga fasilitas lain di sini yang relevan dengan audiens):\n${assets.map((asset) => `- ${asset.title}${asset.description ? ` — ${asset.description}` : ''}`).join('\n')}`] : []),
         '',
         `Ide:\n${quote(idea)}`,
-        ...(ownerRequest ? [`Permintaan owner (verbatim; tujuan dan batasan ini mengungguli usulan Mimo):\n${quote(ownerRequest)}`] : []),
+        ...(ownerRequest ? [`Permintaan owner (verbatim; tujuan dan batasannya mengungguli usulan Mimo). Tulis hanya SATU skrip untuk ide item di atas; bila pesan owner meminta beberapa skrip, item lain dikerjakan terpisah:\n${quote(ownerRequest)}`] : []),
         ...(brief
           ? [
               '',
