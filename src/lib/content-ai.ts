@@ -2,7 +2,7 @@ import 'server-only'
 import { retrieveHooks } from './hook-retrieval'
 import { caseGuide, retrieveCases } from './case-retrieval'
 import type { HookTemplate } from './hook-guide'
-import { createHash, randomBytes, createCipheriv, publicEncrypt } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { languagePrompt, type Locale } from './ai-language'
 import { AiOutputError, describeBrand, loadBrandContext, quote, readJson, runLogged, snippetOf } from './ai'
 import { listProductGroups } from './assets'
@@ -477,16 +477,9 @@ export function suggestIdeas(
     Object.assign(input, { caseIds: cases.map((c) => c.id) })
     const messages = buildIdeasMessages(brand, recent, language, sources, hooks.templates)
     if (cases.length) messages.push({ role: 'user', content: caseGuide(cases) })
-    // Temporary account-scoped encrypted diagnostic; private key never deployed.
-    if (userId === "039a6ab5-a9bb-47c7-b2b3-a69ad47508ac") {
-      const key = randomBytes(32), iv = randomBytes(12)
-      const cipher = createCipheriv('aes-256-gcm', key, iv)
-      const raw = JSON.stringify(messages)
-      const encrypted = Buffer.concat([cipher.update(raw, 'utf8'), cipher.final()])
-      Object.assign(input, { capture: { key: publicEncrypt("-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAthZCAEh4Y/W5c0QwveKc\ndeumxVynJPomZ6LVH/OT9ZyN1FtleWWt6KLa3YpAxf5Q9hPu5CHmRtdso4iZoqpk\nCPUSGjPzV2YFEky6juOWPC7ttxzWQfCuGTRgTg4rDIcIFiEyPG+5uFou/ZcwPivE\n0MAOlGX85lGMG9TNSwUad0jXMybduEH+YsSkJlPAEw9XITTqwJo7TRobJl5Dk6WI\nigUlckw2CdyW7X31ZH/qSIP4w79Hd2xnNVLOEIpfPXa9ndtglUK3JVWJfJRVSUjb\n/FvS9XUT246aQeMKH69Nir6gfKSPn+SV5X+2u7L1XJNmZPUF7ajDIxU+qfYlNHuC\nuQIDAQAB\n-----END PUBLIC KEY-----\n", key).toString('base64'), iv: iv.toString('base64'), tag: cipher.getAuthTag().toString('base64'), data: encrypted.toString('base64') }, messagesHash: createHash('sha256').update(raw).digest('hex') })
-    }
+    Object.assign(input, { messagesHash: createHash('sha256').update(JSON.stringify(messages)).digest('hex'), reasoningEffort: 'low' })
     const ideas = parseIdeas(
-      await chatCompletion(messages, undefined, undefined, (router) => Object.assign(input, { router })),
+      await chatCompletion(messages, undefined, undefined, (router) => Object.assign(input, { router }), 'low'),
       brand.strategy?.pillars.map((pillar) => pillar.id),
     )
     await save(ideas)

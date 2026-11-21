@@ -90,10 +90,10 @@ function completionMetadata(body: unknown): CompletionMetadata {
  * One chat completion, returning the answer's text. `stream: false` must be explicit: without it 9Router answers with
  * SSE. `model` defaults to the admin's text model (textModel()).
  */
-export async function chatCompletion(messages: ChatMessage[], model?: string, signal?: AbortSignal, onMetadata?: (metadata: CompletionMetadata) => void): Promise<string> {
+export async function chatCompletion(messages: ChatMessage[], model?: string, signal?: AbortSignal, onMetadata?: (metadata: CompletionMetadata) => void, reasoningEffort?: 'low'): Promise<string> {
   const response = await post(
     '/chat/completions',
-    { model: model ?? (await textModel()), messages, stream: false, max_tokens: MAX_TOKENS },
+    { model: model ?? (await textModel()), messages, stream: false, max_tokens: MAX_TOKENS, ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}) },
     REQUEST_TIMEOUT_MS,
     undefined,
     signal,
