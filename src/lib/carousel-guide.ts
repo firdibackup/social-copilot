@@ -103,16 +103,13 @@ export function carouselGuide(hook: HookArchetype = 'auto', density: TextDensity
   ].join('\n')
 }
 
-/**
- * Two worked before/after scripts: rules alone left scripts stiff and feature-listy (PARKSPRING tests, 21 Nov).
- * Fictional brands on purpose, so no fact leaks into a real account; the model copies the moves, not the words.
- */
+/** Fictional, unrelated example: demonstrate a causal distinction, not a feature list. */
 export const SCRIPT_EXAMPLES = [
-  'Contoh editorial (brand fiktif; tiru penalarannya, jangan pindahkan fakta atau kalimat ke akun lain):',
-  'Fakta contoh: perumahan memiliki taman bermain dan jalur sepeda di dalam cluster. Tidak ada informasi bangku, keamanan, jarak antarfasilitas, atau pengawasan anak.',
-  'Lemah: "Fasilitas Lengkap untuk Keluarga" / "Ada taman bermain dan jalur sepeda sebagai pilihan aktivitas." Hanya katalog; pembaca belum mendapat cara memilih.',
-
-  'Skenario memakai kata coba, bisa, atau misalnya: bukan testimoni penghuni, jaminan hasil, atau klaim semua kegiatan dapat dilakukan bersamaan. Jangan menambah fasilitas demi cerita.',
-
-  'Ukuran layak: setelah membaca, audiens mendapat keputusan, langkah, pembeda, atau gambaran kegiatan yang tidak sudah habis dijelaskan di cover. CTA melanjutkan manfaat itu, bukan sekadar "kenali produk". Sesuaikan bentuk dengan fakta dan tujuan; jangan memaksakan pola contoh ke semua topik.',
+  'Contoh editorial fiktif berikut bukan fakta brand. Tiru kedalaman penjelasannya, bukan topik, angka, kalimat, atau jumlah slidenya. Tujuan owner tetap menentukan bentuk konten.',
+  'Fakta contoh: toko alat tulis menjual buku bergaris dan buku polos. Lemah: "Buku bergaris untuk menulis. Buku polos untuk menggambar." Dua fungsi itu hanya mengulang nama produk.',
+  'Contoh jadi — Hook: "Catatan rapat Anda sulit dibaca ulang?" / "Pilih halaman berdasarkan cara Anda menghubungkan informasi."',
+  'Isi 1: "Untuk urutan tugas, gunakan halaman bergaris." / "Misalnya, tulis satu tugas per baris, lalu nama penanggung jawab di sebelahnya. Baris memisahkan tugas sehingga nama orang tidak tertukar saat catatan dibaca ulang."',
+  'Isi 2: "Untuk hubungan antaride, coba halaman polos." / "Letakkan masalah di tengah, lalu hubungkan penyebabnya dengan panah. Ruang tanpa garis memudahkan cabang menyebar ke samping, bukan memaksa semua ide menjadi daftar berurutan."',
+  'CTA: "Simpan dua pola catatan ini untuk rapat berikutnya."',
+  'Nilai tambahnya adalah hubungan tindakan dan alasan: pilih A saat X karena Y, bukan sekadar A punya fungsi X. Untuk skenario, jelaskan hambatan nyata dan cara mengatasinya; untuk promo, jelaskan perbedaan komponen atau contoh hitungan berlabel ilustrasi. Gunakan hanya pengetahuan umum yang pasti benar dan fakta tersedia, tanpa menambah kemampuan produk, ketentuan promo, atau klaim hasil.',
 ].join('\n')
