@@ -6,7 +6,7 @@ import { listReferencePool, loadReferenceImage } from './brand'
 import { describeError } from './errors'
 import { pickFirst, planReferenceImages, REFERENCE_LABELS, truncate, type BrandContext, type ReferenceLabel } from './brand-options'
 import { CAPTION_MAX_LENGTH } from './caption'
-import { carouselGuide, carouselStructure, COVER_RULE, densityRule, HOOK_QUALITY_RULE, IDEA_QUALITY_RULE, singleDensityRule, VOICE_RULE, type HookArchetype } from './carousel-guide'
+import { carouselGuide, carouselStructure, COVER_RULE, densityRule, HOOK_QUALITY_RULE, IDEA_QUALITY_RULE, SCRIPT_EXAMPLES, singleDensityRule, VOICE_RULE, type HookArchetype } from './carousel-guide'
 import type { ContentRequest } from './content-options'
 import { DEFAULT_DENSITY, type TextDensity } from './density-options'
 import { isUuid } from './params'
@@ -373,7 +373,24 @@ export function planContent<T>(
   )
 }
 
-export function buildIdeasMessages(brand: BrandContext, recent: string[], language: Locale = 'id'): ChatMessage[] {
+function withScriptReferences(prompt: string, references: ScriptReference[]): ChatMessage['content'] {
+  return references.length === 0 ? prompt : [
+    { type: 'text', text: prompt },
+    ...references.flatMap((reference): ContentPart[] => [
+      { type: 'text', text: `Referensi desain: slide ${REFERENCE_LABELS[reference.label]}` },
+      { type: 'image_url', image_url: { url: reference.dataUrl } },
+    ]),
+  ]
+}
+
+function scriptVisualRules(references: ScriptReference[]): string {
+  return [
+        '- visual: 1 kalimat untuk owner, tidak ditulis di gambar: foto atau aset apa yang tampil. Kalau subjek slide cocok dengan salah satu foto asli di bawah, sebut namanya persis (mis. "Foto Outdoor Gym dari Aset"); kalau tidak ada yang cocok, jelaskan gambar yang akan dibuat. Slide CTA juga memakai foto yang nyambung dengan topik post (mis. fasilitas yang dibahas), bukan foto umum yang tidak berhubungan.',
+        `- layout: 1 kalimat, tidak ditulis di gambar: susunan slide itu (posisi judul, poin, foto, dan elemen grafis).${references.length > 0 ? ' Salin susunan dari gambar referensi desain di bawah: cover mengikuti referensi cover, slide isi referensi isi, CTA referensi CTA. Sebut konkret: foto full-bleed atau di dalam bingkai dan seberapa besar, latar polos atau di atas foto, pembagian band atau kolom, posisi dan perataan judul serta teks isi. Jangan mengarang susunan lain; warna dan font selalu dari brand.' : ' Pilih susunan yang paling jelas untuk isi slide itu; warna dan font selalu dari brand.'}`,
+  ].join('\n')
+}
+
+export function buildIdeasMessages(brand: BrandContext, recent: string[], language: Locale = 'id', sources: { assets: ProductCandidate[]; references: ScriptReference[] } = { assets: [], references: [] }): ChatMessage[] {
   const avoid = recent.length > 0 ? ['', `Jangan ulangi ide atau post yang sudah ada:\n${quote(recent.join('\n'))}`] : []
   const pillars = brand.strategy?.pillars ?? []
   const quota = pillarQuota(pillars, IDEAS_COUNT)
@@ -392,7 +409,7 @@ export function buildIdeasMessages(brand: BrandContext, recent: string[], langua
     { role: 'system', content: languagePrompt(IDEAS_SYSTEM, language) },
     {
       role: 'user',
-      content: [
+      content: withScriptReferences([
         `${describeBrand(brand)}Tugas: buat ${IDEAS_COUNT} ide post Instagram lengkap yang berbeda-beda untuk brand ini: ${mix}. Setiap ide memiliki title satu kalimat pendek maksimal 12 kata dan script carousel siap pakai.`,
         ...strategyGuide,
         `- Tentukan jumlah slide paling pas untuk tiap ide, ${MIN_SCRIPT_SLIDES}–${MAX_SLIDES}; 1 slide hanya untuk ide yang memang cukup satu gambar. Susunan wajib mengikuti jumlahnya:\n${Array.from({ length: MAX_SLIDES - MIN_SCRIPT_SLIDES + 1 }, (_, index) => { const count = index + MIN_SCRIPT_SLIDES; return `  - ${count} slide: ${carouselStructure(count)}` }).join('\n')}`,
@@ -404,11 +421,14 @@ export function buildIdeasMessages(brand: BrandContext, recent: string[], langua
         `- ${densityRule(DEFAULT_DENSITY)}`,
         '',
         carouselGuide('auto', DEFAULT_DENSITY),
+        SCRIPT_EXAMPLES,
+        scriptVisualRules(sources.references),
+        `Foto asli milik brand (deskripsi adalah pengamatan visual, bukan bukti jarak, keamanan, layanan, atau manfaat kesehatan):\n${sources.assets.map((asset) => `- ${asset.title} — ${asset.description ?? ''}`).join('\n')}`,
         '',
         '- CTA meminta tepat satu tindakan. Jangan mengarang bukti, angka, pengalaman, harga, promo, atau klaim yang tidak tersedia.',
-        `Format JSON: {"ideas": [{"title": "…", "pillarId": ${pillars.length > 0 ? '"…"' : 'null'}, "script": [{"label": "Hook", "title": "…", "body": "…"}]}]}`,
+        `Format JSON: {"ideas": [{"title": "…", "pillarId": ${pillars.length > 0 ? '"…"' : 'null'}, "script": [{"label": "Hook", "title": "…", "body": "…", "visual": "…", "layout": "…"}]}]}`,
         ...avoid,
-      ].join('\n'),
+      ].join('\n'), sources.references),
     },
   ]
 }
@@ -450,10 +470,11 @@ export function suggestIdeas(
   recent: string[],
   save: (ideas: SuggestedIdea[]) => Promise<void>,
   language: Locale = 'id',
+  sources: { assets: ProductCandidate[]; references: ScriptReference[] } = { assets: [], references: [] },
 ): Promise<SuggestedIdea[]> {
   return runLogged(userId, 'content_ideas', { recent: recent.length }, async () => {
     const ideas = parseIdeas(
-      await chatCompletion(buildIdeasMessages(brand, recent, language)),
+      await chatCompletion(buildIdeasMessages(brand, recent, language, sources)),
       brand.strategy?.pillars.map((pillar) => pillar.id),
     )
     await save(ideas)
@@ -501,8 +522,9 @@ export function buildScriptMessages(
         '',
         carouselGuide(hook, density),
         '',
-        '- visual: 1 kalimat untuk owner, tidak ditulis di gambar: foto atau aset apa yang tampil. Kalau subjek slide cocok dengan salah satu foto asli di bawah, sebut namanya persis (mis. "Foto Outdoor Gym dari Aset"); kalau tidak ada yang cocok, jelaskan gambar yang akan dibuat. Slide CTA juga memakai foto yang nyambung dengan topik post (mis. fasilitas yang dibahas), bukan foto umum yang tidak berhubungan.',
-        `- layout: 1 kalimat, tidak ditulis di gambar: susunan slide itu (posisi judul, poin, foto, dan elemen grafis).${references.length > 0 ? ' Salin susunan dari gambar referensi desain di bawah: cover mengikuti referensi cover, slide isi referensi isi, CTA referensi CTA. Sebut konkret: foto full-bleed atau di dalam bingkai dan seberapa besar, latar polos atau di atas foto, pembagian band atau kolom, posisi dan perataan judul serta teks isi. Jangan mengarang susunan lain; warna dan font selalu dari brand.' : ' Pilih susunan yang paling jelas untuk isi slide itu; warna dan font selalu dari brand.'}`,
+        SCRIPT_EXAMPLES,
+        '',
+        scriptVisualRules(references),
         '- Periksa sebelum menjawab: (1) hapus slide isi yang bisa dibuang tanpa kehilangan info baru; (2) kalau frasa atau poin yang sama muncul di dua slide, tulis ulang salah satunya; (3) kalau arahan menyebut audiens, hook dan minimal satu slide isi menggambarkan momen nyata mereka (siapa, kapan, sedang apa), bukan kata umum seperti "rutinitas aktif" atau "pilihan aktivitas".',
         'Format JSON: {"slides": [{"label": "…", "title": "…", "body": "…", "visual": "…", "layout": "…"}]}',
         ...(assets.length > 0 ? ['', `Foto asli milik brand (deskripsinya fakta yang boleh dipakai di teks, mis. bentuk atau suasana tempatnya; pakai juga fasilitas lain di sini yang relevan dengan audiens):\n${assets.map((asset) => `- ${asset.title}${asset.description ? ` — ${asset.description}` : ''}`).join('\n')}`] : []),
@@ -517,13 +539,7 @@ export function buildScriptMessages(
         '',
         `Hanya pakai fakta dari ${brand?.facts ? 'ide dan fakta brand di atas' : 'ide di atas'}${assets.length > 0 ? ', deskripsi foto asli brand' : ''}, ditambah pengetahuan umum yang pasti benar untuk konten edukasi. ${NO_INVENTED_CLAIMS}`,
       ].join('\n')
-  const content: ChatMessage['content'] = references.length === 0 ? prompt : [
-    { type: 'text', text: prompt },
-    ...references.flatMap((reference): ContentPart[] => [
-      { type: 'text', text: `Referensi desain: slide ${REFERENCE_LABELS[reference.label]}` },
-      { type: 'image_url', image_url: { url: reference.dataUrl } },
-    ]),
-  ]
+  const content = withScriptReferences(prompt, references)
   return [{ role: 'system', content: languagePrompt(SCRIPT_SYSTEM, language) }, { role: 'user', content }]
 }
 

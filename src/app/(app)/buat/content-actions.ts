@@ -13,7 +13,7 @@ import { requireAccount } from '@/lib/auth'
 import { lengthOf } from '@/lib/brand-options'
 import { TRIAL_TASKS, trialLimitMessage } from '@/lib/billing-options'
 import { CAPTION_MAX_LENGTH } from '@/lib/caption'
-import { editCaption, reviseSlide, suggestIdeas } from '@/lib/content-ai'
+import { editCaption, loadScriptSources, reviseSlide, suggestIdeas } from '@/lib/content-ai'
 import { enqueueContentJob, getContentJob } from '@/lib/content-jobs'
 import { parseContentRequest, parseInstruction } from '@/lib/content-options'
 import { isTextDensity } from '@/lib/density-options'
@@ -284,7 +284,7 @@ export async function generateIdeasAction(): Promise<ActionError> {
   try {
     const brand = await loadBrandContext(userId)
     if (!brand) return t('message13')
-    await suggestIdeas(userId, brand, await recentTitles(userId, accountId), (ideas) => addIdeas(userId, accountId, ideas), locale)
+    await suggestIdeas(userId, brand, await recentTitles(userId, accountId), (ideas) => addIdeas(userId, accountId, ideas), locale, await loadScriptSources(userId, accountId))
   } catch (error) {
     console.error('[buat] ide gagal dibuat:', describeError(error))
     return aiErrorMessage(error)

@@ -105,3 +105,17 @@ export function carouselGuide(hook: HookArchetype = 'auto', density: TextDensity
     '- Sebelum menjawab, periksa: cover memakai hook 5–10 kata yang spesifik, menyebut subjeknya, dan sesuai suara brand; subheading hanya ada bila membantu dan tetap pendek; isi membayar janji hook dan mengikuti kepadatan; tidak ada klaim tanpa bukti. Tulis ulang bagian yang belum memenuhi, lalu keluarkan hanya JSON akhir tanpa hasil pemeriksaan.',
   ].join('\n')
 }
+
+/**
+ * Two worked before/after scripts: rules alone left scripts stiff and feature-listy (PARKSPRING tests, 21 Nov).
+ * Fictional brands on purpose, so no fact leaks into a real account; the model copies the moves, not the words.
+ */
+export const SCRIPT_EXAMPLES = [
+  'Contoh editorial (brand fiktif; tiru penalarannya, jangan pindahkan fakta atau kalimat ke akun lain):',
+  'Fakta contoh: perumahan memiliki taman bermain dan jalur sepeda di dalam cluster. Tidak ada informasi bangku, keamanan, jarak antarfasilitas, atau pengawasan anak.',
+  'Lemah: "Fasilitas Lengkap untuk Keluarga" / "Ada taman bermain dan jalur sepeda sebagai pilihan aktivitas." Hanya katalog; pembaca belum mendapat cara memilih.',
+  'Lebih berguna: cover "Akhir pekan bersama anak, coba fasilitas dalam cluster"; isi "Pilih kegiatan, bukan sekadar fasilitas" + "Ingin bersepeda bersama? Coba jalur sepeda. Anak ingin bermain? Dampingi di taman bermain. Pilih salah satu untuk rencana akhir pekan."; penutup "Saat survei, coba rute menuju fasilitas" + "Perhatikan akses dari unit incaran dan apakah cocok dengan kegiatan keluarga Anda."',
+  'Skenario memakai kata coba, bisa, atau misalnya: bukan testimoni penghuni, jaminan hasil, atau klaim semua kegiatan dapat dilakukan bersamaan. Jangan menambah fasilitas demi cerita.',
+  'Contoh edukasi lintas bidang: lemah "Pilih paket sesuai kebutuhan". Lebih berguna "Sebelum berlangganan, cek tiga batas" + "Kuota dihitung per hari atau per bulan? Revisi ikut memotong kuota? Sisa kuota hangus atau dibawa?" Tidak perlu mengarang harga atau angka agar isi konkret.',
+  'Ukuran layak: setelah membaca, audiens mendapat keputusan, langkah, pembeda, atau gambaran kegiatan yang tidak sudah habis dijelaskan di cover. CTA melanjutkan manfaat itu, bukan sekadar "kenali produk". Sesuaikan bentuk dengan fakta dan tujuan; jangan memaksakan pola contoh ke semua topik.',
+].join('\n')

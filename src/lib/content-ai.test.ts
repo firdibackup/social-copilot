@@ -808,6 +808,20 @@ describe('requests', () => {
   })
 
   describe('suggestIdeas', () => {
+    it('includes asset context and reference images in ideas, and preserves visual metadata', () => {
+      const sources = { assets: [{ id: 'gym', title: 'Outdoor Gym', description: 'Pergola' }], references: [{ label: 'cover' as const, dataUrl: 'data:image/png;base64,test' }] }
+      const messages = buildIdeasMessages(BRAND, [], 'id', sources)
+      const prompt = JSON.stringify(messages)
+      expect(prompt).toContain('Outdoor Gym')
+      expect(prompt).toContain('Pergola')
+      expect(prompt).toContain('data:image/png;base64,test')
+      expect(prompt).toContain('layout')
+      expect(prompt).toContain('Contoh editorial')
+      const script = [{ label: 'Hook', title: 'Gerak bersama', body: '', visual: 'Foto Outdoor Gym', layout: 'Foto penuh; judul di atas' }]
+      const ideas = parseIdeas(JSON.stringify({ ideas: Array.from({ length: 5 }, (_, i) => ({ title: `Ide ${i}`, script })) }))
+      expect(ideas.every((idea) => idea.script?.every((slide) => slide.visual === script[0].visual && slide.layout === script[0].layout))).toBe(true)
+    })
+
     it('saves complete ideas with scripts inside one charged request', async () => {
       const script = [{ label: 'Hook', title: 'Mulai', body: 'Lihat alasannya.' }, { label: 'CTA', title: 'Simpan', body: '' }]
       const rawIdeas = Array.from({ length: 5 }, (_, index) => ({ title: `Ide ${index + 1}`, script }))
