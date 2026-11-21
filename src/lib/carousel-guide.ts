@@ -38,9 +38,9 @@ const INNER_SLIDE: Record<TextDensity, string> = {
   padat:
     'Tulis padat: subjudul lalu 2–3 poin sangat singkat (masing-masing beberapa kata), tanpa kalimat penjelasan dan tanpa singkatan, dan tetap masuk akal kalau dibaca sendirian.',
   ringkas:
-    'Tulis ringkas: subjudul, satu kalimat penjelasan, lalu 2–3 poin singkat, tanpa singkatan, dan tetap masuk akal kalau dibaca sendirian.',
+    'Tulis ringkas: subjudul, satu kalimat penjelasan ATAU 2–3 poin singkat, tanpa singkatan, dan tetap masuk akal kalau dibaca sendirian.',
   seimbang:
-    'Tulis seimbang: subjudul, 1–2 kalimat penjelasan, lalu 2–4 poin atau contoh konkret, tanpa singkatan, dan tetap masuk akal kalau dibaca sendirian.',
+    'Tulis seimbang: subjudul, 1–2 kalimat penjelasan ATAU 2–4 poin atau contoh konkret, tanpa singkatan, dan tetap masuk akal kalau dibaca sendirian.',
   lengkap:
     'Jelaskan sampai pembaca benar-benar paham: subjudul lalu 2–3 kalimat lengkap atau 3–5 poin, tanpa singkatan, dan tetap masuk akal kalau dibaca sendirian.',
 }
@@ -49,9 +49,9 @@ const DENSITY_RULE: Record<TextDensity, string> = {
   padat:
     'Kepadatan teks: padat. Judul dan poin kunci saja, sekitar 60–120 karakter. Jangan tulis kalimat penjelasan.',
   ringkas:
-    'Kepadatan teks: ringkas. Judul, satu kalimat, dan beberapa poin pendek, sekitar 120–200 karakter.',
+    'Kepadatan teks: ringkas. Judul dan satu kalimat atau beberapa poin pendek, sekitar 120–200 karakter.',
   seimbang:
-    'Kepadatan teks: seimbang. Judul, 1–2 kalimat, dan beberapa poin atau contoh konkret, sekitar 180–250 karakter. Tanpa baris Tips.',
+    'Kepadatan teks: seimbang. Judul dan 1–2 kalimat atau beberapa poin konkret, sekitar 180–250 karakter. Tanpa baris Tips.',
   lengkap:
     'Kepadatan teks: lengkap, tidak dipadatkan. Teks di gambar boleh memuat penjelasan utuh, contoh, dan tips, sampai batas karakter slide.',
 }
@@ -69,13 +69,7 @@ export function carouselStructure(slides: number): string {
   if (slides <= 1) return 'satu gambar: hook sebagai judul, lalu isi inti yang langsung bermanfaat'
   if (slides === 2) return 'slide 1 = Hook; slide 2 = Value + CTA'
   if (slides === 3) return 'slide 1 = Hook; slide 2 = Value; slide 3 = CTA'
-  if (slides === 4) return 'slide 1 = Hook; slide 2 = Bridge; slide 3 = Value; slide 4 = CTA'
-  if (slides === 5) return 'slide 1 = Hook; slide 2 = Bridge; slide 3 = Problem/Reframe; slide 4 = Value/Proof; slide 5 = CTA'
-  if (slides === 6) return 'slide 1 = Hook; slide 2 = Bridge; slide 3 = Problem; slide 4 = Reframe/Value; slide 5 = Recap/Proof; slide 6 = CTA'
-  if (slides === 7) return 'slide 1 = Hook; slide 2 = Bridge; slide 3 = Problem; slide 4 = Reframe; slide 5 = Value; slide 6 = Recap/Proof; slide 7 = CTA'
-  if (slides === 8) return 'slide 1 = Hook; slide 2 = Bridge; slide 3 = Problem; slide 4 = Reframe; slide 5–6 = Value; slide 7 = Recap/Proof; slide 8 = CTA'
-  if (slides === 9) return 'slide 1 = Hook; slide 2 = Bridge; slide 3 = Problem; slide 4 = Reframe; slide 5–6 = Value; slide 7 = Proof; slide 8 = Recap; slide 9 = CTA'
-  return `slide 1 = Hook; slide 2 = Bridge; slide 3 = Problem; slide 4 = Reframe; slide 5–${slides - 3} = Value; slide ${slides - 2} = Proof; slide ${slides - 1} = Recap; slide ${slides} = CTA`
+  return `slide 1 = Hook; slide 2–${slides - 1} = Value (poin berbeda yang langsung membayar hook); slide ${slides} = CTA`
 }
 
 /** The rules for a carousel, with the hook archetype this post uses and how much text its slides carry. */

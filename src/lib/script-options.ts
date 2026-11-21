@@ -43,13 +43,26 @@ function notesOf(value: Json): Pick<ScriptSlide, 'visual' | 'layout'> {
 /** Everything the slide's image shows: the heading, then the body. */
 export const scriptHeadline = (slide: ScriptSlide) => [slide.title, slide.body].filter(Boolean).join('\n')
 
+/** Clip at a sentence or word boundary; only a word longer than the limit is cut inside. */
+export function clip(value: string, max: number): string {
+  const chars = Array.from(value)
+  if (chars.length <= max) return value
+  const head = chars.slice(0, max).join('')
+  // A full stop right at the limit ends a sentence only when a space follows; in "tokoku.co.id" it doesn't.
+  if (/[.!?]$/.test(head) && /\s/.test(chars[max])) return head
+  const sentence = Math.max(head.lastIndexOf('\n'), ...['. ', '! ', '? '].map((end) => head.lastIndexOf(end) + 1))
+  if (sentence >= head.length / 2) return head.slice(0, sentence).trimEnd()
+  const space = head.lastIndexOf(' ')
+  return (space > 0 ? head.slice(0, space) : head).trimEnd()
+}
+
 /** One slide of the AI's answer, trimmed to what fits: the body gives way so the image text stays within its limit. */
 export function cleanScriptSlide(value: unknown): ScriptSlide | null {
   if (!isObject(value)) return null
   const label = truncate(text(value.label), SCRIPT_LABEL_MAX_LENGTH)
   const title = truncate(text(value.title), SCRIPT_TITLE_MAX_LENGTH)
   const room = HEADLINE_MAX_LENGTH - (title ? lengthOf(title) + 1 : 0)
-  const body = truncate(text(value.body), room).trimEnd()
+  const body = clip(text(value.body), room)
   return title || body ? { label, title, body, ...notesOf(value) } : null
 }
 

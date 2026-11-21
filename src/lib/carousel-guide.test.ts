@@ -62,7 +62,7 @@ describe('carouselGuide on inner slides', () => {
     const guide = carouselGuide('story')
 
     expect(guide).toContain('Tulis seimbang')
-    expect(guide).toContain('1–2 kalimat penjelasan, lalu 2–4 poin')
+    expect(guide).toContain('1–2 kalimat penjelasan ATAU 2–4 poin')
     expect(guide).toContain('tanpa singkatan')
   })
 })

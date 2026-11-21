@@ -12,7 +12,7 @@ import { DEFAULT_DENSITY, type TextDensity } from './density-options'
 import { isUuid } from './params'
 import { HEADLINE_MAX_LENGTH, headlineLimit, MAX_SLIDES, sceneLimit, type Slide } from './image-options'
 import { chatCompletion, type ChatMessage, type ContentPart } from './nine-router'
-import { cleanScriptSlide, scriptHeadline, type ScriptSlide } from './script-options'
+import { clip, cleanScriptSlide, scriptHeadline, type ScriptSlide } from './script-options'
 import { pillarOf, pillarQuota } from './strategy-options'
 
 export const TITLE_MAX_LENGTH = 120
@@ -28,22 +28,6 @@ type Json = Record<string, unknown>
 const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null
 const text = (value: unknown) => (typeof value === 'string' ? value.replace(/\r\n/g, '\n').trim() : '')
 const firstLine = (value: string) => value.split('\n', 1)[0].trim()
-
-/**
- * `value` in at most `max` code points without breaking a word: after the last line or sentence that fits, when
- * that keeps at least half of it, else at the last space. Only a word longer than the limit is cut inside.
- */
-function clip(value: string, max: number): string {
-  const chars = Array.from(value)
-  if (chars.length <= max) return value
-  const head = chars.slice(0, max).join('')
-  // A full stop right at the limit ends a sentence only when a space follows; in "tokoku.co.id" it doesn't.
-  if (/[.!?]$/.test(head) && /\s/.test(chars[max])) return head
-  const sentence = Math.max(head.lastIndexOf('\n'), ...['. ', '! ', '? '].map((end) => head.lastIndexOf(end) + 1))
-  if (sentence >= head.length / 2) return head.slice(0, sentence).trimEnd()
-  const space = head.lastIndexOf(' ')
-  return (space > 0 ? head.slice(0, space) : head).trimEnd()
-}
 
 /** The text of a request, with the owner's image after it when there is one. */
 const withImage = (text: string, image: string | null): ChatMessage['content'] =>
@@ -385,7 +369,7 @@ function withScriptReferences(prompt: string, references: ScriptReference[]): Ch
 
 function scriptVisualRules(references: ScriptReference[]): string {
   return [
-        '- visual: 1 kalimat untuk owner, tidak ditulis di gambar: foto atau aset apa yang tampil. Kalau subjek slide cocok dengan salah satu foto asli di bawah, sebut namanya persis (mis. "Foto Outdoor Gym dari Aset"); kalau tidak ada yang cocok, jelaskan gambar yang akan dibuat. Slide CTA juga memakai foto yang nyambung dengan topik post (mis. fasilitas yang dibahas), bukan foto umum yang tidak berhubungan.',
+        '- visual: 1 kalimat untuk owner, tidak ditulis di gambar: foto atau aset apa yang tampil. Pilih tepat SATU kelompok aset per slide, jangan kolase atau menggabungkan dua fasilitas. Kalau subjek slide cocok dengan salah satu foto asli di bawah, sebut namanya persis (mis. "Foto Outdoor Gym dari Aset"); kalau tidak ada yang cocok, jelaskan gambar yang akan dibuat. Slide CTA juga memakai foto yang nyambung dengan topik post (mis. fasilitas yang dibahas), bukan foto umum yang tidak berhubungan.',
         `- layout: 1 kalimat, tidak ditulis di gambar: susunan slide itu (posisi judul, poin, foto, dan elemen grafis).${references.length > 0 ? ' Salin susunan dari gambar referensi desain di bawah: cover mengikuti referensi cover, slide isi referensi isi, CTA referensi CTA. Sebut konkret: foto full-bleed atau di dalam bingkai dan seberapa besar, latar polos atau di atas foto, pembagian band atau kolom, posisi dan perataan judul serta teks isi. Jangan mengarang susunan lain; warna dan font selalu dari brand.' : ' Pilih susunan yang paling jelas untuk isi slide itu; warna dan font selalu dari brand.'}`,
   ].join('\n')
 }
@@ -489,11 +473,11 @@ const MIN_SCRIPT_SLIDES = 1
 /** What an inner script slide's body holds at each density; never applied to the cover. */
 const SCRIPT_BODY: Record<TextDensity, string> = {
   padat: '2–3 poin sangat singkat dengan awalan "- " (misalnya "- In the room"), tanpa kalimat penjelasan dan tanpa baris Tips.',
-  ringkas: 'satu kalimat penjelasan singkat, lalu 2–3 poin pendek dengan awalan "- " (misalnya "- In the room — Di dalam ruangan").',
+  ringkas: 'satu kalimat penjelasan singkat ATAU 2–3 poin pendek dengan awalan "- " (misalnya "- In the room — Di dalam ruangan").',
   seimbang:
-    '1–2 kalimat penjelasan, lalu 2–4 contoh atau poin konkret dengan awalan "- " (misalnya "- In the room — Di dalam ruangan"), tanpa baris Tips.',
+    '1–2 kalimat penjelasan ATAU 2–4 contoh atau poin konkret dengan awalan "- " (misalnya "- In the room — Di dalam ruangan"), tanpa baris Tips.',
   lengkap:
-    '1–2 kalimat penjelasan, lalu contoh atau poin konkret dengan awalan "- " (misalnya "- In the room — Di dalam ruangan"), lalu satu baris "Tips: …" kalau membantu.',
+    '1–2 kalimat penjelasan ATAU contoh atau poin konkret dengan awalan "- " (misalnya "- In the room — Di dalam ruangan"), lalu satu baris "Tips: …" kalau membantu.',
 }
 
 export function buildScriptMessages(
