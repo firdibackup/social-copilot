@@ -567,7 +567,7 @@ export async function loadScriptSources(userId: string, accountId: string): Prom
     const ids = [...new Set(planReferenceImages(pool, ['cover', 'isi', 'cta'], pickFirst).filter((id): id is string => id !== null))]
     const loaded = await Promise.all(ids.map((id) => loadReferenceImage(userId, id)))
     return {
-      assets: groups.map(({ id, title }) => ({ id, title, description: null })),
+      assets: groups.map(({ id, title }) => ({ id, title, description: '' })),
       references: loaded.flatMap((image) => (image ? [{ dataUrl: image.dataUrl, label: image.label }] : [])),
     }
   } catch (error) {
