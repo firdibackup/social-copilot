@@ -96,7 +96,7 @@ const SCRIPT_SYSTEM = [
   `- ${VOICE_RULE}`,
   '- Jangan pakai Markdown seperti **tebal**, _miring_, atau judul. Teks ini ditulis apa adanya di gambar.',
   '- Tulis kata dan kalimat lengkap: jangan pakai singkatan seperti "yg", "dgn", "utk", "krn", "tdk", atau "&".',
-  '- Klaim tentang brand hanya dari fakta yang tertulis; pengetahuan umum yang pasti benar (mis. arti istilah atau cara menghitung) boleh dipakai untuk menjelaskan alasan, pilihan, dan contoh penggunaan, termasuk konten pengenalan fasilitas dan promo; bedakan usulan skenario dari klaim tentang brand. Jangan mengarang harga, tanggal, lokasi, stok terbatas, atau "kualitas premium".',
+  '- Klaim tentang brand hanya dari fakta yang tertulis; pengetahuan umum yang pasti benar (mis. arti istilah atau cara menghitung) boleh dipakai untuk isi edukasi. Jangan mengarang harga, tanggal, lokasi, stok terbatas, atau "kualitas premium".',
   '- Hook dan isi ditulis dari sudut pandang audiens: apa yang mereka dapat atau alami, bukan daftar fitur penjual. Kalau ide atau arahan menyebut audiensnya (mis. keluarga muda), tunjukkan lewat momen nyata mereka, misalnya pagi sebelum kerja atau sore bersama anak. Momen seperti itu bukan klaim, jadi boleh ditulis tanpa jadi kaku.',
   '- Tiap slide membawa info atau sudut baru. Kalau poinnya habis, berhenti: lebih baik 3 slide padat daripada 4 slide dengan satu yang mengulang. Jangan mengulang frasa yang sama (mis. "pilihan aktivitas") di lebih dari satu slide.',
   JSON_ONLY,
@@ -106,7 +106,7 @@ const IDEAS_SYSTEM = [
   'Kamu perencana konten Instagram untuk satu akun bisnis atau kreator di Indonesia.',
   'Aturan:',
   '- Tulis dalam Bahasa Indonesia yang natural.',
-  '- Ide harus cocok dengan brand. Klaim tentang brand hanya dari fakta yang tertulis; pengetahuan umum yang pasti benar (mis. arti istilah atau cara menghitung) boleh dipakai untuk menjelaskan alasan, pilihan, dan contoh penggunaan, termasuk konten pengenalan fasilitas dan promo; bedakan usulan skenario dari klaim tentang brand.',
+  '- Ide harus cocok dengan brand. Klaim tentang brand hanya dari fakta yang tertulis; pengetahuan umum yang pasti benar (mis. arti istilah atau cara menghitung) boleh dipakai untuk isi edukasi.',
   `- ${VOICE_RULE}`,
   `- ${IDEA_QUALITY_RULE}`,
   `- ${HOOK_QUALITY_RULE} Title ide sudah berupa hook itu.`,
@@ -530,7 +530,7 @@ export function buildScriptMessages(
             ]
           : []),
         '',
-        `Hanya pakai fakta dari ${brand?.facts ? 'ide dan fakta brand di atas' : 'ide di atas'}${assets.length > 0 ? ', deskripsi foto asli brand' : ''}, ditambah pengetahuan umum yang pasti benar untuk menjelaskan alasan, pilihan, dan contoh penggunaan, termasuk konten pengenalan fasilitas dan promo; bedakan usulan skenario dari klaim tentang brand. ${NO_INVENTED_CLAIMS}`,
+        `Hanya pakai fakta dari ${brand?.facts ? 'ide dan fakta brand di atas' : 'ide di atas'}${assets.length > 0 ? ', deskripsi foto asli brand' : ''}, ditambah pengetahuan umum yang pasti benar untuk konten edukasi. ${NO_INVENTED_CLAIMS}`,
       ].join('\n')
   const content = withScriptReferences(prompt, references)
   return [{ role: 'system', content: languagePrompt(SCRIPT_SYSTEM, language) }, { role: 'user', content }]
