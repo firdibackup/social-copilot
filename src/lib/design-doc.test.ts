@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { designAssetIds, hexColor, migrateLayerDoc, parseDesignDoc, type DesignDoc, type GroupNode, type TextNode } from './design-doc'
+import { designAssetIds, hexColor, migrateLayerDoc, parseDesignDoc, type DesignDoc, type GroupNode, type ShapeNode, type TextNode } from './design-doc'
 import type { LayerDoc } from './layer-doc'
+import { SHAPE_KINDS } from './shape-paths'
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
 const legacy: LayerDoc = { v: 1, width: 1080, height: 1350, layers: [
@@ -35,6 +36,54 @@ describe('design document migration', () => {
     expect(logo).toMatchObject({ size: { width: 150, height: 75 }, fill: { fit: 'stretch', assetId: id(7) } })
     expect(designAssetIds(doc).sort()).toEqual([id(6), id(7), id(8)].sort())
     expect(legacy.layers[0]).toHaveProperty('color', '#abcdef')
+  })
+
+  it('migrates every shape kind, dashes and free paths into valid shape nodes', () => {
+    const shapes: LayerDoc['layers'] = SHAPE_KINDS.map((shape, index) => ({ id: `s${index}`, kind: 'shape', shape,
+      x: 10, y: 10, w: 200, h: 100, color: '#112233', radius: 4, strokeColor: '#445566', strokeWidth: 3,
+      ...(index % 3 === 1 ? { dash: 'dashed' as const } : index % 3 === 2 ? { dash: 'dotted' as const } : {}) }))
+    const points = [{ x: 0, y: 0, out: { x: 0.4, y: -0.3 } }, { x: 1, y: 0.2, in: { x: 1.2, y: 0 } }, { x: 0.5, y: 1 }]
+    const paths: LayerDoc['layers'] = [
+      { id: 'p1', kind: 'path', x: 20, y: 30, w: 300, h: 200, points, closed: true, fill: true, color: '#AA0000',
+        strokeColor: '#000000', strokeWidth: 2, dash: 'dotted' },
+      { id: 'p2', kind: 'path', x: 20, y: 30, w: 300, h: 200, points, closed: false, fill: false, color: '#AA0000',
+        strokeColor: '#000000', strokeWidth: 6 },
+    ]
+    const chunks = [shapes.slice(0, 20), [...shapes.slice(20), ...paths]]
+    for (const layers of chunks) {
+      const doc = migrateLayerDoc({ ...legacy, layers }, { id: id(1), pageId: id(2), nodeIds: layers.map((_, n) => id(100 + n)) }, id(6))
+      expect(parseDesignDoc(JSON.parse(JSON.stringify(doc)))).toEqual({ doc })
+      doc.pages[0].children.forEach((node, index) => {
+        const layer = layers[index]
+        if (node.type !== 'shape') throw new Error('fixture')
+        if (layer.kind === 'shape') {
+          expect(node).toMatchObject({ kind: layer.shape, cornerRadius: 4, stroke: { width: 3 } })
+          expect(node.stroke?.dash).toBe(layer.dash)
+          expect(node.path).toBeUndefined()
+        } else if (layer.kind === 'path') {
+          expect(node).toMatchObject({ kind: 'path', path: { points, closed: layer.closed }, stroke: { width: layer.strokeWidth } })
+          expect(node.fill.type).toBe(layer.fill ? 'solid' : 'none')
+          expect(node.stroke?.dash).toBe(layer.dash)
+        }
+      })
+    }
+  })
+
+  it('requires path geometry exactly on path nodes', () => {
+    const layers: LayerDoc['layers'] = [{ id: 'p1', kind: 'path', x: 20, y: 30, w: 300, h: 200, closed: false, fill: false,
+      color: '#AA0000', strokeColor: '#000000', strokeWidth: 2, points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }]
+    const migrated = () => migrateLayerDoc({ ...legacy, layers }, { id: id(1), pageId: id(2), nodeIds: [id(3)] }, id(6))
+    for (const alter of [
+      (node: ShapeNode) => { delete node.path },
+      (node: ShapeNode) => { node.path = { points: [{ x: 0, y: 0 }], closed: false } },
+      (node: ShapeNode) => { node.path!.points[1].x = 5 },
+      (node: ShapeNode) => { node.kind = 'rect' },
+      (node: ShapeNode) => { node.stroke!.dash = 'long' as never },
+    ]) {
+      const doc = migrated()
+      alter(doc.pages[0].children[0] as ShapeNode)
+      expect(parseDesignDoc(doc)).toEqual({ error: 'invalid' })
+    }
   })
 
   it('rejects invalid migration identities rather than dropping layers', () => {

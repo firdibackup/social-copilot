@@ -38,7 +38,7 @@ export function moveLayer<T extends Layer>(
  */
 export function resizeLayer(start: Layer, handle: Handle, dx: number, dy: number): Layer {
   if (start.locked) return start
-  if (start.kind === 'shape') return resizeBox(start, handle, dx, dy, false)
+  if (start.kind === 'shape' || start.kind === 'path') return resizeBox(start, handle, dx, dy, false)
   if (start.kind === 'image') return resizeBox(start, handle, dx, dy, true)
   if (handle.length === 1) return resizeBox(start, handle, dx, 0, false)
   const nominal = resizeBox(start, handle, dx, dy, true)

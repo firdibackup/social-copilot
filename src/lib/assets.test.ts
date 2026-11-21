@@ -59,7 +59,7 @@ describe('product photos for AI', () => {
     mock.storage.download.mockResolvedValue({ data: new Blob([new Uint8Array(jpeg)]), error: null })
     vi.mocked(db).mockReturnValue(mock.client as never)
 
-    const images = await loadProductImages('user-1', 'group-1')
+    const images = await loadProductImages('user-1', 'ig-1', 'group-1')
 
     expect(images).toHaveLength(1)
     expect(mock.storage.download.mock.calls).toEqual([['u/website.jpg']])

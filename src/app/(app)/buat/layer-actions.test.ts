@@ -190,17 +190,60 @@ describe('magicLayersAction', () => {
 
   it('answers no-text without storing anything, and closes the edit job', async () => {
     vi.mocked(splitSlide).mockRejectedValue(new NoTextError())
-    expect(await magicLayersAction(input)).toEqual({ error: expect.stringContaining('Tidak ada teks') })
+    expect(await magicLayersAction(input)).toEqual({ error: expect.stringContaining('Tidak ada teks atau elemen') })
     expect(createAsset).not.toHaveBeenCalled()
     expect(runLogged).toHaveBeenCalledWith(USER, 'magic_layers', expect.anything(), expect.any(Function),
-      expect.objectContaining({ units: 2 }))
+      expect.objectContaining({ units: 3 }))
     expect(rpc).toHaveBeenCalledWith('begin_slide_edit', expect.objectContaining({ p_id: OP }))
     expect(db().from).toHaveBeenCalledWith('slide_edit_jobs')
   })
 
-  it('deletes the layer images it stored when finishing fails', async () => {
+  it('stores each graphic crop as a layer image and places it at its box', async () => {
+    const crop = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1])
+    const shape = { x: 10, y: 20, w: 300, h: 60, shape: 'rect' as const, color: '#FF5A36', radius: 30 }
     vi.mocked(splitSlide).mockResolvedValue({
       background: new Uint8Array([0xff, 0xd8, 0xff]), blocks: [], object: null, log: {},
+      images: [{ kind: 'icon', bytes: crop, x: 40, y: 50, w: 120, h: 90 }],
+      shapes: [shape],
+    })
+    vi.mocked(createAsset)
+      .mockResolvedValueOnce({ id: NEW, width: 1080, height: 1350 } as never)
+      .mockResolvedValueOnce({ id: LOGO, width: 120, height: 90 } as never)
+    vi.mocked(finishMagicLayers).mockResolvedValue()
+    expect(await magicLayersAction({ ...input, splitObject: false })).toEqual({ ok: true, notice: null })
+    expect(createAsset).toHaveBeenCalledTimes(2)
+    expect(createAsset).toHaveBeenNthCalledWith(2, USER, expect.any(Blob), 120, 90, expect.objectContaining({ layer: true, origin: 'ai', enforceQuota: false }))
+    const stored = vi.mocked(createAsset).mock.calls[1][1] as Blob
+    expect(new Uint8Array(await stored.arrayBuffer())).toEqual(crop)
+    expect(buildDoc).toHaveBeenCalledWith(1080, 1350, [], expect.anything(), null, {
+      images: [{ kind: 'icon', assetId: LOGO, x: 40, y: 50, w: 120, h: 90 }],
+      shapes: [shape],
+      labels: { photo: 'Foto', icon: 'Ikon', logo: 'Logo', illustration: 'Ilustrasi' },
+    })
+    expect(finishMagicLayers).toHaveBeenCalledWith(USER, expect.objectContaining({ baseAssetId: NEW }))
+  })
+
+  it('places real layers from the crops it stored', async () => {
+    const { buildDoc: realBuildDoc } = await vi.importActual<typeof import('@/lib/magic-layers')>('@/lib/magic-layers')
+    vi.mocked(buildDoc).mockImplementation(realBuildDoc)
+    vi.mocked(splitSlide).mockResolvedValue({
+      background: new Uint8Array([0xff, 0xd8, 0xff]), blocks: [], object: null, log: {},
+      images: [{ kind: 'logo', bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47]), x: 40, y: 50, w: 120, h: 90 }],
+      shapes: [],
+    })
+    vi.mocked(createAsset)
+      .mockResolvedValueOnce({ id: NEW, width: 1080, height: 1350 } as never)
+      .mockResolvedValueOnce({ id: LOGO, width: 120, height: 90 } as never)
+    vi.mocked(finishMagicLayers).mockResolvedValue()
+    expect(await magicLayersAction({ ...input, splitObject: false })).toEqual({ ok: true, notice: null })
+    expect(finishMagicLayers).toHaveBeenCalledWith(USER, expect.objectContaining({
+      doc: { v: 1, width: 1080, height: 1350, layers: [{ id: 'i1', kind: 'image', role: 'object', assetId: LOGO, name: 'Logo 1', x: 40, y: 50, w: 120, h: 90 }] },
+    }))
+  })
+
+  it('deletes the layer images it stored when finishing fails', async () => {
+    vi.mocked(splitSlide).mockResolvedValue({
+      background: new Uint8Array([0xff, 0xd8, 0xff]), blocks: [], images: [], shapes: [], object: null, log: {},
     })
     vi.mocked(finishMagicLayers).mockRejectedValue(new LayerError('layers_exist'))
     expect(await magicLayersAction(input)).toEqual({ error: expect.stringContaining('sudah punya lapisan') })
@@ -210,7 +253,7 @@ describe('magicLayersAction', () => {
 
   it('finishes and notes a missing object', async () => {
     vi.mocked(splitSlide).mockResolvedValue({
-      background: new Uint8Array([0xff, 0xd8, 0xff]), blocks: [], object: null, log: {},
+      background: new Uint8Array([0xff, 0xd8, 0xff]), blocks: [], images: [], shapes: [], object: null, log: {},
     })
     vi.mocked(finishMagicLayers).mockResolvedValue()
     expect(await magicLayersAction(input)).toEqual({ ok: true, notice: expect.stringContaining('Objek utama tidak ditemukan') })

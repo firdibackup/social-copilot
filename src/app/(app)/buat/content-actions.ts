@@ -211,7 +211,7 @@ export async function editSlideAction(input: unknown): Promise<ActionError> {
         ])
         if (!bytes) throw new SlideError(t('message10'))
         await watch!.check()
-        const drawn = await drawImage(userId, {
+        const drawn = await drawImage(userId, accountId, {
           ...revised,
           format,
           referenceImageId,

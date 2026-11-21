@@ -2,7 +2,7 @@ import { getTranslations } from 'next-intl/server'
 import { after } from 'next/server'
 import { getUserLocale } from '@/i18n/locale'
 import { currentUser } from '@/lib/auth'
-import { hasBrandKit, startBrandSync } from '@/lib/brand'
+import { hasBrandKit, hasOtherBrandKit, startBrandSync } from '@/lib/brand'
 import { syncNewAccount } from '@/lib/brand-sync'
 import {
   AccountTakenError,
@@ -106,15 +106,17 @@ async function completeLogin(userId: string, params: URLSearchParams): Promise<C
 /**
  * After a connection is saved: a different account than before (Hubungkan ulang with another login) takes the
  * place of Putuskan, so the old account's scheduled posts become drafts and its Threads connection goes; rows
- * without an account join this one; and an account without a brand kit yet starts from the
- * onboarding answers and is filled from Instagram once, after the redirect.
+ * without an account join this one; and an account without a brand kit yet is filled from Instagram once, after
+ * the redirect. Only the user's first account starts from the onboarding answers: they describe that brand, and
+ * another account (also one connected after Putuskan, when `previous` is already gone) must not inherit its
+ * name, description, colours and strategy.
  */
 async function switchToAccount(userId: string, previous: string | null, accountId: string): Promise<void> {
   if (previous && previous !== accountId) await draftScheduledPosts(userId, previous)
   await deleteOtherThreadsConnection(userId, accountId)
   await claimOrphanRows(userId, accountId)
   if (await hasBrandKit(userId, accountId)) return
-  const answers = await getCompletedAnswers(userId)
+  const answers = (await hasOtherBrandKit(userId, accountId)) ? null : await getCompletedAnswers(userId)
   if (await startBrandSync(userId, accountId, answers ? kitColumnsOf(answers) : {})) {
     // The cookie is unreadable inside after(), so the brand analysis language is taken now.
     const language = await getUserLocale()

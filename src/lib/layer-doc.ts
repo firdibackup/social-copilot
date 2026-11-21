@@ -5,6 +5,11 @@
 import { isCuratedFont, type FontName } from './design-styles'
 import { isGoogleFont } from './google-fonts'
 import { isFieldConfig, type FieldConfig } from './design-fields'
+import {
+  copyPathPoints, isLineKind, isPathPoints, isShapeKind, isStrokeDash, pathBounds, PATH_LIMITS,
+  type PathPoint, type PathVector, type ShapeKind, type StrokeDash,
+} from './shape-paths'
+export type { PathPoint, PathVector, ShapeKind, StrokeDash } from './shape-paths'
 
 export interface Box { id: string; x: number; y: number; w: number; h: number }
 export interface LayerFlags {
@@ -54,15 +59,38 @@ export interface ImageLayer extends Box, LayerFlags {
 
 export interface ShapeLayer extends Box, LayerFlags {
   kind: 'shape'
-  shape: 'rect' | 'ellipse' | 'triangle' | 'line' | 'arrow'
+  /** Geometry lives in shape-paths.ts; line kinds (LINE_KINDS) are stroked only, never filled. */
+  shape: ShapeKind
   color: string
+  /** Corner radius in px; only 'rect' uses it. */
   radius: number
   strokeColor: string
   strokeWidth: number
+  /** Absent means a solid stroke. */
+  dash?: StrokeDash
   opacity?: number
 }
 
-export type Layer = TextLayer | ImageLayer | ShapeLayer
+/**
+ * A free vector shape. Every point and handle is a fraction of the layer box (may stray to -1..2), so resizing the
+ * box scales the shape. Consecutive points join with a cubic bezier through `prev.out` / `next.in` when present.
+ */
+export interface PathLayer extends Box, LayerFlags {
+  kind: 'path'
+  /** 2–100 points. */
+  points: PathPoint[]
+  /** Joins the last point back to the first. */
+  closed: boolean
+  /** Fill colour, used when `fill` is on. */
+  color: string
+  fill: boolean
+  strokeColor: string
+  strokeWidth: number
+  dash?: StrokeDash
+  opacity?: number
+}
+
+export type Layer = TextLayer | ImageLayer | ShapeLayer | PathLayer
 
 export interface LayerDoc {
   v: 1
@@ -99,7 +127,8 @@ const TEXT_FLAGS = ['italic', 'underline', 'uppercase', 'shadow'] as const
 const TEXT_KEYS = new Set([...BOX_KEYS, 'text', 'font', 'size', 'weight', 'color', 'align', 'lineHeight',
   ...TEXT_FLAGS, 'letterSpacing', 'opacity'])
 const IMAGE_KEYS = new Set([...BOX_KEYS, 'assetId', 'role', 'opacity'])
-const SHAPE_KEYS = new Set([...BOX_KEYS, 'shape', 'color', 'radius', 'strokeColor', 'strokeWidth', 'opacity'])
+const SHAPE_KEYS = new Set([...BOX_KEYS, 'shape', 'color', 'radius', 'strokeColor', 'strokeWidth', 'dash', 'opacity'])
+const PATH_KEYS = new Set([...BOX_KEYS, 'points', 'closed', 'color', 'fill', 'strokeColor', 'strokeWidth', 'dash', 'opacity'])
 const WEIGHTS: ReadonlySet<unknown> = new Set(TEXT_WEIGHTS)
 const DOC_KEYS = new Set(['v', 'width', 'height', 'layers'])
 
@@ -184,12 +213,18 @@ function parseLayer(value: unknown, width: number, height: number): Layer | null
     if (typeof value.role !== 'string' || !ROLES.has(value.role)) return null
     return { ...box, kind: 'image', assetId: value.assetId.toLowerCase(), role: value.role as ImageRole, ...extra }
   }
-  if (value.kind === 'shape') {
-    if (!onlyKeys(value, SHAPE_KEYS) || !['rect', 'ellipse', 'triangle', 'line', 'arrow'].includes(String(value.shape))
-      || typeof value.color !== 'string' || !HEX.test(value.color) || typeof value.strokeColor !== 'string' || !HEX.test(value.strokeColor)
-      || !finite(value.radius, 0, 1000) || !finite(value.strokeWidth, 0, 100)) return null
-    return { ...box, kind: 'shape', shape: value.shape as ShapeLayer['shape'], color: value.color.toUpperCase(),
-      radius: value.radius, strokeColor: value.strokeColor.toUpperCase(), strokeWidth: value.strokeWidth, ...extra }
+  if (value.kind === 'shape' || value.kind === 'path') {
+    if (typeof value.color !== 'string' || !HEX.test(value.color) || typeof value.strokeColor !== 'string' || !HEX.test(value.strokeColor)
+      || !finite(value.strokeWidth, 0, 100) || (value.dash !== undefined && !isStrokeDash(value.dash))) return null
+    const paint = { color: value.color.toUpperCase(), strokeColor: value.strokeColor.toUpperCase(), strokeWidth: value.strokeWidth,
+      ...(value.dash !== undefined ? { dash: value.dash } : {}), ...extra }
+    if (value.kind === 'path') {
+      if (!onlyKeys(value, PATH_KEYS) || !isPathPoints(value.points) || typeof value.closed !== 'boolean'
+        || typeof value.fill !== 'boolean') return null
+      return { ...box, kind: 'path', points: copyPathPoints(value.points), closed: value.closed, fill: value.fill, ...paint }
+    }
+    if (!onlyKeys(value, SHAPE_KEYS) || !isShapeKind(value.shape) || !finite(value.radius, 0, 1000)) return null
+    return { ...box, kind: 'shape', shape: value.shape, radius: value.radius, ...paint }
   }
   return null
 }
@@ -440,12 +475,63 @@ export function newImageLayer(doc: LayerDoc, assetId: string, role: ImageRole, w
   return { id: newLayerId(doc), kind: 'image', assetId, role, x: Math.round((doc.width - w) / 2), y: Math.round((doc.height - h) / 2), w, h }
 }
 
-export function newShapeLayer(doc: LayerDoc, shape: ShapeLayer['shape']): ShapeLayer {
+/** Line kinds whose box is a thin strip; the other lines (curve, zigzag, wave, elbow) need some height to show. */
+const FLAT_LINES: ReadonlySet<ShapeKind> = new Set<ShapeKind>(['line', 'arrow', 'doubleArrow'])
+
+export function newShapeLayer(doc: LayerDoc, shape: ShapeKind): ShapeLayer {
+  const line = isLineKind(shape)
   const w = Math.round(doc.width * 0.4)
-  const h = shape === 'line' || shape === 'arrow' ? 40 : Math.round(doc.height * 0.2)
+  const h = FLAT_LINES.has(shape) ? 40 : line ? Math.round(doc.height * 0.1) : Math.round(doc.height * 0.2)
   return { id: newLayerId(doc), kind: 'shape', shape, color: '#6558F5', radius: 0,
-    strokeColor: '#171827', strokeWidth: shape === 'line' || shape === 'arrow' ? 6 : 0,
+    strokeColor: '#171827', strokeWidth: line ? 6 : 0,
     x: Math.round((doc.width - w) / 2), y: Math.round((doc.height - h) / 2), w, h }
+}
+
+// ---------- Free vector paths ----------
+
+/** The smallest box side a path gets, so a straight horizontal or vertical stroke still has a valid box. */
+const PATH_MIN_SIDE = 1
+
+/**
+ * Absolute canvas points (what a pen tool collects; handles absolute too) as a path layer's box and fractional
+ * points. The box is the drawn extent (curves included); a flat side is widened to 1 px around the line. Returns
+ * null when there are fewer than 2 or more than 100 points, or a handle strays beyond the fraction limits.
+ */
+export function normalizePath(absolute: readonly PathPoint[], closed = false):
+  { box: Omit<Box, 'id'>; points: PathPoint[] } | null {
+  if (absolute.length < PATH_LIMITS.points.min || absolute.length > PATH_LIMITS.points.max) return null
+  const bounds = pathBounds(absolute, closed)
+  const w = Math.max(PATH_MIN_SIDE, bounds.w)
+  const h = Math.max(PATH_MIN_SIDE, bounds.h)
+  const box = { x: bounds.x - (w - bounds.w) / 2, y: bounds.y - (h - bounds.h) / 2, w, h }
+  const fraction = (vector: PathVector): PathVector => ({ x: (vector.x - box.x) / box.w, y: (vector.y - box.y) / box.h })
+  const points = absolute.map((point) => ({
+    ...fraction(point),
+    ...(point.in ? { in: fraction(point.in) } : {}),
+    ...(point.out ? { out: fraction(point.out) } : {}),
+  }))
+  return isPathPoints(points) ? { box, points } : null
+}
+
+/** A path layer's points and handles in canvas px (rotation not applied), e.g. to draw point handles. */
+export function pathPointsAbsolute(layer: Pick<PathLayer, 'x' | 'y' | 'w' | 'h' | 'points'>): PathPoint[] {
+  const absolute = (vector: PathVector): PathVector => ({ x: layer.x + vector.x * layer.w, y: layer.y + vector.y * layer.h })
+  return layer.points.map((point) => ({
+    ...absolute(point),
+    ...(point.in ? { in: absolute(point.in) } : {}),
+    ...(point.out ? { out: absolute(point.out) } : {}),
+  }))
+}
+
+/**
+ * A new path layer from absolute canvas points, or null when normalizePath refuses them. Closed paths are filled
+ * by default; open ones are a stroke.
+ */
+export function newPathLayer(doc: LayerDoc, absolute: readonly PathPoint[], closed: boolean): PathLayer | null {
+  const normal = normalizePath(absolute, closed)
+  if (!normal) return null
+  return { id: newLayerId(doc), kind: 'path', ...normal.box, points: normal.points, closed, fill: closed,
+    color: '#6558F5', strokeColor: '#171827', strokeWidth: closed ? 0 : 6 }
 }
 
 export function duplicateLayer(doc: LayerDoc, id: string): { doc: LayerDoc; id: string | null } {

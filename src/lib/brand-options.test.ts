@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  arrangeGroup,
   colorsFromPalettes,
   EMPTY_BRAND,
   labelsForCount,
@@ -92,6 +93,20 @@ describe('labelsForCount', () => {
     [5, ['cover', 'isi', 'isi', 'isi', 'cta']],
   ])('labels %i images by position', (count, labels) => {
     expect(labelsForCount(count)).toEqual(labels)
+  })
+})
+
+describe('arrangeGroup', () => {
+  it('puts the covers first and the CTAs last, keeping upload order within a role', () => {
+    expect(arrangeGroup(['isi', 'cta', 'cover', 'isi'])).toEqual({ order: [2, 0, 3, 1], labels: ['cover', 'isi', 'isi', 'cta'] })
+  })
+
+  it('makes unread and general images inner slides and picks a cover when the AI found none', () => {
+    expect(arrangeGroup(['cta', null, 'single', 'isi'])).toEqual({ order: [1, 2, 3, 0], labels: ['cover', 'isi', 'isi', 'cta'] })
+  })
+
+  it('keeps the upload order, labelled by position, when the AI read nothing', () => {
+    expect(arrangeGroup([null, null, null])).toEqual({ order: [0, 1, 2], labels: ['cover', 'isi', 'cta'] })
   })
 })
 

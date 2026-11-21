@@ -63,7 +63,9 @@ async function BrandStudio() {
   const instagramUsername = data.instagram?.status === 'active' ? data.instagram.username : null
   const syncing = data.kit.syncStatus
   return (
-    <div className="space-y-10">
+    // The forms copy their props into state once, and Next keeps this page mounted (hidden) across navigations:
+    // remount everything for another account, or a switched account would still show the previous one's brand.
+    <div key={accountId} className="space-y-10">
       {syncing === 'running' && (
         <Notice tone="success">
           {t('page.syncing', { username: data.instagram?.username ?? t('page.text5') })}<SyncRefresher />

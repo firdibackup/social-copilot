@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { drawDoc, drawShape, layerUploadAttempts, layoutText, textCss, type DrawContext } from './layer-canvas'
-import type { LayerDoc, TextLayer } from './layer-doc'
+import { drawDoc, drawPath, drawShape, layerUploadAttempts, layoutText, textCss, type DrawContext } from './layer-canvas'
+import type { LayerDoc, PathLayer, TextLayer } from './layer-doc'
+import { isLineKind, SHAPE_KINDS } from './shape-paths'
 
 /** Every character is size/2 px wide; ascent 0.8·size, descent 0.2·size. */
 function fakeContext() {
@@ -18,6 +19,25 @@ function fakeContext() {
     drawImage: (...args: unknown[]) => { calls.push(['drawImage', ...args]) },
     fillText: (...args: unknown[]) => { calls.push(['fillText', ...args]) },
   }
+  return ctx
+}
+
+/** A fake that records every path call. */
+function pathContext() {
+  const ctx = fakeContext()
+  const record = (name: string) => (...args: unknown[]) => { ctx.calls.push([name, ...args]) }
+  ctx.beginPath = () => { ctx.calls.push(['begin']) }
+  ctx.moveTo = record('moveTo')
+  ctx.lineTo = record('lineTo')
+  ctx.bezierCurveTo = record('bezierCurveTo')
+  ctx.quadraticCurveTo = record('quadraticCurveTo')
+  ctx.arc = record('arc')
+  ctx.ellipse = record('ellipse')
+  ctx.roundRect = record('roundRect')
+  ctx.closePath = record('closePath')
+  ctx.fill = record('fill')
+  ctx.stroke = record('stroke')
+  ctx.setLineDash = record('setLineDash')
   return ctx
 }
 
@@ -70,6 +90,71 @@ describe('drawDoc', () => {
     drawShape(ctx, { ...shape, shape: 'rect' })
     expect(ctx.calls).toContainEqual(['fill'])
   })
+  it('traces every shape kind: closed ones fill (holes even-odd), lines only stroke', () => {
+    for (const shape of SHAPE_KINDS) {
+      const ctx = pathContext()
+      drawShape(ctx, { id: 's', kind: 'shape', shape, x: 10, y: 20, w: 300, h: 120, color: '#FFFFFF',
+        strokeColor: '#000000', strokeWidth: 4, radius: 12 })
+      const names = ctx.calls.map((call) => call[0])
+      expect(names[0]).toBe('begin')
+      expect(names.filter((name) => ['moveTo', 'lineTo', 'bezierCurveTo', 'quadraticCurveTo', 'ellipse', 'roundRect'].includes(name as string)).length)
+        .toBeGreaterThan(0)
+      const fill = ctx.calls.find((call) => call[0] === 'fill')
+      if (isLineKind(shape)) expect(fill).toBeUndefined()
+      else expect(fill).toEqual(['fill', ['ring', 'frame', 'moon'].includes(shape) ? 'evenodd' : 'nonzero'])
+      expect(names.at(-2)).toBe('stroke')
+      for (const call of ctx.calls) for (const value of call.slice(1)) if (typeof value === 'number') expect(Number.isFinite(value)).toBe(true)
+    }
+  })
+
+  it('keeps the original arrow and rect geometry', () => {
+    const ctx = pathContext()
+    drawShape(ctx, { id: 's', kind: 'shape', shape: 'arrow', x: 10, y: 20, w: 200, h: 40, color: '#FFFFFF',
+      strokeColor: '#000000', strokeWidth: 5, radius: 0 })
+    expect(ctx.calls.filter((call) => call[0] === 'moveTo' || call[0] === 'lineTo')).toEqual([
+      ['moveTo', 10, 40], ['lineTo', 210, 40], ['moveTo', 190, 20], ['lineTo', 210, 40], ['lineTo', 190, 60],
+    ])
+    drawShape(ctx, { id: 's', kind: 'shape', shape: 'rect', x: 0, y: 0, w: 100, h: 40, color: '#FFFFFF',
+      strokeColor: '#000000', strokeWidth: 0, radius: 50 })
+    expect(ctx.calls).toContainEqual(['roundRect', 0, 0, 100, 40, 20])
+  })
+
+  it('dashes strokes by their width and dots them with round caps', () => {
+    const base = { id: 's', kind: 'shape' as const, shape: 'line' as const, x: 0, y: 0, w: 100, h: 40, color: '#FFFFFF',
+      strokeColor: '#000000', strokeWidth: 4, radius: 0 }
+    const dashed = pathContext()
+    drawShape(dashed, { ...base, dash: 'dashed' })
+    expect(dashed.calls).toContainEqual(['setLineDash', [12, 8]])
+    expect(dashed.lineCap).toBe('butt')
+    const dotted = pathContext()
+    drawShape(dotted, { ...base, dash: 'dotted' })
+    expect(dotted.calls).toContainEqual(['setLineDash', [0, 8]])
+    expect(dotted.lineCap).toBe('round')
+    const solid = pathContext()
+    drawShape(solid, base)
+    expect(solid.calls).toContainEqual(['setLineDash', []])
+    // The dash never leaks into the next drawing.
+    expect(dashed.calls.at(-1)).toEqual(['setLineDash', []])
+  })
+
+  it('draws free paths in their box: beziers where handles exist, straight otherwise', () => {
+    const path: PathLayer = { id: 'p', kind: 'path', x: 100, y: 200, w: 200, h: 100, closed: true, fill: true,
+      color: '#FF0000', strokeColor: '#000000', strokeWidth: 2,
+      points: [{ x: 0, y: 0, out: { x: 0.5, y: -0.5 } }, { x: 1, y: 0 }, { x: 1, y: 1, in: { x: 1.5, y: 0.5 } }, { x: 0, y: 1 }] }
+    const ctx = pathContext()
+    drawPath(ctx, path)
+    expect(ctx.calls.filter((call) => call[0] !== 'setLineDash')).toEqual([
+      ['begin'], ['moveTo', 100, 200], ['bezierCurveTo', 200, 150, 300, 200, 300, 200], ['bezierCurveTo', 300, 200, 400, 250, 300, 300],
+      ['lineTo', 100, 300], ['lineTo', 100, 200], ['closePath'], ['fill', 'nonzero'], ['stroke'],
+    ])
+    const open = pathContext()
+    drawDoc(open, { v: 1, width: 1080, height: 1350, layers: [{ ...path, closed: false, fill: false }] },
+      {} as CanvasImageSource, new Map(), (font) => font)
+    expect(open.calls.map((call) => call[0])).not.toContain('fill')
+    expect(open.calls.map((call) => call[0])).not.toContain('closePath')
+    expect(open.calls.map((call) => call[0])).toContain('stroke')
+  })
+
   it('draws the background, then layers back to front', () => {
     const ctx = fakeContext()
     const base = {} as CanvasImageSource

@@ -16,15 +16,18 @@ import { DEFAULT_HEADING_FONT } from '@/lib/design-styles'
 import { FIELD_PROMPT_LIMIT, fieldMaxChars, fieldReady } from '@/lib/design-fields'
 import { flattenDoc, loadFonts, prepareLayerUpload } from '@/lib/layer-canvas'
 import {
-  createHistory, duplicateLayer, emptyDoc, isFontName, isOutside, LAYER_LIMITS, layerDraftKey, newImageLayer, newTextLayer, newShapeLayer, redo, reorder, TEXT_WEIGHTS, undo,
-  type History, type ImageLayer, type Layer, type LayerDoc, type Reorder, type TextAlign, type TextLayer, type TextWeight, type ShapeLayer,
+  createHistory, duplicateLayer, emptyDoc, isFontName, isOutside, LAYER_LIMITS, layerDraftKey, newImageLayer, newPathLayer, newTextLayer, newShapeLayer, normalizePath, pathPointsAbsolute, redo, reorder, TEXT_WEIGHTS, undo,
+  type History, type ImageLayer, type Layer, type LayerDoc, type Reorder, type StrokeDash, type TextAlign, type TextLayer, type TextWeight, type ShapeLayer, type PathLayer,
 } from '@/lib/layer-doc'
+import { isLineKind } from '@/lib/shape-paths'
 import type { PostMedia } from '@/lib/posts'
 import {
   loadSlideLayersAction, logoLayerAssetAction, magicFeedbackAction, resetSlideLayersAction, saveSlideLayersAction, uploadLayerImageAction,
 } from './layer-actions'
 import { familyOf, fitDoc, LayerCanvas, type BaseTone } from './layer-editor-canvas'
 import { addLayer, AMEND_MS, editStep, nudgeLayer, readDraft, removeLayer, sameDoc, updateLayer } from './layer-editor-gesture'
+import type { PenResult } from './layer-editor-pen'
+import { DashIcon, ShapeMenu } from './layer-editor-shapes'
 import { Thumbnail } from './thumbnail'
 import { serializeLayerDraft } from '@/lib/layer-draft'
 
@@ -98,6 +101,7 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
   const [feedbackSent, setFeedbackSent] = useState(false)
   const [, setFontTick] = useState(0)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [drawing, setDrawing] = useState(false)
 
   useEffect(() => {
     const node = dialog.current
@@ -225,7 +229,31 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
 
   function addShape(shape: ShapeLayer['shape']) {
     if (!doc || full) return
+    setDrawing(false)
     const layer = newShapeLayer(doc, shape)
+    edit(addLayer(doc, layer))
+    setSelectedId(layer.id)
+    setSheetOpen(true)
+  }
+
+  /** Bentuk bebas: the canvas takes pen points until the outline is finished or cancelled. */
+  function startDrawing() {
+    if (!doc || full || readOnly) return
+    setSelectedId(null)
+    setAdding(null)
+    setDrawing(true)
+    // On phones the sheet would cover the slide.
+    setSheetOpen(false)
+  }
+
+  function finishDrawing(result: PenResult | null) {
+    setDrawing(false)
+    if (!result || !doc || full) return
+    const layer = newPathLayer(doc, result.points, result.closed)
+    if (!layer) {
+      setError(t('penFailed'))
+      return
+    }
     edit(addLayer(doc, layer))
     setSelectedId(layer.id)
     setSheetOpen(true)
@@ -233,6 +261,7 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
 
   function addText() {
     if (!doc || full) return
+    setDrawing(false)
     const font = doc.layers.find((layer): layer is TextLayer => layer.kind === 'text')?.font ?? DEFAULT_HEADING_FONT
     const layer = newTextLayer(doc, t('newText'), font, baseTone === 'light' ? '#171827' : '#FFFFFF')
     edit(addLayer(doc, layer))
@@ -243,6 +272,7 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
 
   function addImage(assetId: string, role: ImageLayer['role'], width: number, height: number) {
     if (!doc || full) return
+    setDrawing(false)
     const layer = newImageLayer(doc, assetId, role, width, height)
     edit(addLayer(doc, layer))
     setSelectedId(layer.id)
@@ -329,6 +359,7 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
     if (!doc || !loaded || readOnly || working) return
     setError(null)
     setSelectedId(null)
+    setDrawing(false)
     setWorking(t('saving'))
     try {
       if (!(await onFlush())) throw new Error(t('flushFailed'))
@@ -387,7 +418,8 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
 
   function onKeyDown(event: React.KeyboardEvent) {
     const target = event.target as HTMLElement
-    if (target.closest('input, textarea, select, [contenteditable="true"]') || !doc) return
+    // While drawing, the pen owns the keys (Enter, Esc, Backspace, Ctrl+Z take back a point).
+    if (target.closest('input, textarea, select, [contenteditable="true"]') || !doc || drawing) return
     const mod = event.metaKey || event.ctrlKey
     const key = event.key.toLowerCase()
     if (mod && key === 'z') {
@@ -422,7 +454,7 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
   const labelOf = (layer: Layer) =>
     layer.name || (layer.kind === 'text'
       ? t('textLabel', { text: layer.text.replace(/\s+/g, ' ').trim().slice(0, 40) || '…' })
-      : layer.kind === 'shape' ? t(`shapes.${layer.shape}`) : t(`roles.${layer.role}`))
+      : layer.kind === 'shape' ? t(`shapes.${layer.shape}`) : layer.kind === 'path' ? t('shapes.path') : t(`roles.${layer.role}`))
   const outside = doc?.layers.some((layer) => !layer.hidden && isOutside(layer, doc)) ?? false
 
   return (
@@ -432,7 +464,8 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
       onCancel={(event) => {
         // Esc: let go of the selection first, then close.
         event.preventDefault()
-        if (adding) setAdding(null)
+        if (drawing) setDrawing(false)
+        else if (adding) setAdding(null)
         else if (selectedId) setSelectedId(null)
         else void close()
       }}
@@ -520,7 +553,10 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                   {error && <Banner tone="error">{error}</Banner>}
                 </div>
               )}
-              <div className="flex min-h-40 min-w-0 flex-1 p-3 md:p-8">
+              <div
+                className="flex min-h-40 min-w-0 flex-1 p-3 md:p-8"
+                onPointerDown={(event) => { if (event.target === event.currentTarget && !drawing) setSelectedId(null) }}
+              >
                 <LayerCanvas
                   doc={doc}
                   baseAssetId={loaded.baseAssetId}
@@ -528,6 +564,7 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                   readOnly={readOnly || working !== null}
                   labelOf={labelOf}
                   onSelect={(id) => {
+                    if (drawing) return
                     setSelectedId(id)
                     if (id) { setAdding(null); setSheetOpen(true) }
                   }}
@@ -537,6 +574,8 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                     window.setTimeout(() => textArea.current?.focus(), 0)
                   }}
                   onBaseTone={setBaseTone}
+                  drawing={drawing && !readOnly && working === null}
+                  onDrawEnd={finishDrawing}
                 />
               </div>
               {working && (
@@ -583,7 +622,7 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                     }}
                   />
                   <div className={selected ? 'hidden md:block' : ''}>
-                    <AiFieldSummary doc={doc} labelOf={labelOf} onSelect={id => { setSelectedId(id); setAdding(null) }} />
+                    <AiFieldSummary doc={doc} labelOf={labelOf} onSelect={id => { setDrawing(false); setSelectedId(id); setAdding(null) }} />
                   </div>
                   {adding === 'image' ? (
                     <ImageSource
@@ -641,14 +680,7 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                         {full && <p className="mt-2 text-xs text-ink-muted">{t('full', { max: LAYER_LIMITS.layers })}</p>}
                       </section>
 
-                      <section>
-                        <h3 className="mb-2 text-xs font-semibold text-ink-muted">{t('addShape')}</h3>
-                        <div className="flex flex-wrap gap-2">
-                          {(['rect', 'ellipse', 'triangle', 'line', 'arrow'] as const).map((shape) => (
-                            <button key={shape} type="button" disabled={full} onClick={() => addShape(shape)} className={CHIP}>{t(`shapes.${shape}`)}</button>
-                          ))}
-                        </div>
-                      </section>
+                      <ShapeMenu disabled={full} drawing={drawing} onAdd={addShape} onDraw={() => (drawing ? setDrawing(false) : startDrawing())} />
 
                       <section>
                         <h3 className="mb-2 text-xs font-semibold tracking-wide text-ink-soft uppercase">{t('layers')}</h3>
@@ -660,11 +692,11 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                               <li key={layer.id}>
                                 <button
                                   type="button"
-                                  onClick={() => setSelectedId(layer.id)}
+                                  onClick={() => { setDrawing(false); setSelectedId(layer.id) }}
                                   className="flex min-h-11 w-full items-center gap-2.5 px-3 text-left text-sm transition-colors hover:bg-zinc-50 disabled:text-ink"
                                 >
                                   <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-md bg-zinc-100 text-ink-muted">
-                                    {layer.kind === 'text' ? <Type size={14} /> : layer.kind === 'shape' ? <Shapes size={14} /> : layer.role === 'logo' ? <Stamp size={14} /> : <ImageIcon size={14} />}
+                                    {layer.kind === 'text' ? <Type size={14} /> : layer.kind === 'shape' || layer.kind === 'path' ? <Shapes size={14} /> : layer.role === 'logo' ? <Stamp size={14} /> : <ImageIcon size={14} />}
                                   </span>
                                   <span className="min-w-0 flex-1 truncate">{labelOf(layer)}</span>
                                   {layer.locked && <LockKeyhole size={14} aria-label={t('lockedLayer')} />}
@@ -858,19 +890,52 @@ function LayerPanel({ layer, doc, label, textArea, onChange, onReorder, onRemove
         </div>
       </Group>
 
-      {layer.kind === 'shape' && <Group title={t('addShape')}>
-        <label className="block"><span className={LABEL}>{t('color')}</span><input type="color" value={layer.color}
-          onChange={(event) => onChange((current) => current.kind === 'shape' ? { ...current, color: event.target.value.toUpperCase() } : current, 'color')}
-          className="h-10 w-full" /></label>
-        <label className="block"><span className={LABEL}>{t('strokeColor')}</span><input type="color" value={layer.strokeColor}
-          onChange={(event) => onChange((current) => current.kind === 'shape' ? { ...current, strokeColor: event.target.value.toUpperCase() } : current, 'strokeColor')}
-          className="h-10 w-full" /></label>
-        <Slider id="shape-stroke" label={t('strokeWidth')} min={0} max={100} step={1} value={layer.strokeWidth} display={`${layer.strokeWidth}px`}
-          onChange={(strokeWidth) => onChange((current) => current.kind === 'shape' ? { ...current, strokeWidth } : current, 'strokeWidth')} />
-        {layer.shape === 'rect' && <Slider id="shape-radius" label={t('radius')} min={0} max={Math.min(1000, layer.w / 2, layer.h / 2)} step={1}
-          value={layer.radius} display={`${layer.radius}px`} onChange={(radius) => onChange((current) => current.kind === 'shape' ? { ...current, radius } : current, 'radius')} />}
-        <OpacitySlider value={layer.opacity ?? 1} onChange={setOpacity} />
-      </Group>}
+      {(layer.kind === 'shape' || layer.kind === 'path') && (() => {
+        const line = layer.kind === 'shape' && isLineKind(layer.shape)
+        const showFill = layer.kind === 'shape' ? !line : layer.fill
+        const setPaint = (change: Partial<Omit<ShapeLayer, 'kind'> & Omit<PathLayer, 'kind'>>, key?: string) =>
+          onChange((current) => current.kind === 'shape' || current.kind === 'path' ? { ...current, ...change } as Layer : current, key)
+        return <Group title={layer.kind === 'path' ? t('shapes.path') : t(line ? 'shapeGroups.line' : 'shapeGroups.shape')}>
+          {layer.kind === 'path' && <div className="space-y-1">
+            <Switch label={t('pathFill')} checked={layer.fill} onChange={(fill) => setPaint(!fill && layer.strokeWidth === 0 ? { fill, strokeWidth: 6 } : { fill })} />
+            <Switch label={t('pathClosed')} checked={layer.closed} onChange={(closed) => onChange((current) => {
+              if (current.kind !== 'path') return current
+              // The closing segment can change the drawn extent: refit the box around it.
+              const normal = normalizePath(pathPointsAbsolute(current), closed)
+              return normal ? { ...current, ...normal.box, points: normal.points, closed } : { ...current, closed }
+            })} />
+          </div>}
+          <div className={`grid min-w-0 gap-2 ${showFill ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            {showFill && <ColorField label={t('color')} value={layer.color} onChange={(color) => setPaint({ color }, 'color')} />}
+            <ColorField label={t('strokeColor')} value={layer.strokeColor} onChange={(strokeColor) => setPaint({ strokeColor }, 'strokeColor')} />
+          </div>
+          <Slider id="shape-stroke" label={t('strokeWidth')} min={line ? 1 : 0} max={100} step={1} value={layer.strokeWidth} display={`${layer.strokeWidth}px`}
+            onChange={(strokeWidth) => setPaint({ strokeWidth }, 'strokeWidth')} />
+          <div>
+            <span id="shape-dash-label" className={LABEL}>{t('strokeStyle')}</span>
+            <div role="radiogroup" aria-labelledby="shape-dash-label" className="grid grid-cols-3 gap-0.5 rounded-lg border border-hairline bg-zinc-50 p-0.5">
+              {([undefined, 'dashed', 'dotted'] as const).map((dash) => {
+                const on = layer.dash === dash
+                const name = t(`strokeStyles.${dash ?? 'solid'}`)
+                return (
+                  <button key={dash ?? 'solid'} type="button" role="radio" aria-checked={on} title={name}
+                    onClick={() => onChange((current) => withDash(current, dash))}
+                    className={`flex min-h-9 min-w-0 flex-col items-center justify-center gap-0.5 rounded-md px-1 text-[11px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11 ${
+                      on ? 'bg-white text-accent shadow-[0_1px_2px_rgba(23,24,39,0.12)]' : 'text-ink-muted hover:text-ink'}`}>
+                    <DashIcon dash={dash} />
+                    <span className="truncate">{name}</span>
+                  </button>
+                )
+              })}
+            </div>
+            {layer.strokeWidth === 0 && <p className="mt-1 text-[11px] text-ink-soft">{t('strokeStyleHint')}</p>}
+          </div>
+          {layer.kind === 'shape' && layer.shape === 'rect' && <Slider id="shape-radius" label={t('radius')} min={0} max={Math.min(1000, layer.w / 2, layer.h / 2)} step={1}
+            value={layer.radius} display={`${layer.radius}px`} onChange={(radius) => setPaint({ radius }, 'radius')} />}
+          {layer.kind === 'path' && <p className="text-[11px] leading-relaxed text-ink-soft">{t('pathEditHint')}</p>}
+          <OpacitySlider value={layer.opacity ?? 1} onChange={setOpacity} />
+        </Group>
+      })()}
 
       {text && (
         <>
@@ -1026,6 +1091,41 @@ function LayerPanel({ layer, doc, label, textArea, onChange, onReorder, onRemove
         <Copy size={15} aria-hidden="true" />{t('duplicate')}
       </button>
       <p className="hidden text-[11px] leading-relaxed text-ink-soft md:block">{t('keys')}</p>
+    </div>
+  )
+}
+
+/** A shape or path with its stroke solid (no `dash` key at all, as stored docs expect) or dashed / dotted. */
+function withDash(layer: Layer, dash: StrokeDash | undefined): Layer {
+  if (layer.kind !== 'shape' && layer.kind !== 'path') return layer
+  const next = { ...layer }
+  if (dash) next.dash = dash
+  else delete next.dash
+  return next
+}
+
+function Switch({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className="flex min-h-10 cursor-pointer items-center justify-between gap-3 text-sm text-ink">
+      {label}
+      <input type="checkbox" role="switch" checked={checked} onChange={(event) => onChange(event.target.checked)} className="peer sr-only" />
+      <span aria-hidden="true" className="relative h-6 w-10 shrink-0 rounded-full bg-zinc-200 transition-colors peer-checked:bg-accent peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent after:absolute after:top-0.5 after:left-0.5 after:size-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-4" />
+    </label>
+  )
+}
+
+/** A swatch with its hex, opening the system colour picker (like the text colour). */
+function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <div className="min-w-0">
+      <span className={LABEL}>{label}</span>
+      <label className="relative flex h-10 min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-hairline bg-white pr-2.5 pl-1.5 text-xs tabular-nums text-ink focus-within:border-accent hover:border-zinc-300">
+        <span aria-hidden="true" className="size-6 shrink-0 rounded-md shadow-[inset_0_0_0_1px_rgba(23,24,39,0.15)]" style={{ background: value }} />
+        <span className="truncate">{value.toUpperCase()}</span>
+        <input type="color" aria-label={label} title={label} value={value.toLowerCase()}
+          onChange={(event) => onChange(event.target.value.toUpperCase())}
+          className="absolute inset-0 size-full cursor-pointer opacity-0" />
+      </label>
     </div>
   )
 }

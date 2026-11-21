@@ -18,6 +18,7 @@
     "sending": "Sending…",
     "send": "Send (Enter)",
     "active": "On · {count} searches/day",
+    "locked": "Available on the Pro and Max plans",
     "remove": "Remove {name}",
     "imageName": "image"
   },

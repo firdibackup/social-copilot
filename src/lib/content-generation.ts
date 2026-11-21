@@ -72,16 +72,16 @@ async function chooseSlideReferences(userId: string, accountId: string, request:
   const pool = await listReferencePool(userId, accountId, auto ? null : request.referenceId)
   if (!auto && pool.length === 0) throw new ContentError('Referensi brand tidak ditemukan.')
   if (pool.length === 0) {
-    const examples = await planStyleTemplates(userId, roles)
+    const examples = await planStyleTemplates(userId, accountId, roles)
     return roles.map((role, index) => ({ role, referenceImageId: null, example: examples[index] }))
   }
   const images = planReferenceImages(pool, roles, auto ? pickRandom : pickFirst)
   return roles.map((role, index) => ({ role, referenceImageId: images[index], example: null }))
 }
 
-async function planStyleTemplates(userId: string, roles: (SlideRole | null)[]): Promise<(string | null)[]> {
+async function planStyleTemplates(userId: string, accountId: string, roles: (SlideRole | null)[]): Promise<(string | null)[]> {
   const none = roles.map(() => null)
-  const style = styleIdForBrand(await getBrandVisual(userId))
+  const style = styleIdForBrand(await getBrandVisual(userId, accountId))
   if (!style) return none
   try {
     return planTemplates(await listTemplatePool(style), roles, pickRandom)

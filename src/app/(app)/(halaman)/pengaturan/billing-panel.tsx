@@ -8,7 +8,7 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import { ArrowUpRight, Check, CreditCard, RefreshCw, TicketPercent, X } from 'lucide-react'
 import { addBillingMonths, estimatedPosts, quotePurchase, type BillingCatalog, type CatalogPlan } from '@/lib/billing-catalog-options'
 import { canUpgrade, type UpgradeSnapshot } from '@/lib/billing-upgrade-options'
-import { formatRupiah } from '@/lib/billing-options'
+import { formatRupiah, magicLayerUnits } from '@/lib/billing-options'
 import type { Payment, Usage } from '@/lib/billing'
 import { Notice } from '@/components/notice'
 import { CheckoutContactFields, useCheckoutContact } from '@/components/checkout-contact-fields'
@@ -264,7 +264,7 @@ export function BillingPanel(props: Props) {
         <div className="mt-4 space-y-4 text-sm text-ink-muted">
           {period && usage && <p>{t('billing_panel.period')} {date(period.start)}–{date(period.end)} {t('billing_panel.quota')} {number(usage.credits)} {t('billing_panel.credits2')}</p>}
           <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-2">
-            {[[t('billing_panel.contentIdeas'), catalog.rates.content_ideas], [t('billing_panel.contentScript'), catalog.rates.content_script], [t('billing_panel.newContentExcludingImages'), catalog.rates.content], [t('billing_panel.aiImagesPerImage'), catalog.rates.image], [t('billing_panel.editImage'), catalog.rates.slide_edit], [t('billing_panel.magicLayers'), catalog.rates.magic_layers], [t('billing_panel.editCaption'), catalog.rates.caption_edit], [t('billing_panel.writeThreads'), catalog.rates.threads_write], [t('billing_panel.editThreads'), catalog.rates.threads_edit], [t('billing_panel.replyDraft'), catalog.rates.reply_draft]].map(([label, cost]) => <div key={label} className="contents"><dt>{label}</dt><dd className="tabular-nums text-ink">{cost} {t('billing_panel.credits')}</dd></div>)}
+            {[[t('billing_panel.contentIdeas'), catalog.rates.content_ideas], [t('billing_panel.contentScript'), catalog.rates.content_script], [t('billing_panel.newContentExcludingImages'), catalog.rates.content], [t('billing_panel.aiImagesPerImage'), catalog.rates.image], [t('billing_panel.editImage'), catalog.rates.slide_edit], [t('billing_panel.magicLayers'), catalog.rates.magic_layers * magicLayerUnits(false)], [t('billing_panel.editCaption'), catalog.rates.caption_edit], [t('billing_panel.writeThreads'), catalog.rates.threads_write], [t('billing_panel.editThreads'), catalog.rates.threads_edit], [t('billing_panel.replyDraft'), catalog.rates.reply_draft]].map(([label, cost]) => <div key={label} className="contents"><dt>{label}</dt><dd className="tabular-nums text-ink">{cost} {t('billing_panel.credits')}</dd></div>)}
           </dl>
         </div>
       </details>
@@ -303,7 +303,7 @@ export function BillingPanel(props: Props) {
             </label>)}</div>
           </fieldset>
           {!plans.length && <Notice tone="warning">{t('billing_panel.noPlansAreAvailableForThisOption')}</Notice>}
-          {selected && <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-muted"><span className="inline-flex items-center gap-1.5 font-medium text-ink"><InstagramAiIcon width={18} height={18} />{t('billing_panel.instagramThreadsResearch')}</span><span className="rounded-full bg-[linear-gradient(90deg,#FA7E1E,#D62976,#962FBF)] px-2 py-0.5 text-[11px] font-semibold text-white">{t('billing_panel.featured')}</span>{selected.prioritySupport && <span>{t('billing_panel.prioritySupport2')}</span>}{selected.earlyAccess && <span>{t('billing_panel.earlyAccess')}</span>}</p>}
+          {selected && (selected.researchDaily > 0 || selected.prioritySupport || selected.earlyAccess) && <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-muted">{selected.researchDaily > 0 && <><span className="inline-flex items-center gap-1.5 font-medium text-ink"><InstagramAiIcon width={18} height={18} />{t('billing_panel.instagramThreadsResearch')}</span><span className="rounded-full bg-[linear-gradient(90deg,#FA7E1E,#D62976,#962FBF)] px-2 py-0.5 text-[11px] font-semibold text-white">{t('billing_panel.featured')}</span></>}{selected.prioritySupport && <span>{t('billing_panel.prioritySupport2')}</span>}{selected.earlyAccess && <span>{t('billing_panel.earlyAccess')}</span>}</p>}
           {intent !== 'upgrade' && <fieldset disabled={pending}><legend className="mb-3 text-sm font-medium">{t('billing_panel.subscriptionDuration')}</legend><div className="flex flex-wrap gap-2">{catalog.durations.map((duration) => <button type="button" key={duration.months} aria-pressed={months === duration.months} onClick={() => { setMonths(duration.months); coupon.reprice(selected?.id, duration.months) }} className={`${BUTTON} ${months === duration.months ? 'border-primary bg-primary/5 text-primary' : ''}`}>
             {duration.months} {t('billing_panel.months')}{duration.discount > 0 ? ` · −${duration.discount}%` : ''}</button>)}</div></fieldset>}
           <div className="space-y-3 border-t border-hairline pt-5 text-sm">

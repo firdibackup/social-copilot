@@ -4,7 +4,7 @@ import { parseRuleInput } from './auto-dm-rules'
 import { creditsUsed, getCurrentPeriod } from './billing'
 import { getAccountBrandContext } from './brand'
 import type { BrandContext } from './brand-options'
-import { releaseDailyUsage, reserveDailyUsage } from './chat'
+import { releaseDailyUsage, researchLimit, reserveDailyUsage } from './chat'
 import {
   answerChat,
   buildSystemPrompt,
@@ -57,6 +57,7 @@ vi.mock('./apify', async (importOriginal) => ({
 }))
 
 vi.mock('./chat', () => ({
+  researchLimit: vi.fn(),
   reserveDailyUsage: vi.fn(),
   releaseDailyUsage: vi.fn(),
   findContent: vi.fn(),
@@ -405,6 +406,7 @@ describe('answerChat', () => {
     vi.mocked(getCachedCompetitors).mockReset().mockResolvedValue(null)
     vi.mocked(saveCachedCompetitors).mockReset().mockResolvedValue()
     vi.mocked(reserveDailyUsage).mockReset().mockResolvedValue('2026-10-23')
+    vi.mocked(researchLimit).mockReset().mockResolvedValue(5)
     vi.mocked(releaseDailyUsage).mockReset()
     vi.mocked(addIdea).mockReset()
     vi.mocked(saveAccountIdeaScript).mockReset().mockResolvedValue(true)
@@ -665,6 +667,20 @@ describe('answerChat', () => {
 
       expect(releaseDailyUsage).toHaveBeenCalledWith(USER, 'deep_search', '2026-10-23')
       expect(saveCachedCompetitors).not.toHaveBeenCalled()
+    })
+
+    it('refuses a plan without research, even on a cache hit', async () => {
+      vi.mocked(researchLimit).mockResolvedValue(0)
+      vi.mocked(getCachedCompetitors).mockResolvedValue([ACCOUNT])
+
+      const reply = await ask({ usernames: ['kopikenangan'] })
+
+      expect(researchLimit).toHaveBeenCalledWith(USER)
+      expect(getCachedCompetitors).not.toHaveBeenCalled()
+      expect(findCompetitors).not.toHaveBeenCalled()
+      expect(reserveDailyUsage).not.toHaveBeenCalledWith(USER, 'deep_search')
+      expect(reply.parts.some((part) => part.type === 'competitors')).toBe(false)
+      expect(JSON.stringify(vi.mocked(chatWithTools).mock.calls[1][0].at(-1))).toContain('Pro atau Max')
     })
   })
 

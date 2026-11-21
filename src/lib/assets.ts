@@ -5,7 +5,6 @@ import en from '../../messages/en/assets.json'
 import 'server-only'
 import { randomUUID } from 'node:crypto'
 import { isAssetCategory, isAssetOrigin, type AssetCategory, type AssetOrigin } from './asset-options'
-import { getConnectedAccountId } from './connection'
 import { describeError } from './errors'
 import { imageType } from './image'
 import { toReferenceDataUrl } from './slide-image'
@@ -409,9 +408,7 @@ export async function listProductGroups(userId: string, accountId: string): Prom
     .filter((group) => group.imageCount > 0)
 }
 
-export async function loadProductImages(userId: string, groupId: string, limit = 2): Promise<ProductImage[]> {
-  const accountId = await getConnectedAccountId(userId)
-  if (!accountId) return []
+export async function loadProductImages(userId: string, accountId: string, groupId: string, limit = 2): Promise<ProductImage[]> {
   const group = unwrap(
     await db()
       .from('asset_groups')
@@ -439,9 +436,7 @@ export async function loadProductImages(userId: string, groupId: string, limit =
   )
 }
 
-export async function listActiveWebsiteAssets(userId: string, limit = 6): Promise<{ id: string; bytes: Uint8Array }[]> {
-  const accountId = await getConnectedAccountId(userId)
-  if (!accountId) return []
+export async function listActiveWebsiteAssets(userId: string, accountId: string, limit = 6): Promise<{ id: string; bytes: Uint8Array }[]> {
   const rows: { id: string; storage_path: string }[] = unwrap(
     await db()
       .from('assets')

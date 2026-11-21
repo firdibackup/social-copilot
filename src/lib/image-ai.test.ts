@@ -26,6 +26,7 @@ vi.mock('./nine-router', async (importOriginal) => ({
 }))
 
 const USER = 'user-1'
+const ACCOUNT = 'ig-1'
 const REFERENCE_IMAGE_ID = '00000000-0000-4000-8000-000000000001'
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4])
 
@@ -307,7 +308,7 @@ describe('drawImage', () => {
   })
 
   it('returns the decoded bytes, the prompt and what was sent', async () => {
-    const drawn = await drawImage(USER, INPUT)
+    const drawn = await drawImage(USER, ACCOUNT, INPUT)
 
     expect(Buffer.from(drawn.bytes)).toEqual(JPEG)
     expect(drawn).toMatchObject({ sent: [], skipped: [] })
@@ -315,7 +316,7 @@ describe('drawImage', () => {
   })
 
   it('asks for the square size', async () => {
-    await drawImage(USER, { ...INPUT, format: '1:1' })
+    await drawImage(USER, ACCOUNT, { ...INPUT, format: '1:1' })
 
     expect(vi.mocked(generateImage).mock.calls[0][0].size).toBe('1024x1024')
   })
@@ -324,7 +325,7 @@ describe('drawImage', () => {
     const product = dataUrl('P', 200_000)
     vi.mocked(loadProductImages).mockResolvedValue([{ dataUrl: product, title: 'Kopi Botol' }])
 
-    const drawn = await drawImage(USER, {
+    const drawn = await drawImage(USER, ACCOUNT, {
       ...INPUT,
       productGroupId: '00000000-0000-4000-8000-000000000099',
       referenceImageId: REFERENCE_IMAGE_ID,
@@ -338,7 +339,7 @@ describe('drawImage', () => {
   it('sends the current slide and the reference, and skips a logo that no longer fits 1 MB', async () => {
     const currentImage = dataUrl('C', 100_000)
 
-    const drawn = await drawImage(USER, { ...INPUT, currentImage, referenceImageId: REFERENCE_IMAGE_ID, includeLogo: true })
+    const drawn = await drawImage(USER, ACCOUNT, { ...INPUT, currentImage, referenceImageId: REFERENCE_IMAGE_ID, includeLogo: true })
 
     expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([currentImage, dataUrl('R', 400_000)])
     expect(drawn.sent).toEqual(['current', 'reference'])
@@ -350,7 +351,7 @@ describe('drawImage', () => {
   it('lets an inner slide follow its reference, not the first inner slide made', async () => {
     vi.mocked(loadReferenceImage).mockResolvedValue({ dataUrl: dataUrl('R', 100_000), note: '', label: 'isi' })
 
-    const drawn = await drawImage(USER, {
+    const drawn = await drawImage(USER, ACCOUNT, {
       ...INPUT,
       siblingImage: dataUrl('S', 100_000),
       referenceImageId: REFERENCE_IMAGE_ID,
@@ -363,7 +364,7 @@ describe('drawImage', () => {
   })
 
   it('lets an inner slide follow its style example, not the first inner slide made', async () => {
-    const drawn = await drawImage(USER, { ...INPUT, siblingImage: dataUrl('S', 100), example: 'langkah-bernomor', slide: inner })
+    const drawn = await drawImage(USER, ACCOUNT, { ...INPUT, siblingImage: dataUrl('S', 100), example: 'langkah-bernomor', slide: inner })
 
     expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([exampleFile('langkah-bernomor')])
     expect(loadTemplateImage).toHaveBeenCalledWith('langkah-bernomor')
@@ -373,7 +374,7 @@ describe('drawImage', () => {
   it('lets an inner slide without a reference or example follow the first inner slide made', async () => {
     const siblingImage = dataUrl('S', 100)
 
-    const drawn = await drawImage(USER, { ...INPUT, siblingImage, slide: inner })
+    const drawn = await drawImage(USER, ACCOUNT, { ...INPUT, siblingImage, slide: inner })
 
     expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([siblingImage])
     expect(drawn.sent).toEqual(['sibling'])
@@ -385,7 +386,7 @@ describe('drawImage', () => {
     const product = dataUrl('P', 100)
     vi.mocked(loadProductImages).mockResolvedValue([{ dataUrl: product, title: 'Kopi Botol' }])
 
-    const drawn = await drawImage(USER, {
+    const drawn = await drawImage(USER, ACCOUNT, {
       ...INPUT,
       currentImage,
       attachment: { dataUrl: attached, note: 'pakai foto ini' },
@@ -403,7 +404,7 @@ describe('drawImage', () => {
     vi.mocked(loadAttachment).mockResolvedValue(stored)
     const path = `${USER}/lampiran/00000000-0000-4000-8000-000000000005.jpg`
 
-    const drawn = await drawImage(USER, { ...INPUT, attachment: { path, note: 'Follow its layout.' } })
+    const drawn = await drawImage(USER, ACCOUNT, { ...INPUT, attachment: { path, note: 'Follow its layout.' } })
 
     expect(loadAttachment).toHaveBeenCalledWith(USER, path)
     expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([stored])
@@ -413,7 +414,7 @@ describe('drawImage', () => {
   it('reports a stored attachment and a style example that are gone', async () => {
     vi.mocked(loadAttachment).mockResolvedValue(null)
 
-    const drawn = await drawImage(USER, { ...INPUT, attachment: { path: 'x', note: '' }, example: 'hilang' })
+    const drawn = await drawImage(USER, ACCOUNT, { ...INPUT, attachment: { path: 'x', note: '' }, example: 'hilang' })
 
     expect(drawn.sent).toEqual([])
     expect(drawn.skipped).toEqual(['lampiran (tidak ditemukan)', 'template desain (tidak ditemukan)'])
@@ -424,7 +425,7 @@ describe('drawImage', () => {
     const logo = 'y'.repeat(VISUAL_BODY_BUDGET)
     vi.mocked(loadLogoImage).mockResolvedValue(logo)
 
-    const drawn = await drawImage(USER, { ...INPUT, currentImage: tooBig, includeLogo: true })
+    const drawn = await drawImage(USER, ACCOUNT, { ...INPUT, currentImage: tooBig, includeLogo: true })
 
     expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([logo])
     expect(drawn.skipped).toEqual(['gambar slide ini (terlalu besar untuk batas 1 MB 9Router)'])
@@ -435,15 +436,34 @@ describe('drawImage', () => {
     vi.mocked(loadReferenceImage).mockResolvedValue(null)
     vi.mocked(loadLogoImage).mockResolvedValue(null)
 
-    const drawn = await drawImage(USER, { ...INPUT, referenceImageId: REFERENCE_IMAGE_ID, includeLogo: true })
+    const drawn = await drawImage(USER, ACCOUNT, { ...INPUT, referenceImageId: REFERENCE_IMAGE_ID, includeLogo: true })
 
     expect(loadReferenceImage).toHaveBeenCalledWith(USER, REFERENCE_IMAGE_ID)
     expect(drawn.skipped).toEqual(['referensi (tidak ditemukan)', 'logo (tidak ditemukan)'])
     expect(drawn.sent).toEqual([])
   })
 
+  it("uses the given account's brand, products and logo, not the connected one", async () => {
+    const productGroupId = '00000000-0000-4000-8000-000000000099'
+
+    await drawImage(USER, 'ig-queued', { ...INPUT, productGroupId, includeLogo: true })
+
+    expect(getBrandVisual).toHaveBeenCalledWith(USER, 'ig-queued')
+    expect(loadProductImages).toHaveBeenCalledWith(USER, 'ig-queued', productGroupId)
+    expect(loadLogoImage).toHaveBeenCalledWith(USER, 'ig-queued')
+  })
+
+  it('draws an old post without an account without any brand', async () => {
+    const drawn = await drawImage(USER, null, { ...INPUT, productGroupId: '00000000-0000-4000-8000-000000000099', includeLogo: true })
+
+    expect(getBrandVisual).not.toHaveBeenCalled()
+    expect(loadProductImages).not.toHaveBeenCalled()
+    expect(loadLogoImage).not.toHaveBeenCalled()
+    expect(drawn.sent).toEqual([])
+  })
+
   it('loads only the images the input asks for', async () => {
-    await drawImage(USER, INPUT)
+    await drawImage(USER, ACCOUNT, INPUT)
 
     expect(loadReferenceImage).not.toHaveBeenCalled()
     expect(loadLogoImage).not.toHaveBeenCalled()
@@ -453,7 +473,7 @@ describe('drawImage', () => {
     vi.mocked(getBrandVisual).mockRejectedValue(new Error('relation "brand_kit" does not exist'))
     vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    const drawn = await drawImage(USER, INPUT)
+    const drawn = await drawImage(USER, ACCOUNT, INPUT)
 
     expect(drawn.prompt).not.toContain('Brand colours')
     expect(console.error).toHaveBeenCalled()
@@ -463,7 +483,7 @@ describe('drawImage', () => {
     const rejected = new RouterApiError('Codex did not return an image.', 200)
     vi.mocked(generateImage).mockRejectedValue(rejected)
 
-    await expect(drawImage(USER, INPUT)).rejects.toBe(rejected)
+    await expect(drawImage(USER, ACCOUNT, INPUT)).rejects.toBe(rejected)
   })
 })
 

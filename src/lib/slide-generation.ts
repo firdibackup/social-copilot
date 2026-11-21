@@ -82,7 +82,7 @@ export async function processSlide({ userId, accountId, attemptCount, slide, lea
         if (!post) throw new SlideError('Post tidak ditemukan.')
         await watch!.check()
         const count = post.media.length + unfinished.length
-        const drawn = await drawImage(userId, {
+        const drawn = await drawImage(userId, accountId, {
           headline: slide.headline,
           scene: slide.scene,
           format: slide.format,

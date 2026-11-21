@@ -2,13 +2,12 @@
 
 import { useTranslations, useLocale } from 'next-intl'
 
-import { FileText, Image as ImageIcon, Paperclip, Send, X } from 'lucide-react'
+import { FileText, Image as ImageIcon, Lock, Paperclip, Send, X } from 'lucide-react'
 import { useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
 import {
   ATTACHMENT_ACCEPT,
   attachmentsProblem,
   checkAttachment,
-  DAILY_LIMITS,
   MESSAGE_MAX_LENGTH,
   type AttachmentKind,
 } from '@/lib/chat-options'
@@ -34,6 +33,8 @@ interface Attachment {
 interface ChatComposerProps {
   busy: boolean
   deepSearch: boolean
+  /** Intel Kompetitor runs per day on the plan; 0 locks the switch. */
+  researchDaily: number
   onToggleDeepSearch: () => void
   /** True once the message went out: the box clears. */
   onSend: (text: string, files: File[]) => Promise<boolean>
@@ -48,7 +49,7 @@ async function shrink(attachment: Attachment, fallbackName: string): Promise<Fil
   return new File([blob], `${name}.jpg`, { type: 'image/jpeg' })
 }
 
-export function ChatComposer({ busy, deepSearch, onToggleDeepSearch, onSend, draft }: ChatComposerProps) {
+export function ChatComposer({ busy, deepSearch, researchDaily, onToggleDeepSearch, onSend, draft }: ChatComposerProps) {
   const t = useTranslations('mimo.composer')
   const locale = useLocale()
   const [text, setText] = useState('')
@@ -65,6 +66,8 @@ export function ChatComposer({ busy, deepSearch, onToggleDeepSearch, onSend, dra
   }
 
   const disabled = busy || preparing
+  const locked = researchDaily < 1
+  const intelOn = deepSearch && !locked
   const canSend = !disabled && (text.trim() !== '' || attachments.length > 0)
 
   function pick(event: ChangeEvent<HTMLInputElement>) {
@@ -162,16 +165,28 @@ export function ChatComposer({ busy, deepSearch, onToggleDeepSearch, onSend, dra
           >
             <Paperclip size={18} aria-hidden="true" />
           </button>
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-full px-2 py-1 text-xs font-medium text-ink-muted select-none hover:bg-zinc-100">
+          <label
+            title={locked ? t('locked') : undefined}
+            className={`inline-flex items-center gap-2 rounded-full px-2 py-1 text-xs font-medium text-ink-muted select-none ${locked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-zinc-100'}`}
+          >
             <span className="relative inline-flex h-4 w-7 shrink-0">
-              <input type="checkbox" role="switch" checked={deepSearch} onChange={onToggleDeepSearch} className="peer sr-only" />
+              <input
+                type="checkbox"
+                role="switch"
+                checked={intelOn}
+                disabled={locked}
+                aria-describedby="mimo-intel-hint"
+                onChange={onToggleDeepSearch}
+                className="peer sr-only"
+              />
               <span className="absolute inset-0 rounded-full bg-zinc-300 transition-colors peer-checked:ai-gradient peer-focus-visible:ring-2 peer-focus-visible:ring-ink/20" />
               <span className="absolute top-0.5 left-0.5 size-3 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-3" />
             </span>
-            <span className={deepSearch ? 'ai-gradient-text font-semibold' : undefined}>{t('intel')}</span>
+            {locked && <Lock size={12} aria-hidden="true" />}
+            <span className={intelOn ? 'ai-gradient-text font-semibold' : undefined}>{t('intel')}</span>
           </label>
-          <span className="hidden text-[11px] text-ink-soft sm:inline">
-            {deepSearch ? t('active', { count: DAILY_LIMITS.deep_search }) : t('research')}
+          <span id="mimo-intel-hint" className="hidden text-[11px] text-ink-soft sm:inline">
+            {locked ? t('locked') : intelOn ? t('active', { count: researchDaily }) : t('research')}
           </span>
           <button
             type="button"

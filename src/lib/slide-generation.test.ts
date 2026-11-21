@@ -95,6 +95,18 @@ describe('processSlide', () => {
     expect(requeueSlide).not.toHaveBeenCalled()
   })
 
+  it("draws with the queued slide's own account, not the one connected now", async () => {
+    vi.mocked(runLogged).mockImplementation(async (_user, _task, _input, ask) => ask())
+    vi.mocked(getPost).mockResolvedValue({ media: [] } as never)
+    vi.mocked(listUnfinishedSlides).mockResolvedValue([claimed(1).slide])
+    vi.mocked(drawImage).mockReset().mockImplementation(async () => {
+      vi.mocked(slideAttemptActive).mockResolvedValue(false)
+      return { bytes: new Uint8Array(), prompt: '', sent: [], skipped: [] } as never
+    })
+    await processSlide({ ...claimed(1), accountId: 'ig-queued' })
+    expect(vi.mocked(drawImage).mock.calls[0].slice(0, 2)).toEqual(['user-1', 'ig-queued'])
+  })
+
   it('does not classify explicit cancellation as a transient provider failure', () => {
     expect(isTransientSlideError(new GenerationCancelled())).toBe(false)
   })

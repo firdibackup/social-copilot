@@ -13,6 +13,7 @@ import { ExternalImage, MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
 import { useStorageFull } from '@/components/storage-full'
 import {
+  arrangeGroup,
   DESCRIPTION_MAX_LENGTH,
   MAX_GROUP_IMAGES,
   MAX_REFERENCES,
@@ -26,12 +27,14 @@ import { toReferenceJpeg } from '@/lib/image'
 import type { InstagramPost } from '@/lib/instagram'
 import { paletteFromBlob } from '@/lib/palette'
 import {
+  appendReferenceImageAction,
   classifyGridTilesAction,
   deleteReferenceAction,
   importReferencesAction,
   listOwnPostsAction,
   listProfilePostsAction,
   setReferenceLabelAction,
+  startReferenceGroupAction,
   updateReferenceAction,
   uploadReferenceAction,
   type PostsResult,
@@ -194,8 +197,10 @@ function UploadReferences({ disabled }: { disabled: boolean }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [progress, setProgress] = useState<string | null>(null)
   const [errors, setErrors] = useState<string[]>([])
+  const [notice, setNotice] = useState<string | null>(null)
 
   async function upload(files: File[]) {
+    if (files.length > 2) return uploadGroups(files)
     const failed: string[] = []
     let uploaded = 0
     for (const [index, file] of files.entries()) {
@@ -224,6 +229,78 @@ function UploadReferences({ disabled }: { disabled: boolean }) {
     if (uploaded > 0) router.refresh()
   }
 
+  /**
+   * Three or more images become one carousel reference (several when there are more than a group holds): the AI
+   * labels each image Cover, Isi or CTA, and the group is saved in that order. If the AI cannot read them, the
+   * images are saved in upload order, labelled by position, and the owner can relabel them on the card.
+   */
+  async function uploadGroups(files: File[]) {
+    setErrors([])
+    setNotice(null)
+    const failed: string[] = []
+    let saved = 0
+    let unread = 0
+    let aiFailure: string | null = null
+    for (let start = 0; start < files.length; start += MAX_GROUP_IMAGES) {
+      const chunk = files.slice(start, start + MAX_GROUP_IMAGES)
+      const prepared: { blob: Blob; palette: string[] }[] = []
+      try {
+        for (const [index, file] of chunk.entries()) {
+          setProgress(t('referencesPanel.groupPreparing', { v0: start + index + 1, v1: files.length }))
+          prepared.push(await toReferenceJpeg(file))
+        }
+      } catch {
+        failed.push(t('referencesPanel.text10'))
+        break
+      }
+
+      const read: (TileDetail | null)[] = prepared.map(() => null)
+      for (let from = 0; from < prepared.length; from += CLASSIFY_BATCH) {
+        setProgress(t('referencesPanel.groupDetecting'))
+        const formData = new FormData()
+        try {
+          for (const [index, image] of prepared.slice(from, from + CLASSIFY_BATCH).entries()) {
+            formData.append('tile', await toPreviewJpeg(image.blob), `referensi-${from + index + 1}.jpg`)
+          }
+        } catch {
+          aiFailure = t('referencesPanel.text16')
+          continue
+        }
+        const response = await classifyGridTilesAction(formData).catch(() => ({ error: t('shared.failed') }))
+        if ('error' in response) {
+          aiFailure = response.error
+          continue
+        }
+        response.tiles.forEach((tile, index) => {
+          read[from + index] = tile && { label: tile.label, description: tile.description.slice(0, DESCRIPTION_MAX_LENGTH) }
+        })
+      }
+      unread += read.filter((tile) => tile === null).length
+
+      const { order, labels } = arrangeGroup(read.map((tile) => tile?.label ?? null))
+      const failure = await saveGroup({
+        images: order.map((index, position) => ({ blob: prepared[index].blob, label: labels[position] })),
+        palette: prepared[order[0]].palette,
+        descriptions: order.map((index) => read[index]?.description ?? ''),
+        source: 'upload',
+        onProgress: (done, total) => setProgress(t('referencesPanel.groupSaving', { v0: done, v1: total })),
+        interrupted: t('referencesPanel.text9'),
+      })
+      if (storageFull(failure)) break
+      if (failure) {
+        failed.push(failure)
+        break
+      }
+      saved += 1
+    }
+    setProgress(null)
+    setErrors(failed)
+    if (saved > 0 && (aiFailure || unread > 0)) {
+      setNotice(aiFailure ? t('referencesPanel.groupUnreadAll', { v0: aiFailure }) : t('referencesPanel.groupUnread', { v0: unread }))
+    }
+    if (saved > 0) router.refresh()
+  }
+
   return (
     <div className="space-y-2">
       <input
@@ -249,6 +326,7 @@ function UploadReferences({ disabled }: { disabled: boolean }) {
         <ImagePlus size={16} aria-hidden="true" />
         {progress ?? t('referencesPanel.text13')}
       </button>
+      {notice && <Notice tone="warning">{notice}</Notice>}
       {errors.length > 0 && (
         <ul role="alert" className="space-y-0.5 text-sm text-red-700">
           {errors.map((error) => (
@@ -258,6 +336,70 @@ function UploadReferences({ disabled }: { disabled: boolean }) {
       )}
     </div>
   )
+}
+
+interface GroupToSave {
+  /** In carousel order, each with its label. */
+  images: { blob: Blob; label: ReferenceLabel }[]
+  palette: string[]
+  /** One per image, '' where there is none; saved as the group's description. */
+  descriptions: string[]
+  source: 'upload' | 'grid'
+  onProgress: (done: number, total: number) => void
+  /** Message for a request that never came back. */
+  interrupted: string
+}
+
+/**
+ * Saves one reference group one image per request, so a big carousel stays under the server's request size
+ * limit: the first image starts the group, the rest are added after it. A group that fails halfway is deleted
+ * again, so the gallery never keeps half a carousel. Null when it worked, else the message to show.
+ */
+async function saveGroup({ images, palette, descriptions, source, onProgress, interrupted }: GroupToSave): Promise<string | null> {
+  const lines = descriptions.flatMap((description, position) => (description.trim() ? [`Slide ${position + 1}: ${description.trim()}`] : []))
+  const first = new FormData()
+  first.append('file', images[0].blob, 'referensi-1.jpg')
+  first.append('label', images[0].label)
+  first.set('palette', JSON.stringify(palette))
+  first.set('source', source)
+  if (lines.length > 0) first.set('description', lines.join('\n').slice(0, DESCRIPTION_MAX_LENGTH))
+  onProgress(1, images.length)
+  const started = await startReferenceGroupAction(first).catch(() => ({ error: interrupted }))
+  if ('error' in started) return started.error
+
+  for (const [position, image] of images.entries()) {
+    if (position === 0) continue
+    onProgress(position + 1, images.length)
+    const formData = new FormData()
+    formData.append('file', image.blob, `referensi-${position + 1}.jpg`)
+    formData.append('label', image.label)
+    const failure = await appendReferenceImageAction(started.id, formData).catch(() => interrupted)
+    if (failure) {
+      await deleteReferenceAction(started.id).catch(() => null)
+      return failure
+    }
+  }
+  return null
+}
+
+/** Width of the copies sent for AI labelling: the server shrinks them to 640 px anyway, and a small batch fits one request. */
+const PREVIEW_WIDTH = 640
+
+async function toPreviewJpeg(blob: Blob): Promise<Blob> {
+  const bitmap = await createImageBitmap(blob)
+  const scale = Math.min(1, PREVIEW_WIDTH / bitmap.width)
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('Canvas tidak tersedia di browser ini')
+  context.fillStyle = '#ffffff'
+  context.fillRect(0, 0, canvas.width, canvas.height)
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  bitmap.close()
+  const preview = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.8))
+  if (!preview) throw new Error('Gambar gagal dikonversi ke JPEG')
+  return preview
 }
 
 /** Tiles per classifyGridTilesAction call: one AI batch, so each call costs one batch's credits. */
@@ -318,7 +460,7 @@ function GridReferences({
               : t('referencesPanel.text15'),
         })
         const formData = new FormData()
-        for (const tile of batch) formData.append('tile', (await crop(tile)).blob, `potongan-${tile.index + 1}.jpg`)
+        for (const tile of batch) formData.append('tile', await toPreviewJpeg((await crop(tile)).blob), `potongan-${tile.index + 1}.jpg`)
         const response = await classifyGridTilesAction(formData).catch(() => ({
           error: t('shared.failed'),
         }))
@@ -353,19 +495,16 @@ function GridReferences({
     setProgress({ task: 'add', text: t('referencesPanel.text18', { v0: tiles.length }) })
     let failure: string | null
     try {
-      const formData = new FormData()
-      const descriptions: string[] = []
-      for (const [position, tile] of tiles.entries()) {
-        const detail = detailOf(tile)
-        const prepared = await crop(tile)
-        formData.append('file', prepared.blob, `potongan-${tile.index + 1}.jpg`)
-        formData.append('label', detail.label)
-        if (position === 0) formData.set('palette', JSON.stringify(prepared.palette))
-        if (detail.description.trim()) descriptions.push(`Slide ${position + 1}: ${detail.description.trim()}`)
-      }
-      if (descriptions.length > 0) formData.set('description', descriptions.join('\n').slice(0, DESCRIPTION_MAX_LENGTH))
-      formData.set('source', 'grid')
-      failure = await uploadReferenceAction(formData).catch(() => t('referencesPanel.text9'))
+      const prepared: { blob: Blob; palette: string[] }[] = []
+      for (const tile of tiles) prepared.push(await crop(tile))
+      failure = await saveGroup({
+        images: tiles.map((tile, position) => ({ blob: prepared[position].blob, label: detailOf(tile).label })),
+        palette: prepared[0].palette,
+        descriptions: tiles.map((tile) => detailOf(tile).description),
+        source: 'grid',
+        onProgress: (done, total) => setProgress({ task: 'add', text: t('referencesPanel.groupSaving', { v0: done, v1: total }) }),
+        interrupted: t('referencesPanel.text9'),
+      })
     } catch {
       failure = t('referencesPanel.text16')
     }

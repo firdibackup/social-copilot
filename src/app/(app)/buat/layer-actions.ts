@@ -6,6 +6,7 @@ import { refresh } from 'next/cache'
 import sharp from 'sharp'
 import { runLogged } from '@/lib/ai'
 import { imageModel } from '@/lib/app-settings'
+import { magicLayerUnits } from '@/lib/billing-options'
 import { createAsset, deleteAsset, InvalidImageError, loadAssetBytes } from '@/lib/assets'
 import { requireAccount } from '@/lib/auth'
 import { getBrandVisual, loadLogoBytes } from '@/lib/brand'
@@ -14,7 +15,7 @@ import { describeError } from '@/lib/errors'
 import { editAttemptActive, GenerationCancelled, watchGeneration } from '@/lib/generation-cancellation'
 import { imageErrorMessage } from '@/lib/image-ai'
 import { docAssetIds, isFontName, parseLayerDoc, type LayerDoc } from '@/lib/layer-doc'
-import { buildDoc, NoTextError, splitSlide } from '@/lib/magic-layers'
+import { buildDoc, GRAPHIC_KINDS, NoTextError, splitSlide, type GraphicKind, type PlacedGraphic } from '@/lib/magic-layers'
 import { isUuid } from '@/lib/params'
 import { getPost, type Post } from '@/lib/posts'
 import {
@@ -232,18 +233,22 @@ export async function magicLayersAction(input: {
           const meta = await sharp(png).metadata()
           object = { ...box, assetId: await store(png, meta.width, meta.height) }
         }
-        const visual = await getBrandVisual(userId)
+        // Each crop is exactly its box (w × h), cut from the original slide.
+        const images: PlacedGraphic[] = []
+        for (const { bytes: crop, ...box } of split.images) images.push({ ...box, assetId: await store(crop, box.w, box.h) })
+        const labels = Object.fromEntries(GRAPHIC_KINDS.map((kind) => [kind, t(`magicLabels.${kind}`)])) as Record<GraphicKind, string>
+        const visual = await getBrandVisual(userId, accountId)
         const fonts = {
           heading: isFontName(visual?.headingFont) ? visual.headingFont : DEFAULT_HEADING_FONT,
           body: isFontName(visual?.bodyFont) ? visual.bodyFont : DEFAULT_BODY_FONT,
         }
-        const doc = buildDoc(media.width, media.height, split.blocks, fonts, object)
+        const doc = buildDoc(media.width, media.height, split.blocks, fonts, object, { images, shapes: split.shapes, labels })
         await watch!.check()
         await finishMagicLayers(userId, { id: operationId, postId, assetId, baseAssetId, doc })
         created.length = 0
         return split
       },
-      { model: await imageModel(), units: splitObject ? 2 : 1, logOutput: (split) => split.log },
+      { model: await imageModel(), units: magicLayerUnits(splitObject), logOutput: (split) => split.log },
     )
     refresh()
     return { ok: true, notice: splitObject && !result.object ? t('noObject') : null }
@@ -301,7 +306,7 @@ export async function logoLayerAssetAction(): Promise<{ assetId: string; width: 
   const locale = await getLocale()
   const { userId, accountId } = await requireAccount()
   try {
-    const logo = await loadLogoBytes(userId)
+    const logo = await loadLogoBytes(userId, accountId)
     if (!logo) return { error: t('noLogo') }
     // A PNG keeps the logo's transparency.
     const { data, info } = await sharp(logo).rotate()

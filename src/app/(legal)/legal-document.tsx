@@ -3,7 +3,7 @@ import { connection } from 'next/server'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { Suspense, type ReactNode } from 'react'
 import { intlLocale, resolveLocale } from '@/i18n/locale-config'
-import { getBillingCatalog } from '@/lib/billing-catalog'
+import { getDisplayedBillingCatalog } from '@/lib/billing-catalog'
 import { DEFAULT_CATALOG } from '@/lib/billing-catalog-options'
 import { formatRupiah } from '@/lib/billing-options'
 import { COMPANY, supportMailto } from '@/lib/company'
@@ -158,14 +158,14 @@ async function PlanBlock() {
 /** The plans as the admin set them (/admin/pengaturan); read per request. */
 async function PlanTerms() {
   await connection()
-  const [t, locale, billing] = await Promise.all([
+  const [t, locale, catalog] = await Promise.all([
     getTranslations('legal'),
     getLocale().then(resolveLocale),
-    getBillingCatalog().catch(() => ({ catalog: DEFAULT_CATALOG })),
+    getDisplayedBillingCatalog().catch(() => DEFAULT_CATALOG),
   ])
   return (
     <ul className="list-none space-y-2.5 pl-0">
-      {billing.catalog.plans.filter((plan) => plan.active).flatMap((plan) => [
+      {catalog.plans.filter((plan) => plan.active).flatMap((plan) => [
         <Bullet key={`${plan.id}-price`}>{t('layout.planPrice', { name: plan.name, price: formatRupiah(plan.priceIdr, locale) })}</Bullet>,
         <Bullet key={`${plan.id}-credits`}>{t('layout.planCredits', { name: plan.name, credits: plan.credits.toLocaleString(intlLocale(locale)) })}</Bullet>,
       ])}

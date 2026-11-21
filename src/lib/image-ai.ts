@@ -267,7 +267,7 @@ interface PackedImages {
  * Input images in priority order: current slide, the owner's attachment, product identity, design reference or style
  * example, sibling inner slide, logo. They are packed only while they fit the 1 MB request limit in front of 9Router.
  */
-async function packImages(userId: string, input: ImageInput): Promise<PackedImages> {
+async function packImages(userId: string, accountId: string | null, input: ImageInput): Promise<PackedImages> {
   const packed: PackedImages = { images: [], described: [], skipped: [] }
   const { currentImage, attachment, siblingImage, referenceImageId, example, productGroupId } = input
   const candidates: {
@@ -285,7 +285,7 @@ async function packImages(userId: string, input: ImageInput): Promise<PackedImag
     })
   }
   if (productGroupId) {
-    const products = await loadProductImages(userId, productGroupId)
+    const products = accountId ? await loadProductImages(userId, accountId, productGroupId) : []
     for (const product of products) {
       candidates.push({ kind: 'product', load: async () => ({ dataUrl: product.dataUrl, note: product.title }) })
     }
@@ -306,7 +306,7 @@ async function packImages(userId: string, input: ImageInput): Promise<PackedImag
     candidates.push({
       kind: 'logo',
       load: async () => {
-        const dataUrl = await loadLogoImage(userId)
+        const dataUrl = accountId ? await loadLogoImage(userId, accountId) : null
         return dataUrl ? { dataUrl } : null
       },
     })
@@ -353,11 +353,12 @@ export interface DrawnImage {
 
 /**
  * One image from 9Router. Not logged or charged here: callers wrap it in runLogged with their own task and cost,
- * and log the prompt and byte count, never image data.
+ * and log the prompt and byte count, never image data. The brand, logo and products are the given account's, never
+ * whichever is connected now; without an account (an old post) the image comes out without them.
  */
-export async function drawImage(userId: string, input: ImageInput, signal?: AbortSignal): Promise<DrawnImage> {
+export async function drawImage(userId: string, accountId: string | null, input: ImageInput, signal?: AbortSignal): Promise<DrawnImage> {
   signal?.throwIfAborted()
-  const [brand, packed] = await Promise.all([orNull(() => getBrandVisual(userId), 'brand kit'), packImages(userId, input)])
+  const [brand, packed] = await Promise.all([orNull(async () => (accountId ? getBrandVisual(userId, accountId) : null), 'brand kit'), packImages(userId, accountId, input)])
   const prompt = buildImagePrompt(input, brand, packed.described)
   signal?.throwIfAborted()
   const b64 = await generateImage({ prompt, size: IMAGE_FORMATS[input.format].size, images: packed.images }, undefined, signal)

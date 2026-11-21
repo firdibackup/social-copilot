@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { addReference, setReferenceImageLabel, updateReference } from '@/lib/brand'
+import { addReference, appendReferenceImage, setReferenceImageLabel, updateReference } from '@/lib/brand'
 import { analyzeProfile } from '@/lib/brand-ai'
 import { getValidAccessToken } from '@/lib/connection'
 import { fetchOwnProfile, fetchRecentMedia } from '@/lib/instagram'
@@ -9,10 +9,12 @@ import { ApifyError, fetchProfilePosts } from '@/lib/apify'
 import type { InstagramPost } from '@/lib/instagram'
 import {
   analyzeProfileAction,
+  appendReferenceImageAction,
   classifyGridTilesAction,
   importReferencesAction,
   listProfilePostsAction,
   setReferenceLabelAction,
+  startReferenceGroupAction,
   uploadReferenceAction,
 } from './actions'
 
@@ -59,6 +61,7 @@ vi.mock('@/lib/auth', () => ({ requireAccount: vi.fn(async () => ({ userId: 'use
 vi.mock('@/lib/brand', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/brand')>()),
   addReference: vi.fn(),
+  appendReferenceImage: vi.fn(),
   setReferenceImageLabel: vi.fn(),
   updateReference: vi.fn(),
 }))
@@ -169,6 +172,46 @@ describe('uploadReferenceAction', () => {
 
     await expect(uploadReferenceAction(form)).resolves.toBe('Label tidak valid.')
     expect(addReference).not.toHaveBeenCalled()
+  })
+})
+
+describe('one image per request', () => {
+  it('starts a group from its first image and returns its id', async () => {
+    const form = new FormData()
+    form.append('file', jpeg())
+    form.append('label', 'cover')
+
+    await expect(startReferenceGroupAction(form)).resolves.toEqual({ id: 'ref-1' })
+    expect(addReference).toHaveBeenCalledWith('user-1', 'ig-1', expect.objectContaining({ labels: ['cover'] }))
+  })
+
+  it('refuses to start a group with more than one image', async () => {
+    const form = new FormData()
+    form.append('file', jpeg())
+    form.append('file', jpeg())
+
+    await expect(startReferenceGroupAction(form)).resolves.toEqual({ error: 'File tidak ditemukan.' })
+    expect(addReference).not.toHaveBeenCalled()
+  })
+
+  it('adds the next image with its label', async () => {
+    vi.mocked(appendReferenceImage).mockReset().mockResolvedValue({ id: 'img-2' })
+    const form = new FormData()
+    form.append('file', jpeg())
+    form.append('label', 'cta')
+
+    await expect(appendReferenceImageAction(IMAGE_ID, form)).resolves.toBeNull()
+    expect(appendReferenceImage).toHaveBeenCalledWith('user-1', IMAGE_ID, expect.objectContaining({ type: 'image/jpeg' }), 'cta')
+  })
+
+  it('reports a full or missing group', async () => {
+    const form = new FormData()
+    form.append('file', jpeg())
+    form.append('label', 'isi')
+    vi.mocked(appendReferenceImage).mockReset().mockResolvedValue('full')
+    await expect(appendReferenceImageAction(IMAGE_ID, form)).resolves.toBe('Maksimal 20 gambar untuk satu referensi.')
+    vi.mocked(appendReferenceImage).mockResolvedValue('missing')
+    await expect(appendReferenceImageAction(IMAGE_ID, form)).resolves.toBe('Referensi tidak ditemukan.')
   })
 })
 

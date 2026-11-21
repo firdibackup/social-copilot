@@ -318,16 +318,19 @@ function PlanCard({ plan, checked, onSelect }: { plan: CatalogPlan; checked: boo
         </span>
       </span>
 
-      <span className="mt-3 flex items-center gap-3 rounded-xl bg-[linear-gradient(120deg,rgba(254,218,117,0.16),rgba(214,41,118,0.10)_55%,rgba(79,91,213,0.12))] px-3 py-2.5 ring-1 ring-[rgba(214,41,118,0.15)] ring-inset">
-        <InstagramAiIcon width={22} height={22} className="shrink-0" />
-        <span className="min-w-0">
-          <span className="block text-sm font-semibold text-ink">{t('research')}</span>
-          <span className="block bg-[linear-gradient(90deg,#FA7E1E,#D62976,#962FBF)] bg-clip-text text-[11px] font-semibold tracking-wide text-transparent uppercase">{t('featured')}</span>
+      {plan.researchDaily > 0 && (
+        <span className="mt-3 flex items-center gap-3 rounded-xl bg-[linear-gradient(120deg,rgba(254,218,117,0.16),rgba(214,41,118,0.10)_55%,rgba(79,91,213,0.12))] px-3 py-2.5 ring-1 ring-[rgba(214,41,118,0.15)] ring-inset">
+          <InstagramAiIcon width={22} height={22} className="shrink-0" />
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-ink">{t('research')}</span>
+            <span className="block bg-[linear-gradient(90deg,#FA7E1E,#D62976,#962FBF)] bg-clip-text text-[11px] font-semibold tracking-wide text-transparent uppercase">{t('featured')}</span>
+          </span>
         </span>
-      </span>
+      )}
 
-      {(plan.prioritySupport || plan.earlyAccess || plan.id === 'max') && (
+      {(plan.prioritySupport || plan.earlyAccess || plan.id === 'pro' || plan.id === 'max') && (
         <span className="mt-3 block space-y-2 text-sm text-ink">
+          {(plan.id === 'pro' || plan.id === 'max') && <span className="flex items-center gap-2.5"><Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />{t('fasterImages')}</span>}
           {plan.id === 'max' && <span className="flex items-center gap-2.5"><Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />{t('priority')}</span>}
           {plan.prioritySupport && <span className="flex items-center gap-2.5"><Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />{t('support')}</span>}
           {plan.earlyAccess && <span className="flex items-center gap-2.5"><Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />{t('earlyAccess')}</span>}

@@ -52,9 +52,15 @@ export const TASK_CREDITS: Record<LoggedTask, number> = {
   chat: 0,
   deep_search: 0,
   chat_summary: 0,
-  /** Per slide; splitting out the person/object (beta) is a second unit. Not in the trial. */
+  /** Per unit: see magicLayerUnits. Not in the trial. */
   magic_layers: 10,
 }
+
+/**
+ * Units of the magic_layers rate one run costs: 2 for the text (it is read by a stronger vision model), one more
+ * for splitting out the person/object (beta).
+ */
+export const magicLayerUnits = (splitObject: boolean) => (splitObject ? 3 : 2)
 
 /** One-time free credits for a user who has never paid or whose period ended. They never reset. */
 export const TRIAL_CREDITS = 3

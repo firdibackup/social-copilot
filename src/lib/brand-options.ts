@@ -122,6 +122,23 @@ export function labelsForCount(count: number): ReferenceLabel[] {
   })
 }
 
+const GROUP_RANK: Record<ReferenceLabel, number> = { cover: 0, isi: 1, cta: 2, single: 1 }
+
+/**
+ * Images uploaded together as one carousel, in carousel order with the labels the AI read: covers first, then
+ * inner slides, then CTAs, each kept in upload order. An image the AI could not read (null) or read as a general
+ * design becomes an inner slide, and without a cover the first non-CTA image becomes it. When the AI read none,
+ * the upload order is kept and labelled by position.
+ */
+export function arrangeGroup(read: (ReferenceLabel | null)[]): { order: number[]; labels: ReferenceLabel[] } {
+  if (read.every((label) => label === null)) return { order: read.map((_, index) => index), labels: labelsForCount(read.length) }
+  if (read.length === 1) return { order: [0], labels: ['single'] }
+  const labels = read.map((label): ReferenceLabel => (label === null || label === 'single' ? 'isi' : label))
+  if (!labels.includes('cover')) labels[Math.max(0, labels.findIndex((label) => label !== 'cta'))] = 'cover'
+  const order = labels.map((_, index) => index).sort((a, b) => GROUP_RANK[labels[a]] - GROUP_RANK[labels[b]] || a - b)
+  return { order, labels: order.map((index) => labels[index]) }
+}
+
 export interface LabeledImage {
   position: number
   label: ReferenceLabel

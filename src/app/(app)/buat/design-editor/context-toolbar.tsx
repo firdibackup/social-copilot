@@ -6,6 +6,7 @@ import { Bold, ChevronDown, ChevronUp, Copy, Italic, TextAlignCenter, TextAlignE
 import { FontPicker } from '@/components/font-picker'
 import { colorHex, hexColor, type DesignNode, type DesignPage, type Paint, type TextNode } from '@/lib/design-doc'
 import { boxChanges, evalNumber, nodeBox, restyle } from '@/lib/design-nodes'
+import { isLineKind } from '@/lib/shape-paths'
 
 const BAR = 'pointer-events-auto flex max-w-full items-center gap-0.5 overflow-x-auto rounded-xl border border-hairline bg-white p-1 shadow-[0_6px_20px_-8px_rgba(23,24,39,0.28)]'
 const TOOL = 'inline-flex h-8 min-w-8 shrink-0 items-center justify-center gap-1 rounded-lg px-1.5 text-sm text-ink hover:bg-zinc-100 aria-pressed:bg-accent-soft aria-pressed:text-accent disabled:opacity-40'
@@ -81,7 +82,7 @@ export function ContextToolbar({ page, node, onEdit, onPage, onDuplicate, onDele
     </>
   } else if (node.type === 'shape') {
     tools = <>
-      {node.kind !== 'line' && node.kind !== 'arrow' && <ColorField label={t('fill')} value={paintHex(node.fill)} onChange={hex => edit({ fill: { type: 'solid', color: hexColor(hex) } })} />}
+      {(node.kind === 'path' ? node.fill.type !== 'none' : !isLineKind(node.kind)) && <ColorField label={t('fill')} value={paintHex(node.fill)} onChange={hex => edit({ fill: { type: 'solid', color: hexColor(hex) } })} />}
       {node.stroke && <ColorField label={t('color')} value={colorHex(node.stroke.color)} onChange={hex => edit({ stroke: { ...node.stroke!, color: hexColor(hex) } })} />}
       {node.kind === 'rect' && <>
         <span className="px-1 text-xs text-ink-muted">{t('radius')}</span>

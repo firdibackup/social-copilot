@@ -189,7 +189,6 @@
     "features": {
       "posts": "±{formattedCount} post setiap bulan",
       "chatbot": "Mimo AI Chatbot",
-      "research": "Riset mendalam Instagram + Threads (Threads segera hadir)",
       "creation": "Ide, skrip, carousel, gambar, dan caption dengan AI",
       "calendar": "Kalender dan penjadwalan konten",
       "accounts": "1 akun Instagram + 1 akun Threads (segera hadir)",
@@ -209,7 +208,10 @@
     "upfront": "Sekali bayar di muka · {amount}/{count} bulan",
     "choose": "Pilih {name}",
     "provisional": "Harga dapat berubah. Harga terbaru dikonfirmasi sebelum pembayaran.",
-    "joinWaitlist": "Gabung daftar tunggu"
+    "joinWaitlist": "Gabung daftar tunggu",
+    "research": "Riset langsung Instagram",
+    "featured": "Fitur unggulan",
+    "fasterImages": "2x lebih cepat generate gambar"
   },
   "story": {
     "showcase": {

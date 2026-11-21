@@ -10,7 +10,9 @@
 .durations span { font-size: 11px; font-weight: 600; color: #5b4d79; background: #e4deef; border-radius: 5px; padding: 2px 6px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 22px; align-items: stretch; }
 .plan { padding: 34px; background: #fff; border: 1px solid #e2ddec; border-radius: 20px; }
-.max { border-color: #a9a1ff; background: #fdfcff; box-shadow: 0 14px 35px -24px #5145d845; }
+.lead { position: relative; overflow: hidden; border-color: #a9a1ff; background: #fdfcff; box-shadow: 0 22px 45px -26px #5145d860; }
+/* Inside the border and clipped by the card's radius, so the bar follows the rounded corners. */
+.lead::before { content: ''; position: absolute; inset: 0 0 auto; height: 4px; background-image: var(--signature-full); }
 .planTitle { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .planTitle h3 { font-family: var(--font-display); font-size: 28px; line-height: 1.2; font-weight: 650; margin: 0; color: #302650; }
 .planTitle > span { font-size: 12px; font-weight: 600; color: #5145d8; background: #e9e5ff; padding: 5px 10px; border-radius: 7px; }
@@ -21,9 +23,16 @@
 .total { margin: 6px 0 18px; font-size: 13px; line-height: 1.7; color: #656078; font-variant-numeric: tabular-nums; }
 .choose { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 48px; background: #f4f1ff; border: 1px solid #ddd7ee; border-radius: 10px; color: #5145d8; font-weight: 600; transition: background .15s; }
 .choose:hover { background: #e9e5ff; }
-.max .choose { color: white; background: #6558f5; border-color: #6558f5; }
-.max .choose:hover { background: #5145d8; }
-.choose.waitlist, .max .choose.waitlist { color: #656078; background: #f4f3f7; border-color: #e2ddec; border-style: dashed; }
+.lead .choose { color: white; background-image: var(--signature-deep); border-color: #4b3ff0; }
+.lead .choose:hover { background-image: var(--signature-deep-hover); }
+.choose.waitlist, .lead .choose.waitlist { color: #656078; background: #f4f3f7; border-color: #e2ddec; border-style: dashed; }
+.perks { display: grid; gap: 10px; margin-top: 22px; }
+.perk { display: flex; align-items: center; gap: 12px; margin: 0; padding: 10px 12px; border-radius: 12px; }
+.perk strong { display: block; font-size: 14px; font-weight: 600; line-height: 1.4; color: #302650; }
+.perk small { display: block; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; background-image: linear-gradient(90deg, #c2410c, #be185d, #7e22ce); background-clip: text; -webkit-background-clip: text; color: transparent; }
+.perkIcon { flex-shrink: 0; }
+.perkResearch { background: linear-gradient(120deg, rgb(254 218 117 / .16), rgb(214 41 118 / .10) 55%, rgb(79 91 213 / .12)); box-shadow: inset 0 0 0 1px rgb(214 41 118 / .15); }
+.perkFast { background: linear-gradient(120deg, rgb(101 88 245 / .09), rgb(56 198 230 / .09) 60%, rgb(245 154 200 / .10)); box-shadow: inset 0 0 0 1px rgb(79 123 255 / .18); }
 .plan ul { display: grid; gap: 13px; list-style: none; margin: 26px 0 0; padding: 24px 0 0; border-top: 1px solid #eeeaf5; }
 .plan li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: #494257; line-height: 1.5; }
 .plan li svg { color: #6558f5; flex-shrink: 0; margin-top: 3px; }
@@ -32,6 +41,8 @@
   .section { padding: 64px 20px; }
   .grid { grid-template-columns: 1fr; gap: 18px; }
   .plan { padding: 26px 22px; }
+  /* One column: the plan on sale comes first. */
+  .lead { order: -1; }
   .durations { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .durations button { font-size: 13px; padding: 10px 8px; }
   .description { min-height: 0; }

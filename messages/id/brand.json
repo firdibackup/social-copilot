@@ -186,7 +186,12 @@
     "otherPlaceholder": "mis. instagram.com/namaakun atau @namaakun",
     "otherSubmit": "Ambil post",
     "otherHint": "Kuota ambil desain dari akun lain terbatas setiap minggu. Pilih akun yang paling menginspirasi.",
-    "otherLoading": "Mengambil desain dari @{username}… Bisa makan waktu 30–60 detik."
+    "otherLoading": "Mengambil desain dari @{username}… Bisa makan waktu 30–60 detik.",
+    "groupPreparing": "Menyiapkan {v0} dari {v1}…",
+    "groupDetecting": "Memilih cover, isi, dan CTA…",
+    "groupSaving": "Menyimpan gambar {v0} dari {v1}…",
+    "groupUnread": "{v0} gambar tidak terbaca AI dan dijadikan Isi. Periksa labelnya di kartu referensi.",
+    "groupUnreadAll": "AI belum bisa memilih cover, isi, dan CTA ({v0}). Gambar disimpan sesuai urutan unggah; ubah labelnya di kartu referensi bila perlu."
   },
   "strategyCard": {
     "text1": "Susun ulang strategi dengan AI?",

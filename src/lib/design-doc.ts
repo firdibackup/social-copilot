@@ -2,6 +2,7 @@
 import { isFontName, parseLayerDoc, type LayerDoc } from './layer-doc'
 import { isFieldConfig, type FieldConfig } from './design-fields'
 import { inspectCaption } from './caption'
+import { copyPathPoints, isPathPoints, isShapeKind, isStrokeDash, type PathPoint, type ShapeKind, type StrokeDash } from './shape-paths'
 export type { FieldConfig } from './design-fields'
 
 export type Color = { srgb: { r: number; g: number; b: number; a: number } }
@@ -44,10 +45,14 @@ export interface TextNode extends BaseNode {
 export interface ImageNode extends BaseNode { type: 'image'; fill: Extract<Paint, { type: 'image' }> }
 export interface ShapeNode extends BaseNode {
   type: 'shape'
-  kind: 'rect' | 'ellipse' | 'triangle' | 'line' | 'arrow'
+  /** Geometry lives in shape-paths.ts; line kinds are stroked only. 'path' draws `path` instead. */
+  kind: ShapeKind | 'path'
   cornerRadius: number
   fill: Paint
-  stroke?: { color: Color; width: number }
+  /** `dash` absent means solid. */
+  stroke?: { color: Color; width: number; dash?: StrokeDash }
+  /** Kind 'path' only (and required there): points and handles as fractions of `size`. */
+  path?: { points: PathPoint[]; closed: boolean }
 }
 export interface GroupNode extends BaseNode { type: 'group'; children: DesignNode[] }
 export type DesignNode = TextNode | ImageNode | ShapeNode | GroupNode
@@ -142,9 +147,13 @@ function node(v: unknown, ids: Set<string>, depth: number, budget: { count: numb
   if (v.type === 'group') return keys(v, [...BASE_KEYS, 'children']) && Array.isArray(v.children)
     && v.children.every((child) => node(child, ids, depth + 1, budget))
   if (v.type === 'image') return keys(v, [...BASE_KEYS, 'fill']) && paint(v.fill) && v.fill.type === 'image'
-  if (v.type === 'shape') return keys(v, [...BASE_KEYS, 'kind', 'cornerRadius', 'fill', 'stroke'])
-    && oneOf(v.kind, ['rect', 'ellipse', 'triangle', 'line', 'arrow']) && number(v.cornerRadius, 0, 4000) && paint(v.fill)
-    && (v.stroke === undefined || (object(v.stroke) && keys(v.stroke, ['color', 'width']) && color(v.stroke.color) && number(v.stroke.width, 0, 512)))
+  if (v.type === 'shape') return keys(v, [...BASE_KEYS, 'kind', 'cornerRadius', 'fill', 'stroke', 'path'])
+    && (isShapeKind(v.kind) || v.kind === 'path') && number(v.cornerRadius, 0, 4000) && paint(v.fill)
+    && (v.stroke === undefined || (object(v.stroke) && keys(v.stroke, ['color', 'width', 'dash']) && color(v.stroke.color)
+      && number(v.stroke.width, 0, 512) && (v.stroke.dash === undefined || isStrokeDash(v.stroke.dash))))
+    && (v.kind === 'path'
+      ? object(v.path) && keys(v.path, ['points', 'closed']) && isPathPoints(v.path.points) && typeof v.path.closed === 'boolean'
+      : v.path === undefined)
   if (v.type !== 'text' || !keys(v, [...BASE_KEYS, 'box', 'content']) || !object(v.box)
     || !keys(v.box, ['mode', 'width', 'height', 'autoFit', 'verticalAlign']) || !oneOf(v.box.mode, ['fixed', 'autoHeight', 'autoWidth'])
     || !number(v.box.width, 0.01, 8000) || !number(v.box.height, 0.01, 8000) || !oneOf(v.box.verticalAlign, ['top', 'middle', 'bottom'])
@@ -236,12 +245,19 @@ export function migrateLayerDoc(legacy: LayerDoc, identity: { id: string; pageId
   if ('error' in parsed || identity.nodeIds.length !== legacy.layers.length + (originalAssetId ? 1 : 0)) throw new Error('invalid_legacy_design')
   const { doc } = parsed
   const children: DesignNode[] = doc.layers.map((layer, index) => {
-    const base: BaseNode = { id: identity.nodeIds[index], name: layer.name ?? (layer.kind === 'text' ? layer.text.slice(0, 80) : layer.kind === 'shape' ? layer.shape : layer.role),
+    const base: BaseNode = { id: identity.nodeIds[index], name: layer.name ?? (layer.kind === 'text' ? layer.text.slice(0, 80)
+      : layer.kind === 'shape' ? layer.shape : layer.kind === 'path' ? 'path' : layer.role),
       transform: { x: layer.x, y: layer.y, scaleX: 1, scaleY: 1, rotation: layer.rotation ?? 0 }, size: { width: layer.w, height: layer.h }, opacity: layer.opacity ?? 1,
       ...(layer.locked !== undefined ? { locked: layer.locked } : {}), ...(layer.hidden !== undefined ? { hidden: layer.hidden } : {}),
       ...(layer.field ? { data: { carousely: { field: layer.field } } } : {}) }
-    if (layer.kind === 'shape') return { ...base, type: 'shape', kind: layer.shape, cornerRadius: layer.radius,
-      fill: { type: 'solid', color: hexColor(layer.color) }, stroke: { color: hexColor(layer.strokeColor), width: layer.strokeWidth } }
+    if (layer.kind === 'shape' || layer.kind === 'path') {
+      const stroke = { color: hexColor(layer.strokeColor), width: layer.strokeWidth, ...(layer.dash ? { dash: layer.dash } : {}) }
+      if (layer.kind === 'shape') return { ...base, type: 'shape', kind: layer.shape, cornerRadius: layer.radius,
+        fill: { type: 'solid', color: hexColor(layer.color) }, stroke }
+      return { ...base, type: 'shape', kind: 'path', cornerRadius: 0,
+        fill: layer.fill ? { type: 'solid', color: hexColor(layer.color) } : { type: 'none' }, stroke,
+        path: { points: copyPathPoints(layer.points), closed: layer.closed } }
+    }
     if (layer.kind === 'image') return { ...base, type: 'image', fill: { type: 'image', assetId: layer.assetId, fit: 'stretch' },
       data: { carousely: { ...base.data?.carousely, role: layer.role } } }
     const style: TextStyle = { fontFamily: layer.font, fontStyle: layer.italic ? 'Italic' : 'Regular', fontSize: layer.size,

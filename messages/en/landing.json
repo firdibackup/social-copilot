@@ -189,7 +189,6 @@
     "features": {
       "posts": "±{formattedCount} {count, plural, one {post} other {posts}} each month",
       "chatbot": "Mimo AI Chatbot",
-      "research": "Instagram + Threads deep research (Threads coming soon)",
       "creation": "AI ideas, scripts, carousels, images, and captions",
       "calendar": "Content calendar and scheduling",
       "accounts": "1 Instagram account + 1 Threads account",
@@ -209,7 +208,10 @@
     "upfront": "Paid once upfront · {amount}/{count} mo",
     "choose": "Choose {name}",
     "provisional": "Prices may change. Current pricing is confirmed before payment.",
-    "joinWaitlist": "Join the waitlist"
+    "joinWaitlist": "Join the waitlist",
+    "research": "Direct Instagram research",
+    "featured": "Featured",
+    "fasterImages": "2x faster image generation"
   },
   "story": {
     "showcase": {

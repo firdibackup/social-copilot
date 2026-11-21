@@ -3,8 +3,7 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { LandingPage } from '@/components/landing/landing-page'
 import { IntlMessages } from '@/i18n/client-messages'
 import { Suspense } from 'react'
-import { connection } from 'next/server'
-import { getBillingCatalog } from '@/lib/billing-catalog'
+import { getDisplayedBillingCatalog } from '@/lib/billing-catalog'
 import { DEFAULT_CATALOG } from '@/lib/billing-catalog-options'
 import { LandingPricing } from '@/components/landing/landing-pricing'
 import { siteUrl } from '@/lib/site'
@@ -60,7 +59,6 @@ export default function Page() {
 }
 
 async function Pricing() {
-  await connection()
-  const billing = await getBillingCatalog().catch(() => null)
-  return <LandingPricing catalog={billing?.catalog ?? DEFAULT_CATALOG} />
+  const catalog = await getDisplayedBillingCatalog().catch(() => DEFAULT_CATALOG)
+  return <LandingPricing catalog={catalog} />
 }

@@ -4,7 +4,7 @@ import { useLocale, useTranslations } from 'next-intl'
 import { Check, Sparkles, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { CancelGenerationButton } from '@/components/cancel-generation-button'
-import { formatCreditShare } from '@/lib/billing-options'
+import { formatCreditShare, magicLayerUnits } from '@/lib/billing-options'
 
 /** Seconds into the one request at which each step starts; it is a single call, so the steps are an estimate. */
 const STEP_AT = { read: 0, erase: 10, object: 35, finish: 45 }
@@ -50,7 +50,7 @@ export function MagicLayersDialog({ slide, rate, planCredits, credits, trial, on
     return () => window.clearInterval(timer)
   }, [running])
 
-  const cost = rate * (splitObject ? 2 : 1)
+  const cost = rate * magicLayerUnits(splitObject)
   const short = credits !== null && cost > credits
   const steps = [
     { key: 'read', at: STEP_AT.read, label: t('magic.stepRead') },
@@ -147,7 +147,7 @@ export function MagicLayersDialog({ slide, rate, planCredits, credits, trial, on
                 <span className="text-ink-muted">{t('magic.costLabel')}</span>
                 <span className="font-semibold text-ink tabular-nums">
                   {t('magic.cost', { share: formatCreditShare(cost, planCredits, locale) })}
-                  {splitObject && <span className="ml-1 text-xs font-normal text-ink-muted">(×2)</span>}
+                  <span className="ml-1 text-xs font-normal text-ink-muted">(×{magicLayerUnits(splitObject)})</span>
                 </span>
               </p>
               {trial !== null && <p className="text-xs text-ink-muted">{t('magic.notInTrial')}</p>}

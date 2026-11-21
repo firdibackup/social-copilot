@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   clampBox, commit, createHistory, docAssetIds, fontShorthand, hitTest, isOutside, LAYER_LIMITS, lineBaseline, lineStart,
   newTextLayer, newShapeLayer, duplicateLayer, parseLayerDoc, redo, reorder, resizeBox, snapBox, TEXT_WEIGHTS, undo, wrapText, type LayerDoc,
-  type TextLayer,
+  type TextLayer, newPathLayer, normalizePath, pathPointsAbsolute, type PathLayer,
 } from './layer-doc'
+import { LINE_KINDS, SHAPE_KINDS } from './shape-paths'
 
 const ASSET = '11111111-1111-4111-8111-111111111111'
 const text: TextLayer = {
@@ -192,6 +193,89 @@ describe('editor elements', () => {
       expect(parseLayerDoc({ ...sample, layers: [layer] })).toEqual({ doc: { ...sample, layers: [layer] } })
       expect(parseLayerDoc({ ...sample, layers: [{ ...layer, radius: -1 }] })).toHaveProperty('error')
     }
+  })
+
+  it('accepts every shape kind, with or without a dash, and refuses unknown kinds and dashes', () => {
+    for (const shape of SHAPE_KINDS) {
+      const layer = newShapeLayer(sample, shape)
+      expect(layer.strokeWidth > 0).toBe(LINE_KINDS.includes(shape as never))
+      for (const dash of [undefined, 'dashed', 'dotted'] as const) {
+        const styled = dash ? { ...layer, dash } : layer
+        expect(parseLayerDoc({ ...sample, layers: [styled] })).toEqual({ doc: { ...sample, layers: [styled] } })
+      }
+    }
+    const rect = newShapeLayer(sample, 'rect')
+    for (const bad of [{ ...rect, shape: 'blob' }, { ...rect, dash: 'dashdot' }, { ...rect, dash: null }, { ...rect, extra: 1 }]) {
+      expect(parseLayerDoc({ ...sample, layers: [bad] })).toEqual({ error: 'layer' })
+    }
+  })
+})
+
+describe('path layers', () => {
+  const path: PathLayer = {
+    id: 'p1', kind: 'path', x: 100, y: 200, w: 400, h: 300, closed: true, fill: true,
+    color: '#6558F5', strokeColor: '#171827', strokeWidth: 4, dash: 'dotted', opacity: 0.8, rotation: 10,
+    points: [{ x: 0, y: 0, out: { x: 0.3, y: -0.2 } }, { x: 1, y: 0, in: { x: 0.7, y: -0.2 } }, { x: 0.5, y: 1 }],
+  }
+
+  it('round-trips a valid path and drops nothing', () => {
+    expect(parseLayerDoc({ ...sample, layers: [path] })).toEqual({ doc: { ...sample, layers: [path] } })
+    const open = { ...path, closed: false, fill: false, dash: undefined }
+    delete open.dash
+    expect(parseLayerDoc({ ...sample, layers: [open] })).toEqual({ doc: { ...sample, layers: [open] } })
+  })
+
+  it('refuses malformed paths', () => {
+    const point = { x: 0.5, y: 0.5 }
+    for (const bad of [
+      { ...path, points: [point] },
+      { ...path, points: Array.from({ length: 101 }, () => point) },
+      { ...path, points: [point, { x: 2.5, y: 0 }] },
+      { ...path, points: [point, { x: 0, y: -1.5 }] },
+      { ...path, points: [point, { x: 0, y: Number.NaN }] },
+      { ...path, points: [point, { x: 0, y: 0, in: { x: 0, y: 3 } }] },
+      { ...path, points: [point, { x: 0, y: 0, out: { x: 0, y: 0, z: 1 } }] },
+      { ...path, points: [point, { x: 0, y: 0, weight: 1 }] },
+      { ...path, points: 'M0 0' },
+      { ...path, closed: 'yes' },
+      { ...path, fill: 1 },
+      { ...path, color: 'red' },
+      { ...path, strokeWidth: 101 },
+      { ...path, dash: 'long' },
+      { ...path, radius: 0 },
+      { ...path, shape: 'rect' },
+    ]) {
+      expect(parseLayerDoc({ ...sample, layers: [bad] })).toEqual({ error: 'layer' })
+    }
+  })
+
+  it('normalizes absolute pen points into a box and fractions, and back', () => {
+    const absolute = [{ x: 100, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 200, in: { x: 350, y: 150 } }]
+    const normal = normalizePath(absolute)!
+    expect(normal.box.x).toBe(100)
+    expect(normal.box.y).toBe(100)
+    // The curve bulges right of x = 300 but never reaches its handle.
+    expect(normal.box.w).toBeGreaterThan(200)
+    expect(normal.box.w).toBeLessThan(250)
+    expect(normal.box.h).toBeCloseTo(100)
+    const layer = { ...normal.box, points: normal.points }
+    const back = pathPointsAbsolute(layer)
+    back.forEach((point, index) => {
+      expect(point.x).toBeCloseTo(absolute[index].x)
+      expect(point.y).toBeCloseTo(absolute[index].y)
+    })
+    expect(back[2].in!.x).toBeCloseTo(350)
+    expect(normalizePath([{ x: 1, y: 1 }])).toBeNull()
+  })
+
+  it('gives straight horizontal strokes a usable box and builds a valid layer', () => {
+    const normal = normalizePath([{ x: 10, y: 50 }, { x: 210, y: 50 }])!
+    expect(normal.box).toEqual({ x: 10, y: 49.5, w: 200, h: 1 })
+    expect(normal.points).toEqual([{ x: 0, y: 0.5 }, { x: 1, y: 0.5 }])
+    const layer = newPathLayer(sample, [{ x: 100, y: 100 }, { x: 400, y: 120 }, { x: 250, y: 400 }], true)!
+    expect(layer).toMatchObject({ kind: 'path', closed: true, fill: true, x: 100, y: 100, w: 300, h: 300 })
+    expect(parseLayerDoc({ ...sample, layers: [layer] })).toHaveProperty('doc')
+    expect(newPathLayer(sample, [{ x: 1, y: 1 }], false)).toBeNull()
   })
 
   it('duplicates above the source, unlocks the copy, and enforces the layer limit', () => {

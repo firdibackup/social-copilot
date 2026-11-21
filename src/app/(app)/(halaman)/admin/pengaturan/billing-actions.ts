@@ -3,9 +3,9 @@
 import { getLocale, getTranslations } from 'next-intl/server'
 import { assertPayableTotals, parseBillingCatalog } from '@/lib/billing-catalog-options'
 
-import { refresh } from 'next/cache'
+import { refresh, updateTag } from 'next/cache'
 import { requireAdmin } from '@/lib/auth'
-import { saveBillingCatalog } from '@/lib/billing-catalog'
+import { BILLING_CATALOG_TAG, saveBillingCatalog } from '@/lib/billing-catalog'
 import type { FormState } from '../actions'
 
 export async function saveCatalogAction(_previous: FormState, form: FormData): Promise<FormState> {
@@ -22,6 +22,7 @@ export async function saveCatalogAction(_previous: FormState, form: FormData): P
   } catch (error) {
     return { error: error instanceof Error ? error.message === 'Pengaturan sudah diubah di tab lain. Muat ulang sebelum menyimpan.' ? t('billing_actions.concurrentChange') : error.message : t('billing_actions.couldnTSaveSettings'), success: null }
   }
+  updateTag(BILLING_CATALOG_TAG)
   refresh()
   return { error: null, success: t('billing_actions.plansAndRatesSavedEarlierPurchasesKeep') }
 }

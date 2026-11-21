@@ -6,13 +6,20 @@ import {
   buildDoc,
   chromaKey,
   compositeRaw,
+  DETECT_PROMPT,
+  fitLayers,
   imageSize,
   mergeBlocks,
   NoTextError,
   parseBlocks,
+  parseImages,
+  parseShapes,
   parseSubject,
+  removePrompt,
+  REMOVE_TEXT_PROMPT,
   splitSlide,
   textMask,
+  type ShapeBox,
   type TextBlock,
 } from './magic-layers'
 import { chatCompletion, generateImage } from './nine-router'
@@ -58,6 +65,71 @@ describe('parseBlocks', () => {
     expect(parseBlocks({ blocks: Array.from({ length: 40 }, () => valid) }, 1000, 1000)).toHaveLength(30)
     expect(parseBlocks({ blocks: [{ ...valid, size: 2 }] }, 1000, 1000)[0].size).toBe(400)
     expect(parseBlocks(null, 1000, 1000)).toEqual([])
+  })
+})
+
+describe('parseImages', () => {
+  it('reads graphics in px, defaults an unknown kind to photo, and drops invalid, tiny and background-sized ones', () => {
+    expect(parseImages({ images: [
+      { x: 0.5, y: 0.25, w: 0.25, h: 0.5, kind: 'icon' },
+      { x: 0.1, y: 0.1, w: 0.3, h: 0.3, kind: 'sticker' },
+      { x: 0, y: 0, w: 1, h: 1, kind: 'photo' },
+      { x: 0.02, y: 0.02, w: 0.95, h: 0.95, kind: 'photo' },
+      { x: 0.1, y: 0.1, w: 0.001, h: 0.2, kind: 'logo' },
+      { x: 'a', y: 0, w: 0.1, h: 0.1 },
+      'logo',
+    ] }, 1000, 1000)).toEqual([
+      { x: 500, y: 250, w: 250, h: 500, kind: 'icon' },
+      { x: 100, y: 100, w: 300, h: 300, kind: 'photo' },
+    ])
+    expect(parseImages({ blocks: [] }, 1000, 1000)).toEqual([])
+    expect(parseImages({ images: Array.from({ length: 20 }, () => ({ x: 0, y: 0, w: 0.1, h: 0.1 })) }, 1000, 1000)).toHaveLength(12)
+  })
+})
+
+describe('parseShapes', () => {
+  it('reads flat shapes with their colour, a px radius for rects only, and opacity when see-through', () => {
+    expect(parseShapes({ shapes: [
+      { x: 0.1, y: 0.8, w: 0.4, h: 0.1, shape: 'rect', color: '#ff5a36', radius: 0.5 },
+      { x: 0.1, y: 0.1, w: 0.2, h: 0.2, shape: 'ellipse', color: '#000000', radius: 0.5, opacity: 0.4 },
+      { x: 0.5, y: 0.5, w: 0.1, h: 0.1, shape: 'hexagon', color: '#00FF00', radius: 3, opacity: 1 },
+    ] }, 1000, 1000)).toEqual([
+      { x: 100, y: 800, w: 400, h: 100, shape: 'rect', color: '#FF5A36', radius: 50 },
+      { x: 100, y: 100, w: 200, h: 200, shape: 'ellipse', color: '#000000', radius: 0, opacity: 0.4 },
+      { x: 500, y: 500, w: 100, h: 100, shape: 'rect', color: '#00FF00', radius: 50 },
+    ])
+  })
+
+  it('drops colourless, invisible, invalid and background-sized shapes', () => {
+    expect(parseShapes({ shapes: [
+      { x: 0, y: 0, w: 1, h: 1, shape: 'rect', color: '#FFFFFF' },
+      { x: 0.1, y: 0.1, w: 0.2, h: 0.2, shape: 'rect', color: 'red' },
+      { x: 0.1, y: 0.1, w: 0.2, h: 0.2, shape: 'rect' },
+      { x: 0.1, y: 0.1, w: 0.2, h: 0.2, shape: 'rect', color: '#FFFFFF', opacity: 0 },
+      { x: 0.1, y: 0.1, w: 0, h: 0.2, shape: 'rect', color: '#FFFFFF' },
+    ] }, 1000, 1000)).toEqual([])
+    expect(parseShapes(null, 1000, 1000)).toEqual([])
+  })
+})
+
+describe('fitLayers', () => {
+  it('keeps text first, then graphics, then shapes within the budget', () => {
+    const fit = fitLayers({ blocks: [1, 2], images: [1, 2, 3], shapes: [1, 2] }, 4)
+    expect(fit).toEqual({ blocks: [1, 2], images: [1, 2], shapes: [] })
+    expect(fitLayers({ blocks: [1], images: [1], shapes: [1] }, 0)).toEqual({ blocks: [], images: [], shapes: [] })
+  })
+})
+
+describe('prompts', () => {
+  it('asks for text, graphics and shapes in one answer, and names every element to remove', () => {
+    expect(DETECT_PROMPT).toContain('"images":[')
+    expect(DETECT_PROMPT).toContain('"shapes":[')
+    expect(DETECT_PROMPT).toMatch(/background/i)
+    expect(removePrompt([], [], 1000, 1000)).toBe(REMOVE_TEXT_PROMPT)
+    const prompt = removePrompt([{ x: 500, y: 0, w: 250, h: 500, kind: 'logo' }],
+      [{ x: 0, y: 800, w: 400, h: 100, shape: 'rect', color: '#000000', radius: 50 }], 1000, 1000)
+    expect(prompt).toContain('the logo at left 50–75%, top 0–50%')
+    expect(prompt).toContain('the rounded box at left 0–40%, top 80–90%')
   })
 })
 
@@ -175,6 +247,52 @@ describe('splitSlide', () => {
     expect(generateImage).not.toHaveBeenCalled()
   })
 
+  it('throws NoTextError when graphics and shapes are all background-sized', async () => {
+    vi.mocked(chatCompletion).mockResolvedValue(
+      '{"blocks":[],"images":[{"x":0,"y":0,"w":1,"h":1,"kind":"photo"}],"shapes":[{"x":0,"y":0,"w":1,"h":0.9,"shape":"rect","color":"#FFFFFF"}]}',
+    )
+    const bytes = await solid(width, height, 200, 50, 50)
+    await expect(splitSlide({ bytes, width, height, splitObject: false })).rejects.toBeInstanceOf(NoTextError)
+    expect(generateImage).not.toHaveBeenCalled()
+  })
+
+  it('crops graphics from the original, keeps shapes, and repaints only inside their boxes', async () => {
+    vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({
+      images: [{ x: 0.5, y: 0.5, w: 0.3, h: 0.3, kind: 'icon' }],
+      shapes: [{ x: 0.1, y: 0.1, w: 0.2, h: 0.1, shape: 'rect', color: '#00ff00', radius: 0.5 }],
+    }))
+    vi.mocked(generateImage).mockResolvedValue((await solid(1088, 1360, 10, 200, 30)).toString('base64'))
+    // Red slide with a blue square where the icon sits.
+    const bytes = await sharp({ create: { width, height, channels: 3, background: { r: 200, g: 50, b: 50 } } })
+      .composite([{ input: await solid(36, 45, 20, 40, 220), left: 60, top: 75 }]).jpeg({ quality: 100 }).toBuffer()
+    const result = await splitSlide({ bytes, width, height, splitObject: false })
+
+    expect(result.blocks).toEqual([])
+    expect(result.shapes).toEqual([{ x: 12, y: 15, w: 24, h: 15, shape: 'rect', color: '#00FF00', radius: 7.5 }])
+    expect(result.images).toHaveLength(1)
+    const [icon] = result.images
+    expect(icon).toMatchObject({ kind: 'icon', x: 58, y: 73, w: 40, h: 49 })
+    const crop = await sharp(icon.bytes).raw().toBuffer({ resolveWithObject: true })
+    expect([crop.info.width, crop.info.height]).toEqual([40, 49])
+    const centre = (20 + 24 * 40) * crop.info.channels
+    expect(crop.data[centre + 2]).toBeGreaterThan(180) // the original's blue, not the edit's green
+    expect((await sharp(icon.bytes).metadata()).format).toBe('png')
+
+    const background = await sharp(result.background).raw().toBuffer()
+    const pixel = (x: number, y: number) => [...background.subarray((y * width + x) * 3, (y * width + x) * 3 + 3)]
+    const near = (actual: number[], expected: number[]) => actual.every((value, index) => Math.abs(value - expected[index]) <= 12)
+    expect(near(pixel(5, 145), [200, 50, 50])).toBe(true) // far from every box: the original
+    expect(near(pixel(115, 5), [200, 50, 50])).toBe(true)
+    expect(near(pixel(78, 97), [10, 200, 30])).toBe(true) // inside the icon's box: the edit
+    expect(near(pixel(24, 22), [10, 200, 30])).toBe(true) // inside the shape's box: the edit
+
+    const prompt = vi.mocked(generateImage).mock.calls[0][0].prompt
+    expect(prompt).toContain('the icon at')
+    expect(prompt).toContain('the rounded box at')
+    expect(generateImage).toHaveBeenCalledTimes(1)
+    expect(result.log).toMatchObject({ blocks: 0, images: 1, shapes: 1, removeTextPrompt: prompt })
+  })
+
   it('throws AiOutputError when the answer is not JSON', async () => {
     vi.mocked(chatCompletion).mockResolvedValue('Maaf, saya tidak bisa.')
     const bytes = await solid(width, height, 200, 50, 50)
@@ -193,6 +311,7 @@ describe('splitSlide', () => {
     expect(result.blocks).toHaveLength(1)
     expect(result.object).toBeNull()
     expect(vi.mocked(generateImage).mock.calls[0][0]).toMatchObject({ size: '1088x1360' })
+    expect(vi.mocked(chatCompletion).mock.calls[0][1]).toBe('cc/claude-opus-5-5')
     expect(JSON.stringify(result.log)).not.toContain('base64')
   })
 
@@ -233,5 +352,39 @@ describe('buildDoc', () => {
     expect(doc.layers[0]).toMatchObject({ kind: 'image', role: 'object', x: 300, h: 601 })
     expect(doc.layers[1]).toMatchObject({ font: 'Inter', size: 20, lineHeight: 2, h: 51 })
     expect(doc.layers[2]).toMatchObject({ font: 'Plus Jakarta Sans', lineHeight: 1.25, y: 400 })
+  })
+
+  const ICON = '1b6f3a52-2c1e-4e8a-9d7b-6a1f0e2c3d4b'
+  const PHOTO = '2b6f3a52-2c1e-4e8a-9d7b-6a1f0e2c3d4b'
+  const OBJECT = '0b6f3a52-2c1e-4e8a-9d7b-6a1f0e2c3d4b'
+  const pill: ShapeBox = { x: 80.4, y: 1000, w: 400, h: 100.2, shape: 'rect', color: '#FF5A36', radius: 50.1, opacity: 0.8 }
+  const labels = { photo: 'Foto', icon: 'Ikon', logo: 'Logo', illustration: 'Ilustrasi' }
+
+  it('orders the object, shapes, graphics, then text on top, as a valid doc', () => {
+    const doc = buildDoc(1080, 1350, [block()], { heading: 'Plus Jakarta Sans', body: 'Inter' },
+      { assetId: OBJECT, x: 0, y: 0, w: 500, h: 500 },
+      {
+        images: [{ assetId: ICON, kind: 'icon', x: 10, y: 20, w: 30, h: 40 }, { assetId: PHOTO, kind: 'photo', x: 600, y: 600, w: 300, h: 300 }],
+        shapes: [pill, { x: 0, y: 0, w: 50, h: 50, shape: 'ellipse', color: '#000000', radius: 0 }],
+        labels,
+      })
+    expect(parseLayerDoc(doc)).toEqual({ doc })
+    expect(doc.layers.map((layer) => layer.id)).toEqual(['o1', 's1', 's2', 'i1', 'i2', 't1'])
+    expect(doc.layers[1]).toEqual({ id: 's1', kind: 'shape', shape: 'rect', color: '#FF5A36', radius: 50, strokeColor: '#FF5A36',
+      strokeWidth: 0, opacity: 0.8, x: 80, y: 1000, w: 400, h: 100 })
+    expect(doc.layers[3]).toEqual({ id: 'i1', kind: 'image', role: 'object', assetId: ICON, name: 'Ikon 1', x: 10, y: 20, w: 30, h: 40 })
+    expect(doc.layers[4]).toMatchObject({ name: 'Foto 1', assetId: PHOTO })
+  })
+
+  it('keeps text first when the layer limit cuts', () => {
+    const shapes = Array.from({ length: 10 }, () => pill)
+    const images = Array.from({ length: 10 }, () => ({ assetId: ICON, kind: 'logo' as const, x: 0, y: 0, w: 10, h: 10 }))
+    const doc = buildDoc(1080, 1350, Array.from({ length: 15 }, () => block()), { heading: 'Inter', body: 'Inter' }, null, { images, shapes })
+    expect(doc.layers).toHaveLength(30)
+    expect(doc.layers.filter((layer) => layer.kind === 'text')).toHaveLength(15)
+    expect(doc.layers.filter((layer) => layer.kind === 'image')).toHaveLength(10)
+    expect(doc.layers.filter((layer) => layer.kind === 'shape')).toHaveLength(5)
+    expect(doc.layers.at(-1)?.kind).toBe('text')
+    expect(parseLayerDoc(doc)).toEqual({ doc })
   })
 })

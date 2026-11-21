@@ -10,10 +10,11 @@ import { migrateLayerDoc } from '@/lib/design-doc'
 import { drawDesignPage } from '@/lib/design-canvas'
 import { fieldReady } from '@/lib/design-fields'
 import {
-  isOutside, layerImageUrl, SNAP_SCREEN_PX,
-  type Handle, type Layer, type LayerDoc, type TextLayer,
+  isOutside, layerImageUrl, normalizePath, pathPointsAbsolute, SNAP_SCREEN_PX,
+  type Handle, type Layer, type LayerDoc, type PathLayer, type PathPoint, type TextLayer,
 } from '@/lib/layer-doc'
 import { fitTextHeights, handlesFor, moveLayer, NO_GUIDES, replaceLayer, resizeRotatedLayer, type Guides } from './layer-editor-gesture'
+import { PenLayer, type PenResult } from './layer-editor-pen'
 
 export const familyOf = (font: FontName) => fontFamilyOf(font) ?? 'sans-serif'
 
@@ -31,9 +32,37 @@ const HANDLE_CURSOR: Record<Handle, string> = {
   nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize',
 }
 
+/** A path point (or one of its bezier handles) being dragged. */
+interface PointGrab { index: number; part: 'anchor' | 'in' | 'out' }
+
+/**
+ * A path layer with one point (or handle) moved by (dx, dy) canvas px in the layer's own, unrotated frame, its box
+ * refitted to the new extent. A rotated layer's box is shifted so the points that didn't move stay where they are on
+ * screen. Null when the result isn't a valid path (a handle dragged too far out).
+ */
+export function movePathPoint(layer: PathLayer, grab: PointGrab, dx: number, dy: number): PathLayer | null {
+  const points = pathPointsAbsolute(layer)
+  const point = points[grab.index]
+  if (!point) return null
+  const shift = (vector: { x: number; y: number }) => ({ x: vector.x + dx, y: vector.y + dy })
+  points[grab.index] = grab.part === 'anchor'
+    ? { ...shift(point), ...(point.in ? { in: shift(point.in) } : {}), ...(point.out ? { out: shift(point.out) } : {}) }
+    : { ...point, [grab.part]: shift(point[grab.part] ?? point) }
+  const normal = normalizePath(points, layer.closed)
+  if (!normal) return null
+  const angle = (layer.rotation ?? 0) * Math.PI / 180
+  // Rotation turns about the box centre: keep the old centre's frame by moving the box with its centre's drift.
+  const ox = normal.box.x + normal.box.w / 2 - (layer.x + layer.w / 2)
+  const oy = normal.box.y + normal.box.h / 2 - (layer.y + layer.h / 2)
+  const sx = ox * Math.cos(angle) - oy * Math.sin(angle) - ox
+  const sy = ox * Math.sin(angle) + oy * Math.cos(angle) - oy
+  return { ...layer, ...normal.box, x: normal.box.x + sx, y: normal.box.y + sy, points: normal.points }
+}
+
 interface Gesture {
   id: string
   handle: Handle | null
+  point?: PointGrab
   start: Layer
   x: number
   y: number
@@ -56,13 +85,19 @@ interface LayerCanvasProps {
   onEditText: (id: string) => void
   /** Whether the background is mostly light, for the colour of new text. */
   onBaseTone: (tone: BaseTone) => void
+  /** Bentuk bebas: the canvas takes points instead of selecting layers. */
+  drawing?: boolean
+  /** The pen finished (absolute canvas points) or was cancelled (null). */
+  onDrawEnd?: (result: PenResult | null) => void
 }
 
 /**
  * The slide at its own pixel size, scaled to fit with CSS. Layers are drawn in a scaled layer; the hit areas,
  * selection frame, handles and guides sit in screen px above it, so handles keep their size at any zoom.
  */
-export function LayerCanvas({ doc, baseAssetId, selectedId, readOnly, labelOf, onSelect, onCommit, onEditText, onBaseTone }: LayerCanvasProps) {
+export function LayerCanvas({
+  doc, baseAssetId, selectedId, readOnly, labelOf, onSelect, onCommit, onEditText, onBaseTone, drawing = false, onDrawEnd,
+}: LayerCanvasProps) {
   const t = useTranslations('editor.layerEditor')
   const areaRef = useRef<HTMLDivElement>(null)
   const baseRef = useRef<HTMLImageElement>(null)
@@ -76,6 +111,8 @@ export function LayerCanvas({ doc, baseAssetId, selectedId, readOnly, labelOf, o
     liveRef.current = next
     setLiveState(next)
   }
+  // Where the pen's bar goes: over the canvas area, outside the scroller.
+  const [barHost, setBarHost] = useState<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const node = areaRef.current
@@ -108,7 +145,7 @@ export function LayerCanvas({ doc, baseAssetId, selectedId, readOnly, labelOf, o
   const shown = live?.doc ?? doc
   const selected = shown.layers.find((layer) => layer.id === selectedId) ?? null
 
-  function start(event: ReactPointerEvent<HTMLElement>, id: string, handle: Handle | null) {
+  function start(event: ReactPointerEvent<HTMLElement>, id: string, handle: Handle | null, point?: PointGrab) {
     if (event.pointerType === 'mouse' && event.button !== 0) return
     event.stopPropagation()
     onSelect(id)
@@ -117,7 +154,7 @@ export function LayerCanvas({ doc, baseAssetId, selectedId, readOnly, labelOf, o
     if (!layer) return
     if (layer.locked || layer.hidden) return
     event.currentTarget.setPointerCapture(event.pointerId)
-    gesture.current = { id, handle, start: layer, x: event.clientX, y: event.clientY, pointerId: event.pointerId, moved: false }
+    gesture.current = { id, handle, point, start: layer, x: event.clientX, y: event.clientY, pointerId: event.pointerId, moved: false }
   }
 
   function move(event: ReactPointerEvent<HTMLElement>) {
@@ -130,6 +167,14 @@ export function LayerCanvas({ doc, baseAssetId, selectedId, readOnly, labelOf, o
     current.moved = true
     const dx = sx / scale
     const dy = sy / scale
+    if (current.point && current.start.kind === 'path') {
+      // The drag in the layer's own frame: undo its rotation.
+      const angle = (current.start.rotation ?? 0) * Math.PI / 180
+      const next = movePathPoint(current.start, current.point,
+        dx * Math.cos(angle) + dy * Math.sin(angle), -dx * Math.sin(angle) + dy * Math.cos(angle))
+      if (next) setLive({ doc: replaceLayer(doc, next), guides: NO_GUIDES })
+      return
+    }
     if (current.handle) {
       setLive({ doc: fitDoc(replaceLayer(doc, resizeRotatedLayer(current.start, current.handle, dx, dy))), guides: NO_GUIDES })
       return
@@ -169,14 +214,23 @@ export function LayerCanvas({ doc, baseAssetId, selectedId, readOnly, labelOf, o
   const box = (layer: Layer) => ({ left: layer.x * scale, top: layer.y * scale, width: layer.w * scale, height: layer.h * scale,
     transform: `rotate(${layer.rotation ?? 0}deg)` })
 
+  const editingPath = !readOnly && !drawing && selected?.kind === 'path' && !selected.locked && !selected.hidden ? selected : null
+
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+    {drawing && <div ref={setBarHost} className="contents" />}
     <div
       ref={areaRef}
       className="relative min-h-0 flex-1 overflow-auto overscroll-contain"
       tabIndex={0}
       role="region"
       aria-label={t('canvas')}
+      // A press anywhere around the slide lets go of the selection; presses on a layer or handle stop in start().
+      // While drawing, a press off the slide does nothing: the outline stays and so does the selection.
+      onPointerDown={(event) => {
+        if (drawing || (event.pointerType === 'mouse' && event.button !== 0)) return
+        onSelect(null)
+      }}
       onKeyDown={(event) => {
         if (event.shiftKey && event.key === '!' && !(event.target as HTMLElement).closest('input, textarea, [contenteditable]')) {
           event.preventDefault()
@@ -277,6 +331,20 @@ export function LayerCanvas({ doc, baseAssetId, selectedId, readOnly, labelOf, o
                 })}
               </div>
             )}
+
+            {editingPath && (
+              <PathHandles
+                layer={editingPath}
+                scale={scale}
+                label={(index) => t('pathPoint', { index: index + 1 })}
+                handleLabel={(index) => t('pathHandle', { index: index + 1 })}
+                onGrab={(event, grab) => start(event, editingPath.id, null, grab)}
+              />
+            )}
+
+            {drawing && (
+              <PenLayer scale={scale} width={doc.width} height={doc.height} barHost={barHost} onDone={(result) => onDrawEnd?.(result)} />
+            )}
           </div>
         </div>
         </div>
@@ -293,6 +361,57 @@ export function LayerCanvas({ doc, baseAssetId, selectedId, readOnly, labelOf, o
       <button type="button" aria-label={t('zoomIn')} disabled={scale >= 8} onClick={() => changeZoom(1.25)} className="inline-flex size-10 items-center justify-center rounded-lg hover:bg-zinc-100 disabled:text-ink-soft"><Plus size={16} aria-hidden="true" /></button>
       <button type="button" aria-label={t('fitPage')} title={`${t('fitPage')} (Shift+1)`} onClick={() => setZoom(null)} className="inline-flex size-10 items-center justify-center rounded-lg hover:bg-zinc-100"><Scan size={16} aria-hidden="true" /></button>
     </div>
+    </div>
+  )
+}
+
+/**
+ * A selected path's anchors (squares) and curve handles (dots on a stem), drawn in the layer's rotated frame in
+ * screen px. Dragging one reshapes the path; the box refits when the drag ends (one history step).
+ */
+function PathHandles({ layer, scale, label, handleLabel, onGrab }: {
+  layer: PathLayer
+  scale: number
+  label: (index: number) => string
+  handleLabel: (index: number) => string
+  onGrab: (event: ReactPointerEvent<HTMLElement>, grab: PointGrab) => void
+}) {
+  const points = pathPointsAbsolute(layer)
+  const at = (vector: { x: number; y: number }) => ({ left: (vector.x - layer.x) * scale, top: (vector.y - layer.y) * scale })
+  const hit = 'absolute flex size-6 -translate-x-1/2 -translate-y-1/2 cursor-crosshair touch-none items-center justify-center pointer-coarse:size-11'
+  const stem = (from: PathPoint, to: { x: number; y: number }) => (
+    <line x1={(from.x - layer.x) * scale} y1={(from.y - layer.y) * scale} x2={(to.x - layer.x) * scale} y2={(to.y - layer.y) * scale}
+      stroke="var(--color-accent)" strokeWidth={1} />
+  )
+  return (
+    <div
+      className="pointer-events-none absolute"
+      style={{ left: layer.x * scale, top: layer.y * scale, width: layer.w * scale, height: layer.h * scale, transform: `rotate(${layer.rotation ?? 0}deg)` }}
+    >
+      <svg aria-hidden="true" className="absolute top-0 left-0 overflow-visible" width={1} height={1}>
+        {points.map((point, index) => (
+          <g key={index}>
+            {point.in && stem(point, point.in)}
+            {point.out && stem(point, point.out)}
+          </g>
+        ))}
+      </svg>
+      {points.map((point, index) => (
+        <span key={index} className="contents">
+          {(['in', 'out'] as const).map((part) => point[part] && (
+            <span key={part} role="button" tabIndex={-1} aria-label={handleLabel(index)}
+              onPointerDown={(event) => onGrab(event, { index, part })}
+              className={`${hit} pointer-events-auto`} style={at(point[part])}>
+              <span aria-hidden="true" className="block size-2 rounded-full bg-accent shadow-[0_0_0_1.5px_white]" />
+            </span>
+          ))}
+          <span role="button" tabIndex={-1} aria-label={label(index)}
+            onPointerDown={(event) => onGrab(event, { index, part: 'anchor' })}
+            className={`${hit} pointer-events-auto`} style={at(point)}>
+            <span aria-hidden="true" className="block size-2.5 rounded-[2px] border-[1.5px] border-accent bg-white shadow-[0_1px_3px_rgba(23,24,39,0.35)]" />
+          </span>
+        </span>
+      ))}
     </div>
   )
 }

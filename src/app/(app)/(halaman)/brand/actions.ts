@@ -10,12 +10,13 @@ import { listActiveWebsiteAssets } from '@/lib/assets'
 import { requireAccount, type AccountScope } from '@/lib/auth'
 import {
   addReference,
+  appendReferenceImage,
   deleteReference,
   loadLogoBytes,
   loadLogoImage,
   loadVisualReferences,
   ReferenceLimitError,
-  getBrandContext,
+  getAccountBrandContext,
   removeLogo,
   saveBrandKit,
   saveStrategy,
@@ -117,9 +118,9 @@ export type StrategyResult = { strategy: ContentStrategy; warnings: string[] } |
 /** A strategy draft from the saved brand profile and the account's newest captions. Nothing is saved. */
 export async function generateStrategyAction(): Promise<StrategyResult> {
   const t = await getTranslations('brand')
-  const { userId } = await requireAccount()
+  const { userId, accountId } = await requireAccount()
   try {
-    const brand = await getBrandContext(userId)
+    const brand = await getAccountBrandContext(userId, accountId)
     if (!brand || !(brand.name || brand.description)) {
       return { error: t('actions.text5') }
     }
@@ -209,18 +210,71 @@ export async function analyzeProfileAction(websiteUrl: unknown, includeInstagram
  * classifyGridTilesAction gave them.
  */
 export async function uploadReferenceAction(formData: FormData): Promise<ActionError> {
+  const saved = await saveUpload(formData)
+  if ('error' in saved) return saved.error
+  refresh()
+  return null
+}
+
+export type GroupStart = { id: string } | { error: string }
+
+/**
+ * The first image of a group sent one image per request (uploadReferenceAction's form with one file), so a big
+ * carousel never hits the request size limit; appendReferenceImageAction adds the rest. No refresh: the browser
+ * refreshes once the whole group is in.
+ */
+export async function startReferenceGroupAction(formData: FormData): Promise<GroupStart> {
+  const t = await getTranslations('brand')
+  if (formData.getAll('file').length !== 1) return { error: t('actions.text9') }
+  return saveUpload(formData)
+}
+
+/** One more JPEG (`file`) and its `label`, after the last image of a group started by startReferenceGroupAction. */
+export async function appendReferenceImageAction(referenceId: unknown, formData: FormData): Promise<ActionError> {
+  const t = await getTranslations('brand')
+  const { userId } = await requireAccount()
+  if (!isUuid(referenceId)) return t('actions.text25')
+  const files = formData.getAll('file')
+  if (files.length !== 1) return t('actions.text9')
+  const image = await readJpeg(files[0], t)
+  if (typeof image === 'string') return image
+  const label = formData.get('label')
+  if (typeof label !== 'string' || !LABELS.has(label)) return t('actions.text13')
+  try {
+    const result = await appendReferenceImage(userId, referenceId, image, label as ReferenceLabel)
+    if (result === 'missing') return t('actions.text25')
+    if (result === 'full') return t('actions.text10', { v0: MAX_GROUP_IMAGES })
+    return null
+  } catch (error) {
+    if (error instanceof StorageFullError) return storageFullMessage(await getUserLocale())
+    if (error instanceof FileTooLargeError) return fileTooLargeMessage(await getUserLocale())
+    console.error('[brand] gambar referensi gagal ditambahkan:', describeError(error))
+    return t('actions.text15', { v0: t('shared.database') })
+  }
+}
+
+type BrandTranslator = Awaited<ReturnType<typeof getTranslations<'brand'>>>
+
+async function readJpeg(file: FormDataEntryValue, t: BrandTranslator): Promise<{ bytes: Uint8Array; type: 'image/jpeg' } | string> {
+  if (!(file instanceof Blob)) return t('actions.text9')
+  if (file.size === 0 || file.size > MAX_IMAGE_BYTES) return t('actions.text11')
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  if (!isJpeg(bytes)) return t('actions.text12')
+  return { bytes, type: 'image/jpeg' }
+}
+
+/** Validates and saves uploadReferenceAction's form as one group. */
+async function saveUpload(formData: FormData): Promise<GroupStart> {
   const t = await getTranslations('brand')
   const { userId, accountId } = await requireAccount()
   const files = formData.getAll('file')
-  if (files.length === 0) return t('actions.text9')
-  if (files.length > MAX_GROUP_IMAGES) return t('actions.text10', { v0: MAX_GROUP_IMAGES })
+  if (files.length === 0) return { error: t('actions.text9') }
+  if (files.length > MAX_GROUP_IMAGES) return { error: t('actions.text10', { v0: MAX_GROUP_IMAGES }) }
   const images: { bytes: Uint8Array; type: 'image/jpeg' }[] = []
   for (const file of files) {
-    if (!(file instanceof Blob)) return t('actions.text9')
-    if (file.size === 0 || file.size > MAX_IMAGE_BYTES) return t('actions.text11')
-    const bytes = new Uint8Array(await file.arrayBuffer())
-    if (!isJpeg(bytes)) return t('actions.text12')
-    images.push({ bytes, type: 'image/jpeg' })
+    const image = await readJpeg(file, t)
+    if (typeof image === 'string') return { error: image }
+    images.push(image)
   }
   let palette: string[] = []
   try {
@@ -229,9 +283,9 @@ export async function uploadReferenceAction(formData: FormData): Promise<ActionE
     // A missing palette is filled in by the page later.
   }
   const labels = formData.getAll('label')
-  if (!labels.every((label) => typeof label === 'string' && LABELS.has(label))) return t('actions.text13')
+  if (!labels.every((label) => typeof label === 'string' && LABELS.has(label))) return { error: t('actions.text13') }
   const description = text(formData.get('description'))
-  if (lengthOf(description) > DESCRIPTION_MAX_LENGTH) return t('actions.text14', { v0: DESCRIPTION_MAX_LENGTH })
+  if (lengthOf(description) > DESCRIPTION_MAX_LENGTH) return { error: t('actions.text14', { v0: DESCRIPTION_MAX_LENGTH }) }
   const fromGrid = formData.get('source') === 'grid'
 
   try {
@@ -249,15 +303,14 @@ export async function uploadReferenceAction(formData: FormData): Promise<ActionE
         console.error('[brand] deskripsi potongan gagal disimpan:', describeError(error)),
       )
     }
+    return { id }
   } catch (error) {
-    if (error instanceof StorageFullError) return storageFullMessage(await getUserLocale())
-    if (error instanceof FileTooLargeError) return fileTooLargeMessage(await getUserLocale())
-    if (error instanceof ReferenceLimitError) return localizeLibraryMessage(error.message, await getUserLocale())
+    if (error instanceof StorageFullError) return { error: storageFullMessage(await getUserLocale()) }
+    if (error instanceof FileTooLargeError) return { error: fileTooLargeMessage(await getUserLocale()) }
+    if (error instanceof ReferenceLimitError) return { error: localizeLibraryMessage(error.message, await getUserLocale()) }
     console.error('[brand] referensi gagal disimpan:', describeError(error))
-    return t('actions.text15', { v0: t('shared.database') })
+    return { error: t('actions.text15', { v0: t('shared.database') }) }
   }
-  refresh()
-  return null
 }
 
 /** At most this many designs are sorted per click; a bigger grid is sorted in several. */
@@ -404,7 +457,7 @@ export async function importReferencesAction(items: unknown): Promise<ImportResu
   return { imported, failed }
 }
 
-function parsePatch(value: unknown, t: Awaited<ReturnType<typeof getTranslations<'brand'>>>): ReferencePatch | string {
+function parsePatch(value: unknown, t: BrandTranslator): ReferencePatch | string {
   if (!isObject(value)) return t('actions.text22')
   const patch: ReferencePatch = {}
   if (value.note !== undefined) {
@@ -487,9 +540,9 @@ export async function analyzeVisualAction(): Promise<VisualResult> {
   if (references.length < 2) {
     try {
       const [logo, logoBytes, assets] = await Promise.all([
-        loadLogoImage(userId),
-        loadLogoBytes(userId),
-        listActiveWebsiteAssets(userId),
+        loadLogoImage(userId, accountId),
+        loadLogoBytes(userId, accountId),
+        listActiveWebsiteAssets(userId, accountId),
       ])
       if (logoBytes) colors = await paletteFromBytes(logoBytes)
       const fallback = [

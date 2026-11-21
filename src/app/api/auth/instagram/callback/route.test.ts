@@ -3,7 +3,7 @@ import settingsMessages from '@/../messages/id/settings.json'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { currentPeriod, currentUser } from '@/lib/auth'
 import { after } from 'next/server'
-import { hasBrandKit, startBrandSync } from '@/lib/brand'
+import { hasBrandKit, hasOtherBrandKit, startBrandSync } from '@/lib/brand'
 import { getCompletedAnswers } from '@/lib/onboarding'
 import { EMPTY_ANSWERS } from '@/lib/onboarding-options'
 import { syncNewAccount } from '@/lib/brand-sync'
@@ -34,7 +34,7 @@ vi.mock('@/lib/connection', async (importOriginal) => ({
 }))
 vi.mock('next/server', () => ({ after: vi.fn() }))
 vi.mock('@/lib/threads-connection', () => ({ deleteOtherThreadsConnection: vi.fn() }))
-vi.mock('@/lib/brand', () => ({ hasBrandKit: vi.fn(), startBrandSync: vi.fn() }))
+vi.mock('@/lib/brand', () => ({ hasBrandKit: vi.fn(), hasOtherBrandKit: vi.fn(), startBrandSync: vi.fn() }))
 vi.mock('@/lib/brand-sync', () => ({ syncNewAccount: vi.fn() }))
 vi.mock('@/lib/inbox-sync', () => ({ ensureWebhookSubscription: vi.fn() }))
 vi.mock('@/lib/onboarding', async (importOriginal) => ({
@@ -81,6 +81,7 @@ describe('GET /api/auth/instagram/callback', () => {
     vi.mocked(fetchProfile).mockResolvedValue(PROFILE)
     vi.mocked(getConnectedAccountId).mockResolvedValue(null)
     vi.mocked(hasBrandKit).mockResolvedValue(true)
+    vi.mocked(hasOtherBrandKit).mockResolvedValue(false)
     vi.mocked(startBrandSync).mockResolvedValue(true)
   })
 
@@ -119,6 +120,19 @@ describe('GET /api/auth/instagram/callback', () => {
       })
       runAfterTasks()
       expect(syncNewAccount).toHaveBeenCalledWith(USER, PROFILE.userId, 5, 'id')
+    })
+
+    it('fills a second account from its own Instagram, not the first brand’s onboarding answers', async () => {
+      vi.mocked(hasBrandKit).mockResolvedValue(false)
+      vi.mocked(hasOtherBrandKit).mockResolvedValue(true)
+      vi.mocked(getCompletedAnswers).mockResolvedValue({ ...EMPTY_ANSWERS, name: 'Kopi Sinar', postsPerWeek: 5 })
+
+      await connect()
+
+      expect(hasOtherBrandKit).toHaveBeenCalledWith(USER, PROFILE.userId)
+      expect(startBrandSync).toHaveBeenCalledWith(USER, PROFILE.userId, {})
+      runAfterTasks()
+      expect(syncNewAccount).toHaveBeenCalledWith(USER, PROFILE.userId, undefined, 'id')
     })
 
     it('leaves an account that already has a brand as it is', async () => {

@@ -18,6 +18,7 @@
     "sending": "Mengirim…",
     "send": "Kirim (Enter)",
     "active": "Aktif · {count} riset/hari",
+    "locked": "Tersedia di paket Pro dan Max",
     "remove": "Hapus {name}",
     "imageName": "gambar"
   },

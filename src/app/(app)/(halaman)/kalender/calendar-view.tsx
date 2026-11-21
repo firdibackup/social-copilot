@@ -10,7 +10,7 @@ import { Notice } from '@/components/notice'
 import { PlatformBadge } from '@/components/platform-badge'
 import { LateBadge, PostStatusBadge, STATUS_DOT_CLASS } from '@/components/post-status-badge'
 import { requireAccount } from '@/lib/auth'
-import { getStrategy } from '@/lib/brand'
+import { getAccountStrategy } from '@/lib/brand'
 import {
   addDays,
   buildMonthGrid,
@@ -96,7 +96,7 @@ export async function CalendarView({ searchParams }: { searchParams: Promise<Sea
   const tampilan = firstValue(params.tampilan)
   const view: View = tampilan === 'daftar' ? 'daftar' : tampilan === 'minggu' ? 'minggu' : 'bulan'
   const [strategy, schedule] = await Promise.all([
-    getStrategy(userId).catch((error) => {
+    getAccountStrategy(userId, accountId).catch((error) => {
       console.error('[kalender] gagal memuat strategi:', describeError(error))
       return null
     }),

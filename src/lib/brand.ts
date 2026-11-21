@@ -177,6 +177,20 @@ export async function hasBrandKit(userId: string, accountId: string): Promise<bo
 }
 
 /**
+ * Whether the user already set up a brand for another Instagram account. The onboarding answers describe the
+ * first account's brand, so only an account connected while there is no such kit may start from them.
+ */
+export async function hasOtherBrandKit(userId: string, accountId: string): Promise<boolean> {
+  const { count, error } = await db()
+    .from('brand_kit')
+    .select('user_id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .neq('account_id', accountId)
+  if (error || count === null) throw new Error(`Supabase: ${error?.message || 'brand kit tidak terbaca'}`)
+  return count > 0
+}
+
+/**
  * Claims the new-account fill with a running kit row, seeded with `seed` (the onboarding answers as columns).
  * False when another request claimed it first.
  */
@@ -482,6 +496,45 @@ export async function addReference(userId: string, accountId: string, reference:
   return group.id
 }
 
+/**
+ * Adds one image after the last one of an existing group, so a big carousel can be sent one image per request.
+ * 'missing' when the group is not the user's (or is gone), 'full' when it already has MAX_GROUP_IMAGES.
+ */
+export async function appendReferenceImage(
+  userId: string,
+  referenceId: string,
+  image: { bytes: Uint8Array; type: ImageType },
+  label: ReferenceLabel,
+): Promise<{ id: string } | 'missing' | 'full'> {
+  const group = unwrap(
+    await db()
+      .from('brand_references')
+      .select('id, brand_reference_images(position)')
+      .eq('id', referenceId)
+      .eq('user_id', userId)
+      .maybeSingle(),
+  ) as { id: string; brand_reference_images: { position: number }[] } | null
+  if (!group) return 'missing'
+  const positions = group.brand_reference_images.map((item) => item.position)
+  if (positions.length >= MAX_GROUP_IMAGES) return 'full'
+  const position = positions.length === 0 ? 0 : Math.max(...positions) + 1
+  if (position >= MAX_GROUP_IMAGES) return 'full'
+
+  const path = await upload(userId, 'ref-', image.bytes, image.type)
+  try {
+    return unwrap(
+      await db()
+        .from('brand_reference_images')
+        .insert({ user_id: userId, reference_id: group.id, position, storage_path: path, content_type: image.type, label })
+        .select('id')
+        .single(),
+    ) as { id: string }
+  } catch (failure) {
+    await removeFile(path)
+    throw failure
+  }
+}
+
 export interface ReferencePatch {
   note?: string
   description?: string
@@ -550,8 +603,8 @@ export interface BrandVisual {
 }
 
 /** Null when none of it is filled in. */
-export async function getBrandVisual(userId: string): Promise<BrandVisual | null> {
-  const row = await loadConnectedKit(userId)
+export async function getBrandVisual(userId: string, accountId: string): Promise<BrandVisual | null> {
+  const row = await loadKit(userId, accountId)
   if (!row) return null
   const { name, category, visualStyle, designRules, colors, headingFont, bodyFont, designStyle } = toFields(row)
   const visual = { name, category, visualStyle, designRules, colors, headingFont, bodyFont, designStyle }
@@ -605,8 +658,8 @@ const TYPE_BY_EXTENSION = Object.fromEntries(Object.entries(EXTENSIONS).map(([ty
   ImageType
 >
 
-export async function loadLogoBytes(userId: string): Promise<Uint8Array | null> {
-  const path = (await loadConnectedKit(userId))?.logo_path
+export async function loadLogoBytes(userId: string, accountId: string): Promise<Uint8Array | null> {
+  const path = (await loadKit(userId, accountId))?.logo_path
   if (!path) return null
   const { data, error } = await bucket().download(path)
   if (error) throw new Error(`Supabase Storage: ${error.message}`)
@@ -614,8 +667,8 @@ export async function loadLogoBytes(userId: string): Promise<Uint8Array | null> 
 }
 
 /** The logo as a data URL, or null when there is none. Its type comes from the extension `setLogo` gave it. */
-export async function loadLogoImage(userId: string): Promise<string | null> {
-  const path = (await loadConnectedKit(userId))?.logo_path
+export async function loadLogoImage(userId: string, accountId: string): Promise<string | null> {
+  const path = (await loadKit(userId, accountId))?.logo_path
   const type = path ? TYPE_BY_EXTENSION[path.split('.').pop() ?? ''] : undefined
   return path && type ? dataUrlOf(path, type) : null
 }

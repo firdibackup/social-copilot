@@ -49,6 +49,13 @@ const toMessage = (row: MessageRow): ChatMessageView => ({
   createdAt: row.created_at,
 })
 
+/** Intel Kompetitor runs per day on the user's plan: 0 for the trial and for plans sold without research. */
+export async function researchLimit(userId: string): Promise<number> {
+  const period = await getCurrentPeriod(userId)
+  if (!period) return 0
+  return period.plan ? period.plan.researchDaily : DAILY_LIMITS.deep_search
+}
+
 /** Atomically reserves one daily slot. The counter, unlike the audit log, must never fail open. */
 export async function reserveDailyUsage(userId: string, task: LimitedTask): Promise<string> {
   const period = await getCurrentPeriod(userId)

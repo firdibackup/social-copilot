@@ -104,8 +104,10 @@ export interface AccountScope {
  * Without a connected Instagram account the user goes to Pengaturan to connect one.
  */
 export const requireAccount = cache(async (): Promise<AccountScope> => {
-  const userId = await requireActiveUser()
-  const accountId = await getConnectedAccountId(userId)
+  const userId = await requireUser()
+  // Both reads in one round trip: every account page waits on this before its own queries.
+  const [onboarded, accountId] = await Promise.all([currentOnboarded(userId), getConnectedAccountId(userId)])
+  if (!onboarded) redirect('/mulai')
   if (!accountId) redirect('/pengaturan?perlu=instagram')
   return { userId, accountId }
 })

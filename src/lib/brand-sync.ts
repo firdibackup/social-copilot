@@ -12,7 +12,7 @@ import {
 } from './brand'
 import { analyzeProfile, analyzeStrategy, analyzeVisual } from './brand-ai'
 import { colorsFromPalettes, MAX_LOGO_BYTES, PROFILE_FIELDS, type BrandFields, type ProfileText } from './brand-options'
-import { getValidAccessToken } from './connection'
+import { getPublishingAccount } from './connection'
 import { describeError } from './errors'
 import { imageType } from './image'
 import { paletteFromBytes } from './image-palette'
@@ -44,7 +44,10 @@ export async function syncNewAccount(userId: string, accountId: string, postsPer
   }
 
   const source = await step('baca Instagram', async () => {
-    const token = await getValidAccessToken(userId)
+    // This runs after the redirect: if the owner has switched again since, the connection is another account's.
+    const account = await getPublishingAccount(userId)
+    if (account.instagramUserId !== accountId) throw new Error('akun Instagram sudah berganti')
+    const token = account.accessToken
     const [profile, posts] = await Promise.all([fetchOwnProfile(token), fetchRecentMedia(token, POSTS_READ)])
     return { profile, posts }
   })

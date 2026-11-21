@@ -186,7 +186,12 @@
     "otherPlaceholder": "e.g. instagram.com/accountname or @accountname",
     "otherSubmit": "Fetch posts",
     "otherHint": "Pulling designs from other accounts is limited each week. Pick the accounts that inspire you most.",
-    "otherLoading": "Pulling designs from @{username}… This can take 30–60 seconds."
+    "otherLoading": "Pulling designs from @{username}… This can take 30–60 seconds.",
+    "groupPreparing": "Preparing {v0} of {v1}…",
+    "groupDetecting": "Picking the cover, content, and CTA…",
+    "groupSaving": "Saving image {v0} of {v1}…",
+    "groupUnread": "AI couldn't read {v0} images, so they were set to Content. Check their labels on the reference card.",
+    "groupUnreadAll": "AI couldn't pick the cover, content, and CTA ({v0}). The images were saved in upload order; change their labels on the reference card if needed."
   },
   "strategyCard": {
     "text1": "Rebuild your strategy with AI?",

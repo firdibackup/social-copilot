@@ -31,6 +31,8 @@ interface MimoChatProps {
   products: CardContext['products']
   defaultDensity: CardContext['defaultDensity']
   references: CardContext['references']
+  /** Intel Kompetitor runs per day on the plan; 0 locks the switch. */
+  researchDaily: number
 }
 
 /** The message on its way: shown at once, with what Mimo is doing, until the stored one comes back. */
@@ -60,7 +62,7 @@ async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<Cha
  * The open conversation with Mimo. Sent messages show from the stream's `done` event until the page's own data has
  * them; opening another conversation starts over, but keeps the Deep Search toggle.
  */
-export function MimoChat({ sessionId, messages, products, defaultDensity, references }: MimoChatProps) {
+export function MimoChat({ sessionId, messages, products, defaultDensity, references, researchDaily }: MimoChatProps) {
   const t = useTranslations('mimo.chat')
   const locale = useLocale()
   const router = useRouter()
@@ -115,7 +117,7 @@ export function MimoChat({ sessionId, messages, products, defaultDensity, refere
     const form = new FormData()
     form.set('text', text)
     if (sessionId) form.set('sessionId', sessionId)
-    if (deepSearch) form.set('deepSearch', '1')
+    if (deepSearch && researchDaily > 0) form.set('deepSearch', '1')
     for (const file of files) form.append('files', file)
     const parts: ChatPart[] = files.map((file) => ({
       type: 'attachment',
@@ -242,8 +244,9 @@ export function MimoChat({ sessionId, messages, products, defaultDensity, refere
           {error && <Notice tone="error">{error}</Notice>}
           <ChatComposer
             busy={pending !== null}
-            deepSearch={deepSearch}
-            onToggleDeepSearch={() => setDeepSearch(!deepSearch)}
+            deepSearch={deepSearch && researchDaily > 0}
+            researchDaily={researchDaily}
+            onToggleDeepSearch={() => setDeepSearch(researchDaily > 0 && !deepSearch)}
             onSend={send}
             draft={draft}
           />

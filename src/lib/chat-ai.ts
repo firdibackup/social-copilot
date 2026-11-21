@@ -17,7 +17,7 @@ import { isObject, lengthOf, truncate, type BrandContext } from './brand-options
 import { HOOK_QUALITY_RULE, IDEA_QUALITY_RULE } from './carousel-guide'
 import { hookGuide } from './hook-guide'
 import { DM_APPROVED } from './inbox-rules'
-import { findContent, loadSummaryBatch, reserveDailyUsage, releaseDailyUsage, saveSummary, type ChatSession } from './chat'
+import { findContent, loadSummaryBatch, researchLimit, reserveDailyUsage, releaseDailyUsage, saveSummary, type ChatSession } from './chat'
 import {
   BULK_ANGLE_MAX_LENGTH,
   BULK_POINT_MAX_LENGTH,
@@ -576,6 +576,10 @@ export function competitorSearch(args: Json): CompetitorSearch | null {
 
 async function runIntel(context: ToolContext, args: Json): Promise<ToolOutcome> {
   if (!context.deepSearch) return failure('intel_kompetitor', 'Nyalakan tombol Intel Kompetitor di kotak pesan dulu.')
+  // Before the cache: a hit costs no slot, but a plan without research mustn't read other runs' results either.
+  if (await researchLimit(context.userId) < 1) {
+    return failure('intel_kompetitor', 'Riset langsung Instagram (Intel Kompetitor) tidak tersedia di paket ini. Upgrade ke Pro atau Max untuk memakainya.')
+  }
   const search = competitorSearch(args)
   if (!search) return { part: null, result: 'Gagal: isi usernames atau keyword.' }
   const requestedMax = typeof args.max === 'number' ? args.max : MAX_COMPETITORS

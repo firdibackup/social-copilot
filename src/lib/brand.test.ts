@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { dbMock, filtered } from '@/test/query-mock'
 import {
   addReference,
+  appendReferenceImage,
   deleteReference,
   getBrandKit,
   hasBrandKit,
@@ -75,6 +76,31 @@ describe('addReference', () => {
     useDb([{ count: 30, error: null }])
 
     await expect(addReference('user-1', 'ig-1', { ...NEW, images: [JPEG] })).rejects.toBeInstanceOf(ReferenceLimitError)
+  })
+})
+
+describe('appendReferenceImage', () => {
+  it('adds the image after the group’s last one with its label', async () => {
+    const { chains, storage } = useDb([
+      { data: { id: 'ref-1', brand_reference_images: [{ position: 0 }, { position: 1 }] }, error: null },
+      { data: { id: 'img-3' }, error: null },
+    ])
+
+    await expect(appendReferenceImage('user-1', 'ref-1', JPEG, 'cta')).resolves.toEqual({ id: 'img-3' })
+
+    expect(filtered(chains[0], 'user_id', 'user-1')).toBe(true)
+    expect(inserted(chains, 'brand_reference_images')).toMatchObject({ reference_id: 'ref-1', position: 2, label: 'cta' })
+    expect(storage.uploads).toHaveLength(1)
+  })
+
+  it('refuses a group of someone else or one already full', async () => {
+    useDb([{ data: null, error: null }])
+    await expect(appendReferenceImage('user-1', 'ref-1', JPEG, 'isi')).resolves.toBe('missing')
+
+    const full = Array.from({ length: 20 }, (_, position) => ({ position }))
+    const { storage } = useDb([{ data: { id: 'ref-1', brand_reference_images: full }, error: null }])
+    await expect(appendReferenceImage('user-1', 'ref-1', JPEG, 'isi')).resolves.toBe('full')
+    expect(storage.uploads).toHaveLength(0)
   })
 })
 

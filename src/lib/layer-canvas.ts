@@ -7,8 +7,9 @@ import { storedJpegAttempts, toInstagramJpeg, type PreparedImage } from './image
 import { MAX_STORED_BYTES } from './storage-quota-options'
 import {
   fontShorthand, layerImageUrl, lineBaseline, lineBox, lineStart, textHeight, wrapText,
-   type LayerDoc, type TextLayer, type ShapeLayer,
+   type LayerDoc, type TextLayer, type ShapeLayer, type PathLayer,
 } from './layer-doc'
+import { isLineKind, shapeFillRule, strokeStyle, traceShape, tracePath, type PathContext, type ShapeKind } from './shape-paths'
 import type { FontName } from './design-styles'
 import { loadFont } from './font-loader'
 import { migrateLayerDoc } from './design-doc'
@@ -138,15 +139,20 @@ export interface DrawContext extends MeasureContext {
   rotate?(angle: number): void
   beginPath?(): void
   roundRect?(x: number, y: number, width: number, height: number, radius: number): void
-  ellipse?(x: number, y: number, rx: number, ry: number, rotation: number, start: number, end: number): void
+  ellipse?(x: number, y: number, rx: number, ry: number, rotation: number, start: number, end: number, counterclockwise?: boolean): void
   moveTo?(x: number, y: number): void
   lineTo?(x: number, y: number): void
+  bezierCurveTo?(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void
+  quadraticCurveTo?(cpx: number, cpy: number, x: number, y: number): void
+  arc?(x: number, y: number, radius: number, startAngle: number, endAngle: number, counterclockwise?: boolean): void
   closePath?(): void
-  fill?(): void
+  fill?(rule?: CanvasFillRule): void
   stroke?(): void
+  setLineDash?(segments: number[]): void
   strokeStyle?: string | CanvasGradient | CanvasPattern
   lineWidth?: number
   lineCap?: CanvasLineCap
+  lineJoin?: CanvasLineJoin
 }
 
 const SHADOW_COLOR = 'rgba(0,0,0,0.45)'
@@ -184,6 +190,8 @@ export function drawDoc(
       if (image) ctx.drawImage(image, layer.x, layer.y, layer.w, layer.h)
     } else if (layer.kind === 'shape') {
       drawShape(ctx, layer)
+    } else if (layer.kind === 'path') {
+      drawPath(ctx, layer)
     } else {
       drawText(ctx, layer, familyOf(layer.font))
     }
@@ -192,32 +200,43 @@ export function drawDoc(
   }
 }
 
-export function drawShape(ctx: DrawContext, layer: ShapeLayer): void {
-  const { x, y, w, h, shape } = layer
-  ctx.beginPath?.()
+/** The context's path methods, each a no-op when a small fake lacks it. */
+const pathOf = (ctx: DrawContext): PathContext => ({
+  moveTo: (...args) => ctx.moveTo?.(...args),
+  lineTo: (...args) => ctx.lineTo?.(...args),
+  bezierCurveTo: (...args) => ctx.bezierCurveTo?.(...args),
+  quadraticCurveTo: (...args) => ctx.quadraticCurveTo?.(...args),
+  arc: (...args) => ctx.arc?.(...args),
+  ellipse: (...args) => ctx.ellipse?.(...args),
+  closePath: () => ctx.closePath?.(),
+  roundRect: (...args) => ctx.roundRect?.(...args),
+})
+
+/** Fills (when asked) then strokes the current path in the layer's colours and dash. */
+function paintPath(ctx: DrawContext, layer: ShapeLayer | PathLayer, fill: boolean, rule: CanvasFillRule, kind: ShapeKind | 'path') {
   ctx.fillStyle = layer.color
   ctx.strokeStyle = layer.strokeColor
   ctx.lineWidth = layer.strokeWidth
-  ctx.lineCap = 'round'
-  if (shape === 'rect') ctx.roundRect?.(x, y, w, h, Math.min(layer.radius, w / 2, h / 2))
-  else if (shape === 'ellipse') ctx.ellipse?.(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2)
-  else if (shape === 'triangle') {
-    ctx.moveTo?.(x + w / 2, y)
-    ctx.lineTo?.(x + w, y + h)
-    ctx.lineTo?.(x, y + h)
-    ctx.closePath?.()
-  } else {
-    ctx.moveTo?.(x, y + h / 2)
-    ctx.lineTo?.(x + w, y + h / 2)
-    if (shape === 'arrow') {
-      const head = Math.min(w / 3, h / 2)
-      ctx.moveTo?.(x + w - head, y + h / 2 - head)
-      ctx.lineTo?.(x + w, y + h / 2)
-      ctx.lineTo?.(x + w - head, y + h / 2 + head)
-    }
-  }
-  if (shape !== 'line' && shape !== 'arrow') ctx.fill?.()
+  const style = strokeStyle(layer.dash, layer.strokeWidth, kind)
+  ctx.lineCap = style.cap
+  ctx.lineJoin = style.join
+  ctx.setLineDash?.(style.segments)
+  if (fill) ctx.fill?.(rule)
   if (layer.strokeWidth > 0) ctx.stroke?.()
+  ctx.setLineDash?.([])
+}
+
+export function drawShape(ctx: DrawContext, layer: ShapeLayer): void {
+  ctx.beginPath?.()
+  traceShape(pathOf(ctx), layer.shape, layer, layer.radius)
+  paintPath(ctx, layer, !isLineKind(layer.shape), shapeFillRule(layer.shape), layer.shape)
+}
+
+/** A free vector layer: its fractional points traced into its box. */
+export function drawPath(ctx: DrawContext, layer: PathLayer): void {
+  ctx.beginPath?.()
+  tracePath(pathOf(ctx), layer.points, layer.closed, layer)
+  paintPath(ctx, layer, layer.fill, 'nonzero', 'path')
 }
 
 function drawText(ctx: DrawContext, layer: TextLayer, family: string): void {

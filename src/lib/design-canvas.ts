@@ -1,5 +1,6 @@
 /** Canvas 2D document renderer, usable in the editor and headless Chromium. No DOM or network access. */
-import type { Color, DesignNode, DesignPage, Paint, TextNode, TextStyle } from './design-doc'
+import type { Color, DesignNode, DesignPage, Paint, ShapeNode, TextNode, TextStyle } from './design-doc'
+import { isLineKind, shapeFillRule, strokeStyle, traceShape, tracePath } from './shape-paths'
 
 export type DesignImages = ReadonlyMap<string, { image: CanvasImageSource; width: number; height: number }>
 export const colorCss = ({ srgb: { r, g, b, a } }: Color) => `rgba(${r * 255},${g * 255},${b * 255},${a})`
@@ -106,32 +107,27 @@ function drawImage(ctx: CanvasRenderingContext2D, paint: Extract<Paint, { type: 
   ctx.drawImage(image, crop.x, crop.y, crop.width, crop.height, (w - dw) / 2, (h - dh) / 2, dw, dh)
 }
 
-function fillPath(ctx: CanvasRenderingContext2D, paint: Paint, w: number, h: number, images: DesignImages) {
+function fillPath(ctx: CanvasRenderingContext2D, paint: Paint, w: number, h: number, images: DesignImages, rule: CanvasFillRule = 'nonzero') {
   if (paint.type !== 'image') {
     ctx.fillStyle = paintStyle(ctx, paint, w, h)
-    ctx.fill()
+    ctx.fill(rule)
     return
   }
   ctx.save()
-  ctx.clip()
+  ctx.clip(rule)
   drawImage(ctx, paint, w, h, images)
   ctx.restore()
 }
 
-function shapePath(ctx: CanvasRenderingContext2D, node: Extract<DesignNode, { type: 'shape' }>) {
-  const { width: w, height: h } = node.size
+function shapePath(ctx: CanvasRenderingContext2D, node: ShapeNode) {
+  const box = { x: 0, y: 0, w: node.size.width, h: node.size.height }
   ctx.beginPath()
-  if (node.kind === 'rect') ctx.roundRect(0, 0, w, h, Math.min(node.cornerRadius, w / 2, h / 2))
-  else if (node.kind === 'ellipse') ctx.ellipse(w / 2, h / 2, w / 2, h / 2, 0, 0, Math.PI * 2)
-  else if (node.kind === 'triangle') { ctx.moveTo(w / 2, 0); ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath() }
-  else {
-    ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2)
-    if (node.kind === 'arrow') {
-      const head = Math.min(w / 3, h / 2)
-      ctx.moveTo(w - head, h / 2 - head); ctx.lineTo(w, h / 2); ctx.lineTo(w - head, h / 2 + head)
-    }
-  }
+  if (node.kind !== 'path') traceShape(ctx, node.kind, box, node.cornerRadius)
+  else if (node.path) tracePath(ctx, node.path.points, node.path.closed, box)
 }
+
+/** Whether a shape node is filled: lines never are, nor open-or-closed paths with no fill paint. */
+const shapeFilled = (node: ShapeNode) => (node.kind === 'path' ? node.fill.type !== 'none' : !isLineKind(node.kind))
 
 function drawText(ctx: CanvasRenderingContext2D, node: TextNode, familyOf: (name: string) => string) {
   let lines = layoutDesignText(ctx, node, familyOf)
@@ -185,9 +181,12 @@ export function drawDesignPage(ctx: CanvasRenderingContext2D, page: DesignPage, 
       if (node.type === 'text') { drawText(ctx, node, familyOf); return }
       if (node.type === 'image') { ctx.beginPath(); ctx.rect(0, 0, w, h); fillPath(ctx, node.fill, w, h, images); return }
       shapePath(ctx, node)
-      if (node.kind !== 'line' && node.kind !== 'arrow') fillPath(ctx, node.fill, w, h, images)
+      if (shapeFilled(node)) fillPath(ctx, node.fill, w, h, images, node.kind === 'path' ? 'nonzero' : shapeFillRule(node.kind))
       if (node.stroke && node.stroke.width > 0) {
-        ctx.strokeStyle = colorCss(node.stroke.color); ctx.lineWidth = node.stroke.width; ctx.lineCap = 'round'; ctx.stroke()
+        const style = strokeStyle(node.stroke.dash, node.stroke.width, node.kind)
+        ctx.strokeStyle = colorCss(node.stroke.color); ctx.lineWidth = node.stroke.width
+        ctx.lineCap = style.cap; ctx.lineJoin = style.join; ctx.setLineDash(style.segments)
+        ctx.stroke()
       }
     } finally { ctx.restore() }
   }

@@ -97,7 +97,7 @@ export function OrbitHero({ paused, reduceMotion }: { paused: boolean; reduceMot
         {rings.map(ring => <div key={ring.id} className={`${styles.ring} ${styles[ring.id]}`} data-orbit-ring={ring.id}>
           {ring.covers.map((name, slot) => <span key={name} className={styles.card} data-orbit-card style={{ '--a': `${slot * step + ring.offset}deg`, '--i': slot } as CSSProperties}>
             <span className={styles.frame}>
-              <Image src={`/covers/${name}.webp`} alt="" width={1122} height={1402} sizes="320px" loading="eager" fetchPriority={name === names[0] ? 'high' : undefined} unoptimized draggable={false} />
+              <Image src={`/covers/sm/${name}.webp`} alt="" width={320} height={400} sizes="160px" loading="eager" fetchPriority={name === names[0] ? 'high' : undefined} unoptimized draggable={false} />
             </span>
           </span>)}
         </div>)}

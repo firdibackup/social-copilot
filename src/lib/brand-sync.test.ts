@@ -12,12 +12,12 @@ import {
 import { analyzeProfile, analyzeStrategy, analyzeVisual } from './brand-ai'
 import { EMPTY_BRAND } from './brand-options'
 import { syncNewAccount } from './brand-sync'
-import { getValidAccessToken } from './connection'
+import { getPublishingAccount } from './connection'
 import { paletteFromBytes } from './image-palette'
 import { fetchOwnProfile, fetchRecentMedia, type InstagramPost } from './instagram'
 import { fetchImage } from './web-fetch'
 
-vi.mock('./connection', () => ({ getValidAccessToken: vi.fn() }))
+vi.mock('./connection', () => ({ getPublishingAccount: vi.fn() }))
 vi.mock('./instagram', () => ({ fetchOwnProfile: vi.fn(), fetchRecentMedia: vi.fn() }))
 vi.mock('./brand-ai', () => ({ analyzeProfile: vi.fn(), analyzeStrategy: vi.fn(), analyzeVisual: vi.fn() }))
 vi.mock('./brand', () => ({
@@ -62,7 +62,7 @@ const lastKitUpdate = () => vi.mocked(updateBrandKit).mock.calls.at(-1)?.[2]
 beforeEach(() => {
   vi.resetAllMocks()
   vi.spyOn(console, 'error').mockImplementation(() => {})
-  vi.mocked(getValidAccessToken).mockResolvedValue('token')
+  vi.mocked(getPublishingAccount).mockResolvedValue({ accessToken: 'token', instagramUserId: ACCOUNT, username: 'kopi' })
   vi.mocked(fetchOwnProfile).mockResolvedValue({
     username: 'kopi',
     name: 'Kopi',
@@ -173,10 +173,20 @@ describe('syncNewAccount', () => {
   })
 
   it('ends as failed without touching anything when Instagram can’t be read', async () => {
-    vi.mocked(getValidAccessToken).mockRejectedValue(new Error('expired'))
+    vi.mocked(getPublishingAccount).mockRejectedValue(new Error('expired'))
 
     await expect(syncNewAccount(USER, ACCOUNT)).resolves.toBeUndefined()
 
+    expect(addReference).not.toHaveBeenCalled()
+    expect(lastKitUpdate()).toEqual({ syncStatus: 'failed' })
+  })
+
+  it('leaves the kit alone when another account was connected in the meantime', async () => {
+    vi.mocked(getPublishingAccount).mockResolvedValue({ accessToken: 'token', instagramUserId: 'ig-lain', username: 'lain' })
+
+    await syncNewAccount(USER, ACCOUNT)
+
+    expect(fetchOwnProfile).not.toHaveBeenCalled()
     expect(addReference).not.toHaveBeenCalled()
     expect(lastKitUpdate()).toEqual({ syncStatus: 'failed' })
   })
