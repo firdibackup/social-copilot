@@ -29,6 +29,8 @@ assert 'paling banyak satu kalimat seperti itu per carousel' in guide, 'Deferral
 ideas_system = re.search(r'const IDEAS_SYSTEM = \[.*?\]\.join', content, re.S).group()
 assert 'pengetahuan umum yang pasti benar' in ideas_system, 'Cari Ide forbids general knowledge, script path allows it'
 assert 'Saat survei, coba rute' not in guide and 'Sebelum berlangganan, cek tiga batas' not in guide, 'Worked examples still teach deferral instead of delivering value'
+chat = (root / 'src/lib/chat-ai.ts').read_text()
+assert 'Jangan ubah permintaan edukasi menjadi daftar pertanyaan' in chat, 'Mimo brief converts education into deferred answers'
 visual_rules = re.search(r'function scriptVisualRules\(.*?\n\}', content, re.S).group()
 assert 'Nama berbeda berarti identitas berbeda' in visual_rules, 'Photo identity can replace the named facility'
 print('PASS: production clipping, short text, structures 4–10, density constraints, asset identity')
