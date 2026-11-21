@@ -374,6 +374,11 @@ function scriptVisualRules(references: ScriptReference[]): string {
   ].join('\n')
 }
 
+/** Strategy angles can contain unverified claims; writers use brand facts, not pillar drafts. */
+function describeWritingBrand(brand: BrandContext): string {
+  return describeBrand({ ...brand, strategy: brand.strategy ? { ...brand.strategy, pillars: brand.strategy.pillars.map((pillar) => ({ ...pillar, detail: '' })) } : null })
+}
+
 export function buildIdeasMessages(brand: BrandContext, recent: string[], language: Locale = 'id', sources: { assets: ProductCandidate[]; references: ScriptReference[] } = { assets: [], references: [] }): ChatMessage[] {
   const avoid = recent.length > 0 ? ['', `Jangan ulangi ide atau post yang sudah ada:\n${quote(recent.join('\n'))}`] : []
   const pillars = brand.strategy?.pillars ?? []
@@ -394,7 +399,7 @@ export function buildIdeasMessages(brand: BrandContext, recent: string[], langua
     {
       role: 'user',
       content: withScriptReferences([
-        `${describeBrand(brand)}Tugas: buat ${IDEAS_COUNT} ide post Instagram lengkap yang berbeda-beda untuk brand ini: ${mix}. Setiap ide memiliki title satu kalimat pendek maksimal 12 kata dan script carousel siap pakai.`,
+        `${describeWritingBrand(brand)}Tugas: buat ${IDEAS_COUNT} ide post Instagram lengkap yang berbeda-beda untuk brand ini: ${mix}. Setiap ide memiliki title satu kalimat pendek maksimal 12 kata dan script carousel siap pakai.`,
         ...strategyGuide,
         `- Tentukan jumlah slide paling pas untuk tiap ide, ${MIN_SCRIPT_SLIDES}–${MAX_SLIDES}; 1 slide hanya untuk ide yang memang cukup satu gambar. Susunan wajib mengikuti jumlahnya:\n${Array.from({ length: MAX_SLIDES - MIN_SCRIPT_SLIDES + 1 }, (_, index) => { const count = index + MIN_SCRIPT_SLIDES; return `  - ${count} slide: ${carouselStructure(count)}` }).join('\n')}`,
         '- label: nama singkat peran atau isi slide untuk owner, 1–3 kata, misalnya "Hook", nama poinnya, atau "CTA" (boleh digabung seperti "AT + CTA").',
@@ -495,7 +500,7 @@ export function buildScriptMessages(
   ownerRequest = '',
 ): ChatMessage[] {
   const prompt = [
-        `${brand ? describeBrand(brand) : ''}Tugas: kembangkan ide di bawah menjadi skrip carousel Instagram, slide demi slide, yang memperjelas ide itu sampai pembaca benar-benar paham dan bisa langsung memakainya.`,
+        `${brand ? describeWritingBrand(brand) : ''}Tugas: kembangkan ide di bawah menjadi skrip carousel Instagram, slide demi slide, yang memperjelas ide itu sampai pembaca benar-benar paham dan bisa langsung memakainya.`,
         `- Tentukan sendiri jumlah slide yang paling pas dengan isi ide: ${MIN_SCRIPT_SLIDES}–${MAX_SLIDES} slide. Satu poin utama per slide isi; jangan menambah slide hanya supaya banyak, dan jangan memadatkan banyak poin ke satu slide.`,
         `- Susunan wajib mengikuti jumlah slide yang dipilih:\n${Array.from({ length: MAX_SLIDES - MIN_SCRIPT_SLIDES + 1 }, (_, index) => { const count = index + MIN_SCRIPT_SLIDES; return `  - ${count} slide: ${carouselStructure(count)}` }).join('\n')}\nGabungkan peran sesuai susunan di atas dan jangan menambah filler.`,
         '- label: nama singkat peran atau isi slide untuk owner, 1–3 kata, misalnya "Hook", nama poinnya, atau "CTA" (boleh digabung seperti "AT + CTA").',

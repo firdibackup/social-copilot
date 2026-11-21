@@ -18,4 +18,5 @@ assert 'Jelaskan DP 5%' in result and 'Ask sales only' in result
 assert 'Usulan Mimo' in result and 'Permintaan owner' in result
 script_system = content[content.index('const SCRIPT_SYSTEM'):content.index('const IDEAS_SYSTEM')]
 assert 'pengetahuan umum yang pasti benar' in script_system, 'System-level writer forbids general knowledge allowed by user-level guide'
+assert 'describeWritingBrand(brand)' in content and "detail: ''" in content, 'Unverified strategy details still enter writer as facts'
 print('PASS: owner provenance, both Mimo callers, production prompt construction, source authority')
