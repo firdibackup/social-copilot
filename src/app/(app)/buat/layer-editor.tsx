@@ -26,9 +26,7 @@ import {
 import { familyOf, fitDoc, LayerCanvas, type BaseTone } from './layer-editor-canvas'
 import { addLayer, AMEND_MS, editStep, nudgeLayer, readDraft, removeLayer, sameDoc, updateLayer } from './layer-editor-gesture'
 import { Thumbnail } from './thumbnail'
-import { saveSlideTemplateAction } from './canvas-template-actions'
-import { parseLayerDraft, serializeLayerDraft } from '@/lib/layer-draft'
-import { CanvasTemplateGallery } from './canvas-template-gallery'
+import { serializeLayerDraft } from '@/lib/layer-draft'
 
 interface Loaded {
   baseAssetId: string
@@ -58,7 +56,7 @@ interface LayerEditorProps {
 }
 
 /** What the panel shows while adding an image: where it comes from, then the library. */
-type Adding = 'image' | 'library' | 'templates' | null
+type Adding = 'image' | 'library' | null
 
 const WEIGHT_NAME = { 300: 'light', 400: 'regular', 500: 'medium', 600: 'semibold', 700: 'bold', 800: 'extrabold' } as const satisfies Record<TextWeight, string>
 const UPLOAD_ERRORS = new Set(['image_too_large', 'image_unreadable'])
@@ -100,10 +98,6 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
   const [feedbackSent, setFeedbackSent] = useState(false)
   const [, setFontTick] = useState(0)
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [templateName, setTemplateName] = useState<string | null>(null)
-  const [templateSaved, setTemplateSaved] = useState(false)
-  const [templateAllSlides, setTemplateAllSlides] = useState(false)
-  const [templateDirty, setTemplateDirty] = useState(false)
 
   useEffect(() => {
     const node = dialog.current
@@ -308,7 +302,6 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
   /** Leaves the editor, asking first when there are unsaved changes; `then` runs once it's let go. */
   async function close(then: () => void = onClose) {
     if (working) return
-    if (templateDirty && !await confirmDialog({ title: t('templateUnsaved'), confirmLabel: t('discard'), cancelLabel: t('keepEditing'), tone: 'danger' })) return
     if (dirty && !(await confirmDialog({
       title: t('discardTitle'),
       description: t('discardDescription'),
@@ -322,7 +315,6 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
 
   function switchSlide(assetId: string) {
     if (working || assetId === media.assetId) return
-    if (templateDirty) { setError(t('templateUnsaved')); return }
     // Flush the debounce before unmounting this slide, including a draft not restored yet.
     try {
       if (dirty && doc) window.localStorage.setItem(draftKey, serializeLayerDraft(doc, loaded?.version ?? null))
@@ -334,7 +326,6 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
   }
 
   async function save() {
-    if (templateDirty) { setError(t('templateUnsaved')); return }
     if (!doc || !loaded || readOnly || working) return
     setError(null)
     setSelectedId(null)
@@ -385,48 +376,6 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
     onClose()
   }
 
-  async function saveTemplate() {
-    if (templateDirty) { setError(t('templateUnsaved')); return }
-    if (draft) { setError(t('templateRestoreDraft')); return }
-    if (!doc || !loaded || working || !templateName?.trim()) return
-    setWorking(t('saving'))
-    setError(null)
-    try {
-      if (!await onFlush()) throw new Error(t('flushFailed'))
-      const prepared = await flattenDoc(doc, loaded.baseAssetId, familyOf)
-      const form = new FormData()
-      form.set('postId', postId)
-      form.set('assetId', media.assetId)
-      form.set('expectedVersion', loaded.version ?? '')
-      form.set('name', templateName.trim())
-      form.set('allSlides', String(templateAllSlides))
-      if (templateAllSlides) {
-        const drafts = []
-        for (const item of slides) {
-          if (item.assetId === media.assetId) continue
-          const raw = window.localStorage.getItem(layerDraftKey(item.assetId))
-          if (!raw) continue
-          const pending = parseLayerDraft(raw)
-          if (!pending || pending.version === null) { setError(t('templateRestoreDraft')); return }
-          drafts.push({ assetId: item.assetId, expectedVersion: pending.version, doc: pending.doc })
-        }
-        form.set('drafts', JSON.stringify(drafts))
-      }
-      form.set('doc', JSON.stringify(doc))
-      form.set('file', prepared.blob, 'template.jpg')
-      form.set('width', String(prepared.width))
-      form.set('height', String(prepared.height))
-      const result = await saveSlideTemplateAction(form)
-      if ('error' in result) {
-        if (!storageFull(result.error)) setError(result.error)
-      } else {
-        setTemplateName(null)
-        setTemplateSaved(true)
-      }
-    } catch { setError(t('failed')) }
-    finally { setWorking(null) }
-  }
-
   async function feedback() {
     setFeedbackSent(true)
     const result = await magicFeedbackAction({ assetId: media.assetId }).catch(() => t('failed'))
@@ -437,7 +386,6 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
   }
 
   function onKeyDown(event: React.KeyboardEvent) {
-    if (adding === 'templates') return
     const target = event.target as HTMLElement
     if (target.closest('input, textarea, select, [contenteditable="true"]') || !doc) return
     const mod = event.metaKey || event.ctrlKey
@@ -484,7 +432,6 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
       onCancel={(event) => {
         // Esc: let go of the selection first, then close.
         event.preventDefault()
-        if (templateDirty) { void close(); return }
         if (adding) setAdding(null)
         else if (selectedId) setSelectedId(null)
         else void close()
@@ -499,10 +446,10 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
             <X size={19} aria-hidden="true" />
           </button>
           <h2 id="layer-editor-heading" className="flex min-w-0 flex-1 items-center gap-2 px-1 text-sm font-semibold md:text-base">
-             <span className="truncate">{adding === 'templates' ? t('myTemplates') : t('title', { slide })}</span>
+             <span className="truncate">{t('title', { slide })}</span>
             {readOnly && loaded && <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-ink-muted">{t('viewOnly')}</span>}
           </h2>
-           {adding !== 'templates' && !readOnly && history && (
+           {!readOnly && history && (
             <>
               <button type="button" onClick={() => stepHistory('undo')} disabled={history.past.length === 0 || working !== null} aria-label={t('undo')} title={`${t('undo')} (Ctrl+Z)`} className={TOOL}>
                 <Undo2 size={18} aria-hidden="true" />
@@ -523,27 +470,7 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
           )}
         </header>
 
-        {adding !== 'templates' && loaded && !readOnly && <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-hairline bg-white px-3 py-2">
-          {templateName === null ? <button type="button" disabled={working !== null} className={CHIP}
-            onClick={() => { setTemplateName(''); setTemplateSaved(false) }}>{t('saveSlideTemplate')}</button>
-            : <form className="flex w-full flex-wrap items-end gap-2" onSubmit={event => { event.preventDefault(); void saveTemplate() }}>
-              <label className="min-w-40 flex-1"><span className={LABEL}>{t('templateName')}</span>
-                <input autoFocus required maxLength={120} value={templateName} onChange={event => setTemplateName(event.target.value)} disabled={working !== null} className={FIELD} />
-              </label>
-              <button type="submit" className={CHIP} disabled={!templateName.trim() || working !== null}>{t('save')}</button>
-              <button type="button" className={CHIP} disabled={working !== null} onClick={() => setTemplateName(null)}>{t('templateCancel')}</button>
-              {slides.length > 1 && <div className="w-full">
-                <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={templateAllSlides}
-                  disabled={working !== null} onChange={event => setTemplateAllSlides(event.target.checked)} />{t('templateAllSlides', { count: slides.length })}</label>
-                {templateAllSlides && <p className="text-xs leading-relaxed text-ink-muted">{t('templateAllSlidesHint')}</p>}
-              </div>}
-            </form>}
-          {templateSaved && <p role="status" className="text-xs text-green-700">{t('templateSaved')}</p>}
-          <button type="button" disabled={working !== null} className={CHIP}
-            onClick={() => { setAdding('templates'); setSelectedId(null); setSheetOpen(true) }}>{t('myTemplates')}</button>
-        </div>}
-
-        {adding !== 'templates' && slides.length > 1 && <nav aria-label={t('slides')} className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-hairline bg-white px-3 py-2">
+        {slides.length > 1 && <nav aria-label={t('slides')} className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-hairline bg-white px-3 py-2">
           {slides.map((item, index) => <button key={item.assetId} type="button" disabled={working !== null}
             onClick={() => switchSlide(item.assetId)} aria-current={item.assetId === media.assetId ? 'page' : undefined}
             aria-label={t('openSlide', { slide: index + 1 })}
@@ -554,7 +481,7 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
           <span className="hidden shrink-0 px-2 text-xs text-ink-muted md:inline">{t('slideDraftHint')}</span>
         </nav>}
 
-        {adding === 'templates' ? <CanvasTemplateGallery onBack={() => { setAdding(null); setError(null) }} onDirtyChange={setTemplateDirty} /> : loadError ? (
+        {loadError ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
             <p role="alert" className="text-sm text-red-700">{loadError}</p>
             <button type="button" onClick={() => { setLoadError(null); setAttempt((value) => value + 1) }} className={CHIP}>{t('retry')}</button>
@@ -601,7 +528,6 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                   readOnly={readOnly || working !== null}
                   labelOf={labelOf}
                   onSelect={(id) => {
-                    if (templateDirty) return
                     setSelectedId(id)
                     if (id) { setAdding(null); setSheetOpen(true) }
                   }}
