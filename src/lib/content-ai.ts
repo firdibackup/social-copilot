@@ -565,10 +565,10 @@ export async function loadScriptSources(userId: string, accountId: string): Prom
   try {
     const [groups, pool] = await Promise.all([listProductGroups(userId, accountId), listReferencePool(userId, accountId, null)])
     const ids = [...new Set(planReferenceImages(pool, ['cover', 'isi', 'cta'], pickFirst).filter((id): id is string => id !== null))]
-    await Promise.all(ids.map((id) => loadReferenceImage(userId, id)))
+    const loaded = await Promise.all(ids.map((id) => loadReferenceImage(userId, id)))
     return {
       assets: groups.map(({ id, title, description }) => ({ id, title, description })),
-      references: [],
+      references: loaded.flatMap((image) => (image ? [{ dataUrl: image.dataUrl, label: image.label }] : [])),
     }
   } catch (error) {
     console.error('[konten] aset/referensi untuk skrip gagal dimuat, lanjut tanpa:', describeError(error))
