@@ -7,6 +7,7 @@ import { useEffect, useState, useTransition, type ReactNode } from 'react'
 import { ArrowRight, ArrowUpRight, Check, Clock, Lock, LogOut, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react'
 import { CarouselyLogo } from '@/components/brand-mark'
 import { CheckoutContactFields, useCheckoutContact } from '@/components/checkout-contact-fields'
+import { FastIcon } from '@/components/fast-icon'
 import { InstagramAiIcon } from '@/components/instagram-ai-icon'
 import { Notice } from '@/components/notice'
 import type { Payment } from '@/lib/billing'
@@ -273,7 +274,7 @@ function Feature({ children }: { children: ReactNode }) {
 
 /**
  * What a card says about its plan: the same description, feature list and perks as the homepage's "Pilih paket"
- * (planFeatures), so the two never disagree. Pro and Max state their monthly posts in the description; any other
+ * (planFeatures), so the two never disagree; the perks (Instagram research, faster images) stand out in boxes. Pro and Max state their monthly posts in the description; any other
  * plan gets them as the first line of the list.
  */
 function PlanDetails({ plan, catalog }: { plan: CatalogPlan; catalog: BillingCatalog }) {
@@ -290,7 +291,6 @@ function PlanDetails({ plan, catalog }: { plan: CatalogPlan; catalog: BillingCat
         {!standard && <Feature><strong className="font-semibold tabular-nums">{t('posts', { count: posts })}</strong> {t('perMonth')}</Feature>}
         {multiple && <Feature>{t('multiplier', { count: multiple })}</Feature>}
         {planFeatures(plan).map((feature) => <Feature key={feature}>{t(`features.${feature}`)}</Feature>)}
-        {(plan.id === 'pro' || plan.id === 'max') && <Feature>{t('fasterImages')}</Feature>}
       </span>
       {plan.researchDaily > 0 && (
         <span className="mt-3 flex items-center gap-3 rounded-xl bg-[linear-gradient(120deg,rgba(254,218,117,0.16),rgba(214,41,118,0.10)_55%,rgba(79,91,213,0.12))] px-3 py-2.5 ring-1 ring-[rgba(214,41,118,0.15)] ring-inset">
@@ -298,6 +298,15 @@ function PlanDetails({ plan, catalog }: { plan: CatalogPlan; catalog: BillingCat
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-ink">{t('research')}</span>
             <span className="block bg-[linear-gradient(90deg,#FA7E1E,#D62976,#962FBF)] bg-clip-text text-[11px] font-semibold tracking-wide text-transparent uppercase">{t('featured')}</span>
+          </span>
+        </span>
+      )}
+      {(plan.id === 'pro' || plan.id === 'max') && (
+        <span className="mt-2.5 flex items-center gap-3 rounded-xl bg-[linear-gradient(120deg,rgba(101,88,245,0.09),rgba(56,198,230,0.09)_60%,rgba(245,154,200,0.10))] px-3 py-2.5 ring-1 ring-[rgba(79,123,255,0.18)] ring-inset">
+          <FastIcon size={22} className="shrink-0" />
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-ink">{t('fasterImages')}</span>
+            <span className="block bg-[linear-gradient(90deg,#6558F5,#4F7BFF,#38C6E6)] bg-clip-text text-[11px] font-semibold tracking-wide text-transparent uppercase">{t('featured')}</span>
           </span>
         </span>
       )}
