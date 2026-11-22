@@ -368,7 +368,14 @@
   "template_page": {
     "loadingTemplates": "Memuat template…",
     "couldnTLoadTemplatesHaveYouRun": "Template gagal dimuat. Sudah menjalankan migrasi template desain?",
-    "templatesAdmin": "Template · Admin"
+    "templatesAdmin": "Template · Admin",
+    "coverageTitle": "Kelengkapan bank template per gaya",
+    "coverageHint": "Otomatis memakai satu cover, satu isi, dan satu CTA dari gaya brand. Peran yang kosong dipinjam dari gaya terdekat, jadi tambahkan template di gaya yang masih kosong.",
+    "coverageStyle": "Gaya",
+    "coverageMissing": "Kosong: {roles}",
+    "coverageComplete": "Lengkap",
+    "coverageBorrows": "dipinjam dari {style}",
+    "coverageNone": "tidak ada"
   },
   "template_templates_panel": {
     "allTemplates": "Semua template (",

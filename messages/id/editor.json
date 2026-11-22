@@ -307,18 +307,18 @@
   },
   "referencePicker": {
     "message1": "Referensi belum bisa dimuat. Coba lagi.",
-    "message2": "Otomatis",
+    "message2": "Otomatis (template Carousely)",
     "message3": "Tanpa",
     "message4": "Lihat dan pilih acuan desain",
     "message5": "Acuan",
     "message6": "Pilih acuan desain",
     "message7": "Tutup",
-    "message8": "Otomatis · satu grup",
-    "message9": "AI memilih satu grup referensi utuh, jadi desain antar-slide tetap konsisten.",
+    "message8": "Otomatis (template Carousely)",
+    "message9": "Template desain Carousely sesuai gaya brand: satu set cover, isi, dan CTA. Warna dan font tetap dari brand kit.",
     "message10": "Tanpa referensi",
     "message11": "AI mendesain sendiri dari brand kit, tanpa mengikuti referensi.",
     "message12": "Coba lagi",
-    "description": "Slide baru mengikuti layout dan gaya grup yang dipilih: cover, isi, sampai CTA.",
+    "description": "Otomatis memakai template Carousely. Pilih satu grup referensi brand kalau slide harus mengikuti desainmu sendiri persis: cover, isi, sampai CTA.",
     "images": "{count} gambar"
   },
   "scheduleButton": {

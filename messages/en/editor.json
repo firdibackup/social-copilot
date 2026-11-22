@@ -307,18 +307,18 @@
   },
   "referencePicker": {
     "message1": "Couldn't load references. Try again.",
-    "message2": "Automatic",
+    "message2": "Automatic (Carousely templates)",
     "message3": "None",
     "message4": "Browse and choose design references",
     "message5": "Reference",
     "message6": "Choose a design reference",
     "message7": "Close",
-    "message8": "Automatic · one group",
-    "message9": "AI chooses one whole reference group to keep the slide designs consistent.",
+    "message8": "Automatic (Carousely templates)",
+    "message9": "Carousely design templates for the brand's style: one set of cover, inner and CTA. Colours and fonts still come from the brand kit.",
     "message10": "No reference",
     "message11": "AI designs from your brand kit without following a reference.",
     "message12": "Try again",
-    "description": "New slides follow the chosen group’s layout and style, from cover and content to CTA.",
+    "description": "Automatic uses Carousely templates. Pick one of the brand's reference groups when the slides must follow your own design exactly: cover, inner slides and CTA.",
     "images": "{count, plural, one {# image} other {# images}}"
   },
   "scheduleButton": {

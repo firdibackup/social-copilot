@@ -368,7 +368,14 @@
   "template_page": {
     "loadingTemplates": "Loading templates…",
     "couldnTLoadTemplatesHaveYouRun": "Couldn't load templates. Have you run the design template migration?",
-    "templatesAdmin": "Templates · Admin"
+    "templatesAdmin": "Templates · Admin",
+    "coverageTitle": "Template bank coverage per style",
+    "coverageHint": "Automatic uses one cover, one inner and one CTA template of the brand's style. A missing role is borrowed from the nearest style, so add templates where a style is still empty.",
+    "coverageStyle": "Style",
+    "coverageMissing": "Missing: {roles}",
+    "coverageComplete": "Complete",
+    "coverageBorrows": "borrowed from {style}",
+    "coverageNone": "none"
   },
   "template_templates_panel": {
     "allTemplates": "All templates (",
