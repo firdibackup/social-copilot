@@ -211,13 +211,65 @@ export const isDesignStyle = (value: unknown): value is DesignStyleId =>
 export const designStyleOf = (value: string | null | undefined): DesignStyle | null =>
   isDesignStyle(value) ? DESIGN_STYLES[value] : null
 
-type BrandStyle = { designStyle: string; visualStyle: string } | null
+/**
+ * The nearest styles to borrow a template role from when a style has none of its own (Admin › Template fills the
+ * styles unevenly), closest first.
+ */
+export const STYLE_FALLBACKS: Record<DesignStyleId, DesignStyleId[]> = {
+  minimalis: ['profesional', 'tech', 'editorial'],
+  bold: ['tech', 'ceria', 'minimalis'],
+  elegan: ['editorial', 'minimalis', 'profesional'],
+  ceria: ['bold', 'natural', 'minimalis'],
+  editorial: ['elegan', 'minimalis', 'profesional'],
+  profesional: ['minimalis', 'tech', 'editorial'],
+  natural: ['elegan', 'minimalis', 'profesional'],
+  tech: ['profesional', 'bold', 'minimalis'],
+}
 
-/** The chosen style's id, or a clean default when the owner chose none and has no style of their own posts either. */
+/** The style itself, then its fallbacks. */
+export const styleChain = (style: DesignStyleId): DesignStyleId[] => [style, ...STYLE_FALLBACKS[style]]
+
+/** First match wins, so the more specific kinds come first. Words are matched whole, in lower case. */
+const STYLE_KEYWORDS: [DesignStyleId, RegExp][] = [
+  ['ceria', /\b(anak|anak-anak|balita|bayi|kids?|playground|mainan|taman bermain|paud)\b/],
+  ['tech', /\b(teknologi|tech|software|aplikasi|saas|startup|ai|gadget|coding|programming)\b/],
+  ['profesional', /\b(properti|perumahan|hunian|rumah|apartemen|real estate|developer|kontraktor|konstruksi|teknik|sipil|arsitektur|infrastruktur|industri|manufaktur|korporat|perusahaan|b2b|konsultan|hukum|notaris|keuangan|finansial|asuransi|bank|kpr|logistik)\b/],
+  ['bold', /\b(fitness|gym|olahraga|sport|otomotif|gaming|esports?|maskulin)\b/],
+  ['elegan', /\b(kecantikan|skincare|kosmetik|beauty|fashion|butik|perhiasan|wedding|pernikahan|hotel|spa|parfum|mewah|luxury)\b/],
+  ['natural', /\b(organik|herbal|alami|pertanian|tanaman|kebun|kopi|wellness|yoga|lingkungan)\b/],
+  ['editorial', /\b(berita|media|majalah|jurnal|opini|buku|penerbit|podcast|sastra)\b/],
+]
+
+export type StyleSignals = { designStyle?: string; category?: string; description?: string; visualStyle?: string } | null
+
+/**
+ * A style for a brand that chose none, from its kit alone (no AI call): the category is the strongest signal, then
+ * the description, then the visual style. Education and anything unmatched get the calm Minimalis. Only used to
+ * pick templates while generating; never written back to the brand kit.
+ */
+export function inferDesignStyle(brand: StyleSignals): DesignStyleId {
+  for (const field of [brand?.category, brand?.description, brand?.visualStyle]) {
+    const text = (field ?? '').toLowerCase()
+    const match = text ? STYLE_KEYWORDS.find(([, words]) => words.test(text)) : undefined
+    if (match) return match[0]
+  }
+  return 'minimalis'
+}
+
+/** The style whose templates Otomatis follows: the owner's choice, else the guess from the brand kit. */
+export const templateStyleForBrand = (brand: StyleSignals): DesignStyleId =>
+  isDesignStyle(brand?.designStyle) ? brand.designStyle : inferDesignStyle(brand)
+
+type BrandStyle = { designStyle: string; visualStyle: string; category?: string; description?: string } | null
+
+/**
+ * The chosen style's id; when the owner chose none and has no visual style of their own, the style guessed from the
+ * kit, the same one Otomatis takes its templates from (templateStyleForBrand).
+ */
 export function styleIdForBrand(brand: BrandStyle): DesignStyleId | null {
   const chosen = brand?.designStyle
   if (isDesignStyle(chosen)) return chosen
-  return brand?.visualStyle ? null : 'minimalis'
+  return brand?.visualStyle ? null : inferDesignStyle(brand)
 }
 
 export function styleForBrand(brand: BrandStyle): DesignStyle | null {

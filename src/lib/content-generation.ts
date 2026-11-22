@@ -8,14 +8,14 @@ import { getConnectedAccountId } from './connection'
 import { loadScriptSources, planContent, writeScript } from './content-ai'
 import { failContentJob, type ContentJob } from './content-jobs'
 import { AUTO_PRODUCT, AUTO_REFERENCE, type ContentRequest } from './content-options'
-import { styleIdForBrand } from './design-styles'
+import { templateStyleForBrand } from './design-styles'
 import { describeError } from './errors'
 import { contentAttemptActive, GenerationCancelled, watchGeneration } from './generation-cancellation'
 import { getAccountIdea } from './ideas'
 import { ContentError, createContentPost, type SlideReference } from './posts'
 import { db, unwrap } from './supabase'
 import { planTemplates } from './template-options'
-import { listTemplatePool } from './templates'
+import { listTemplateBank } from './templates'
 
 /** One durable job, with a lease so a restarted worker cannot overwrite another worker's result. */
 export async function processContentJob(job: ContentJob): Promise<void> {
@@ -65,28 +65,31 @@ export async function processContentJob(job: ContentJob): Promise<void> {
   }
 }
 
+/**
+ * Which design each slide follows, fixed when the post is made (post_slides keeps it, so retries and edits reuse it).
+ * Otomatis follows the admin's template bank for the brand's style; the owner's own references are used only when
+ * one group is picked, exactly that group. Imported Instagram posts are never picked on the owner's behalf.
+ */
 async function chooseSlideReferences(userId: string, accountId: string, request: ContentRequest): Promise<SlideReference[]> {
   const roles = slideRoles(request.slides)
   if (!request.referenceId) return roles.map((role) => ({ role, referenceImageId: null, example: null }))
-  const auto = request.referenceId === AUTO_REFERENCE
-  const pool = await listReferencePool(userId, accountId, auto ? null : request.referenceId)
-  if (!auto && pool.length === 0) throw new ContentError('Referensi brand tidak ditemukan.')
-  if (pool.length === 0) {
+  if (request.referenceId === AUTO_REFERENCE) {
     const examples = await planStyleTemplates(userId, accountId, roles)
     return roles.map((role, index) => ({ role, referenceImageId: null, example: examples[index] }))
   }
-  const images = planReferenceImages(pool, roles, auto ? pickRandom : pickFirst)
+  const pool = await listReferencePool(userId, accountId, request.referenceId)
+  if (pool.length === 0) throw new ContentError('Referensi brand tidak ditemukan.')
+  const images = planReferenceImages(pool, roles, pickFirst)
   return roles.map((role, index) => ({ role, referenceImageId: images[index], example: null }))
 }
 
+/** One template set of the brand's style (chosen, else guessed from the kit), with fallbacks for missing roles. */
 async function planStyleTemplates(userId: string, accountId: string, roles: (SlideRole | null)[]): Promise<(string | null)[]> {
-  const none = roles.map(() => null)
-  const style = styleIdForBrand(await getBrandVisual(userId, accountId))
-  if (!style) return none
   try {
-    return planTemplates(await listTemplatePool(style), roles, pickRandom)
+    const [brand, bank] = await Promise.all([getBrandVisual(userId, accountId), listTemplateBank()])
+    return planTemplates(bank, templateStyleForBrand(brand), roles, pickRandom)
   } catch (error) {
     console.error('[konten] template desain gagal dimuat, lanjut tanpa template:', describeError(error))
-    return none
+    return roles.map(() => null)
   }
 }

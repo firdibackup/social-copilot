@@ -600,14 +600,16 @@ export interface BrandVisual {
   bodyFont: string
   /** A DESIGN_STYLES id, or empty. */
   designStyle: string
+  /** What the brand does; with the category it guesses a design style when none was chosen. */
+  description?: string
 }
 
 /** Null when none of it is filled in. */
 export async function getBrandVisual(userId: string, accountId: string): Promise<BrandVisual | null> {
   const row = await loadKit(userId, accountId)
   if (!row) return null
-  const { name, category, visualStyle, designRules, colors, headingFont, bodyFont, designStyle } = toFields(row)
-  const visual = { name, category, visualStyle, designRules, colors, headingFont, bodyFont, designStyle }
+  const { name, category, description, visualStyle, designRules, colors, headingFont, bodyFont, designStyle } = toFields(row)
+  const visual = { name, category, description, visualStyle, designRules, colors, headingFont, bodyFont, designStyle }
   const filled = colors.length > 0 || [name, category, visualStyle, designRules, headingFont, bodyFont, designStyle].some(Boolean)
   return filled ? visual : null
 }

@@ -8,6 +8,8 @@ import { getAccountIdea } from './ideas'
 import { createContentPost } from './posts'
 import { db } from './supabase'
 import { contentAttemptActive, GenerationCancelled } from './generation-cancellation'
+import { getBrandVisual, listReferencePool } from './brand'
+import { listTemplateBank } from './templates'
 
 vi.mock('./ai', () => ({ loadAccountBrandContext: vi.fn(), aiErrorMessage: () => 'AI gagal' }))
 vi.mock('./connection', () => ({ getConnectedAccountId: vi.fn() }))
@@ -17,6 +19,8 @@ vi.mock('./generation-cancellation', async (original) => ({ ...(await original<t
 vi.mock('./ideas', () => ({ getAccountIdea: vi.fn() }))
 vi.mock('./posts', async (original) => ({ ...(await original<typeof import('./posts')>()), createContentPost: vi.fn() }))
 vi.mock('./supabase', async (original) => ({ ...(await original<typeof import('./supabase')>()), db: vi.fn() }))
+vi.mock('./brand', () => ({ getBrandVisual: vi.fn(), listReferencePool: vi.fn() }))
+vi.mock('./templates', () => ({ listTemplateBank: vi.fn() }))
 
 const rpc = vi.fn()
 const job: ContentJob = {
@@ -118,5 +122,53 @@ describe('durable content worker', () => {
     expect(createContentPost).toHaveBeenCalledWith('owner', request, plan, expect.any(Array), null,
       { postId: 'draft', lease: 'worker-lease' })
     expect(failContentJob).not.toHaveBeenCalled()
+  })
+
+  describe('slide design', () => {
+    const request = { topic: 'Kopi', slides: 3, format: '4:5' as const, referenceId: 'auto', productGroupId: null,
+      pillarId: null, includeLogo: false, density: 'seimbang' as const, ideaId: 'idea' }
+    const plan = { title: 'Kopi', caption: 'Caption', slides: [] }
+    const referencesOf = () => vi.mocked(createContentPost).mock.calls[0][3]
+
+    beforeEach(() => {
+      vi.mocked(planContent).mockImplementation(async (_user, _request, save) => ({ plan, saved: await save(plan) }))
+      vi.mocked(createContentPost).mockResolvedValue('draft')
+      vi.mocked(listTemplateBank).mockResolvedValue([
+        { id: 'pro-cover', label: 'cover', styles: ['profesional'] },
+        { id: 'pro-isi', label: 'isi', styles: ['profesional'] },
+        { id: 'min-cta', label: 'cta', styles: ['minimalis'] },
+        { id: 'tech-cover', label: 'cover', styles: ['tech'] },
+      ])
+    })
+
+    it('follows the template bank for Otomatis, in the style guessed from the kit, never the imported posts', async () => {
+      vi.mocked(getBrandVisual).mockResolvedValue({ name: 'Parkspring', category: 'Perumahan tapak modern', visualStyle: '', colors: [], headingFont: '', bodyFont: '', designStyle: '' })
+
+      await processContentJob({ ...job, kind: 'content', payload: { request } })
+
+      expect(referencesOf()).toEqual([
+        { role: 'cover', referenceImageId: null, example: 'pro-cover' },
+        { role: 'isi', referenceImageId: null, example: 'pro-isi' },
+        { role: 'cta', referenceImageId: null, example: 'min-cta' },
+      ])
+      expect(listReferencePool).not.toHaveBeenCalled()
+    })
+
+    it('uses exactly the group the owner picked, and refuses one that is gone', async () => {
+      const group = '11111111-1111-4111-8111-111111111111'
+      vi.mocked(listReferencePool).mockResolvedValue([
+        { id: 'r-cover', position: 0, label: 'cover' }, { id: 'r-isi', position: 1, label: 'isi' }, { id: 'r-cta', position: 2, label: 'cta' },
+      ])
+
+      await processContentJob({ ...job, kind: 'content', payload: { request: { ...request, referenceId: group } } })
+
+      expect(listReferencePool).toHaveBeenCalledWith('owner', 'instagram', group)
+      expect(referencesOf().map((slide: { referenceImageId: string | null }) => slide.referenceImageId)).toEqual(['r-cover', 'r-isi', 'r-cta'])
+      expect(listTemplateBank).not.toHaveBeenCalled()
+
+      vi.mocked(listReferencePool).mockResolvedValue([])
+      await processContentJob({ ...job, kind: 'content', payload: { request: { ...request, referenceId: group } } })
+      expect(failContentJob).toHaveBeenLastCalledWith(expect.anything(), 'Referensi brand tidak ditemukan.')
+    })
   })
 })

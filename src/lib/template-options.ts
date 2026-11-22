@@ -5,7 +5,7 @@ import idMessages from '../../messages/id/editor.json'
 import enMessages from '../../messages/en/editor.json'
 /** Design templates: the admin's example slides, shared by Admin › Template, the AI analysis and Buat Konten. */
 import { REFERENCE_LABELS, type Picker, type ReferenceLabel, type SlideRole } from './brand-options'
-import { DESIGN_STYLE_IDS, isDesignStyle, type DesignStyleId } from './design-styles'
+import { DESIGN_STYLE_IDS, isDesignStyle, styleChain, type DesignStyleId } from './design-styles'
 
 export type TemplateStatus = 'pending' | 'ready' | 'failed'
 
@@ -52,20 +52,59 @@ export function cleanStyles(value: unknown): DesignStyleId[] {
   return DESIGN_STYLE_IDS.filter((id) => listed.has(id))
 }
 
+/** An active, analysed template of the bank, with every style it was filed under. */
+export interface BankTemplate extends PoolTemplate {
+  styles: DesignStyleId[]
+}
+
+/** The template a role follows and the style it was taken from (the brand's, a fallback's, or any). */
+export interface ChosenTemplate {
+  id: string
+  label: ReferenceLabel
+  style: DesignStyleId
+}
+
 /**
- * Each slide's template, one per role as planReferenceImages picks references: the cover (or a one-image post) a
- * cover, the inner slides one inner template, the CTA a CTA. A role without a template of its own label takes one
- * Umum template, the same for every such role, else none.
+ * One template per role for a new post of the given style: a cover, one inner template shared by every inner
+ * slide, and a CTA. A role the style has no template for is borrowed from the nearest style (STYLE_FALLBACKS); then
+ * an Umum template of the style or its fallbacks; then that role from any style. Null only for an empty bank.
  */
-export function planTemplates(pool: PoolTemplate[], roles: (SlideRole | null)[], pick: Picker): (string | null)[] {
-  const withLabel = (label: ReferenceLabel) => pool.filter((template) => template.label === label)
-  const general = pick(withLabel('single'))
-  const chosen: Record<SlideRole, PoolTemplate | undefined> = {
-    cover: pick(withLabel('cover')) ?? general,
-    isi: pick(withLabel('isi')) ?? general,
-    cta: pick(withLabel('cta')) ?? general,
+export function chooseRoleTemplates(bank: BankTemplate[], style: DesignStyleId, pick: Picker): Record<SlideRole, ChosenTemplate | null> {
+  const chain = styleChain(style)
+  const inChain = (label: ReferenceLabel): ChosenTemplate | null => {
+    for (const candidate of chain) {
+      const picked = pick(bank.filter((template) => template.label === label && template.styles.includes(candidate)))
+      if (picked) return { id: picked.id, label, style: candidate }
+    }
+    return null
   }
+  const anyStyle = (label: ReferenceLabel): ChosenTemplate | null => {
+    const picked = pick(bank.filter((template) => template.label === label && template.styles.length > 0))
+    return picked ? { id: picked.id, label, style: picked.styles[0] } : null
+  }
+  const general = inChain('single')
+  const forRole = (label: SlideRole) => inChain(label) ?? general ?? anyStyle(label)
+  return { cover: forRole('cover'), isi: forRole('isi'), cta: forRole('cta') }
+}
+
+/** Each slide's template id from chooseRoleTemplates; a one-image post takes the cover's. */
+export function planTemplates(bank: BankTemplate[], style: DesignStyleId, roles: (SlideRole | null)[], pick: Picker): (string | null)[] {
+  const chosen = chooseRoleTemplates(bank, style, pick)
   return roles.map((role) => chosen[role ?? 'cover']?.id ?? null)
+}
+
+export type TemplateCoverage = { style: DesignStyleId; counts: Record<ReferenceLabel, number>; missing: SlideRole[] }[]
+
+/** How many ready, active templates each style has per label, and which carousel roles it lacks (Admin › Template). */
+export function templateCoverage(templates: Pick<DesignTemplate, 'styles' | 'label' | 'status' | 'active'>[]): TemplateCoverage {
+  return DESIGN_STYLE_IDS.map((style) => {
+    const counts = Object.fromEntries(Object.keys(REFERENCE_LABELS).map((label) => [label, 0])) as Record<ReferenceLabel, number>
+    for (const template of templates) {
+      if (template.status === 'ready' && template.active && template.label && template.styles.includes(style)) counts[template.label] += 1
+    }
+    const missing = (['cover', 'isi', 'cta'] as const).filter((role) => counts[role] === 0)
+    return { style, counts, missing }
+  })
 }
 
 /** The admin's correction of one template, from the edit form. */

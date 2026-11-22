@@ -8,7 +8,7 @@ import { describeError } from './errors'
 import { isUuid } from './params'
 import { toReferenceDataUrl } from './slide-image'
 import { db, unwrap } from './supabase'
-import { cleanStyles, type DesignTemplate, type PoolTemplate, type TemplateStatus } from './template-options'
+import { cleanStyles, type BankTemplate, type DesignTemplate, type TemplateStatus } from './template-options'
 
 const BUCKET = 'templates'
 const VIEW_URL_TTL_SECONDS = 60 * 60
@@ -206,12 +206,12 @@ export async function deleteTemplate(id: string): Promise<void> {
   await removeFiles(rows.map((row) => row.storage_path))
 }
 
-/** The active, analysed templates of a design style. */
-export async function listTemplatePool(style: DesignStyleId): Promise<PoolTemplate[]> {
-  const rows: { id: string; label: ReferenceLabel }[] = unwrap(
-    await db().from('design_templates').select('id, label').eq('status', 'ready').eq('active', true).contains('styles', [style]),
+/** Every active, analysed template with its styles: Otomatis picks per role from it (see chooseRoleTemplates). */
+export async function listTemplateBank(): Promise<BankTemplate[]> {
+  const rows: { id: string; label: ReferenceLabel; styles: unknown }[] = unwrap(
+    await db().from('design_templates').select('id, label, styles').eq('status', 'ready').eq('active', true),
   )
-  return rows.map(({ id, label }) => ({ id, label }))
+  return rows.map(({ id, label, styles }) => ({ id, label, styles: cleanStyles(styles) }))
 }
 
 /**
