@@ -16,6 +16,7 @@ export function AdminTabs() {
   { href: '/admin/pembayaran', label: t('admin_tabs.payments') },
   { href: '/admin/kupon', label: t('admin_tabs.coupon') },
   { href: '/admin/template', label: t('admin_tabs.templates') },
+  { href: '/admin/pengetahuan', label: t('admin_tabs.knowledge') },
   { href: '/admin/pengaturan', label: t('admin_tabs.settings') },
 ]
 

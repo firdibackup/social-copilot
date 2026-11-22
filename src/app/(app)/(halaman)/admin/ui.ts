@@ -61,4 +61,10 @@ export const ACTION_LABELS: Record<string, string> = {
   update_coupon: 'Ubah kupon',
   toggle_coupon: 'Aktif/nonaktifkan kupon',
   delete_coupon: 'Hapus kupon',
+  create_hook: 'Tambah hook',
+  update_hook: 'Ubah hook',
+  delete_hook: 'Hapus hook',
+  create_case: 'Tambah studi kasus',
+  update_case: 'Ubah studi kasus',
+  delete_case: 'Hapus studi kasus',
 }
