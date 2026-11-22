@@ -584,6 +584,8 @@
     "page": "Slide {page} of {total}", "download": "Download slide PNG"
   },
   "layerEditor": {
+    "rotateHandle": "Rotate layer",
+    "rotating": "{angle}° · hold Shift for 15° steps",
     "panelTabs": {
       "label": "Panel sections",
       "text": "Text",

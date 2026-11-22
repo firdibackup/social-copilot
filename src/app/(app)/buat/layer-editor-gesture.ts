@@ -97,6 +97,40 @@ function placeInFrame<T extends Layer>(start: Layer, next: T): T {
     y: next.y + cx * Math.sin(angle) + cy * Math.cos(angle) - cy }
 }
 
+// ---------- Rotate ----------
+
+/** Degrees within which a free rotation settles on a multiple of 45°, and the step Shift rotates in. */
+export const ROTATE_SNAP = { near: 3, quarter: 45, step: 15 }
+
+interface Point { x: number; y: number }
+
+/**
+ * The layer's rotation after its rotate handle was dragged from `from` to `to` (any one coordinate space, e.g.
+ * screen px) about the layer's centre: the start angle plus the turn of the pointer's bearing. In whole degrees
+ * within (-180, 180]; near a multiple of 45° it settles on it, and `step` (Shift) keeps to multiples of 15°.
+ */
+export function rotationFromDrag(start: number, centre: Point, from: Point, to: Point, step = false): number {
+  const bearing = (point: Point) => Math.atan2(point.y - centre.y, point.x - centre.x) * 180 / Math.PI
+  let angle = start + bearing(to) - bearing(from)
+  if (step) angle = Math.round(angle / ROTATE_SNAP.step) * ROTATE_SNAP.step
+  else {
+    const quarter = Math.round(angle / ROTATE_SNAP.quarter) * ROTATE_SNAP.quarter
+    if (Math.abs(angle - quarter) <= ROTATE_SNAP.near) angle = quarter
+  }
+  angle = Math.round(angle) % 360
+  if (angle > 180) angle -= 360
+  if (angle <= -180) angle += 360
+  return angle === 0 ? 0 : angle
+}
+
+/** The layer turned to `rotation` degrees; 0 drops the property, so an unrotated layer equals one never rotated. */
+export function withRotation<T extends Layer>(layer: T, rotation: number): T {
+  const next = { ...layer }
+  if (rotation) next.rotation = rotation
+  else delete next.rotation
+  return next
+}
+
 // ---------- Image crop ----------
 
 const FULL_CROP: ImageCrop = { x: 0, y: 0, w: 1, h: 1 }

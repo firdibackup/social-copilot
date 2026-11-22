@@ -584,6 +584,8 @@
     "page": "Slide {page} dari {total}", "download": "Unduh slide PNG"
   },
   "layerEditor": {
+    "rotateHandle": "Putar lapisan",
+    "rotating": "{angle}° · tahan Shift untuk kelipatan 15°",
     "panelTabs": {
       "label": "Bagian panel",
       "text": "Teks",

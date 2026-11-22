@@ -1,7 +1,7 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { Frame as FrameGlyph, ImagePlus, Keyboard, Minus, Plus, Scan, X } from 'lucide-react'
+import { Frame as FrameGlyph, ImagePlus, Keyboard, Minus, Plus, RotateCw, Scan, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
   useEffect, useEffectEvent, useLayoutEffect, useRef, useState,
@@ -21,7 +21,7 @@ import {
 import { CropBar, CropOverlay } from './layer-editor-crop'
 import { clipImageOf, dragHasImage, dropLayerIntoFrame, type ClipImage } from './layer-editor-frame-math'
 import { EmptyFrameMark } from './layer-editor-frame-marks'
-import { fitTextHeights, handlesFor, moveLayer, NO_GUIDES, replaceLayer, resizeRotatedLayer, zoomCrop, type Guides } from './layer-editor-gesture'
+import { fitTextHeights, handlesFor, moveLayer, NO_GUIDES, replaceLayer, resizeRotatedLayer, rotationFromDrag, withRotation, zoomCrop, type Guides } from './layer-editor-gesture'
 import { PenLayer, type PenResult } from './layer-editor-pen'
 import { SvgPathRecorder } from './layer-editor-shapes'
 import {
@@ -79,6 +79,8 @@ interface Gesture {
   id: string
   handle: Handle | null
   point?: PointGrab
+  /** The rotate handle: the layer's centre on screen, which the pointer turns about. */
+  rotate?: { x: number; y: number }
   start: Layer
   x: number
   y: number
@@ -162,6 +164,8 @@ export function LayerCanvas({
   const slideRef = useRef<HTMLDivElement>(null)
   /** An image being resized from a handle: shows the Shift hint, and whether it's free right now. */
   const [resizing, setResizing] = useState<{ free: boolean; corner: boolean } | null>(null)
+  /** The angle while the rotate handle is dragged, for the hint. */
+  const [rotating, setRotating] = useState<number | null>(null)
   const setLive = (next: { doc: LayerDoc; guides: Guides } | null) => {
     liveRef.current = next
     setLiveState(next)
@@ -449,7 +453,7 @@ export function LayerCanvas({
   const shown = live?.doc ?? doc
   const selected = shown.layers.find((layer) => layer.id === selectedId) ?? null
 
-  function start(event: ReactPointerEvent<HTMLElement>, id: string, handle: Handle | null, point?: PointGrab) {
+  function start(event: ReactPointerEvent<HTMLElement>, id: string, handle: Handle | null, point?: PointGrab, rotate?: { x: number; y: number }) {
     if (event.pointerType === 'mouse' && event.button !== 0) return
     event.stopPropagation()
     onSelect(id)
@@ -458,7 +462,7 @@ export function LayerCanvas({
     if (!layer) return
     if (layer.locked || layer.hidden) return
     event.currentTarget.setPointerCapture(event.pointerId)
-    gesture.current = { id, handle, point, start: layer, x: event.clientX, y: event.clientY, pointerId: event.pointerId, moved: false,
+    gesture.current = { id, handle, point, rotate, start: layer, x: event.clientX, y: event.clientY, pointerId: event.pointerId, moved: false,
       dx: 0, dy: 0, free: event.shiftKey }
   }
 
@@ -482,6 +486,12 @@ export function LayerCanvas({
     current.moved = true
     const dx = sx / scale
     const dy = sy / scale
+    if (current.rotate) {
+      const angle = rotationFromDrag(current.start.rotation ?? 0, current.rotate, { x: current.x, y: current.y }, { x: event.clientX, y: event.clientY }, event.shiftKey)
+      setLive({ doc: replaceLayer(doc, withRotation(current.start, angle)), guides: NO_GUIDES })
+      setRotating(angle)
+      return
+    }
     if (current.point && current.start.kind === 'path') {
       // The drag in the layer's own frame: undo its rotation.
       const angle = (current.start.rotation ?? 0) * Math.PI / 180
@@ -515,6 +525,7 @@ export function LayerCanvas({
     const result = liveRef.current
     setLive(null)
     setResizing(null)
+    setRotating(null)
     setDropFrame(null)
     if (!keep || !current.moved || !result) return
     const point = current.start.kind === 'image' && !current.handle ? canvasPoint(event.clientX, event.clientY) : undefined
@@ -744,6 +755,22 @@ export function LayerCanvas({
                     </span>
                   )
                 })}
+                {/* Below the box, turning with it; the centre is read from the frame itself, wherever the zoom put it. */}
+                {!readOnly && !selected.locked && (
+                  <span
+                    role="button"
+                    tabIndex={-1}
+                    aria-label={t('rotateHandle')}
+                    title={t('rotateHandle')}
+                    onPointerDown={(event) => {
+                      const frame = event.currentTarget.parentElement?.getBoundingClientRect()
+                      start(event, selected.id, null, undefined, frame ? { x: frame.left + frame.width / 2, y: frame.top + frame.height / 2 } : undefined)
+                    }}
+                    className="absolute top-full left-1/2 mt-4 flex size-7 -translate-x-1/2 cursor-grab touch-none items-center justify-center rounded-full border-[1.5px] border-accent bg-white text-accent shadow-[0_1px_3px_rgba(23,24,39,0.35)] active:cursor-grabbing pointer-coarse:size-10"
+                  >
+                    <RotateCw size={14} aria-hidden="true" />
+                  </span>
+                )}
               </div>
             )}
 
@@ -764,6 +791,11 @@ export function LayerCanvas({
               <CropBar layer={cropping} onChange={onCropChange} onDone={() => onCropEnd?.()} onReset={onCropReset} fixed={cropFixed} />, barHost,
             )}
 
+            {rotating !== null && (
+              <span role="status" className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[rgba(23,24,39,0.82)] px-3 py-1.5 text-[11px] font-medium whitespace-nowrap text-white shadow-[0_6px_18px_-8px_rgba(0,0,0,0.6)] backdrop-blur-sm">
+                {t('rotating', { angle: rotating })}
+              </span>
+            )}
             {resizing && (
               <span role="status" className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[rgba(23,24,39,0.82)] px-3 py-1.5 text-[11px] font-medium whitespace-nowrap text-white shadow-[0_6px_18px_-8px_rgba(0,0,0,0.6)] backdrop-blur-sm">
                 {resizing.free ? t('resizeFree') : resizing.corner ? t('resizeHint') : t('resizeCropHint')}

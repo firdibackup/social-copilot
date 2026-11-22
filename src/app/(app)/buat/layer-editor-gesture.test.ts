@@ -3,6 +3,7 @@ import { createHistory, parseLayerDoc, redo, undo, type ImageLayer, type LayerDo
 import {
   editStep, fitTextHeights, handlesFor, imageFullRect, moveLayer, nudgeLayer, panCrop, readDraft, resetCrop, resizeLayer,
   resizeRotatedLayer, zoomCrop,
+  rotationFromDrag, withRotation,
 } from './layer-editor-gesture'
 
 const ASSET = '11111111-1111-4111-8111-111111111111'
@@ -228,5 +229,40 @@ describe('image resize and crop', () => {
     const result = parseLayerDoc({ ...doc, layers: [cropped, { ...resizeLayer(photo, 'w', 33.3333, 0), id: 'p2' },
       { ...zoomCrop(photo, 3.7), id: 'p3' }] })
     expect(result).toHaveProperty('doc')
+  })
+})
+
+describe('rotate handle', () => {
+  const centre = { x: 100, y: 100 }
+  const below = { x: 100, y: 200 }
+
+  it('turns by the change of the pointer’s bearing about the centre', () => {
+    // From straight below the centre to its left: a quarter turn clockwise.
+    expect(rotationFromDrag(0, centre, below, { x: 0, y: 100 })).toBe(90)
+    expect(rotationFromDrag(0, centre, below, { x: 200, y: 100 })).toBe(-90)
+    expect(rotationFromDrag(30, centre, below, { x: 0, y: 100 })).toBe(120)
+    // Not moved: the angle it had.
+    expect(rotationFromDrag(37, centre, below, below)).toBe(37)
+  })
+
+  it('settles on a multiple of 45° when close, and steps by 15° with Shift', () => {
+    const at = (degrees: number) => ({ x: 100 + 100 * Math.cos((90 + degrees) * Math.PI / 180), y: 100 + 100 * Math.sin((90 + degrees) * Math.PI / 180) })
+    expect(rotationFromDrag(0, centre, below, at(43))).toBe(45)
+    expect(rotationFromDrag(0, centre, below, at(2))).toBe(0)
+    expect(rotationFromDrag(0, centre, below, at(20))).toBe(20)
+    expect(rotationFromDrag(0, centre, below, at(20), true)).toBe(15)
+    expect(rotationFromDrag(0, centre, below, at(23), true)).toBe(30)
+  })
+
+  it('stays within (-180, 180] and never returns -0', () => {
+    expect(rotationFromDrag(170, centre, below, { x: 0, y: 100 })).toBe(-100)
+    expect(rotationFromDrag(90, centre, below, { x: 0, y: 100 })).toBe(180)
+    expect(Object.is(rotationFromDrag(-1, centre, below, below), -0)).toBe(false)
+  })
+
+  it('drops the property at 0 so the layer equals one never rotated', () => {
+    const layer = { id: 'a', kind: 'shape' as const, shape: 'rect' as const, color: '#000000', radius: 0, strokeColor: '#000000', strokeWidth: 0, x: 0, y: 0, w: 10, h: 10 }
+    expect(withRotation({ ...layer, rotation: 30 }, 0)).toEqual(layer)
+    expect(withRotation(layer, 45)).toEqual({ ...layer, rotation: 45 })
   })
 })
