@@ -47,7 +47,8 @@
     "templates": "Templates",
     "knowledge": "Knowledge",
     "settings": "Settings",
-    "adminSections": "Admin sections"
+    "adminSections": "Admin sections",
+    "onboarding": "Onboarding"
   },
   "kupon_actions": {
     "couponNotFound": "Coupon not found.",
@@ -635,5 +636,56 @@
     "noHooks": "No matching hook; the writer uses the general rules only.",
     "noCases": "No matching study case.",
     "casesNeedAccount": "Choose an account: without one the writer uses no study cases."
+  },
+  "onboarding_page": {
+    "title": "Onboarding",
+    "loading": "Loading onboarding data…",
+    "description": "Each user's onboarding answers, their use of the free plan, and the paywalls they saw.",
+    "export": "Export CSV",
+    "totals": {
+      "users": "Started onboarding",
+      "finished": "Finished onboarding",
+      "paywall": "Saw the paywall",
+      "paid": "Subscribed"
+    },
+    "funnel": "How far users get",
+    "funnelHint": "Users who reached each screen or went further. Users of the earlier onboarding count only once finished.",
+    "steps": {
+      "instagram": "Instagram username",
+      "confirm": "Is this your account?",
+      "brand": "Brand name",
+      "goal": "Goal",
+      "website": "Website",
+      "language": "Caption language",
+      "posts": "Posts a week",
+      "frequency": "Posts last month",
+      "handler": "Who runs it",
+      "skill": "Skill level",
+      "referral": "Heard from",
+      "logo": "Logo",
+      "done": "Finished"
+    },
+    "noAnswers": "No answers yet.",
+    "columns": {
+      "user": "User",
+      "instagram": "Instagram",
+      "answers": "Answers",
+      "step": "Last screen",
+      "trial": "Free plan",
+      "paywall": "Paywall",
+      "plan": "Plan"
+    },
+    "verified": "Instagram login",
+    "typed": "typed",
+    "followers": "{count} followers",
+    "noInstagram": "No Instagram",
+    "perWeek": "{count} posts/week",
+    "from": "From: {source}",
+    "done": "Finished",
+    "usage": "Posts {contents}/{contentLimit} · Chat {chats}/{chatLimit} · Revisions {revisions}/{revisionLimit}",
+    "paywall": "Seen {shown}× · clicked {clicked}×",
+    "paid": "Subscribed",
+    "free": "Free",
+    "empty": "No users yet."
   }
 }

@@ -10,18 +10,36 @@ import {
   updateBrandKit,
   updateReference,
 } from './brand'
-import { analyzeProfile, analyzeStrategy, analyzeVisual } from './brand-ai'
+import { analyzeProfile, analyzeStrategy, analyzeVisual, type ProfileSources } from './brand-ai'
 import { colorsFromPalettes, MAX_LOGO_BYTES, PROFILE_FIELDS, type BrandFields, type ProfileText } from './brand-options'
 import { getPublishingAccount } from './connection'
 import { describeError } from './errors'
 import { imageType } from './image'
 import { paletteFromBytes } from './image-palette'
 import { fetchOwnProfile, fetchRecentMedia, type InstagramPost } from './instagram'
+import { readAvatar } from './instagram-lookup'
 import { fetchImage } from './web-fetch'
+import { readWebsite } from './website'
 
 /** Posts read for the profile's captions; the newest IMPORTED of them become references. */
 const POSTS_READ = 12
 const IMPORTED = 3
+
+/** What a brand kit is filled from: the Instagram API after the login, or the username lookup before it. */
+interface FillSource {
+  profile: { username: string; name: string; biography: string }
+  captions: string[]
+  website: ProfileSources['website']
+  /** The profile picture, to become the logo; null leaves the logo as it is. */
+  logo: (() => Promise<Uint8Array>) | null
+  /** Posts whose images become reference groups. Only the Instagram API gives them. */
+  posts: InstagramPost[]
+}
+
+interface SyncOptions {
+  /** A kit that came from the username lookup keeps the logo the owner picked there. */
+  keepLogo?: boolean
+}
 
 /**
  * Fills a newly connected account's brand kit from Instagram: profile text, content strategy, logo, up to 3
@@ -31,7 +49,75 @@ const IMPORTED = 3
  * Brand can say so. Never throws: it runs after the callback's redirect, where nobody would see an error.
  * `postsPerWeek`, answered in the onboarding, wins over the drafted strategy's rhythm.
  */
-export async function syncNewAccount(userId: string, accountId: string, postsPerWeek?: number, language: Locale = 'id'): Promise<void> {
+export async function syncNewAccount(
+  userId: string,
+  accountId: string,
+  postsPerWeek?: number,
+  language: Locale = 'id',
+  options: SyncOptions = {},
+): Promise<void> {
+  await fillBrandKit(userId, accountId, postsPerWeek, language, async () => {
+    // This runs after the redirect: if the owner has switched again since, the connection is another account's.
+    const account = await getPublishingAccount(userId)
+    if (account.instagramUserId !== accountId) throw new Error('akun Instagram sudah berganti')
+    const token = account.accessToken
+    const [profile, posts] = await Promise.all([fetchOwnProfile(token), fetchRecentMedia(token, POSTS_READ)])
+    const url = profile.profilePictureUrl
+    return {
+      // Named fields only: the sources are logged, and the picture URL is signed.
+      profile: { username: profile.username, name: profile.name, biography: profile.biography },
+      captions: posts.map((post) => post.caption).filter(Boolean),
+      website: null,
+      logo: url && !options.keepLogo ? async () => (await fetchImage(url, MAX_LOGO_BYTES)).bytes : null,
+      posts,
+    }
+  })
+}
+
+/** What the onboarding knows of a user who has not logged in with Instagram: the lookup, a website, a picked logo. */
+export interface ProvisionalSource {
+  /** The confirmed profile; null for a user without Instagram, whose kit starts from their own answers. */
+  instagram: { username: string; name: string; biography: string; captions: string[] } | null
+  websiteUrl: string
+  /** Our stored copy of the picture the user picked as the logo. */
+  logoPath: string | null
+}
+
+/**
+ * The same fill for the placeholder account of a user who has not logged in with Instagram yet, from what the
+ * onboarding read: the public profile, the website, and the picture the user picked as the logo, whose colours
+ * become the brand colours. References and the visual style wait for the login.
+ */
+export async function syncProvisionalAccount(
+  userId: string,
+  accountId: string,
+  source: ProvisionalSource,
+  postsPerWeek?: number,
+  language: Locale = 'id',
+): Promise<void> {
+  const { logoPath } = source
+  await fillBrandKit(userId, accountId, postsPerWeek, language, async () => {
+    let website: ProfileSources['website'] = null
+    if (source.websiteUrl) {
+      try {
+        const facts = await readWebsite(source.websiteUrl)
+        website = { url: facts.url, pages: facts.pages.map(({ url, title, description, text }) => ({ url, title, description, text })) }
+      } catch (error) {
+        console.error('[brand] website onboarding gagal dibaca:', describeError(error))
+      }
+    }
+    const { username = '', name = '', biography = '', captions = [] } = source.instagram ?? {}
+    return { profile: { username, name, biography }, captions, website, logo: logoPath ? () => readAvatar(logoPath) : null, posts: [] }
+  })
+}
+
+async function fillBrandKit(
+  userId: string,
+  accountId: string,
+  postsPerWeek: number | undefined,
+  language: Locale,
+  load: () => Promise<FillSource>,
+): Promise<void> {
   let failed = false
   async function step<T>(name: string, run: () => Promise<T>): Promise<T | null> {
     try {
@@ -43,29 +129,20 @@ export async function syncNewAccount(userId: string, accountId: string, postsPer
     }
   }
 
-  const source = await step('baca Instagram', async () => {
-    // This runs after the redirect: if the owner has switched again since, the connection is another account's.
-    const account = await getPublishingAccount(userId)
-    if (account.instagramUserId !== accountId) throw new Error('akun Instagram sudah berganti')
-    const token = account.accessToken
-    const [profile, posts] = await Promise.all([fetchOwnProfile(token), fetchRecentMedia(token, POSTS_READ)])
-    return { profile, posts }
-  })
+  const source = await step('baca sumber', load)
 
   if (source) {
-    const { profile, posts } = source
+    const { profile, posts, captions } = source
     const kit = await step('baca brand kit', () => getBrandFields(userId, accountId))
     const isEmpty = (field: keyof BrandFields) => {
       const value = kit?.[field]
       return Array.isArray(value) ? value.length === 0 : !value
     }
 
-    const captions = posts.map((post) => post.caption).filter(Boolean)
-    const profileText = await step('profil', async () => {
-      // Named fields only: the sources are logged, and the picture URL is signed.
-      const { username, name, biography } = profile
-      const instagram = { username, name, biography, captions }
-      const draft = await analyzeProfile(userId, { website: null, instagram }, { cost: 0, ...(language === 'en' ? { language } : {}) })
+    const hasText = Boolean(source.website || profile.biography || profile.name || captions.length > 0)
+    const profileText = !hasText ? null : await step('profil', async () => {
+      const instagram = profile.username ? { ...profile, captions } : null
+      const draft = await analyzeProfile(userId, { website: source.website, instagram }, { cost: 0, ...(language === 'en' ? { language } : {}) })
       const fields = PROFILE_FIELDS.filter((field) => draft[field] && isEmpty(field))
       if (fields.length > 0) {
         await updateBrandKit(userId, accountId, Object.fromEntries(fields.map((field) => [field, draft[field]])))
@@ -82,17 +159,19 @@ export async function syncNewAccount(userId: string, accountId: string, postsPer
       })
     }
 
-    if (profile.profilePictureUrl) {
-      const url = profile.profilePictureUrl
+    const palettes: string[][] = []
+    if (source.logo) {
+      const readLogo = source.logo
       await step('logo', async () => {
-        const { bytes } = await fetchImage(url, MAX_LOGO_BYTES)
+        const bytes = await readLogo()
         const type = imageType(bytes)
         if (!type) throw new Error('Foto profil bukan PNG, JPEG, atau WebP')
         await setLogo(userId, accountId, bytes, type)
+        // Without posts to read, the logo's colours are the only ones known.
+        if (posts.length === 0) palettes.push(await paletteFromBytes(bytes))
       })
     }
 
-    const palettes: string[][] = []
     for (const post of posts.slice(0, IMPORTED)) {
       const palette = await step('referensi', () => importPost(userId, accountId, post, `@${profile.username}`))
       if (palette && palette.length > 0) palettes.push(palette)

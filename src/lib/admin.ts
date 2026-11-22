@@ -151,7 +151,8 @@ async function overviewRows(userId?: string): Promise<Map<string, OverviewRow>> 
 }
 
 async function instagramAccounts(userIds?: string[]): Promise<Map<string, { username: string; status: string }>> {
-  let query = db().from('instagram_connections').select('user_id, username, status')
+  // Not the placeholder accounts of users who have not logged in with Instagram: Admin › Onboarding shows those.
+  let query = db().from('instagram_connections').select('user_id, username, status').not('instagram_user_id', 'like', 'pra-%')
   if (userIds) query = query.in('user_id', userIds)
   const rows = unwrap(await query) as { user_id: string; username: string; status: string }[]
   return new Map(rows.map((row) => [row.user_id, { username: row.username, status: row.status }]))

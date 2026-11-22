@@ -15,7 +15,8 @@ async function loadWorkspace(): Promise<{ name: string; logoUrl: string | null }
     const [accountId, instagram] = await Promise.all([getConnectedAccountId(userId), getConnection(userId)])
     // The brand belongs to the connected account; without one there is no brand to show.
     const kit = accountId ? await getBrandKit(userId, accountId) : null
-    return { name: kit?.name || (instagram ? `@${instagram.username}` : t('workspace')), logoUrl: kit?.logoUrl ?? null }
+    // A placeholder account without a username (no Instagram) has no handle to show.
+    return { name: kit?.name || (instagram?.username ? `@${instagram.username}` : t('workspace')), logoUrl: kit?.logoUrl ?? null }
   } catch (error) {
     console.error('[sidebar] workspace gagal dimuat:', describeError(error))
     return { name: t('workspace'), logoUrl: null }

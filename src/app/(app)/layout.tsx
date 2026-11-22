@@ -12,7 +12,7 @@ import { ThreadsStatus } from '@/components/threads-status'
 import { MobileNav } from '@/components/mobile-nav'
 import { NotificationBell } from '@/components/notification-bell'
 import { AdminSection, Sidebar } from '@/components/sidebar'
-import { CreditMeter, RenewalBanner } from '@/components/subscription-status'
+import { CreditMeter, RenewalBanner, TrialBanner } from '@/components/subscription-status'
 import { WorkspaceBadge } from '@/components/workspace-badge'
 import { currentUser, isAdmin } from '@/lib/auth'
 
@@ -90,6 +90,9 @@ export default async function AppLayout({ children }: AppLayoutProps) {
           </header>
           <Suspense fallback={null}>
             <RenewalBanner />
+          </Suspense>
+          <Suspense fallback={null}>
+            <TrialBanner />
           </Suspense>
           {/* Room for the phone's bottom bar. */}
           <main className="min-h-0 flex-1 pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>

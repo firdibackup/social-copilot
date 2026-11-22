@@ -112,7 +112,9 @@
     "loading": "Memuat pengaturan awal…",
     "saveFailed": "Jawaban gagal disimpan. Coba lagi.",
     "configurationError": "Konfigurasi belum lengkap: {message}.",
-    "databaseError": "Database tidak bisa diakses. Periksa konfigurasi Supabase di .env.local."
+    "databaseError": "Database tidak bisa diakses. Periksa konfigurasi Supabase di .env.local.",
+    "logoInvalid": "Logo harus berupa gambar PNG, JPEG, atau WebP.",
+    "logoTooLarge": "Logo terlalu besar. Maksimal 2 MB."
   },
   "errors": {
     "invalid": "Jawaban tidak valid.",
@@ -121,7 +123,8 @@
     "colors": "Warna tidak valid.",
     "posts": "Pilih jumlah posting per minggu dari pilihan yang ada.",
     "referral": "Jawaban \"tahu dari mana\" maksimal {count} karakter.",
-    "length": "{field} maksimal {count} karakter."
+    "length": "{field} maksimal {count} karakter.",
+    "website": "Alamat website tidak valid."
   },
   "fields": {
     "name": "Nama brand",
@@ -130,5 +133,144 @@
     "audience": "Target audiens",
     "headingFont": "Font judul",
     "bodyFont": "Font isi"
+  },
+  "flow": {
+    "instagram": {
+      "title": "Biar Carousely kenal brand kamu",
+      "hint": "Tulis username Instagram brand-mu. Mimo membaca profilnya, lalu kamu langsung dapat {contents} konten gratis dan {chats} pesan chat Mimo.",
+      "label": "Username Instagram",
+      "placeholder": "usernamekamu",
+      "privacy": "Kami hanya membaca profil dan post publik. Tidak perlu password Instagram.",
+      "searching": "Mencari akunmu…",
+      "none": "Saya tidak punya Instagram",
+      "loginFailed": "Login Instagram belum berhasil. Kamu tetap bisa lanjut dengan username, lalu menghubungkannya nanti di Pengaturan.",
+      "calloutTitle": "Punya akun Bisnis atau Kreator? Login dengan Instagram, dapat bonus:",
+      "bonusContent": "Konten gratis ke-{count} langsung terbuka",
+      "bonusPublish": "Jadwalkan dan terbitkan konten langsung ke Instagram",
+      "bonusBrand": "Brand kit lebih lengkap: logo, warna, dan contoh post diambil otomatis",
+      "login": "Login dengan Instagram",
+      "check": "Cara cek: buka profil Instagram-mu. Kalau ada tombol <b>Dasbor profesional</b>, akunmu Bisnis atau Kreator. Akun pribadi cukup pakai username dulu, dan bisa login belakangan."
+    },
+    "confirm": {
+      "title": "Ini akun kamu?",
+      "hint": "Pastikan dulu, supaya Mimo belajar dari akun yang benar.",
+      "yes": "Ya, benar",
+      "no": "Bukan, ganti",
+      "change": "Ganti",
+      "retry": "Coba username lain",
+      "without": "Lanjut tanpa Instagram",
+      "verified": "Terverifikasi",
+      "followers": "{count} pengikut",
+      "posts": "{count} post",
+      "privateNote": "Akun ini private, jadi Mimo belajar dari nama, bio, dan jawabanmu saja.",
+      "not_found": {
+        "title": "Username tidak ketemu",
+        "hint": "Cek lagi ejaannya, atau lanjut tanpa Instagram."
+      },
+      "invalid": {
+        "title": "Itu bukan username Instagram",
+        "hint": "Username hanya berisi huruf, angka, titik, dan garis bawah. Contoh: kopisinar.id"
+      },
+      "limited": {
+        "title": "Pencarian hari ini sudah habis",
+        "hint": "Kamu sudah mencari beberapa username hari ini. Kamu tetap bisa lanjut dengan username ini."
+      },
+      "failed": {
+        "title": "Instagram sedang susah dibaca",
+        "hint": "Profilnya belum bisa kami baca sekarang. Kamu tetap bisa lanjut dengan username ini, lalu menulis nama brand-mu sendiri."
+      },
+      "keep": "Lanjut dengan @{username}"
+    },
+    "brand": {
+      "title": "Ceritakan brand kamu",
+      "hint": "Cukup nama dan satu-dua kalimat. Mimo memakainya untuk menulis konten pertamamu.",
+      "about": "Tentang bisnismu (boleh dikosongkan)"
+    },
+    "goal": {
+      "title": "Apa tujuan utamamu di social media?",
+      "hint": "Mimo menyesuaikan ide kontennya dengan tujuan ini.",
+      "options": {
+        "sales": "Naikin penjualan",
+        "awareness": "Bangun brand awareness",
+        "education": "Edukasi customer",
+        "time": "Hemat waktu bikin konten"
+      }
+    },
+    "website": {
+      "title": "Punya website?",
+      "hint": "Kalau ada, Mimo ikut membacanya supaya lebih paham produk dan layananmu. Boleh dilewati.",
+      "placeholder": "tokokamu.com"
+    },
+    "language": {
+      "title": "Caption post-mu pakai bahasa apa?",
+      "hint": "Dipakai untuk caption dan teks di slide.",
+      "options": {
+        "id": "Indonesia",
+        "en": "English",
+        "mixed": "Campuran"
+      }
+    },
+    "posts": {
+      "title": "Berapa post per minggu?",
+      "hint": "Ini jadi jadwal dan kalender kontenmu. Bisa diubah kapan saja."
+    },
+    "frequency": {
+      "title": "Seberapa sering bisnismu posting sebulan terakhir?",
+      "hint": "Tidak ada jawaban yang salah: ini membantu kami menyiapkan panduan yang pas.",
+      "options": {
+        "none": "Belum pernah",
+        "few": "1–10 post",
+        "some": "11–20 post",
+        "many": "Lebih dari 20 post"
+      }
+    },
+    "handler": {
+      "title": "Siapa yang pegang social media kamu sekarang?",
+      "hint": "Supaya kami tahu siapa yang akan memakai Carousely.",
+      "options": {
+        "self": "Saya sendiri",
+        "team": "Tim internal",
+        "agency": "Agensi atau freelancer",
+        "nobody": "Belum ada"
+      }
+    },
+    "skill": {
+      "title": "Seberapa jago kamu di social media?",
+      "hint": "Makin baru, makin banyak panduan yang kami tampilkan.",
+      "options": {
+        "pro": "Jago",
+        "decent": "Lumayan",
+        "learning": "Masih mau belajar",
+        "new": "Baru mulai"
+      }
+    },
+    "referral": {
+      "title": "Tahu Carousely dari mana?",
+      "hint": "Satu pertanyaan terakhir, biar kami tahu cara menjangkau orang sepertimu."
+    },
+    "logo": {
+      "title": "Ini logo brand-mu?",
+      "hint": "Logo dipasang di kontenmu, dan warnanya jadi warna brand. Bisa diganti kapan saja di halaman Brand.",
+      "alt": "Logo brand",
+      "fromInstagram": "Diambil dari foto profil Instagram-mu",
+      "uploaded": "Logo yang kamu unggah",
+      "empty": "Belum ada logo",
+      "use": "Pakai ini",
+      "upload": "Upload punyaku",
+      "uploading": "Mengunggah…",
+      "skip": "Lanjut tanpa logo"
+    },
+    "done": {
+      "title": "Mimo sedang mempelajari brand-mu",
+      "hint": "Sebentar lagi kamu bisa membuat konten pertamamu. Gratis: {contents} konten dan {chats} pesan chat Mimo.",
+      "lines": {
+        "profile": "Membaca profil dan gaya bahasamu",
+        "website": "Membaca website-mu",
+        "strategy": "Menyusun pilar dan strategi konten",
+        "ready": "Menyiapkan ruang kerjamu"
+      },
+      "start": "Buat konten pertama",
+      "retry": "Coba lagi"
+    }
   }
 }

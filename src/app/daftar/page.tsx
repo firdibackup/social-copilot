@@ -2,6 +2,7 @@ import { getTranslations } from 'next-intl/server'
 import { IntlMessages } from '@/i18n/client-messages'
 import type { Metadata } from 'next'
 import { AuthCard, AuthForm } from '../masuk/auth-form'
+import { RememberHandle } from './remember-handle'
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('auth.form')
@@ -16,6 +17,7 @@ export default async function DaftarPage() {
       title={t('create')}
       description={t('signupDescription')}
     >
+      <RememberHandle />
       <AuthForm mode="daftar" />
     </AuthCard>
     </IntlMessages>

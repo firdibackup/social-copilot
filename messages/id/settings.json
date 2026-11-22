@@ -203,7 +203,13 @@
     "theTokenExpiredOrPermissionsWereRevoked": "Token kedaluwarsa atau izin dicabut. Sambungkan ulang agar posting dan DM tetap berjalan.",
     "instagramCanTBeCheckedRightNow": "Instagram tidak bisa dicek saat ini. Koneksi yang tersimpan tetap dipakai.",
     "connectionActive": "Koneksi aktif",
-    "reconnectWarning": "Pastikan masuk dengan @{username}. Akun lain akan menggantikannya, dan posting terjadwal @{username} kembali jadi draft."
+    "reconnectWarning": "Pastikan masuk dengan @{username}. Akun lain akan menggantikannya, dan posting terjadwal @{username} kembali jadi draft.",
+    "guideTitle": "Cara menghubungkan Instagram",
+    "guideCheck": "Buka profil Instagram-mu. Kalau ada tombol <b>Dasbor profesional</b>, akunmu sudah Bisnis atau Kreator.",
+    "guideClick": "Klik Hubungkan Instagram di bawah, lalu login di halaman resmi Instagram. Kami tidak pernah melihat password-mu.",
+    "guideAllow": "Izinkan semua akses yang diminta, supaya jadwal dan terbit otomatis bisa jalan.",
+    "guideBonus": "Setelah terhubung: konten gratis ke-{count} terbuka, dan kontenmu bisa dijadwalkan serta terbit otomatis.",
+    "guidePersonal": "Akun masih pribadi? Di aplikasi Instagram buka Pengaturan › Jenis akun dan alat › Beralih ke akun profesional. Gratis, dan bisa dikembalikan kapan saja."
   },
   "page": {
     "loadingSettings": "Memuat pengaturan…",

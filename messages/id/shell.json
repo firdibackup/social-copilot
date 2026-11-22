@@ -14,7 +14,10 @@
   "navigation": "Navigasi utama",
   "menu": "Menu",
   "connectedAccounts": "Akun terhubung",
-  "platforms": { "instagram": "Instagram", "threads": "Threads" },
+  "platforms": {
+    "instagram": "Instagram",
+    "threads": "Threads"
+  },
   "connect": "Connect",
   "aiCredits": "Kredit AI",
   "credits": "Kredit",
@@ -26,7 +29,8 @@
     "disconnected": "Belum terhubung",
     "reconnect": "Perlu disambung ulang",
     "unavailable": "Status tidak tersedia",
-    "instagramRequired": "Butuh Instagram"
+    "instagramRequired": "Butuh Instagram",
+    "connectFirst": "Halaman ini membaca data dari Instagram. <link>Hubungkan Instagram</link> dulu untuk memakainya."
   },
   "workspace": "Workspace",
   "quota": "Kuota AI",
@@ -71,5 +75,10 @@
     "unreadLabel": "Notifikasi, {count} belum dibaca",
     "newCount": "{count} baru",
     "unread": "Belum dibaca{suffix}"
+  },
+  "trial": {
+    "left": "Paket gratis: sisa {contents} konten · {chats} pesan Mimo · {revisions} revisi AI.",
+    "connect": "Hubungkan Instagram: +1 konten gratis",
+    "plans": "Lihat paket"
   }
 }

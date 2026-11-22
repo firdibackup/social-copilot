@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DESIGN_STYLE_IDS, DESIGN_STYLES, FONT_CHOICES, designStyleOf, isAccountKind, isDesignStyle } from './design-styles'
-import { EMPTY_ANSWERS, parseAnswers } from './onboarding-options'
+import { EMPTY_ANSWERS, parseAnswers, parseWebsite } from './onboarding-options'
 
 describe('parseAnswers', () => {
   it('accepts an empty object: every step can be skipped', () => {
@@ -70,5 +70,34 @@ describe('design styles', () => {
     expect(designStyleOf('hilang')).toBeNull()
     expect(isAccountKind('kreator')).toBe(true)
     expect(isAccountKind('hasOwnProperty')).toBe(false)
+  })
+})
+
+describe('the one-tap questions', () => {
+  it('keeps known answers and the website with a scheme', () => {
+    const result = parseAnswers({ goal: 'sales', captionLanguage: 'mixed', handler: 'agency', skillLevel: 'new', logoChoice: 'instagram', website: 'tokoku.id/produk', noInstagram: true })
+    expect(result).toEqual({
+      answers: { ...EMPTY_ANSWERS, goal: 'sales', captionLanguage: 'mixed', handler: 'agency', skillLevel: 'new', logoChoice: 'instagram', website: 'https://tokoku.id/produk', noInstagram: true },
+    })
+  })
+
+  it('rejects an answer that is not one of the choices', () => {
+    expect(parseAnswers({ goal: 'constructor' })).toEqual({ error: 'Jawaban tidak valid.' })
+    expect(parseAnswers({ website: 'bukan alamat' })).toEqual({ error: 'Alamat website tidak valid.' })
+  })
+
+  it('never takes the Instagram username from the client: only the confirmed lookup sets it', () => {
+    expect(parseAnswers({ igUsername: 'orang.lain' })).toEqual({ answers: EMPTY_ANSWERS })
+  })
+})
+
+describe('parseWebsite', () => {
+  it('adds https and refuses what is not a web address', () => {
+    expect(parseWebsite('')).toBe('')
+    expect(parseWebsite(' Tokoku.ID ')).toBe('https://tokoku.id/')
+    expect(parseWebsite('http://tokoku.id/a?b=1')).toBe('http://tokoku.id/a?b=1')
+    expect(parseWebsite('localhost')).toBeNull()
+    expect(parseWebsite('ftp://tokoku.id')).toBeNull()
+    expect(parseWebsite('toko ku.id')).toBeNull()
   })
 })

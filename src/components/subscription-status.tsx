@@ -3,8 +3,10 @@ import { getLocale } from 'next-intl/server'
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 import { connection } from 'next/server'
+import { trialStatus } from '@/lib/ai'
 import { currentPeriod, requireUser } from '@/lib/auth'
 import { getUsage } from '@/lib/billing'
+import { TRIAL_CHAT_MESSAGES, TRIAL_LIMITS } from '@/lib/billing-options'
 import { describeError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
 
@@ -69,6 +71,41 @@ export async function RenewalBanner() {
       {t('renewal', { days: Math.max(1, renewal.daysLeft), date: formatDateTime(renewal.activeUntil, locale) })}{' '}
       <Link href="/pengaturan?billing=perpanjang" className="font-medium underline">
         {t('renew')}
+      </Link>
+    </p>
+  )
+}
+
+/**
+ * For a user on the free trial, a strip under the header of every app page: what is left of it, how to open the
+ * last free carousel (the Instagram login), and the way to the plans.
+ */
+export async function TrialBanner() {
+  await connection()
+  const t = await getTranslations('shell')
+  const userId = await requireUser()
+  const status = await trialStatus(userId).catch((error: unknown) => {
+    console.error('[langganan] jatah gratis gagal dibaca:', describeError(error))
+    return null
+  })
+  if (!status) return null
+  const left = (limit: number, used: number) => Math.max(0, limit - used)
+  return (
+    <p role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-accent/20 bg-accent/5 px-5 py-2 text-sm text-ink">
+      <span>
+        {t('trial.left', {
+          contents: left(status.contentLimit, status.contentUsed),
+          chats: left(TRIAL_CHAT_MESSAGES, status.chatUsed),
+          revisions: left(TRIAL_LIMITS.revision, status.revisionUsed),
+        })}
+      </span>
+      {!status.connected && (
+        <Link href="/pengaturan#instagram" className="font-medium text-accent underline underline-offset-2">
+          {t('trial.connect')}
+        </Link>
+      )}
+      <Link href="/langganan" className="font-medium underline underline-offset-2">
+        {t('trial.plans')}
       </Link>
     </p>
   )

@@ -7,10 +7,11 @@ import type { InstagramPost } from './instagram'
 import { db, unwrap } from './supabase'
 
 /**
- * Apify, through the `apify/instagram-scraper` actor (paid per result), for two features only: Intel Kompetitor in
- * Mimo (public profiles found by username or keyword) and Brand › Referensi "Dari akun lain" (one public profile's
- * recent posts, capped per user and month in reference-scrape.ts). The rest of the app reads Instagram only through
- * Meta's APIs. Profile pictures and post images are signed CDN links: show them, never log them.
+ * Apify, through the `apify/instagram-scraper` actor (paid per result), for three features only: Intel Kompetitor in
+ * Mimo (public profiles found by username or keyword), Brand › Referensi "Dari akun lain" (one public profile's
+ * recent posts, capped per user and month in reference-scrape.ts), and the onboarding's username lookup (one public
+ * profile, capped per user and kept a day in instagram-lookup.ts). The rest of the app reads Instagram only through
+ * Meta's APIs. Profile pictures and post images are signed CDN links: show or copy them, never log or store them.
  */
 const ACTOR = 'apify~instagram-scraper'
 /** Leaves enough of Mimo's 300 s route budget for the model call before and after this actor. */
@@ -150,6 +151,64 @@ async function runActor(input: Json, timeoutMs: number, outerSignal?: AbortSigna
 
 export async function findCompetitors(search: CompetitorSearch, max: number, outerSignal?: AbortSignal): Promise<Competitor[]> {
   return readCompetitors(await runActor(competitorInput(search, max), RUN_TIMEOUT_MS, outerSignal), max)
+}
+
+/** The onboarding's "Ini akun kamu?": one public profile by its username. */
+export interface LookupProfile {
+  username: string
+  name: string
+  bio: string
+  followers: number | null
+  postsCount: number | null
+  verified: boolean
+  /** A private account shows its name and picture only. */
+  private: boolean
+  /** Whether Instagram lists it as a business or creator account, which the Instagram login needs. */
+  business: boolean
+  category: string
+  website: string
+  /** Recent captions, for the brand profile draft. */
+  captions: string[]
+  /** Signed CDN link; it expires after a few days. Copy the picture at once and never store this. */
+  avatar: string | null
+}
+
+const LOOKUP_POSTS = 12
+const LOOKUP_CAPTION_LENGTH = 600
+const LOOKUP_TIMEOUT_MS = 50_000
+
+/** Reads the actor's `details` item of `username`; null when the account doesn't exist. Pure, for tests. */
+export function readLookupProfile(items: unknown, username: string): LookupProfile | null {
+  if (!Array.isArray(items)) return null
+  const item = items.find((item): item is Json =>
+    isObject(item) && !('error' in item) && typeof item.username === 'string' && item.username.trim().toLowerCase() === username)
+  if (!item) return null
+  const posts = Array.isArray(item.latestPosts) ? item.latestPosts : []
+  const website = typeof item.externalUrl === 'string' && /^https?:\/\//i.test(item.externalUrl) ? item.externalUrl.slice(0, 300) : ''
+  return {
+    username,
+    name: text(item.fullName, 100),
+    bio: text(item.biography, BIO_LENGTH),
+    followers: count(item.followersCount),
+    postsCount: count(item.postsCount),
+    verified: item.verified === true,
+    private: item.private === true,
+    business: item.isBusinessAccount === true,
+    category: text(item.businessCategoryName, 100),
+    website,
+    captions: posts
+      .map((post) => (isObject(post) ? text(post.caption, LOOKUP_CAPTION_LENGTH) : ''))
+      .filter(Boolean)
+      .slice(0, LOOKUP_POSTS),
+    avatar: [item.profilePicUrlHD, item.profilePicUrl].find((url): url is string => typeof url === 'string' && url.startsWith('https://')) ?? null,
+  }
+}
+
+/** One profile by username, for the onboarding. Null when Instagram has no such account. */
+export async function fetchLookupProfile(username: string): Promise<LookupProfile | null> {
+  if (!INSTAGRAM_USERNAME.test(username)) return null
+  const input = { directUrls: [`https://www.instagram.com/${username}/`], resultsType: 'details', resultsLimit: LOOKUP_POSTS }
+  return readLookupProfile(await runActor(input, LOOKUP_TIMEOUT_MS), username)
 }
 
 /** Brand › Referensi "Dari akun lain": how many recent posts one profile run asks for. */

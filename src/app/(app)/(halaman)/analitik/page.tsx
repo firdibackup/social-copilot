@@ -1,3 +1,4 @@
+import { ConnectInstagramNotice } from '@/components/connect-instagram-notice'
 import { ExternalLink } from 'lucide-react'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { IntlMessages } from '@/i18n/client-messages'
@@ -123,6 +124,7 @@ async function AnalyticsView({ searchParams }: { searchParams: Promise<SearchPar
 async function ConnectionNotice({ instagram, hasPermission }: { instagram: Connection | null; hasPermission: boolean }) {
   const t = await getTranslations('analytics')
   if (!instagram) return null
+  if (instagram.provisional) return <ConnectInstagramNotice />
   const values = {
     username: instagram.username,
     link: (children: ReactNode) => <a href="/api/auth/instagram/start" className={RECONNECT_LINK}>{children}</a>,

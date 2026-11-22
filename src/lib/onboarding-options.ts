@@ -20,6 +20,68 @@ export interface OnboardingAnswers {
   postsPerWeek: number
   /** Where the user heard of Carousely: a REFERRAL_SOURCES label or their own words; '' while unanswered. */
   referralSource: string
+  /**
+   * The Instagram username the user confirmed in "Ini akun kamu?". Only the server sets it (confirmInstagram), from
+   * its own lookup; '' until then and for a user without Instagram.
+   */
+  igUsername: string
+  noInstagram: boolean
+  goal: Goal | ''
+  website: string
+  captionLanguage: CaptionLanguage | ''
+  postsLastMonth: PostsLastMonth | ''
+  handler: Handler | ''
+  skillLevel: SkillLevel | ''
+  logoChoice: LogoChoice | ''
+}
+
+/** The one-tap questions. The ids are what Admin › Onboarding counts; the labels are in onboarding.json. */
+export const GOALS = ['sales', 'awareness', 'education', 'time'] as const
+export const CAPTION_LANGUAGES = ['id', 'en', 'mixed'] as const
+export const POSTS_LAST_MONTH = ['none', 'few', 'some', 'many'] as const
+export const HANDLERS = ['self', 'team', 'agency', 'nobody'] as const
+export const SKILL_LEVELS = ['pro', 'decent', 'learning', 'new'] as const
+/** Whose picture becomes the brand logo: the Instagram profile picture, an upload, or none for now. */
+export const LOGO_CHOICES = ['instagram', 'upload', 'none'] as const
+export type Goal = (typeof GOALS)[number]
+export type CaptionLanguage = (typeof CAPTION_LANGUAGES)[number]
+export type PostsLastMonth = (typeof POSTS_LAST_MONTH)[number]
+export type Handler = (typeof HANDLERS)[number]
+export type SkillLevel = (typeof SKILL_LEVELS)[number]
+export type LogoChoice = (typeof LOGO_CHOICES)[number]
+
+/** The choice questions and their answers, in the order the wizard asks them. */
+export const CHOICE_QUESTIONS = {
+  goal: GOALS,
+  captionLanguage: CAPTION_LANGUAGES,
+  postsLastMonth: POSTS_LAST_MONTH,
+  handler: HANDLERS,
+  skillLevel: SKILL_LEVELS,
+  logoChoice: LOGO_CHOICES,
+} as const
+export type ChoiceQuestion = keyof typeof CHOICE_QUESTIONS
+
+/** The wizard's steps, in order; `last_step` in the database is one of them. */
+export const ONBOARDING_STEPS = [
+  'instagram', 'confirm', 'brand', 'goal', 'website', 'language', 'posts', 'frequency', 'handler', 'skill', 'referral', 'logo', 'done',
+] as const
+export type OnboardingStep = (typeof ONBOARDING_STEPS)[number]
+export const isOnboardingStep = (value: unknown): value is OnboardingStep =>
+  typeof value === 'string' && (ONBOARDING_STEPS as readonly string[]).includes(value)
+
+export const WEBSITE_MAX_LENGTH = 300
+
+/** A website as the user typed it, with https:// when the scheme is missing; null when it is not a web address. */
+export function parseWebsite(input: string): string | null {
+  const text = input.trim()
+  if (!text) return ''
+  if (text.length > WEBSITE_MAX_LENGTH || /\s/.test(text)) return null
+  try {
+    const url = new URL(/^https?:\/\//i.test(text) ? text : `https://${text}`)
+    return url.hostname.includes('.') ? url.toString().slice(0, WEBSITE_MAX_LENGTH) : null
+  } catch {
+    return null
+  }
 }
 
 export const EMPTY_ANSWERS: OnboardingAnswers = {
@@ -34,6 +96,15 @@ export const EMPTY_ANSWERS: OnboardingAnswers = {
   colors: [],
   postsPerWeek: 0,
   referralSource: '',
+  igUsername: '',
+  noInstagram: false,
+  goal: '',
+  website: '',
+  captionLanguage: '',
+  postsLastMonth: '',
+  handler: '',
+  skillLevel: '',
+  logoChoice: '',
 }
 
 export const POSTS_PER_WEEK_CHOICES = [3, 5, 7, 14] as const
@@ -87,5 +158,17 @@ export function parseAnswers(input: unknown, locale: Locale = 'id'): { answers: 
     if (lengthOf(text) > REFERRAL_MAX_LENGTH) return { error: t('errors.referral', { count: REFERRAL_MAX_LENGTH }) }
     answers.referralSource = text
   }
+  for (const question of Object.keys(CHOICE_QUESTIONS) as ChoiceQuestion[]) {
+    const value = input[question]
+    if (value === undefined || value === '') continue
+    if (!(CHOICE_QUESTIONS[question] as readonly unknown[]).includes(value)) return { error: t('errors.invalid') }
+    ;(answers as unknown as Record<string, unknown>)[question] = value
+  }
+  if (input.website !== undefined) {
+    const website = typeof input.website === 'string' ? parseWebsite(input.website) : null
+    if (website === null) return { error: t('errors.website') }
+    answers.website = website
+  }
+  answers.noInstagram = input.noInstagram === true
   return { answers }
 }

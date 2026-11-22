@@ -13,6 +13,7 @@ export function AdminTabs() {
   const TABS = [
   { href: '/admin', label: t('admin_tabs.overview') },
   { href: '/admin/pengguna', label: t('admin_tabs.users') },
+  { href: '/admin/onboarding', label: t('admin_tabs.onboarding') },
   { href: '/admin/pembayaran', label: t('admin_tabs.payments') },
   { href: '/admin/kupon', label: t('admin_tabs.coupon') },
   { href: '/admin/template', label: t('admin_tabs.templates') },

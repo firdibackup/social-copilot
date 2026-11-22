@@ -30,6 +30,8 @@ export interface Connection {
   status: ConnectionStatus
   /** What the owner granted at the last login; Analitik checks it for the insights permission. */
   scopes: string[]
+  /** No Instagram login yet: a placeholder account from the onboarding, always `needs_reconnect`. */
+  provisional: boolean
 }
 
 interface ConnectionRow {
@@ -50,6 +52,42 @@ export class NeedsReconnectError extends Error {
 /** The Instagram account is already connected to another user of the app. */
 export class AccountTakenError extends Error {
   override name = 'AccountTakenError'
+}
+
+/**
+ * A user who finished the onboarding without the Instagram login works in a placeholder account: a connection row
+ * with this id prefix, no token and status `needs_reconnect`. Everything that scopes data by account works on it,
+ * and everything that needs Instagram answers as for an expired login. The real login replaces the row and takes
+ * over its data (adoptProvisionalAccount).
+ */
+const PROVISIONAL_PREFIX = 'pra-'
+export const isProvisionalAccount = (accountId: string | null | undefined): boolean => accountId?.startsWith(PROVISIONAL_PREFIX) === true
+
+/** Gives a user without a connection the placeholder account. Returns the user's account id, real or placeholder. */
+export async function ensureProvisionalConnection(userId: string, username: string): Promise<string> {
+  const now = new Date().toISOString()
+  const accountId = `${PROVISIONAL_PREFIX}${userId}`
+  const result = await db().from('instagram_connections').insert({
+    user_id: userId,
+    instagram_user_id: accountId,
+    username,
+    account_type: 'PROVISIONAL',
+    access_token_enc: 'none',
+    scopes: [],
+    token_expires_at: now,
+    token_refreshed_at: now,
+    status: 'needs_reconnect',
+  })
+  if (result.error && result.error.code !== UNIQUE_VIOLATION) unwrap(result)
+  const row = unwrap(await db().from('instagram_connections').select('instagram_user_id').eq('user_id', userId).maybeSingle()) as
+    { instagram_user_id: string } | null
+  if (!row) throw new Error('Supabase: akun sementara tidak tersimpan')
+  return row.instagram_user_id
+}
+
+/** Moves what the user made in the placeholder account to the Instagram account they logged in with. */
+export async function adoptProvisionalAccount(userId: string, from: string, to: string): Promise<void> {
+  unwrap(await db().rpc('adopt_provisional_account', { p_user_id: userId, p_from: from, p_to: to }))
 }
 
 const stateCutoff = () => new Date(Date.now() - STATE_TTL_MS).toISOString()
@@ -103,6 +141,7 @@ export async function getConnection(userId: string): Promise<Connection | null> 
     tokenExpiresAt: new Date(row.token_expires_at),
     status: row.status,
     scopes: row.scopes,
+    provisional: isProvisionalAccount(row.instagram_user_id),
   }
 }
 

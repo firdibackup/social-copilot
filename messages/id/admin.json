@@ -47,7 +47,8 @@
     "templates": "Template",
     "knowledge": "Pengetahuan",
     "settings": "Pengaturan",
-    "adminSections": "Bagian admin"
+    "adminSections": "Bagian admin",
+    "onboarding": "Onboarding"
   },
   "kupon_actions": {
     "couponNotFound": "Kupon tidak ditemukan.",
@@ -635,5 +636,56 @@
     "noHooks": "Tidak ada hook yang cocok; penulis hanya memakai aturan umum.",
     "noCases": "Tidak ada studi kasus yang cocok.",
     "casesNeedAccount": "Pilih akun: tanpa akun, penulis tidak memakai studi kasus."
+  },
+  "onboarding_page": {
+    "title": "Onboarding",
+    "loading": "Memuat data onboarding…",
+    "description": "Jawaban onboarding tiap pengguna, pemakaian paket gratis, dan pop-up bayar yang mereka lihat.",
+    "export": "Ekspor CSV",
+    "totals": {
+      "users": "Mulai onboarding",
+      "finished": "Selesai onboarding",
+      "paywall": "Melihat pop-up bayar",
+      "paid": "Berlangganan"
+    },
+    "funnel": "Sampai di layar mana",
+    "funnelHint": "Jumlah pengguna yang sampai di tiap layar atau lebih jauh. Pengguna dari onboarding lama hanya terhitung kalau sudah selesai.",
+    "steps": {
+      "instagram": "Username Instagram",
+      "confirm": "Ini akun kamu?",
+      "brand": "Nama brand",
+      "goal": "Tujuan",
+      "website": "Website",
+      "language": "Bahasa caption",
+      "posts": "Post per minggu",
+      "frequency": "Posting bulan lalu",
+      "handler": "Siapa yang pegang",
+      "skill": "Tingkat kemahiran",
+      "referral": "Tahu dari mana",
+      "logo": "Logo",
+      "done": "Selesai"
+    },
+    "noAnswers": "Belum ada jawaban.",
+    "columns": {
+      "user": "Pengguna",
+      "instagram": "Instagram",
+      "answers": "Jawaban",
+      "step": "Layar terakhir",
+      "trial": "Paket gratis",
+      "paywall": "Pop-up bayar",
+      "plan": "Paket"
+    },
+    "verified": "login Instagram",
+    "typed": "diketik",
+    "followers": "{count} pengikut",
+    "noInstagram": "Tanpa Instagram",
+    "perWeek": "{count} post/minggu",
+    "from": "Dari: {source}",
+    "done": "Selesai",
+    "usage": "Konten {contents}/{contentLimit} · Chat {chats}/{chatLimit} · Revisi {revisions}/{revisionLimit}",
+    "paywall": "Dilihat {shown}× · diklik {clicked}×",
+    "paid": "Berlangganan",
+    "free": "Gratis",
+    "empty": "Belum ada pengguna."
   }
 }

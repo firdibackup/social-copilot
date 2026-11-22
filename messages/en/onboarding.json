@@ -112,7 +112,9 @@
     "loading": "Loading your setup…",
     "saveFailed": "Could not save your answers. Try again.",
     "configurationError": "Configuration is incomplete: {message}.",
-    "databaseError": "The database is unavailable. Check the Supabase configuration in .env.local."
+    "databaseError": "The database is unavailable. Check the Supabase configuration in .env.local.",
+    "logoInvalid": "The logo must be a PNG, JPEG or WebP image.",
+    "logoTooLarge": "The logo is too large. The limit is 2 MB."
   },
   "errors": {
     "invalid": "Invalid answer.",
@@ -121,7 +123,8 @@
     "colors": "Invalid colors.",
     "posts": "Choose one of the available weekly posting frequencies.",
     "referral": "Your “how did you hear about us” answer must be at most {count} characters.",
-    "length": "{field} must be at most {count} characters."
+    "length": "{field} must be at most {count} characters.",
+    "website": "That website address is not valid."
   },
   "fields": {
     "name": "Brand name",
@@ -130,5 +133,144 @@
     "audience": "Audience",
     "headingFont": "Heading font",
     "bodyFont": "Body font"
+  },
+  "flow": {
+    "instagram": {
+      "title": "Let Carousely get to know your brand",
+      "hint": "Type your brand's Instagram username. Mimo reads its profile, and you get {contents} free posts and {chats} Mimo chat messages at once.",
+      "label": "Instagram username",
+      "placeholder": "yourusername",
+      "privacy": "We only read the public profile and posts. No Instagram password needed.",
+      "searching": "Finding your account…",
+      "none": "I don't have Instagram",
+      "loginFailed": "The Instagram login didn't work. You can continue with your username and connect it later in Settings.",
+      "calloutTitle": "Have a Business or Creator account? Log in with Instagram for a bonus:",
+      "bonusContent": "Free post number {count} opens at once",
+      "bonusPublish": "Schedule and publish posts straight to Instagram",
+      "bonusBrand": "A fuller brand kit: logo, colours and sample posts are taken automatically",
+      "login": "Log in with Instagram",
+      "check": "How to check: open your Instagram profile. If it has a <b>Professional dashboard</b> button, your account is Business or Creator. A personal account can start with the username and log in later."
+    },
+    "confirm": {
+      "title": "Is this your account?",
+      "hint": "Check first, so Mimo learns from the right account.",
+      "yes": "Yes, that's it",
+      "no": "No, change it",
+      "change": "Change",
+      "retry": "Try another username",
+      "without": "Continue without Instagram",
+      "verified": "Verified",
+      "followers": "{count} followers",
+      "posts": "{count} posts",
+      "privateNote": "This account is private, so Mimo learns from its name, bio and your answers only.",
+      "not_found": {
+        "title": "Username not found",
+        "hint": "Check the spelling, or continue without Instagram."
+      },
+      "invalid": {
+        "title": "That is not an Instagram username",
+        "hint": "A username has only letters, numbers, dots and underscores. Example: kopisinar.id"
+      },
+      "limited": {
+        "title": "Today's lookups are used up",
+        "hint": "You have looked up several usernames today. You can still continue with this username."
+      },
+      "failed": {
+        "title": "Instagram is hard to read right now",
+        "hint": "We can't read the profile right now. You can still continue with this username and type your brand's name yourself."
+      },
+      "keep": "Continue with @{username}"
+    },
+    "brand": {
+      "title": "Tell us about your brand",
+      "hint": "A name and a sentence or two is enough. Mimo uses it to write your first post.",
+      "about": "About your business (optional)"
+    },
+    "goal": {
+      "title": "What is your main goal on social media?",
+      "hint": "Mimo fits its content ideas to this goal.",
+      "options": {
+        "sales": "Grow sales",
+        "awareness": "Build brand awareness",
+        "education": "Educate customers",
+        "time": "Save time making content"
+      }
+    },
+    "website": {
+      "title": "Do you have a website?",
+      "hint": "If you do, Mimo reads it too, to understand your products and services better. You can skip this.",
+      "placeholder": "yourstore.com"
+    },
+    "language": {
+      "title": "Which language are your captions in?",
+      "hint": "Used for captions and the text on slides.",
+      "options": {
+        "id": "Indonesian",
+        "en": "English",
+        "mixed": "Mixed"
+      }
+    },
+    "posts": {
+      "title": "How many posts a week?",
+      "hint": "This becomes your schedule and content calendar. You can change it any time."
+    },
+    "frequency": {
+      "title": "How often did your business post in the last month?",
+      "hint": "There is no wrong answer: it helps us prepare the right guidance.",
+      "options": {
+        "none": "Never",
+        "few": "1–10 posts",
+        "some": "11–20 posts",
+        "many": "More than 20 posts"
+      }
+    },
+    "handler": {
+      "title": "Who runs your social media now?",
+      "hint": "So we know who will use Carousely.",
+      "options": {
+        "self": "Myself",
+        "team": "An in-house team",
+        "agency": "An agency or freelancer",
+        "nobody": "Nobody yet"
+      }
+    },
+    "skill": {
+      "title": "How good are you at social media?",
+      "hint": "The newer you are, the more guidance we show.",
+      "options": {
+        "pro": "Expert",
+        "decent": "Decent",
+        "learning": "Still learning",
+        "new": "Just starting"
+      }
+    },
+    "referral": {
+      "title": "Where did you hear about Carousely?",
+      "hint": "One last question, so we know how to reach people like you."
+    },
+    "logo": {
+      "title": "Is this your brand's logo?",
+      "hint": "The logo goes on your posts, and its colours become your brand colours. You can change it any time on the Brand page.",
+      "alt": "Brand logo",
+      "fromInstagram": "Taken from your Instagram profile picture",
+      "uploaded": "The logo you uploaded",
+      "empty": "No logo yet",
+      "use": "Use this",
+      "upload": "Upload mine",
+      "uploading": "Uploading…",
+      "skip": "Continue without a logo"
+    },
+    "done": {
+      "title": "Mimo is learning your brand",
+      "hint": "You can make your first post in a moment. Free: {contents} posts and {chats} Mimo chat messages.",
+      "lines": {
+        "profile": "Reading your profile and tone of voice",
+        "website": "Reading your website",
+        "strategy": "Drafting content pillars and strategy",
+        "ready": "Preparing your workspace"
+      },
+      "start": "Make the first post",
+      "retry": "Try again"
+    }
   }
 }

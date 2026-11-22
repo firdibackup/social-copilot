@@ -1,11 +1,12 @@
-import { requireActiveUser } from '@/lib/auth'
+import { requireUser } from '@/lib/auth'
 import { createOAuthState } from '@/lib/connection'
 import { settingsUrl } from '@/lib/env'
 import { describeError } from '@/lib/errors'
 import { buildAuthorizeUrl } from '@/lib/instagram'
 
 export async function GET(): Promise<Response> {
-  const userId = await requireActiveUser()
+  // Also from the onboarding's first step, before it is finished: the callback then returns to /mulai.
+  const userId = await requireUser()
   try {
     return Response.redirect(buildAuthorizeUrl(await createOAuthState(userId)), 303)
   } catch (error) {

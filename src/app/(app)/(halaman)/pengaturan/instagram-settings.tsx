@@ -1,4 +1,5 @@
 
+import { TRIAL_CONTENTS_CONNECTED } from '@/lib/billing-options'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { InstagramIcon } from '@/components/instagram-icon'
 import { Notice } from '@/components/notice'
@@ -160,11 +161,22 @@ async function ConnectionDetails({ connection, health, scheduledCount }: Connect
   MEDIA_CREATOR: t('instagram_settings.creatorAccount'),
 }
 
-  if (!connection) {
+  // A user who has not logged in with Instagram yet works in a placeholder account: to them, nothing is connected.
+  if (!connection || connection.provisional) {
     return (
       <>
         <p className="text-sm text-zinc-600">
           {t('instagram_settings.noAccountConnectedYetConnectAnInstagram')}</p>
+        <div className="rounded-xl border border-accent/30 bg-accent/5 p-4 text-sm text-zinc-700">
+          <p className="font-medium text-zinc-900">{t('instagram_settings.guideTitle')}</p>
+          <ol className="mt-2 list-decimal space-y-1 pl-5">
+            <li>{t.rich('instagram_settings.guideCheck', { b: (chunks) => <strong className="font-semibold text-zinc-900">{chunks}</strong> })}</li>
+            <li>{t('instagram_settings.guideClick')}</li>
+            <li>{t('instagram_settings.guideAllow')}</li>
+          </ol>
+          <p className="mt-2">{t('instagram_settings.guideBonus', { count: TRIAL_CONTENTS_CONNECTED })}</p>
+          <p className="mt-2 text-xs text-zinc-500">{t('instagram_settings.guidePersonal')}</p>
+        </div>
         <ConnectLink label={t('instagram_settings.connectInstagram')} />
       </>
     )

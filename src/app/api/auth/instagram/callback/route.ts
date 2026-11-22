@@ -2,21 +2,24 @@ import { getTranslations } from 'next-intl/server'
 import { after } from 'next/server'
 import { getUserLocale } from '@/i18n/locale'
 import { currentUser } from '@/lib/auth'
-import { hasBrandKit, hasOtherBrandKit, startBrandSync } from '@/lib/brand'
+import { hasBrandKit, hasOtherBrandKit, startBrandSync, updateBrandKit } from '@/lib/brand'
 import { syncNewAccount } from '@/lib/brand-sync'
 import {
   AccountTakenError,
+  adoptProvisionalAccount,
   claimOrphanRows,
   consumeOAuthState,
   draftScheduledPosts,
   getConnectedAccountId,
+  isProvisionalAccount,
   saveConnection,
 } from '@/lib/connection'
 import { appUrl, settingsUrl } from '@/lib/env'
 import { ConfigError, describeError } from '@/lib/errors'
+import { logFunnel } from '@/lib/funnel'
 import { ensureWebhookSubscription } from '@/lib/inbox-sync'
 import { exchangeCodeForToken, exchangeForLongLivedToken, fetchProfile, InstagramApiError } from '@/lib/instagram'
-import { getCompletedAnswers, kitColumnsOf } from '@/lib/onboarding'
+import { getCompletedAnswers, isOnboarded, kitColumnsOf, markInstagramVerified } from '@/lib/onboarding'
 import { deleteOtherThreadsConnection } from '@/lib/threads-connection'
 
 type CallbackErrorCode =
@@ -98,7 +101,7 @@ async function completeLogin(userId: string, params: URLSearchParams): Promise<C
     ),
   )
   if (!saved) return { ig_error: 'akun_dipakai' }
-  await step('gagal_database', () => switchToAccount(userId, previous, profile.userId))
+  await step('gagal_database', () => switchToAccount(userId, previous, profile.userId, profile.username))
   after(() => ensureWebhookSubscription(userId))
   return { ig: 'connected' }
 }
@@ -111,11 +114,24 @@ async function completeLogin(userId: string, params: URLSearchParams): Promise<C
  * another account (also one connected after Putuskan, when `previous` is already gone) must not inherit its
  * name, description, colours and strategy.
  */
-async function switchToAccount(userId: string, previous: string | null, accountId: string): Promise<void> {
-  if (previous && previous !== accountId) await draftScheduledPosts(userId, previous)
+async function switchToAccount(userId: string, previous: string | null, accountId: string, username: string): Promise<void> {
+  const adopted = isProvisionalAccount(previous)
+  // The first login of a user who started without Instagram: their brand, posts and settings follow them.
+  if (previous && adopted) await adoptProvisionalAccount(userId, previous, accountId)
+  else if (previous && previous !== accountId) await draftScheduledPosts(userId, previous)
+  await markInstagramVerified(userId, username)
+  await logFunnel(userId, 'ig_connect', adopted ? 'trial' : '')
   await deleteOtherThreadsConnection(userId, accountId)
   await claimOrphanRows(userId, accountId)
-  if (await hasBrandKit(userId, accountId)) return
+  if (await hasBrandKit(userId, accountId)) {
+    if (!adopted) return
+    // The kit came from the username lookup: the login adds what only Instagram's API gives (references, visual
+    // style), and fills nothing the owner already has.
+    await updateBrandKit(userId, accountId, { syncStatus: 'running' })
+    const language = await getUserLocale()
+    after(() => syncNewAccount(userId, accountId, undefined, language, { keepLogo: true }))
+    return
+  }
   const answers = (await hasOtherBrandKit(userId, accountId)) ? null : await getCompletedAnswers(userId)
   if (await startBrandSync(userId, accountId, answers ? kitColumnsOf(answers) : {})) {
     // The cookie is unreadable inside after(), so the brand analysis language is taken now.
@@ -134,5 +150,7 @@ export async function GET(request: Request): Promise<Response> {
     }
     throw error
   })
-  return Response.redirect(settingsUrl(result), 303)
+  // A login started from the onboarding's first step goes back to it; the settings page would only bounce there.
+  const onboarded = await isOnboarded(user.id).catch(() => true)
+  return Response.redirect(onboarded ? settingsUrl(result) : appUrl('/mulai', 'ig_error' in result ? { ig_error: result.ig_error } : {}), 303)
 }

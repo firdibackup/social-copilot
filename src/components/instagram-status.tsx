@@ -33,7 +33,8 @@ async function loadStatus(): Promise<Status> {
   const userId = await requireUser()
   try {
     const current = await getConnection(userId)
-    if (!current) return { tone: 'muted', label: t('connection.disconnected') }
+    // The placeholder account of a user who has not logged in with Instagram reads as not connected.
+    if (!current || current.provisional) return { tone: 'muted', label: t('connection.disconnected') }
     if (current.status === 'needs_reconnect') return { tone: 'warning', label: t('connection.reconnect') }
     return { tone: 'ok', label: `@${current.username}` }
   } catch (error) {

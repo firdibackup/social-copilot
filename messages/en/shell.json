@@ -14,7 +14,10 @@
   "navigation": "Main navigation",
   "menu": "Menu",
   "connectedAccounts": "Connected accounts",
-  "platforms": { "instagram": "Instagram", "threads": "Threads" },
+  "platforms": {
+    "instagram": "Instagram",
+    "threads": "Threads"
+  },
   "connect": "Connect",
   "aiCredits": "AI credits",
   "credits": "Credits",
@@ -26,7 +29,8 @@
     "disconnected": "Not connected",
     "reconnect": "Reconnect needed",
     "unavailable": "Status unavailable",
-    "instagramRequired": "Instagram required"
+    "instagramRequired": "Instagram required",
+    "connectFirst": "This page reads data from Instagram. <link>Connect Instagram</link> first to use it."
   },
   "workspace": "Workspace",
   "quota": "AI quota",
@@ -71,5 +75,10 @@
     "unreadLabel": "Notifications, {count} unread",
     "newCount": "{count} new",
     "unread": "Unread{suffix}"
+  },
+  "trial": {
+    "left": "Free plan: {contents} posts · {chats} Mimo messages · {revisions} AI revisions left.",
+    "connect": "Connect Instagram: +1 free post",
+    "plans": "See plans"
   }
 }

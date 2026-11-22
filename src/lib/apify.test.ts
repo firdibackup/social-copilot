@@ -14,6 +14,7 @@ import {
   readProfilePosts,
   saveCachedCompetitors,
   USERNAME_CACHE_TTL_MS,
+  readLookupProfile,
 } from './apify'
 
 type Result = { data: unknown; error: unknown }
@@ -103,6 +104,38 @@ describe('readCompetitors', () => {
     expect(found.map((account) => account.username)).toEqual(['kopikenangan', 'janjijiwa'])
     expect(found[1]).toMatchObject({ followers: null, avatar: null, recentPosts: [] })
     expect(readCompetitors({ error: 'x' })).toEqual([])
+  })
+})
+
+describe('readLookupProfile', () => {
+  const item = {
+    username: 'KopiSinar', fullName: 'Kopi Sinar', biography: 'Kopi susu gula aren.\nBandung', followersCount: 1234, postsCount: 56,
+    verified: false, private: false, isBusinessAccount: true, businessCategoryName: 'Coffee shop', externalUrl: 'https://kopisinar.id',
+    profilePicUrl: 'https://cdn.example/small.jpg?sig=1', profilePicUrlHD: 'https://cdn.example/hd.jpg?sig=2',
+    latestPosts: [{ caption: 'Promo  hari ini' }, { caption: '' }, { caption: 'Menu baru' }, 'bukan post'],
+  }
+
+  it('reads the profile of the asked username, with the larger picture and the captions', () => {
+    expect(readLookupProfile([{ username: 'lain' }, item], 'kopisinar')).toEqual({
+      username: 'kopisinar', name: 'Kopi Sinar', bio: 'Kopi susu gula aren. Bandung', followers: 1234, postsCount: 56, verified: false,
+      private: false, business: true, category: 'Coffee shop', website: 'https://kopisinar.id', captions: ['Promo hari ini', 'Menu baru'],
+      avatar: 'https://cdn.example/hd.jpg?sig=2',
+    })
+  })
+
+  it('keeps a private account, without captions', () => {
+    const profile = readLookupProfile([{ username: 'kopisinar', fullName: 'Kopi Sinar', private: true, profilePicUrl: 'https://cdn.example/a.jpg' }], 'kopisinar')
+    expect(profile).toMatchObject({ private: true, captions: [], avatar: 'https://cdn.example/a.jpg', website: '' })
+  })
+
+  it('answers null for an account Instagram does not have', () => {
+    expect(readLookupProfile([{ username: 'kopisinar', error: 'not_found' }], 'kopisinar')).toBeNull()
+    expect(readLookupProfile([], 'kopisinar')).toBeNull()
+    expect(readLookupProfile(null, 'kopisinar')).toBeNull()
+  })
+
+  it('never takes a link that is not a web address as the website', () => {
+    expect(readLookupProfile([{ ...item, externalUrl: 'javascript:alert(1)' }], 'kopisinar')?.website).toBe('')
   })
 })
 

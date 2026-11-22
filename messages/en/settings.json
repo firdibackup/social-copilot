@@ -203,7 +203,13 @@
     "theTokenExpiredOrPermissionsWereRevoked": "The token expired or permissions were revoked. Reconnect to keep posts and DMs working.",
     "instagramCanTBeCheckedRightNow": "Instagram can't be checked right now. Your saved connection will still be used.",
     "connectionActive": "Connection active",
-    "reconnectWarning": "Make sure you sign in as @{username}. Another account will replace it, and scheduled posts for @{username} will become drafts again."
+    "reconnectWarning": "Make sure you sign in as @{username}. Another account will replace it, and scheduled posts for @{username} will become drafts again.",
+    "guideTitle": "How to connect Instagram",
+    "guideCheck": "Open your Instagram profile. If it has a <b>Professional dashboard</b> button, your account is already Business or Creator.",
+    "guideClick": "Click Connect Instagram below, then log in on Instagram's own page. We never see your password.",
+    "guideAllow": "Allow every permission it asks for, so scheduling and automatic posting can work.",
+    "guideBonus": "Once connected: free post number {count} opens, and your posts can be scheduled and published automatically.",
+    "guidePersonal": "Still a personal account? In the Instagram app open Settings › Account type and tools › Switch to professional account. It is free and can be switched back any time."
   },
   "page": {
     "loadingSettings": "Loading settings…",

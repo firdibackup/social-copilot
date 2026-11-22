@@ -1,3 +1,4 @@
+import { ConnectInstagramNotice } from '@/components/connect-instagram-notice'
 import { inboxLoadError } from './action-utils'
 import { IntlMessages } from '@/i18n/client-messages'
 import { getTranslations } from 'next-intl/server'
@@ -313,6 +314,7 @@ async function ThreadsNotice({ threads }: { threads: ThreadsConnection | null })
 async function CommentsNotice({ instagram }: { instagram: Connection | null }) {
   const t = await getTranslations('inbox.page')
   if (!instagram) return <Notice tone="warning">{t('connectYourInstagramAccountInSettingsFirst')}</Notice>
+  if (instagram.provisional) return <ConnectInstagramNotice />
   // A plain <a>: the route redirects off-site to Instagram.
 
   if (instagram.status === 'needs_reconnect') {
