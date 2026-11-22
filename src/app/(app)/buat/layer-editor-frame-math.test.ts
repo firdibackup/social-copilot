@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { frameCrop, parseLayerDoc, type FrameLayer, type ImageLayer, type LayerDoc } from '@/lib/layer-doc'
 import {
-  clipImageOf, dataUrlFile, dragHasImage, dropLayerIntoFrame, FRAME_PRESETS, frameAsImage, frameWithCrop, imageFileOf, newFrameFromPreset,
+  clipImageOf, clipIsPictureOnly, dataUrlFile, dragHasImage, dropLayerIntoFrame, FRAME_PRESETS, frameAsImage, frameWithCrop, imageFileOf, newFrameFromPreset,
 } from './layer-editor-frame-math'
 import { panCrop, zoomCrop } from './layer-editor-gesture'
 
@@ -78,6 +78,16 @@ describe('clipboard and drag data', () => {
   const clip = (values: Record<string, string>, files: File[] = []) =>
     ({ files, items: [], types: Object.keys(values), getData: (type: string) => values[type] ?? '' }) as unknown as DataTransfer
   const PNG = 'data:image/png;base64,iVBORw0KGgo='
+
+  it('tells a picture-only paste from one a text field would take', () => {
+    // "Copy image": a file and its HTML, no plain text.
+    expect(clipIsPictureOnly(clip({ 'text/html': '<img src="https://a.test/x.jpg">' }, [file('image/png')]))).toBe(true)
+    expect(clipIsPictureOnly(clip({ 'text/html': '<img src="https://a.test/x.jpg">' }))).toBe(true)
+    // "Copy image address" and ordinary text belong to the field being typed in.
+    expect(clipIsPictureOnly(clip({ 'text/plain': 'https://a.test/d.jpg' }))).toBe(false)
+    expect(clipIsPictureOnly(clip({ 'text/plain': 'halo', 'text/html': '<p>halo</p>' }))).toBe(false)
+    expect(clipIsPictureOnly(null)).toBe(false)
+  })
 
   it('prefers a real image file', () => {
     const pasted = file('image/png')

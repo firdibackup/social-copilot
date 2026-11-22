@@ -1,6 +1,6 @@
 import { lookup } from 'node:dns/promises'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchImage, fetchPublic, isPublicAddress, isPublicHost, RemoteFetchError } from './web-fetch'
+import { fetchImage, fetchPicture, fetchPublic, isPublicAddress, isPublicHost, RemoteFetchError } from './web-fetch'
 
 vi.mock('node:dns/promises', () => ({ lookup: vi.fn() }))
 
@@ -116,5 +116,25 @@ describe('fetchImage', () => {
     fetchMock.mockResolvedValueOnce(new Response('<svg></svg>', { headers: { 'content-type': 'image/png' } }))
 
     await expect(fetchImage('https://kopisinar.id/logo.png')).rejects.toThrow('bukan gambar JPEG, PNG, atau WebP')
+  })
+})
+
+describe('fetchPicture', () => {
+  const bytes = (text: string) => Uint8Array.from(text, (char) => char.charCodeAt(0))
+
+  it('lets AVIF and GIF through beside JPEG, PNG and WebP, by their bytes', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(bytes('\0\0\0\x1cftypavif\0\0\0\0'), { headers: { 'content-type': 'image/jpeg' } }))
+    await expect(fetchPicture('https://kopisinar.id/a.jpg')).resolves.toMatchObject({ jpeg: false })
+    fetchMock.mockResolvedValueOnce(new Response(bytes('GIF89a\x01\0\x01\0')))
+    await expect(fetchPicture('https://kopisinar.id/a.gif')).resolves.toMatchObject({ jpeg: false })
+    fetchMock.mockResolvedValueOnce(new Response(PNG))
+    await expect(fetchPicture('https://kopisinar.id/a.png')).resolves.toMatchObject({ jpeg: false })
+  })
+
+  it('refuses SVG and other documents whatever the header says', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('<svg xmlns="http://www.w3.org/2000/svg"></svg>', { headers: { 'content-type': 'image/png' } }))
+    await expect(fetchPicture('https://kopisinar.id/a.png')).rejects.toThrow('bukan gambar')
+    fetchMock.mockResolvedValueOnce(new Response(bytes('\0\0\0\x1cftypmp42\0\0\0\0')))
+    await expect(fetchPicture('https://kopisinar.id/a.mp4')).rejects.toThrow('bukan gambar')
   })
 })

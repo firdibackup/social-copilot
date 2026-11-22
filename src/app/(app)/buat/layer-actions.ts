@@ -39,7 +39,7 @@ import { FileTooLargeError, hasStorageRoom, StorageFullError } from '@/lib/stora
 import { fileTooLargeMessage, storageFullMessage } from '@/lib/storage-quota-options'
 import { db, unwrap } from '@/lib/supabase'
 import { MAX_STORED_BYTES } from '@/lib/storage-quota-options'
-import { fetchImage, RemoteFetchError } from '@/lib/web-fetch'
+import { fetchPicture, RemoteFetchError } from '@/lib/web-fetch'
 
 /** A message for the owner, or null when it worked. */
 type ActionError = string | null
@@ -551,7 +551,7 @@ export async function uploadLayerImageAction(
 
 /**
  * A picture the owner copied out of a web page (Google Images and the like put only its address on the clipboard):
- * fetched by the server (public addresses only, JPEG/PNG/WebP, ≤ 8 MB), sized to at most 1600 px and stored as a
+ * fetched by the server (public addresses only, JPEG/PNG/WebP/AVIF/GIF, ≤ 8 MB), sized to at most 1600 px and stored as a
  * layer image like uploadLayerImageAction. PNG when the picture may be transparent, else JPEG.
  */
 export async function uploadLayerImageFromUrlAction(
@@ -562,10 +562,11 @@ export async function uploadLayerImageFromUrlAction(
   const { userId, accountId } = await requireAccount()
   if (typeof url !== 'string' || url.length > 4096 || !/^https?:\/\//i.test(url)) return { error: t('pasteUrlInvalid') }
   try {
-    const { bytes, type } = await fetchImage(url)
-    const source = sharp(bytes).rotate()
+    const { bytes, jpeg } = await fetchPicture(url)
+    // One frame only: an animated GIF or AVIF becomes its first picture.
+    const source = sharp(bytes, { pages: 1 }).rotate()
     const meta = await source.metadata()
-    const alpha = type !== 'image/jpeg' && Boolean(meta.hasAlpha)
+    const alpha = !jpeg && Boolean(meta.hasAlpha)
     let side = PASTED_MAX_SIDE
     for (let step = 0; step < 8; step++) {
       const resized = source.clone().resize({ width: side, height: side, fit: 'inside', withoutEnlargement: true })

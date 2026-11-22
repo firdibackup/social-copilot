@@ -148,3 +148,21 @@ export async function fetchImage(input: string, maxBytes = MAX_IMAGE_BYTES): Pro
   if (!type) throw new RemoteFetchError('File itu bukan gambar JPEG, PNG, atau WebP.')
   return { bytes, type }
 }
+
+const ascii = (bytes: Uint8Array, from: number, to: number) => String.fromCharCode(...bytes.subarray(from, to))
+/** ISO-BMFF brands of AVIF stills and sequences. */
+const AVIF_BRANDS = new Set(['avif', 'avis'])
+
+/**
+ * A picture copied from the web for the layer editor: JPEG, PNG, WebP, and also AVIF or GIF, which many sites and
+ * CDNs serve instead; judged by its bytes, never by the address or the header. SVG is refused: it is a document.
+ * The caller re-encodes it with sharp, so only the formats sharp decodes safely are let through.
+ */
+export async function fetchPicture(input: string, maxBytes = MAX_IMAGE_BYTES): Promise<{ bytes: Uint8Array; jpeg: boolean }> {
+  const { bytes } = await fetchPublic(input, maxBytes)
+  const type = imageType(bytes)
+  const avif = bytes.length >= 12 && ascii(bytes, 4, 8) === 'ftyp' && AVIF_BRANDS.has(ascii(bytes, 8, 12))
+  const gif = bytes.length >= 6 && /^GIF8[79]a$/.test(ascii(bytes, 0, 6))
+  if (!type && !avif && !gif) throw new RemoteFetchError('File itu bukan gambar JPEG, PNG, WebP, AVIF, atau GIF.')
+  return { bytes, jpeg: type === 'image/jpeg' }
+}

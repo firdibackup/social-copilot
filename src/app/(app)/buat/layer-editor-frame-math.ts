@@ -117,6 +117,19 @@ const decodeEntities = (text: string) => text.replace(/&(amp|quot|apos|lt|gt|#39
   ENTITIES[name] ?? ENTITIES[name.toLowerCase()] ?? all)
 const httpUrl = (text: string) => (/^https?:\/\/[^\s]+$/i.test(text) ? text : null)
 
+/**
+ * A paste that carries a picture and no plain text: a text field would take nothing from it, so the editor may use
+ * it even while the owner is typing ("Copy image" brings a file and its HTML, never plain text).
+ */
+export const clipIsPictureOnly = (data: DataTransfer | null): boolean => {
+  if (!data || clipImageOf(data) === null) return false
+  try {
+    return (data.getData('text/plain') ?? '').trim() === ''
+  } catch {
+    return true
+  }
+}
+
 /** A `data:image/…` address as a file (pages often show small pictures inline like this), or null. */
 export function dataUrlFile(url: string): File | null {
   const match = /^data:(image\/[\w.+-]+)((?:;[^,]*)?),([\s\S]*)$/i.exec(url.trim())
