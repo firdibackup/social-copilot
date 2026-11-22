@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from 'next-intl'
 import { useId, useState } from 'react'
 import { ArrowUpRight, Check, Lock } from 'lucide-react'
 import { InstagramAiIcon } from '@/components/instagram-ai-icon'
-import { DEFAULT_CATALOG, estimatedPosts as postsFor, quotePurchase, shownPlans, type BillingCatalog } from '@/lib/billing-catalog-options'
+import { defaultDescription, estimatedPosts as postsFor, planFeatures, quotaMultiple, quotePurchase, shownPlans, type BillingCatalog } from '@/lib/billing-catalog-options'
 import { formatRupiah } from '@/lib/billing-options'
 import { intlLocale } from '@/i18n/locale-config'
 import styles from './pricing.module.css'
@@ -42,7 +42,6 @@ export function LandingPricing({ catalog }: { catalog: BillingCatalog }) {
   const locale = useLocale()
   const [selected, setSelected] = useState(1)
   const months = catalog.durations.some((item) => item.months === selected) ? selected : catalog.durations[0].months
-  const pro = catalog.plans.find((plan) => plan.id === 'pro')
   const plans = centerLite(shownPlans(catalog))
   // The emphasized card: Lite (on sale, centered) when listed, otherwise Max as before.
   const leadId = plans.some((plan) => plan.id === 'lite') ? 'lite' : 'max'
@@ -63,28 +62,16 @@ export function LandingPricing({ catalog }: { catalog: BillingCatalog }) {
         {plans.map((plan) => {
           // A waitlist plan isn't on sale, so quotePurchase refuses it; its price shows with the same discount.
           const quote = plan.active ? quotePurchase(catalog, 0, plan.id, months) : { total: Math.round(plan.priceIdr * months * (100 - discount) / 100) }
-          const multiplier = pro && plan.id !== pro.id && plan.credits > pro.credits ? plan.credits / pro.credits : null
-          const estimatedPosts = postsFor(plan.credits)
-          const postCount = estimatedPosts.toLocaleString(intlLocale(locale))
+          const multiplier = quotaMultiple(catalog, plan)
+          const postCount = postsFor(plan.credits).toLocaleString(intlLocale(locale))
           // Custom catalog copy is admin-authored data; only localize known default descriptions.
-          const defaultPlan = DEFAULT_CATALOG.plans.find((item) => item.id === plan.id && item.description === plan.description)
-          const description = defaultPlan && (plan.id === 'pro' || plan.id === 'max') && estimatedPosts > 0 ? t(`descriptions.${plan.id}`, { count: postCount }) : plan.description
-          const features = [
-            ...(plan.id === 'max' ? [t('features.allPro')] : [
-              t('features.chatbot'),
-              t('features.creation'),
-              t('features.calendar'),
-              t('features.accounts'),
-              t('features.analytics'),
-            ]),
-            ...(plan.waitlist && !plan.active ? [t('features.dmSoon')] : []),
-            ...(plan.prioritySupport ? [t('features.support')] : []),
-            ...(plan.earlyAccess ? [t('features.earlyAccess')] : []),
-          ]
+          const standard = defaultDescription(plan)
+          const description = standard ? t(`descriptions.${standard}`, { count: postCount }) : plan.description
+          const features = planFeatures(plan).map((feature) => t(`features.${feature}`))
           const research = plan.researchDaily > 0
           const fast = plan.id === 'pro' || plan.id === 'max'
           return <article key={plan.id} className={`${styles.plan} ${plan.id === leadId ? styles.lead : ''}`}>
-            <div className={styles.planTitle}><h3>{plan.name}</h3>{multiplier && Number.isInteger(multiplier) ? <span>{t('multiplier', { count: multiplier })}</span> : null}</div>
+            <div className={styles.planTitle}><h3>{plan.name}</h3>{multiplier ? <span>{t('multiplier', { count: multiplier })}</span> : null}</div>
             <div className={styles.price} aria-live="polite"><strong>{formatRupiah(Math.round(quote.total / months), locale)}</strong><span>{t('perMonth')}</span></div>
             <p className={styles.total}>{months === 1 ? t('monthly') : t('upfront', { amount: formatRupiah(quote.total, locale), count: months })}</p>
             <p className={styles.description}>{description}</p>

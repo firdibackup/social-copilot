@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { addBillingMonths, assertPayableTotals, billingCycle, DEFAULT_CATALOG, estimatedPosts, MIN_PRICE_IDR, parseBillingCatalog, quotePurchase, shownPlans } from './billing-catalog-options'
+import {
+  addBillingMonths, assertPayableTotals, billingCycle, DEFAULT_CATALOG, defaultDescription, estimatedPosts, MIN_PRICE_IDR, parseBillingCatalog, planFeatures,
+  quotaMultiple, quotePurchase, shownPlans, type CatalogPlan, type PlanFeature,
+} from './billing-catalog-options'
+import idBilling from '../../messages/id/billing.json'
+import enBilling from '../../messages/en/billing.json'
+import idLanding from '../../messages/id/landing.json'
+import enLanding from '../../messages/en/landing.json'
 
 describe('purchased entitlements', () => {
   it('prices all durations from the catalog and locks a separate plan snapshot', () => {
@@ -58,5 +65,51 @@ describe('purchased entitlements', () => {
     const catalog = structuredClone(DEFAULT_CATALOG) as { rates: Record<string, number> }
     delete catalog.rates.reference_labels
     expect(parseBillingCatalog(catalog).rates.reference_labels).toBe(DEFAULT_CATALOG.rates.reference_labels)
+  })
+})
+
+describe('plan cards', () => {
+  const plan = (overrides: Partial<CatalogPlan>): CatalogPlan => ({
+    id: 'lite', name: 'Lite', priceIdr: 59_000, days: 30, credits: 2_100, active: true, description: 'Untuk mulai rutin.',
+    chatDaily: 20, researchDaily: 0, prioritySupport: false, earlyAccess: false, ...overrides,
+  })
+  const pro = plan({ id: 'pro', name: 'Pro', credits: 2_500, active: false, waitlist: true, description: 'Untuk rutin membuat dan menjadwalkan konten.' })
+  const max = plan({ id: 'max', name: 'Max', credits: 12_500, active: false, waitlist: true, prioritySupport: true, earlyAccess: true,
+    description: 'Lebih banyak ruang untuk produksi dan riset konten.' })
+
+  it('lists the same features for a plan wherever its card is shown', () => {
+    expect(planFeatures(plan({}))).toEqual(['chatbot', 'creation', 'calendar', 'accounts', 'analytics'])
+    // A waitlist plan adds DM as coming soon; Max stands on Pro's list and adds its own extras.
+    expect(planFeatures(pro)).toEqual(['chatbot', 'creation', 'calendar', 'accounts', 'analytics', 'dmSoon'])
+    expect(planFeatures(max)).toEqual(['allPro', 'dmSoon', 'support', 'earlyAccess'])
+    expect(planFeatures({ ...max, active: true })).toEqual(['allPro', 'support', 'earlyAccess'])
+  })
+
+  it('replaces only the default Pro and Max descriptions with the line that states their posts', () => {
+    expect(defaultDescription(pro)).toBe('pro')
+    expect(defaultDescription(max)).toBe('max')
+    expect(defaultDescription({ ...pro, description: 'Tulisan admin sendiri.' })).toBeNull()
+    expect(defaultDescription(plan({}))).toBeNull()
+    expect(defaultDescription({ ...pro, credits: 10 })).toBeNull()
+  })
+
+  it('names a whole multiple of Pro’s quota, and nothing otherwise', () => {
+    const catalog = { ...DEFAULT_CATALOG, plans: [plan({}), pro, max] }
+    expect(quotaMultiple(catalog, max)).toBe(5)
+    expect(quotaMultiple(catalog, pro)).toBeNull()
+    expect(quotaMultiple(catalog, plan({}))).toBeNull()
+    expect(quotaMultiple(catalog, { ...max, credits: 3_000 })).toBeNull()
+    expect(quotaMultiple({ ...catalog, plans: [max] }, max)).toBeNull()
+  })
+
+  it('keeps the card texts of /langganan word for word those of the homepage, and silent about Meta', () => {
+    const features: PlanFeature[] = ['chatbot', 'creation', 'calendar', 'accounts', 'analytics', 'allPro', 'dmSoon', 'support', 'earlyAccess']
+    for (const [landing, billing] of [[idLanding, idBilling], [enLanding, enBilling]] as const) {
+      expect(Object.keys(billing.subscribe.features).sort()).toEqual([...features].sort())
+      for (const feature of features) expect(billing.subscribe.features[feature], feature).toBe(landing.pricing.features[feature])
+      expect(billing.subscribe.descriptions).toEqual(landing.pricing.descriptions)
+      expect(billing.subscribe.multiplier).toBe(landing.pricing.multiplier)
+      expect(JSON.stringify([billing.subscribe, landing.pricing])).not.toMatch(/Meta/)
+    }
   })
 })

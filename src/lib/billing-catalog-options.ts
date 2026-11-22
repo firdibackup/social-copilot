@@ -36,6 +36,41 @@ export const DEFAULT_CATALOG: BillingCatalog = {
 }
 /** What /langganan and the landing page list: plans on sale, then waitlist-only plans. */
 export const shownPlans = (catalog: BillingCatalog) => catalog.plans.filter((plan) => plan.active || plan.waitlist)
+
+/** The lines of a plan card's feature list; each has a text in landing.pricing.features and billing.subscribe.features. */
+export type PlanFeature = 'chatbot' | 'creation' | 'calendar' | 'accounts' | 'analytics' | 'allPro' | 'dmSoon' | 'support' | 'earlyAccess'
+
+/**
+ * What a plan's card lists, the same on the homepage's "Pilih paket" and on /langganan: Max stands on Pro's list,
+ * a waitlist plan adds DM and Auto DM as coming soon, then the plan's own extras.
+ */
+export function planFeatures(plan: CatalogPlan): PlanFeature[] {
+  return [
+    ...(plan.id === 'max' ? ['allPro'] as const : ['chatbot', 'creation', 'calendar', 'accounts', 'analytics'] as const),
+    ...(plan.waitlist && !plan.active ? ['dmSoon'] as const : []),
+    ...(plan.prioritySupport ? ['support'] as const : []),
+    ...(plan.earlyAccess ? ['earlyAccess'] as const : []),
+  ]
+}
+
+/**
+ * 'pro' or 'max' while the plan still carries its default description: the cards then show a localized line that
+ * states its monthly posts instead. Null for copy the admin wrote, which is shown as written.
+ */
+export function defaultDescription(plan: CatalogPlan): 'pro' | 'max' | null {
+  if (plan.id !== 'pro' && plan.id !== 'max') return null
+  const standard = DEFAULT_CATALOG.plans.find((item) => item.id === plan.id)
+  return standard?.description === plan.description && estimatedPosts(plan.credits) > 0 ? plan.id : null
+}
+
+/** How many times Pro's quota the plan has, when that is a whole number above 1 ("Kuota AI 5x lebih banyak"). */
+export function quotaMultiple(catalog: BillingCatalog, plan: CatalogPlan): number | null {
+  const pro = catalog.plans.find((item) => item.id === 'pro')
+  if (!pro || plan.id === pro.id || plan.credits <= pro.credits) return null
+  const multiple = plan.credits / pro.credits
+  return Number.isInteger(multiple) ? multiple : null
+}
+
 /** Mayar rejects payment amounts below Rp 1.000. */
 export const MIN_PRICE_IDR = 1_000
 /** Monthly post count shown instead of raw credits: what a 5-slide carousel really costs (103 credits by default). */
