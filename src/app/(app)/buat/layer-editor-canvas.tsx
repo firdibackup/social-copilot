@@ -21,6 +21,7 @@ import {
 import { CropBar, CropOverlay } from './layer-editor-crop'
 import { clipImageOf, dragHasImage, dropLayerIntoFrame, type ClipImage } from './layer-editor-frame-math'
 import { EmptyFrameMark } from './layer-editor-frame-marks'
+import { layersInRect, moveLayers, rectOf, selectable, selectionBounds, toggleSelection } from './layer-editor-select'
 import { fitTextHeights, handlesFor, moveLayer, NO_GUIDES, replaceLayer, resizeRotatedLayer, rotationFromDrag, withRotation, zoomCrop, type Guides } from './layer-editor-gesture'
 import { PenLayer, type PenResult } from './layer-editor-pen'
 import { SvgPathRecorder } from './layer-editor-shapes'
@@ -81,6 +82,8 @@ interface Gesture {
   point?: PointGrab
   /** The rotate handle: the layer's centre on screen, which the pointer turns about. */
   rotate?: { x: number; y: number }
+  /** Dragging one layer of a selection of several: all of these move together. */
+  group?: string[]
   start: Layer
   x: number
   y: number
@@ -95,13 +98,19 @@ interface Gesture {
 
 export type BaseTone = 'light' | 'dark'
 
+const NO_IDS: string[] = []
+
 interface LayerCanvasProps {
   doc: LayerDoc
   baseAssetId: string
   selectedId: string | null
+  /** The other layers of a selection of several (Shift+click, the marquee, ⌘A); `selectedId` leads. */
+  extraIds?: string[]
   readOnly: boolean
   labelOf: (layer: Layer) => string
   onSelect: (id: string | null) => void
+  /** A selection of any size, in the order of selecting; the last one leads. */
+  onSelectMany?: (ids: string[]) => void
   /** The end of one drag or resize: a single history step. */
   onCommit: (doc: LayerDoc) => void
   /** A double click on a text layer: type into it. */
@@ -139,7 +148,7 @@ interface LayerCanvasProps {
  * selection frame, handles and guides sit in screen px above it, so handles keep their size at any zoom.
  */
 export function LayerCanvas({
-  doc, baseAssetId, selectedId, readOnly, labelOf, onSelect, onCommit, onEditText, onBaseTone, drawing = false, onDrawEnd,
+  doc, baseAssetId, selectedId, extraIds = NO_IDS, readOnly, labelOf, onSelect, onSelectMany, onCommit, onEditText, onBaseTone, drawing = false, onDrawEnd,
   cropping = null, onCropChange, onCropStart, onCropEnd, cropFixed = false, onCropReset, onFillFrame, onDropImage,
 }: LayerCanvasProps) {
   const t = useTranslations('editor.layerEditor')
@@ -176,6 +185,13 @@ export function LayerCanvas({
   const [dropFrame, setDropFrame] = useState<string | null>(null)
   /** A file from the device is being dragged over the canvas. */
   const [fileOver, setFileOver] = useState(false)
+  /** The marquee: a drag that began on empty space, in screen px; `base` is what Shift keeps selected. */
+  const marquee = useRef<{ pointerId: number; x: number; y: number; base: string[]; active: boolean; last: string } | null>(null)
+  const [marqueeBox, setMarqueeBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null)
+  /** When a layer was last pressed: its focus event then isn't a keyboard move that should select it alone. */
+  const lastPress = useRef(0)
+  const selection = selectedId ? [...extraIds, selectedId] : NO_IDS
+  const multi = selection.length > 1
 
   /** Crop mode: the canvas point (px) under a client point. */
   const canvasPoint = (x: number, y: number) => {
@@ -451,18 +467,31 @@ export function LayerCanvas({
   }
 
   const shown = live?.doc ?? doc
-  const selected = shown.layers.find((layer) => layer.id === selectedId) ?? null
+  // Several layers selected: no single frame, handles or path points; they move together.
+  const selected = multi ? null : shown.layers.find((layer) => layer.id === selectedId) ?? null
+  const picked = multi ? shown.layers.filter((layer) => selection.includes(layer.id) && !layer.hidden) : []
+  const pickedBounds = selectionBounds(picked)
 
   function start(event: ReactPointerEvent<HTMLElement>, id: string, handle: Handle | null, point?: PointGrab, rotate?: { x: number; y: number }) {
     if (event.pointerType === 'mouse' && event.button !== 0) return
     event.stopPropagation()
-    onSelect(id)
+    lastPress.current = performance.now()
+    const plain = !handle && !point && !rotate
+    if (plain && event.shiftKey && onSelectMany) {
+      // Shift+click: into the selection or out of it. No drag starts.
+      onSelectMany(toggleSelection(selection, id))
+      return
+    }
+    // A press on one of several selected layers keeps them all, to drag them together; a plain click picks it (end).
+    const group = plain && multi && selection.includes(id)
+      ? doc.layers.filter((item) => selection.includes(item.id) && selectable(item)).map((item) => item.id) : undefined
+    if (!group) onSelect(id)
     if (readOnly) return
     const layer = doc.layers.find((item) => item.id === id)
     if (!layer) return
     if (layer.locked || layer.hidden) return
     event.currentTarget.setPointerCapture(event.pointerId)
-    gesture.current = { id, handle, point, rotate, start: layer, x: event.clientX, y: event.clientY, pointerId: event.pointerId, moved: false,
+    gesture.current = { id, handle, point, rotate, group, start: layer, x: event.clientX, y: event.clientY, pointerId: event.pointerId, moved: false,
       dx: 0, dy: 0, free: event.shiftKey }
   }
 
@@ -507,6 +536,15 @@ export function LayerCanvas({
       resizeLive(current)
       return
     }
+    if (current.group) {
+      // The pressed layer snaps as it would alone; the others take the same move, which stops where one would leave.
+      const ids = current.group
+      const lead = moveLayer(current.start, dx, dy, doc, doc.layers.filter((layer) => !ids.includes(layer.id) && !layer.hidden), SNAP_SCREEN_PX / scale)
+      const moved = moveLayers(doc, ids, lead.layer.x - current.start.x, lead.layer.y - current.start.y)
+      const at = moved.layers.find((layer) => layer.id === current.id)
+      setLive({ doc: moved, guides: at && at.x === lead.layer.x && at.y === lead.layer.y ? lead.guides : NO_GUIDES })
+      return
+    }
     const others = doc.layers.filter((layer) => layer.id !== current.id && !layer.hidden)
     const next = moveLayer(current.start, dx, dy, doc, others, SNAP_SCREEN_PX / scale)
     setLive({ doc: replaceLayer(doc, next.layer), guides: next.guides })
@@ -527,7 +565,10 @@ export function LayerCanvas({
     setResizing(null)
     setRotating(null)
     setDropFrame(null)
+    // A click (no drag) on one of several selected layers picks that one.
+    if (keep && current.group && !current.moved) onSelect(current.id)
     if (!keep || !current.moved || !result) return
+    if (current.group) return onCommit(result.doc)
     const point = current.start.kind === 'image' && !current.handle ? canvasPoint(event.clientX, event.clientY) : undefined
     const moved = point ? result.doc.layers.find((layer) => layer.id === current.id) : undefined
     const dropped = point && moved ? dropLayerIntoFrame(result.doc, moved, point) : null
@@ -565,6 +606,43 @@ export function LayerCanvas({
     if (readOnly || drawing || cropping || !onDropImage) return
     const image = clipImageOf(event.dataTransfer)
     if (image) onDropImage(image, target)
+  }
+
+  /** A press on empty space: lets go of the selection (unless Shift adds to it) and may become a marquee. */
+  function pressEmpty(event: ReactPointerEvent<HTMLDivElement>) {
+    if (drawing || cropping || (event.pointerType === 'mouse' && event.button !== 0)) return
+    if (!event.shiftKey) onSelect(null)
+    const node = areaRef.current
+    // Touch scrolls the canvas instead; a press on the scrollbars is theirs.
+    if (!node || !onSelectMany || event.pointerType === 'touch') return
+    const rect = node.getBoundingClientRect()
+    if (event.clientX > rect.left + node.clientWidth || event.clientY > rect.top + node.clientHeight) return
+    marquee.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, base: event.shiftKey ? selection : NO_IDS, active: false, last: '' }
+    node.setPointerCapture(event.pointerId)
+  }
+  function moveMarquee(event: ReactPointerEvent<HTMLDivElement>) {
+    const current = marquee.current
+    if (!current || current.pointerId !== event.pointerId) return
+    if (!current.active && Math.hypot(event.clientX - current.x, event.clientY - current.y) < 4) return
+    current.active = true
+    setMarqueeBox({ left: Math.min(current.x, event.clientX), top: Math.min(current.y, event.clientY),
+      width: Math.abs(event.clientX - current.x), height: Math.abs(event.clientY - current.y) })
+    const from = canvasPoint(current.x, current.y)
+    const to = canvasPoint(event.clientX, event.clientY)
+    if (!from || !to || !onSelectMany) return
+    // The selection follows the box while it is dragged, as in Canva.
+    const ids = [...new Set([...current.base, ...layersInRect(doc.layers, rectOf(from, to))])]
+    const key = ids.join(' ')
+    if (key === current.last) return
+    current.last = key
+    onSelectMany(ids)
+  }
+  function endMarquee(event: ReactPointerEvent<HTMLDivElement>) {
+    const current = marquee.current
+    if (!current || current.pointerId !== event.pointerId) return
+    marquee.current = null
+    setMarqueeBox(null)
+    if (areaRef.current?.hasPointerCapture(event.pointerId)) areaRef.current.releasePointerCapture(event.pointerId)
   }
 
   function measureTone(image: HTMLImageElement) {
@@ -619,17 +697,14 @@ export function LayerCanvas({
       aria-describedby="layer-canvas-keys"
       // Panning goes first, over layers, handles and the pen alike.
       onPointerDownCapture={startPan}
-      onPointerMove={movePan}
-      onPointerUp={endPan}
-      onPointerCancel={endPan}
+      onPointerMove={(event) => { movePan(event); moveMarquee(event) }}
+      onPointerUp={(event) => { endPan(event); endMarquee(event) }}
+      onPointerCancel={(event) => { endPan(event); endMarquee(event) }}
       // Windows' middle-click autoscroll would fight the pan.
       onMouseDown={(event) => { if (event.button === 1) event.preventDefault() }}
       // A press anywhere around the slide lets go of the selection; presses on a layer or handle stop in start().
       // While drawing, a press off the slide does nothing: the outline stays and so does the selection.
-      onPointerDown={(event) => {
-        if (drawing || cropping || (event.pointerType === 'mouse' && event.button !== 0)) return
-        onSelect(null)
-      }}
+      onPointerDown={pressEmpty}
       onKeyDown={tabLayers}
       onDragOver={dragOver}
       onDragLeave={dragLeave}
@@ -667,9 +742,6 @@ export function LayerCanvas({
             role="group"
             aria-label={t('canvas')}
             className="absolute inset-0 touch-none"
-            onPointerDown={(event) => {
-              if (event.target === event.currentTarget) onSelect(null)
-            }}
             onPointerMove={move}
             onPointerUp={(event) => end(event, true)}
             onPointerCancel={(event) => end(event, false)}
@@ -681,9 +753,10 @@ export function LayerCanvas({
                 role="button"
                 tabIndex={0}
                 aria-label={labelOf(layer)}
-                aria-pressed={layer.id === selectedId}
+                aria-pressed={selection.includes(layer.id)}
                 onPointerDown={(event) => start(event, layer.id, null)}
-                onFocus={() => onSelect(layer.id)}
+                // Tab moves the selection; the focus a press brings is start()'s to decide.
+                onFocus={() => { if (performance.now() - lastPress.current > 500 && !selection.includes(layer.id)) onSelect(layer.id) }}
                 onDoubleClick={() => openLayer(layer)}
                 className={`absolute touch-none rounded-[1px] outline-none hover:outline hover:outline-1 hover:outline-accent/70 focus-visible:outline-2 focus-visible:outline-accent ${readOnly ? '' : 'cursor-move'}`}
                 style={{ ...box(layer), ...(layer.field && layer.field.mode !== 'static'
@@ -725,6 +798,14 @@ export function LayerCanvas({
                 </div>
               )
             })()}
+
+            {!cropping && picked.map((layer) => (
+              <span key={`pick-${layer.id}`} aria-hidden="true" className="pointer-events-none absolute outline-[1.5px] outline-accent outline-solid" style={box(layer)} />
+            ))}
+            {!cropping && pickedBounds && (
+              <span aria-hidden="true" className="pointer-events-none absolute border border-dashed border-accent/80"
+                style={{ left: pickedBounds.x * scale - 4, top: pickedBounds.y * scale - 4, width: pickedBounds.w * scale + 8, height: pickedBounds.h * scale + 8 }} />
+            )}
 
             {selected && !selected.hidden && !cropping && (
               <div
@@ -791,6 +872,9 @@ export function LayerCanvas({
               <CropBar layer={cropping} onChange={onCropChange} onDone={() => onCropEnd?.()} onReset={onCropReset} fixed={cropFixed} />, barHost,
             )}
 
+            {marqueeBox && (
+              <span aria-hidden="true" className="pointer-events-none fixed z-20 border border-accent bg-accent/10" style={marqueeBox} />
+            )}
             {rotating !== null && (
               <span role="status" className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[rgba(23,24,39,0.82)] px-3 py-1.5 text-[11px] font-medium whitespace-nowrap text-white shadow-[0_6px_18px_-8px_rgba(0,0,0,0.6)] backdrop-blur-sm">
                 {t('rotating', { angle: rotating })}

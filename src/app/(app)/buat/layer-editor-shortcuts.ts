@@ -47,7 +47,7 @@ export type AddKind = 'text' | 'rect' | 'ellipse' | 'line'
 export type Shortcut =
   | { kind: 'zoom'; to: ZoomTarget }
   | { kind: 'undo' } | { kind: 'redo' }
-  | { kind: 'duplicate' } | { kind: 'copy' } | { kind: 'cut' } | { kind: 'paste' } | { kind: 'selectTop' }
+  | { kind: 'duplicate' } | { kind: 'copy' } | { kind: 'cut' } | { kind: 'paste' } | { kind: 'selectAll' }
   | { kind: 'remove' }
   | { kind: 'nudge'; dx: number; dy: number }
   | { kind: 'reorder'; to: Reorder }
@@ -101,7 +101,7 @@ export function shortcutFor(event: KeyInput, typing = false): Shortcut | null {
     if (key === 'c') return { kind: 'copy' }
     if (key === 'x') return { kind: 'cut' }
     if (key === 'v') return { kind: 'paste' }
-    if (key === 'a') return { kind: 'selectTop' }
+    if (key === 'a') return { kind: 'selectAll' }
     return null
   }
 
@@ -197,7 +197,7 @@ export const SHORTCUT_HELP = [
     { id: 'lock', combos: [['alt', 'shift', 'L']] },
   ] },
   { group: 'select', items: [
-    { id: 'selectTop', combos: [['mod', 'A']] },
+    { id: 'selectAll', combos: [['mod', 'A']] },
     { id: 'nextLayer', combos: [['tab'], ['shift', 'tab']] },
     { id: 'deselect', combos: [['esc']] },
     { id: 'forward', combos: [['mod', ']']] },

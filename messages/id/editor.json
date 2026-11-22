@@ -584,6 +584,7 @@
     "page": "Slide {page} dari {total}", "download": "Unduh slide PNG"
   },
   "layerEditor": {
+    "multi": {"title": "{count} lapisan dipilih", "hint": "Seret salah satunya untuk memindahkan semuanya, atau geser dengan tombol panah. Shift+klik menambah atau mengurangi pilihan.", "duplicate": "Duplikat", "remove": "Hapus", "clear": "Batalkan pilihan"},
     "rotateHandle": "Putar lapisan",
     "rotating": "{angle}° · tahan Shift untuk kelipatan 15°",
     "panelTabs": {
@@ -708,7 +709,7 @@
         "remove": "Hapus lapisan",
         "nudge": "Geser 1 px / 10 px",
         "lock": "Kunci / buka kunci",
-        "selectTop": "Pilih lapisan teratas",
+        "selectAll": "Pilih semua lapisan",
         "nextLayer": "Lapisan berikutnya / sebelumnya",
         "deselect": "Batal pilih",
         "forward": "Maju satu",

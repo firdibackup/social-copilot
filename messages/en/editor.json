@@ -584,6 +584,7 @@
     "page": "Slide {page} of {total}", "download": "Download slide PNG"
   },
   "layerEditor": {
+    "multi": {"title": "{count} layers selected", "hint": "Drag any one of them to move them all, or nudge with the arrow keys. Shift+click adds to the selection or takes out of it.", "duplicate": "Duplicate", "remove": "Delete", "clear": "Clear selection"},
     "rotateHandle": "Rotate layer",
     "rotating": "{angle}° · hold Shift for 15° steps",
     "panelTabs": {
@@ -708,7 +709,7 @@
         "remove": "Delete layer",
         "nudge": "Nudge 1 px / 10 px",
         "lock": "Lock / unlock",
-        "selectTop": "Select the top layer",
+        "selectAll": "Select all layers",
         "nextLayer": "Next / previous layer",
         "deselect": "Deselect",
         "forward": "Bring forward",

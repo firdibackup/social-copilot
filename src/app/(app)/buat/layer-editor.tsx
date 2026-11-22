@@ -39,6 +39,7 @@ import { addLayer, AMEND_MS, editStep, nudgeLayer, readDraft, removeLayer, repla
 import type { PenResult } from './layer-editor-pen'
 import { clipImageOf, clipIsPictureOnly, dragHasImage, frameAsImage, frameWithCrop, newFrameFromPreset, type ClipImage, type FramePreset } from './layer-editor-frame-math'
 import { FrameMenu } from './layer-editor-frames'
+import { allSelectable, cleanSelection, duplicateLayers, moveLayers, removeLayers, toggleSelection } from './layer-editor-select'
 import { DashIcon, ShapeMenu } from './layer-editor-shapes'
 import { copiedLayer, copyLayer, isTyping, pasteCopied, shortcutFor } from './layer-editor-shortcuts'
 import { Thumbnail } from './thumbnail'
@@ -129,7 +130,14 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [history, setHistory] = useState<History | null>(null)
   const [draft, setDraft] = useState<LayerDoc | null>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setPrimaryId] = useState<string | null>(null)
+  /** The other layers of a selection of several (Shift+click, the marquee, ⌘A); `selectedId` leads. */
+  const [extraIds, setExtraIds] = useState<string[]>([])
+  /** One layer, or none: every single-layer path uses this, and it lets go of a selection of several. */
+  const setSelectedId = (id: string | null) => {
+    setPrimaryId(id)
+    setExtraIds((current) => (current.length ? [] : current))
+  }
   const [baseTone, setBaseTone] = useState<BaseTone>('dark')
   const [adding, setAdding] = useState<Adding>(null)
   const [library, setLibrary] = useState<Asset[] | null>(null)
@@ -273,7 +281,18 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
     setHistory((current) => (current ? editStep(current, fitDoc(next), amend) : current))
   }
 
-  const selected = doc?.layers.find((layer) => layer.id === selectedId) ?? null
+  // Several layers: they move, nudge, duplicate and go together; the panel and the single-layer tools step aside.
+  const multiIds = doc && selectedId && extraIds.length ? cleanSelection(doc, [...extraIds, selectedId]) : []
+  const multi = multiIds.length > 1
+  const selected = multi ? null : doc?.layers.find((layer) => layer.id === selectedId) ?? null
+  const selectionIds = multi ? multiIds : selected ? [selected.id] : []
+  /** A selection of any size within `within` (the doc the ids belong to); the last one leads. */
+  function selectMany(ids: string[], within: LayerDoc | null = doc) {
+    const clean = within ? cleanSelection(within, ids) : []
+    setPrimaryId(clean.at(-1) ?? null)
+    setExtraIds(clean.slice(0, -1))
+    if (clean.length) setAdding(null)
+  }
   const editSelected = (change: (layer: Layer) => Layer, key?: string) => {
     if (doc && selected) edit(updateLayer(doc, selected.id, change), key && `${key}:${selected.id}`)
   }
@@ -339,12 +358,24 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
   }
 
   function remove() {
+    if (doc && multi) {
+      edit(removeLayers(doc, multiIds))
+      setSelectedId(null)
+      return
+    }
     if (!doc || !selected || selected.locked) return
     edit(removeLayer(doc, selected.id))
     setSelectedId(null)
   }
 
   function duplicate() {
+    if (doc && multi) {
+      const result = duplicateLayers(doc, multiIds)
+      if (result.ids.length === 0) return setError(t('full', { max: LAYER_LIMITS.layers }))
+      edit(result.doc)
+      selectMany(result.ids, result.doc)
+      return
+    }
     if (!doc || !selected) return
     const result = duplicateLayer(doc, selected.id)
     if (!result.id) return
@@ -776,10 +807,9 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
         pendingPaste.current = window.setTimeout(paste, 80)
         return
       }
-      case 'selectTop': {
-        // One layer at a time: ⌘A picks the top visible one.
-        const top = doc.layers.findLast((layer) => !layer.hidden)
-        return run(() => { if (top) { setAdding(null); setSelectedId(top.id); setSheetOpen(true) } })
+      case 'selectAll': {
+        const ids = allSelectable(doc)
+        return run(() => { if (ids.length) { selectMany(ids); setSheetOpen(true) } })
       }
       case 'add': {
         if (readOnly || full) return
@@ -789,6 +819,15 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
           else addShape(shortcut.what)
         })
       }
+    }
+    if (multi) {
+      if (readOnly) return
+      switch (shortcut.kind) {
+        case 'duplicate': return run(duplicate)
+        case 'remove': return run(remove)
+        case 'nudge': return run(() => edit(moveLayers(doc, multiIds, shortcut.dx, shortcut.dy), 'nudge:multi'))
+      }
+      return
     }
     if (!selected) return
     if (shortcut.kind === 'copy') return run(() => copySelected(false))
@@ -911,8 +950,15 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                 <li key={layer.id}>
                   <button
                     type="button"
-                    onClick={() => { setDrawing(false); setSelectedId(layer.id) }}
-                    className="flex min-h-11 w-full items-center gap-2.5 px-3 text-left text-sm transition-colors hover:bg-zinc-50 disabled:text-ink"
+                    aria-pressed={selectionIds.includes(layer.id)}
+                    // Shift or ⌘/Ctrl + click adds to the selection or takes out of it, as on the slide.
+                    onClick={(event) => {
+                      setDrawing(false)
+                      if (event.shiftKey || event.metaKey || event.ctrlKey) selectMany(toggleSelection(selectionIds, layer.id))
+                      else setSelectedId(layer.id)
+                    }}
+                    className={`flex min-h-11 w-full items-center gap-2.5 px-3 text-left text-sm transition-colors disabled:text-ink ${
+                      selectionIds.includes(layer.id) ? 'bg-accent-soft/60 text-ink' : 'hover:bg-zinc-50'}`}
                   >
                     <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-md bg-zinc-100 text-ink-muted">
                       {layer.kind === 'text' ? <Type size={14} /> : layer.kind === 'shape' || layer.kind === 'path' ? <Shapes size={14} /> : layer.kind === 'frame' ? <FrameIcon size={14} /> : layer.role === 'logo' ? <Stamp size={14} /> : <ImageIcon size={14} />}
@@ -1078,6 +1124,8 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                     : layer.kind === 'frame' ? frameWithCrop(layer, cropDraft) : layer)) : doc}
                   baseAssetId={background}
                   selectedId={selectedId}
+                  extraIds={multi ? multiIds.filter((id) => id !== selectedId) : undefined}
+                  onSelectMany={(ids) => { if (!drawing) selectMany(ids) }}
                   readOnly={readOnly || working !== null}
                   labelOf={labelOf}
                   onSelect={(id) => {
@@ -1167,6 +1215,24 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                       onFrameImage={() => chooseImage(selected.id)}
                       onFrameEmpty={() => editSelected((layer) => (layer.kind === 'frame' ? emptyFrame(layer) : layer))}
                     />
+                  ) : multi ? (
+                    <section aria-labelledby="layer-multi" className="min-w-0 space-y-3">
+                      <h2 id="layer-multi" className="text-sm font-semibold text-ink">{t('multi.title', { count: multiIds.length })}</h2>
+                      <p className="text-xs leading-relaxed text-ink-muted">{t('multi.hint')}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button type="button" onClick={duplicate} disabled={full} className={CHIP}>
+                          <Copy size={15} aria-hidden="true" />
+                          {t('multi.duplicate')}
+                        </button>
+                        <button type="button" onClick={remove} className={`${CHIP} text-red-700 hover:bg-red-50`}>
+                          <Trash2 size={15} aria-hidden="true" />
+                          {t('multi.remove')}
+                        </button>
+                      </div>
+                      <button type="button" onClick={() => setSelectedId(null)} className="text-xs font-medium text-ink-muted underline-offset-2 hover:text-ink hover:underline">
+                        {t('multi.clear')}
+                      </button>
+                    </section>
                   ) : (
                     <div className="min-w-0 space-y-5">
                       {!loaded.layered && !readOnly && onMagicLayers && (
