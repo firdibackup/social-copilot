@@ -3,14 +3,14 @@
 import { useTranslations, useLocale } from 'next-intl'
 import { intlLocale } from '@/i18n/locale-config'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useState, useTransition, type ReactNode } from 'react'
 import { ArrowRight, ArrowUpRight, Check, Clock, Lock, LogOut, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react'
 import { CarouselyLogo } from '@/components/brand-mark'
 import { CheckoutContactFields, useCheckoutContact } from '@/components/checkout-contact-fields'
 import { InstagramAiIcon } from '@/components/instagram-ai-icon'
 import { Notice } from '@/components/notice'
 import type { Payment } from '@/lib/billing'
-import { estimatedPosts, quotePurchase, shownPlans, type BillingCatalog, type CatalogPlan } from '@/lib/billing-catalog-options'
+import { defaultDescription, estimatedPosts, planFeatures, quotaMultiple, quotePurchase, shownPlans, type BillingCatalog, type CatalogPlan } from '@/lib/billing-catalog-options'
 import { formatRupiah } from '@/lib/billing-options'
 import { signOut } from '@/app/masuk/actions'
 import { checkPaymentAction, checkoutAction, joinWaitlistAction, subscriptionActiveAction } from '@/app/(app)/(halaman)/pengaturan/billing-actions'
@@ -117,7 +117,7 @@ export function SubscribePage(props: Props) {
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[28rem] bg-[radial-gradient(60rem_22rem_at_15%_-10%,var(--color-lavender),transparent_70%),radial-gradient(40rem_18rem_at_95%_0%,color-mix(in_oklab,var(--color-mint)_70%,transparent),transparent_70%)]" />
 
       <header className="sticky top-0 z-20 border-b border-hairline bg-bg/85 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-5">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-5">
           <CarouselyLogo />
           <form action={signOut}>
             <button type="submit" className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-medium text-ink-muted transition-colors hover:bg-zinc-100 hover:text-ink">
@@ -127,7 +127,7 @@ export function SubscribePage(props: Props) {
         </div>
       </header>
 
-      <main className="relative mx-auto w-full max-w-5xl flex-1 animate-fade-in px-5 pt-10 pb-36 sm:pt-14 lg:pb-16">
+      <main className="relative mx-auto w-full max-w-6xl flex-1 animate-fade-in px-5 pt-10 pb-36 sm:pt-14 lg:pb-16">
         <div className="max-w-2xl">
           <p className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-paper/80 px-3 py-1 text-xs font-medium text-ink-muted">
             <Sparkles size={14} className="text-primary" aria-hidden="true" />{props.hasPaidBefore ? t('reactivate') : t('oneMore')}
@@ -187,8 +187,8 @@ export function SubscribePage(props: Props) {
               <fieldset disabled={busy}>
                 <legend className="mb-3 text-sm font-semibold text-ink">{t('plan')}</legend>
                 <div className={`grid gap-4 ${plans.length + waitlist.length > 1 ? 'sm:grid-cols-2' : ''} ${plans.length + waitlist.length > 2 ? 'xl:grid-cols-3' : ''}`}>
-                  {plans.map((plan) => <PlanCard key={plan.id} plan={plan} checked={selected?.id === plan.id} onSelect={() => { setPlanId(plan.id); setError(null); coupon.reprice(plan.id, months) }} />)}
-                  {waitlist.map((plan) => <WaitlistCard key={plan.id} plan={plan} />)}
+                  {plans.map((plan) => <PlanCard key={plan.id} plan={plan} catalog={catalog} checked={selected?.id === plan.id} onSelect={() => { setPlanId(plan.id); setError(null); coupon.reprice(plan.id, months) }} />)}
+                  {waitlist.map((plan) => <WaitlistCard key={plan.id} plan={plan} catalog={catalog} />)}
                 </div>
               </fieldset>
             ) : <Notice tone="warning">{t('noPlans')}</Notice>}
@@ -240,13 +240,13 @@ export function SubscribePage(props: Props) {
 
       {/* Mobile: the total and CTA stay within thumb reach. */}
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-hairline bg-paper/95 px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
-        <div className="mx-auto flex max-w-5xl items-center gap-4">
+        <div className="mx-auto flex max-w-6xl items-center gap-4">
           {purchase && <div className="min-w-0 shrink-0"><p className="text-xs text-ink-muted">{t('total')}</p><p className="font-display text-lg font-bold tabular-nums tracking-[-0.02em] text-ink">{money(total)}</p></div>}
           <button type="button" disabled={ctaDisabled} onClick={pay} className={`${PRIMARY} flex-1`}>
             {ctaLabel}{ctaArrow && <ArrowRight size={16} aria-hidden="true" />}
           </button>
         </div>
-        <Footnote free={free} className="mx-auto mt-2 flex max-w-5xl justify-center" />
+        <Footnote free={free} className="mx-auto mt-2 flex max-w-6xl justify-center" />
       </div>
     </div>
   )
@@ -261,8 +261,52 @@ function Footnote({ free, className = '' }: { free: boolean; className?: string 
   )
 }
 
-/** A plan not on sale yet: its features show, and Gabung daftar tunggu replaces the price choice. */
-function WaitlistCard({ plan }: { plan: CatalogPlan }) {
+/** One line of a plan's list. Spans throughout: the selectable card is a <label>. */
+function Feature({ children }: { children: ReactNode }) {
+  return (
+    <span className="flex items-start gap-2.5">
+      <Check size={16} className="mt-0.5 shrink-0 text-mint-ink" aria-hidden="true" />
+      <span className="min-w-0">{children}</span>
+    </span>
+  )
+}
+
+/**
+ * What a card says about its plan: the same description, feature list and perks as the homepage's "Pilih paket"
+ * (planFeatures), so the two never disagree. Pro and Max state their monthly posts in the description; any other
+ * plan gets them as the first line of the list.
+ */
+function PlanDetails({ plan, catalog }: { plan: CatalogPlan; catalog: BillingCatalog }) {
+  const t = useTranslations('billing.subscribe')
+  const locale = useLocale()
+  const posts = estimatedPosts(plan.credits).toLocaleString(intlLocale(locale))
+  const standard = defaultDescription(plan)
+  const description = standard ? t(`descriptions.${standard}`, { count: posts }) : plan.description
+  const multiple = quotaMultiple(catalog, plan)
+  return (
+    <>
+      {description && <span className="mt-2 block text-sm text-ink-muted text-pretty">{description}</span>}
+      <span className="mt-5 block space-y-2 border-t border-hairline pt-4 text-sm text-ink">
+        {!standard && <Feature><strong className="font-semibold tabular-nums">{t('posts', { count: posts })}</strong> {t('perMonth')}</Feature>}
+        {multiple && <Feature>{t('multiplier', { count: multiple })}</Feature>}
+        {planFeatures(plan).map((feature) => <Feature key={feature}>{t(`features.${feature}`)}</Feature>)}
+        {(plan.id === 'pro' || plan.id === 'max') && <Feature>{t('fasterImages')}</Feature>}
+      </span>
+      {plan.researchDaily > 0 && (
+        <span className="mt-3 flex items-center gap-3 rounded-xl bg-[linear-gradient(120deg,rgba(254,218,117,0.16),rgba(214,41,118,0.10)_55%,rgba(79,91,213,0.12))] px-3 py-2.5 ring-1 ring-[rgba(214,41,118,0.15)] ring-inset">
+          <InstagramAiIcon width={22} height={22} className="shrink-0" />
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-ink">{t('research')}</span>
+            <span className="block bg-[linear-gradient(90deg,#FA7E1E,#D62976,#962FBF)] bg-clip-text text-[11px] font-semibold tracking-wide text-transparent uppercase">{t('featured')}</span>
+          </span>
+        </span>
+      )}
+    </>
+  )
+}
+
+/** A plan not on sale yet: its price and features show, and Gabung daftar tunggu replaces the choice. */
+function WaitlistCard({ plan, catalog }: { plan: CatalogPlan; catalog: BillingCatalog }) {
   const t = useTranslations('billing.subscribe')
   const locale = useLocale()
   const [state, setState] = useState<'idle' | 'joining' | 'joined'>('idle')
@@ -276,26 +320,27 @@ function WaitlistCard({ plan }: { plan: CatalogPlan }) {
     <div className="flex flex-col rounded-2xl border border-dashed border-hairline bg-paper/60 p-5">
       <span className="flex items-start justify-between gap-3">
         <span className="font-display text-xl font-bold tracking-[-0.02em] text-ink">{plan.name}</span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-ink-muted"><Lock size={12} aria-hidden="true" />{t('waitlistBadge')}</span>
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-ink-muted"><Lock size={12} aria-hidden="true" />{t('waitlistBadge')}</span>
       </span>
-      <span className="mt-3 block text-sm text-ink-muted text-pretty">{t('waitlistHint')}</span>
-      <span className="mt-4 block border-t border-hairline pt-4 text-sm text-ink">
-        <span className="flex items-center gap-2.5"><Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />
-          <span><strong className="font-semibold tabular-nums">{t('posts', { count: estimatedPosts(plan.credits).toLocaleString(intlLocale(locale)) })}</strong> {t('perMonth')}</span></span>
-        <span className="mt-2 flex items-center gap-2.5"><Lock size={16} className="shrink-0 text-ink-muted" aria-hidden="true" />{t('waitlistDm')}</span>
+      <span className="mt-3 flex flex-wrap items-baseline gap-x-1">
+        <span className="font-display text-[1.75rem] leading-none font-bold tabular-nums tracking-[-0.03em] text-ink">{formatRupiah(plan.priceIdr, locale)}</span>
+        <span className="text-sm text-ink-muted">{t('perMonth')}</span>
       </span>
-      <button type="button" onClick={join} disabled={state !== 'idle'} className={`${SECONDARY} mt-5 w-full`}>
-        {state === 'joined' ? <><Check size={16} aria-hidden="true" />{t('waitlistJoined')}</> : state === 'joining' ? t('waitlistJoining') : t('waitlistJoin')}
-      </button>
+      <PlanDetails plan={plan} catalog={catalog} />
+      {/* At the card's foot, whatever the list's length, and never touching it. */}
+      <div className="mt-auto pt-5">
+        <button type="button" onClick={join} disabled={state !== 'idle'} className={`${SECONDARY} w-full`}>
+          {state === 'joined' ? <><Check size={16} aria-hidden="true" />{t('waitlistJoined')}</> : state === 'joining' ? t('waitlistJoining') : t('waitlistJoin')}
+        </button>
+      </div>
       {error && <p role="alert" className="mt-2 text-xs text-red-600">{error}</p>}
     </div>
   )
 }
 
-function PlanCard({ plan, checked, onSelect }: { plan: CatalogPlan; checked: boolean; onSelect: () => void }) {
+function PlanCard({ plan, catalog, checked, onSelect }: { plan: CatalogPlan; catalog: BillingCatalog; checked: boolean; onSelect: () => void }) {
   const t = useTranslations('billing.subscribe')
   const locale = useLocale()
-  const money = (amount: number) => formatRupiah(amount, locale)
   return (
     <label className={`group relative flex cursor-pointer flex-col rounded-2xl border bg-paper p-5 transition-[border-color,box-shadow] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-focus ${checked ? 'border-primary shadow-[0_0_0_1px_var(--color-primary),0_18px_40px_-24px_var(--color-primary)]' : 'border-hairline hover:border-zinc-300'}`}>
       <input type="radio" name="paket" value={plan.id} checked={checked} onChange={onSelect} className="sr-only" />
@@ -305,37 +350,11 @@ function PlanCard({ plan, checked, onSelect }: { plan: CatalogPlan; checked: boo
           <Check size={14} strokeWidth={3} />
         </span>
       </span>
-      <span className="mt-3 flex items-baseline gap-1">
-        <span className="font-display text-[1.75rem] leading-none font-bold tabular-nums tracking-[-0.03em] text-ink">{money(plan.priceIdr)}</span>
+      <span className="mt-3 flex flex-wrap items-baseline gap-x-1">
+        <span className="font-display text-[1.75rem] leading-none font-bold tabular-nums tracking-[-0.03em] text-ink">{formatRupiah(plan.priceIdr, locale)}</span>
         <span className="text-sm text-ink-muted">{t('perMonth')}</span>
       </span>
-      {plan.description && <span className="mt-2 block text-sm text-ink-muted text-pretty">{plan.description === 'Untuk rutin membuat dan menjadwalkan konten.' ? t('proDescription') : plan.description === 'Lebih banyak ruang untuk produksi dan riset konten.' ? t('maxDescription') : plan.description}</span>}
-
-      <span className="mt-5 block border-t border-hairline pt-4">
-        <span className="flex items-center gap-2.5 text-sm text-ink">
-          <Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />
-          <span><strong className="font-semibold tabular-nums">{t('posts', { count: estimatedPosts(plan.credits).toLocaleString(intlLocale(locale)) })}</strong> {t('perMonth')}</span>
-        </span>
-      </span>
-
-      {plan.researchDaily > 0 && (
-        <span className="mt-3 flex items-center gap-3 rounded-xl bg-[linear-gradient(120deg,rgba(254,218,117,0.16),rgba(214,41,118,0.10)_55%,rgba(79,91,213,0.12))] px-3 py-2.5 ring-1 ring-[rgba(214,41,118,0.15)] ring-inset">
-          <InstagramAiIcon width={22} height={22} className="shrink-0" />
-          <span className="min-w-0">
-            <span className="block text-sm font-semibold text-ink">{t('research')}</span>
-            <span className="block bg-[linear-gradient(90deg,#FA7E1E,#D62976,#962FBF)] bg-clip-text text-[11px] font-semibold tracking-wide text-transparent uppercase">{t('featured')}</span>
-          </span>
-        </span>
-      )}
-
-      {(plan.prioritySupport || plan.earlyAccess || plan.id === 'pro' || plan.id === 'max') && (
-        <span className="mt-3 block space-y-2 text-sm text-ink">
-          {(plan.id === 'pro' || plan.id === 'max') && <span className="flex items-center gap-2.5"><Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />{t('fasterImages')}</span>}
-          {plan.id === 'max' && <span className="flex items-center gap-2.5"><Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />{t('priority')}</span>}
-          {plan.prioritySupport && <span className="flex items-center gap-2.5"><Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />{t('support')}</span>}
-          {plan.earlyAccess && <span className="flex items-center gap-2.5"><Check size={16} className="shrink-0 text-mint-ink" aria-hidden="true" />{t('earlyAccess')}</span>}
-        </span>
-      )}
+      <PlanDetails plan={plan} catalog={catalog} />
     </label>
   )
 }

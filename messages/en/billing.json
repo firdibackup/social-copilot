@@ -1,5 +1,21 @@
 {
   "subscribe": {
+    "features": {
+      "chatbot": "Mimo AI Chatbot",
+      "creation": "AI ideas, scripts, carousels, images, and captions",
+      "calendar": "Content calendar and scheduling",
+      "accounts": "1 Instagram account + 1 Threads account",
+      "analytics": "Instagram analytics",
+      "allPro": "All Pro features",
+      "dmSoon": "Instagram DMs and Auto DM (coming soon)",
+      "support": "Priority 1-on-1 support",
+      "earlyAccess": "Early access to new features"
+    },
+    "descriptions": {
+      "pro": "{count}+ posts a month, ready for your weekly review.",
+      "max": "{count}+ posts a month, for a busier rhythm."
+    },
+    "multiplier": "{count}× more AI allowance",
     "checkFailed": "Could not check the status. Try again.",
     "paymentFailed": "Could not prepare your payment. Try again.",
     "activating": "Activating…",
@@ -39,8 +55,6 @@
     "research": "Direct Instagram research",
     "fasterImages": "2x faster image generation",
     "featured": "Featured",
-    "support": "Priority support",
-    "earlyAccess": "Early access to new features",
     "fulfillment": "Payment received, but our team needs to help with activation. Order number: {id}.",
     "pendingHint": "Continue your {plan}payment ({amount}) or wait for the link to expire before choosing another plan.",
     "pendingPlan": "{name} plan ",
@@ -52,12 +66,7 @@
     "monthlyApprox": "≈ {amount} / month",
     "activeTerm": "Active for {count, plural, one {# month} other {# months}} from payment confirmation. Your allowance resets monthly.",
     "posts": "±{count} posts",
-    "proDescription": "For regularly creating and scheduling content.",
-    "maxDescription": "More room for content creation and research.",
-    "priority": "Priority processing",
     "waitlistBadge": "Coming soon",
-    "waitlistHint": "Includes Instagram DMs and Auto DM, which still await Meta approval. Join the waitlist to hear when it opens.",
-    "waitlistDm": "Instagram DMs and Auto DM",
     "waitlistJoin": "Join the waitlist",
     "waitlistJoining": "Joining…",
     "waitlistJoined": "You're on the waitlist",

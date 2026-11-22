@@ -1,5 +1,21 @@
 {
   "subscribe": {
+    "features": {
+      "chatbot": "Mimo AI Chatbot",
+      "creation": "Ide, skrip, carousel, gambar, dan caption dengan AI",
+      "calendar": "Kalender dan penjadwalan konten",
+      "accounts": "1 akun Instagram + 1 akun Threads (segera hadir)",
+      "analytics": "Analitik Instagram",
+      "allPro": "Semua fitur Pro",
+      "dmSoon": "DM dan Auto DM Instagram (segera hadir)",
+      "support": "Dukungan prioritas 1-on-1",
+      "earlyAccess": "Akses awal ke fitur baru"
+    },
+    "descriptions": {
+      "pro": "{count}+ post per bulan, siap kamu tinjau setiap minggu",
+      "max": "{count}+ post per bulan, untuk ritme posting yang lebih padat"
+    },
+    "multiplier": "Kuota AI {count}x lebih banyak",
     "checkFailed": "Status belum bisa diperiksa. Coba lagi.",
     "paymentFailed": "Pembayaran belum bisa disiapkan. Coba lagi.",
     "activating": "Mengaktifkan…",
@@ -39,8 +55,6 @@
     "research": "Riset langsung Instagram",
     "fasterImages": "2x lebih cepat generate gambar",
     "featured": "Fitur unggulan",
-    "support": "Support prioritas",
-    "earlyAccess": "Early access fitur baru",
     "fulfillment": "Pembayaran diterima, tetapi aktivasi perlu bantuan tim. Nomor pesanan: {id}.",
     "pendingHint": "Lanjutkan pembayaran {plan}({amount}) atau tunggu tautannya kedaluwarsa sebelum memilih paket lain.",
     "pendingPlan": "paket {name} ",
@@ -52,12 +66,7 @@
     "monthlyApprox": "≈ {amount} / bulan",
     "activeTerm": "Aktif {count} bulan sejak pembayaran dikonfirmasi. Kuota diperbarui setiap bulan.",
     "posts": "±{count} post",
-    "proDescription": "Untuk rutin membuat dan menjadwalkan konten.",
-    "maxDescription": "Lebih banyak ruang untuk produksi dan riset konten.",
-    "priority": "Prioritas proses",
     "waitlistBadge": "Segera hadir",
-    "waitlistHint": "Termasuk DM dan Auto DM Instagram, yang masih menunggu persetujuan Meta. Masuk daftar tunggu untuk dikabari saat dibuka.",
-    "waitlistDm": "DM dan Auto DM Instagram",
     "waitlistJoin": "Gabung daftar tunggu",
     "waitlistJoining": "Mendaftarkan…",
     "waitlistJoined": "Kamu ada di daftar tunggu",
