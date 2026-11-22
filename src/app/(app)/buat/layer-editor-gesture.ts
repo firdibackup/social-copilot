@@ -47,7 +47,7 @@ export interface ResizeOptions {
  */
 export function resizeLayer(start: Layer, handle: Handle, dx: number, dy: number, options: ResizeOptions = {}): Layer {
   if (start.locked) return start
-  if (start.kind === 'shape' || start.kind === 'path') return resizeBox(start, handle, dx, dy, false)
+  if (start.kind === 'shape' || start.kind === 'path' || start.kind === 'frame') return resizeBox(start, handle, dx, dy, false)
   if (start.kind === 'image') {
     if (handle.length === 2) return resizeBox(start, handle, dx, dy, !options.free)
     return options.free ? resizeBox(start, handle, dx, dy, false) : cropImageSide(start, handle, dx, dy)

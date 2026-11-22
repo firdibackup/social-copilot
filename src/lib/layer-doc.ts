@@ -7,10 +7,10 @@ import { isGoogleFont } from './google-fonts'
 import { isFieldConfig, type FieldConfig } from './design-fields'
 import {
   copyPathPoints, isLineKind, isPathPoints, isShapeKind, isStrokeDash, pathBounds, PATH_LIMITS,
-  type PathPoint, type PathVector, type ShapeKind, type StrokeDash,
+  type ClosedShapeKind, type PathPoint, type PathVector, type ShapeKind, type StrokeDash,
 } from './shape-paths'
 import { copyGradient, parseGradient, type Gradient, type GradientPreset } from './gradients'
-export type { PathPoint, PathVector, ShapeKind, StrokeDash } from './shape-paths'
+export type { ClosedShapeKind, PathPoint, PathVector, ShapeKind, StrokeDash } from './shape-paths'
 export type { Gradient, GradientStop, GradientPreset } from './gradients'
 
 export interface Box { id: string; x: number; y: number; w: number; h: number }
@@ -109,7 +109,27 @@ export interface PathLayer extends Box, LayerFlags {
   gradient?: Gradient
 }
 
-export type Layer = TextLayer | ImageLayer | ShapeLayer | PathLayer
+/**
+ * An image frame: a closed shape the user drops a picture into. The picture covers the shape (centred, cropped to
+ * fill) and is clipped to it; with no picture the shape shows `color` as a placeholder.
+ */
+export interface FrameLayer extends Box, LayerFlags {
+  kind: 'frame'
+  shape: ClosedShapeKind
+  /** The picture inside; absent is an empty frame. */
+  assetId?: string
+  /** The part of the picture shown, as fractions of the source; absent covers the frame from the centre. */
+  crop?: ImageCrop
+  /** The empty frame's placeholder colour. */
+  color: string
+  /** Corner radius in px; only 'rect' uses it. */
+  radius: number
+  strokeColor: string
+  strokeWidth: number
+  opacity?: number
+}
+
+export type Layer = TextLayer | ImageLayer | ShapeLayer | PathLayer | FrameLayer
 
 export interface LayerDoc {
   v: 1
@@ -150,6 +170,7 @@ const TEXT_KEYS = new Set([...BOX_KEYS, 'text', 'font', 'size', 'weight', 'color
 const IMAGE_KEYS = new Set([...BOX_KEYS, 'assetId', 'role', 'opacity', 'crop'])
 const SHAPE_KEYS = new Set([...BOX_KEYS, 'shape', 'color', 'radius', 'strokeColor', 'strokeWidth', 'dash', 'opacity', 'gradient'])
 const PATH_KEYS = new Set([...BOX_KEYS, 'points', 'closed', 'color', 'fill', 'strokeColor', 'strokeWidth', 'dash', 'opacity', 'gradient'])
+const FRAME_KEYS = new Set([...BOX_KEYS, 'shape', 'assetId', 'crop', 'color', 'radius', 'strokeColor', 'strokeWidth', 'opacity'])
 const CROP_KEYS: ReadonlySet<string> = new Set(['x', 'y', 'w', 'h'])
 /** Float slack for a crop edge computed by the gesture math. */
 const CROP_EPSILON = 1e-9
@@ -219,7 +240,7 @@ function parseLayer(value: unknown, width: number, height: number): Layer | null
   if (opacity !== undefined && !finite(opacity, LAYER_LIMITS.opacity.min, LAYER_LIMITS.opacity.max)) return null
   const extra: { opacity?: number } = opacity === undefined ? {} : { opacity }
   let gradient: Gradient | null = null
-  if (value.gradient !== undefined && (value.kind === 'image' || !(gradient = parseGradient(value.gradient)))) return null
+  if (value.gradient !== undefined && (value.kind === 'image' || value.kind === 'frame' || !(gradient = parseGradient(value.gradient)))) return null
   const fill: { gradient?: Gradient } = gradient ? { gradient } : {}
   if (value.kind === 'text') {
     if (!onlyKeys(value, TEXT_KEYS)) return null
@@ -253,6 +274,17 @@ function parseLayer(value: unknown, width: number, height: number): Layer | null
     return { ...box, kind: 'image', assetId: value.assetId.toLowerCase(), role: value.role as ImageRole, ...extra,
       ...(crop ? { crop } : {}) }
   }
+  if (value.kind === 'frame') {
+    if (!onlyKeys(value, FRAME_KEYS) || !isShapeKind(value.shape) || isLineKind(value.shape)) return null
+    if (value.assetId !== undefined && (typeof value.assetId !== 'string' || !UUID.test(value.assetId))) return null
+    const crop = value.crop === undefined ? undefined : parseImageCrop(value.crop)
+    if (crop === null || (crop && value.assetId === undefined)) return null
+    if (typeof value.color !== 'string' || !HEX.test(value.color) || typeof value.strokeColor !== 'string'
+      || !HEX.test(value.strokeColor) || !finite(value.strokeWidth, 0, 100) || !finite(value.radius, 0, 1000)) return null
+    return { ...box, kind: 'frame', shape: value.shape, color: value.color.toUpperCase(), radius: value.radius,
+      strokeColor: value.strokeColor.toUpperCase(), strokeWidth: value.strokeWidth, ...extra,
+      ...(typeof value.assetId === 'string' ? { assetId: value.assetId.toLowerCase() } : {}), ...(crop ? { crop } : {}) }
+  }
   if (value.kind === 'shape' || value.kind === 'path') {
     if (typeof value.color !== 'string' || !HEX.test(value.color) || typeof value.strokeColor !== 'string' || !HEX.test(value.strokeColor)
       || !finite(value.strokeWidth, 0, 100) || (value.dash !== undefined && !isStrokeDash(value.dash))) return null
@@ -269,9 +301,16 @@ function parseLayer(value: unknown, width: number, height: number): Layer | null
   return null
 }
 
+/** The picture a layer draws: an image layer's, or a filled frame's. */
+export const layerAssetId = (layer: Layer): string | null =>
+  layer.kind === 'image' ? layer.assetId : layer.kind === 'frame' ? layer.assetId ?? null : null
+
 /** The distinct images a doc draws, for the server's ownership check and orphan cleanup. */
 export const docAssetIds = (doc: LayerDoc): string[] =>
-  [...new Set(doc.layers.flatMap((layer) => (layer.kind === 'image' ? [layer.assetId] : [])))]
+  [...new Set(doc.layers.flatMap((layer) => {
+    const id = layerAssetId(layer)
+    return id ? [id] : []
+  }))]
 
 // ---------- Text layout: the editor's DOM and the export canvas both use these, so lines wrap identically. ----------
 
@@ -389,19 +428,34 @@ export function snapBox(box: Omit<Box, 'id'>, canvas: Canvas, others: Omit<Box, 
   }
 }
 
+/** Whether a canvas point falls inside a layer's (rotated) box. */
+function boxContains(layer: Layer, x: number, y: number): boolean {
+  const angle = -(layer.rotation ?? 0) * Math.PI / 180
+  const cx = layer.x + layer.w / 2
+  const cy = layer.y + layer.h / 2
+  const dx = x - cx
+  const dy = y - cy
+  const localX = dx * Math.cos(angle) - dy * Math.sin(angle) + cx
+  const localY = dx * Math.sin(angle) + dy * Math.cos(angle) + cy
+  return localX >= layer.x && localX <= layer.x + layer.w && localY >= layer.y && localY <= layer.y + layer.h
+}
+
 /** The topmost layer under a canvas point, or null. */
 export function hitTest(layers: Layer[], x: number, y: number): string | null {
   for (let index = layers.length - 1; index >= 0; index--) {
     const layer = layers[index]
     if (layer.hidden || layer.locked) continue
-    const angle = -(layer.rotation ?? 0) * Math.PI / 180
-    const cx = layer.x + layer.w / 2
-    const cy = layer.y + layer.h / 2
-    const dx = x - cx
-    const dy = y - cy
-    const localX = dx * Math.cos(angle) - dy * Math.sin(angle) + cx
-    const localY = dx * Math.sin(angle) + dy * Math.cos(angle) + cy
-    if (localX >= layer.x && localX <= layer.x + layer.w && localY >= layer.y && localY <= layer.y + layer.h) return layer.id
+    if (boxContains(layer, x, y)) return layer.id
+  }
+  return null
+}
+
+/** The topmost visible, unlocked frame under a canvas point (a picture dropped there fills it), or null. */
+export function frameAt(layers: Layer[], x: number, y: number): FrameLayer | null {
+  for (let index = layers.length - 1; index >= 0; index--) {
+    const layer = layers[index]
+    if (layer.kind !== 'frame' || layer.hidden || layer.locked) continue
+    if (boxContains(layer, x, y)) return layer
   }
   return null
 }
@@ -525,6 +579,52 @@ export function newShapeLayer(doc: LayerDoc, shape: ShapeKind): ShapeLayer {
   return { id: newLayerId(doc), kind: 'shape', shape, color: '#6558F5', radius: 0,
     strokeColor: '#171827', strokeWidth: line ? 6 : 0,
     x: Math.round((doc.width - w) / 2), y: Math.round((doc.height - h) / 2), w, h }
+}
+
+/** The empty frame's placeholder: a light grey that reads as "drop a picture here" on most slides. */
+export const FRAME_PLACEHOLDER = '#D9DCE3'
+
+/**
+ * A new empty frame centred on the canvas: `aspect` is width / height, the longer side 45% of the canvas width, and
+ * `radius` (rects only) a fraction of the shorter side.
+ */
+export function newFrameLayer(doc: LayerDoc, shape: ClosedShapeKind, aspect = 1, radius = 0): FrameLayer {
+  const long = doc.width * 0.45
+  const w = Math.round(aspect >= 1 ? long : long * aspect)
+  const h = Math.round(aspect >= 1 ? long / aspect : long)
+  return { id: newLayerId(doc), kind: 'frame', shape, color: FRAME_PLACEHOLDER, radius: Math.round(Math.min(w, h) * radius),
+    strokeColor: '#171827', strokeWidth: 0, x: Math.round((doc.width - w) / 2), y: Math.round((doc.height - h) / 2), w, h }
+}
+
+/**
+ * The part of a `width`×`height` source a frame shows: its stored crop widened or narrowed about its centre to the
+ * frame's aspect (so the picture is never squashed); with none stored, the largest centred region. This is what
+ * the design renderer's 'cover' fit shows too.
+ */
+export function frameCrop(frame: Pick<FrameLayer, 'w' | 'h' | 'crop'>, width: number, height: number): ImageCrop {
+  const aspect = (frame.w / Math.max(1, frame.h)) * (height / Math.max(1, width))
+  const base = frame.crop ?? { x: 0, y: 0, w: 1, h: 1 }
+  let w = base.w
+  let h = base.w / aspect
+  if (h > base.h) { h = base.h; w = base.h * aspect }
+  const cx = base.x + base.w / 2
+  const cy = base.y + base.h / 2
+  return { x: Math.min(1 - w, Math.max(0, cx - w / 2)), y: Math.min(1 - h, Math.max(0, cy - h / 2)), w, h }
+}
+
+/** A frame emptied of its picture, back to the placeholder. */
+export function emptyFrame(frame: FrameLayer): FrameLayer {
+  const next: FrameLayer = { ...frame }
+  delete next.assetId
+  delete next.crop
+  return next
+}
+
+/** The frame holding `assetId`, shown from its centre (any old crop dropped). */
+export function fillFrame(frame: FrameLayer, assetId: string): FrameLayer {
+  const next: FrameLayer = { ...frame, assetId }
+  delete next.crop
+  return next
 }
 
 /**

@@ -28,11 +28,13 @@ export function withCropOf(layer: ImageLayer, draft: ImageLayer): ImageLayer {
  * drag the frame's handles to crop, Ctrl/⌘+wheel or a trackpad pinch (the canvas forwards it) or the slider to zoom.
  * Arrow keys on the frame move the picture, + and − zoom.
  */
-export function CropOverlay({ layer, scale, label, onChange }: {
+export function CropOverlay({ layer, scale, label, onChange, fixed = false }: {
   layer: ImageLayer
   scale: number
   label: string
   onChange: (layer: ImageLayer) => void
+  /** A bingkai: the frame's box stays put, so no crop handles; the picture still pans and zooms inside it. */
+  fixed?: boolean
 }) {
   const t = useTranslations('editor.layerEditor')
   const drag = useRef<{ pointerId: number; handle: Handle | null; start: ImageLayer; x: number; y: number } | null>(null)
@@ -122,7 +124,7 @@ export function CropOverlay({ layer, scale, label, onChange }: {
       >
         {/* Thirds, as a guide. */}
         <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,transparent_calc(33.333%-0.5px),rgba(255,255,255,0.55)_calc(33.333%-0.5px),rgba(255,255,255,0.55)_calc(33.333%+0.5px),transparent_calc(33.333%+0.5px),transparent_calc(66.666%-0.5px),rgba(255,255,255,0.55)_calc(66.666%-0.5px),rgba(255,255,255,0.55)_calc(66.666%+0.5px),transparent_calc(66.666%+0.5px)),linear-gradient(to_bottom,transparent_calc(33.333%-0.5px),rgba(255,255,255,0.55)_calc(33.333%-0.5px),rgba(255,255,255,0.55)_calc(33.333%+0.5px),transparent_calc(33.333%+0.5px),transparent_calc(66.666%-0.5px),rgba(255,255,255,0.55)_calc(66.666%-0.5px),rgba(255,255,255,0.55)_calc(66.666%+0.5px),transparent_calc(66.666%+0.5px))]" />
-        {HANDLES.map((handle) => {
+        {!fixed && HANDLES.map((handle) => {
           const [fx, fy] = AT[handle]
           const side = handle.length === 1
           const horizontal = handle === 'n' || handle === 's'
@@ -156,7 +158,15 @@ export function CropOverlay({ layer, scale, label, onChange }: {
 }
 
 /** The bar over the canvas while cropping: how, the zoom, Atur ulang and Selesai. */
-export function CropBar({ layer, onChange, onDone }: { layer: ImageLayer; onChange: (layer: ImageLayer) => void; onDone: () => void }) {
+export function CropBar({ layer, onChange, onDone, onReset, fixed = false }: {
+  layer: ImageLayer
+  /** A bingkai: the hint says the picture moves inside a fixed frame. */
+  fixed?: boolean
+  onChange: (layer: ImageLayer) => void
+  onDone: () => void
+  /** How Atur ulang resets, when not the image's own (a bingkai centres its picture instead). */
+  onReset?: (layer: ImageLayer) => ImageLayer
+}) {
   const t = useTranslations('editor.layerEditor')
   const zoom = cropZoom(layer)
   const setZoom = (value: number) => onChange(zoomCrop(layer, value / zoom))
@@ -167,7 +177,7 @@ export function CropBar({ layer, onChange, onDone }: { layer: ImageLayer; onChan
         <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent text-white">
           <Crop size={14} />
         </span>
-        <p id="layer-crop-hint" className="min-w-0 max-w-56 text-xs leading-snug text-ink max-lg:sr-only">{t('cropping.hint')}</p>
+        <p id="layer-crop-hint" className="min-w-0 max-w-56 text-xs leading-snug text-ink max-lg:sr-only">{fixed ? t('frames.cropHint') : t('cropping.hint')}</p>
         <label className="flex min-w-0 items-center gap-1.5 text-ink-muted">
           <ZoomOut size={14} aria-hidden="true" className="shrink-0" />
           <span className="sr-only">{t('cropping.zoom')}</span>
@@ -188,7 +198,7 @@ export function CropBar({ layer, onChange, onDone }: { layer: ImageLayer; onChan
           />
           <ZoomIn size={14} aria-hidden="true" className="shrink-0" />
         </label>
-        <button type="button" onClick={() => onChange(resetCrop(layer))} disabled={!layer.crop} className={`${button} text-ink hover:bg-zinc-100`}>
+        <button type="button" onClick={() => onChange((onReset ?? resetCrop)(layer))} disabled={!onReset && !layer.crop} className={`${button} text-ink hover:bg-zinc-100`}>
           <RotateCcw size={14} aria-hidden="true" />
           <span className="max-sm:sr-only">{t('cropping.reset')}</span>
         </button>

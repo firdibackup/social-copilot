@@ -7,7 +7,7 @@ import { storedJpegAttempts, toInstagramJpeg, type PreparedImage } from './image
 import { MAX_STORED_BYTES } from './storage-quota-options'
 import {
   fontShorthand, layerImageUrl, lineBaseline, lineBox, lineStart, textHeight, wrapText,
-   type ImageLayer, type LayerDoc, type TextLayer, type ShapeLayer, type PathLayer,
+   frameCrop, layerAssetId, type FrameLayer, type ImageLayer, type LayerDoc, type TextLayer, type ShapeLayer, type PathLayer,
 } from './layer-doc'
 import { gradientStyle, type Gradient } from './gradients'
 import { isLineKind, shapeFillRule, strokeStyle, traceShape, tracePath, type PathContext, type ShapeKind } from './shape-paths'
@@ -149,6 +149,7 @@ export interface DrawContext extends MeasureContext {
   arc?(x: number, y: number, radius: number, startAngle: number, endAngle: number, counterclockwise?: boolean): void
   closePath?(): void
   fill?(rule?: CanvasFillRule): void
+  clip?(rule?: CanvasFillRule): void
   stroke?(): void
   setLineDash?(segments: number[]): void
   strokeStyle?: string | CanvasGradient | CanvasPattern
@@ -217,6 +218,8 @@ export function drawDoc(
     if (layer.kind === 'image') {
       const image = images.get(layer.assetId)
       if (image) drawImageLayer(ctx, layer, image)
+    } else if (layer.kind === 'frame') {
+      drawFrame(ctx, layer, layer.assetId ? images.get(layer.assetId) : undefined)
     } else if (layer.kind === 'shape') {
       drawShape(ctx, layer)
     } else if (layer.kind === 'path') {
@@ -259,6 +262,27 @@ export function drawShape(ctx: DrawContext, layer: ShapeLayer): void {
   ctx.beginPath?.()
   traceShape(pathOf(ctx), layer.shape, layer, layer.radius)
   paintPath(ctx, layer, !isLineKind(layer.shape), shapeFillRule(layer.shape), layer.shape)
+}
+
+/** A frame: its picture covering the shape and clipped to it, or the placeholder colour when empty; then the stroke. */
+export function drawFrame(ctx: DrawContext, layer: FrameLayer, image: CanvasImageSource | undefined): void {
+  const size = image ? sourceSize(image) : null
+  ctx.beginPath?.()
+  traceShape(pathOf(ctx), layer.shape, layer, layer.radius)
+  if (image && size) {
+    const crop = frameCrop(layer, size.width, size.height)
+    ctx.save?.()
+    ctx.clip?.(shapeFillRule(layer.shape))
+    ctx.drawImage(image, crop.x * size.width, crop.y * size.height, crop.w * size.width, crop.h * size.height,
+      layer.x, layer.y, layer.w, layer.h)
+    ctx.restore?.()
+  }
+  // An empty frame leaves no fill in the image; the editor marks it on screen instead.
+  if (layer.strokeWidth > 0) {
+    ctx.strokeStyle = layer.strokeColor
+    ctx.lineWidth = layer.strokeWidth
+    ctx.stroke?.()
+  }
 }
 
 /** A free vector layer: its fractional points traced into its box. */
@@ -333,7 +357,10 @@ export function textCss(layer: TextLayer, family: string): Record<string, string
  * then re-encodes with toInstagramJpeg like any upload.
  */
 export async function flattenDoc(doc: LayerDoc, baseAssetId: string, familyOf: FamilyOf): Promise<PreparedImage> {
-  const ids = [...new Set(doc.layers.flatMap((layer) => (layer.kind === 'image' ? [layer.assetId] : [])))]
+  const ids = [...new Set(doc.layers.flatMap((layer) => {
+    const id = layerAssetId(layer)
+    return id ? [id] : []
+  }))]
   const [base, ...loaded] = await Promise.all([
     loadImage(layerImageUrl(baseAssetId)),
     ...ids.map((id) => loadImage(layerImageUrl(id))),

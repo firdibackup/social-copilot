@@ -261,7 +261,7 @@ export function migrateLayerDoc(legacy: LayerDoc, identity: { id: string; pageId
   const { doc } = parsed
   const children: DesignNode[] = doc.layers.map((layer, index) => {
     const base: BaseNode = { id: identity.nodeIds[index], name: layer.name ?? (layer.kind === 'text' ? layer.text.slice(0, 80)
-      : layer.kind === 'shape' ? layer.shape : layer.kind === 'path' ? 'path' : layer.role),
+      : layer.kind === 'shape' ? layer.shape : layer.kind === 'path' ? 'path' : layer.kind === 'frame' ? 'frame' : layer.role),
       transform: { x: layer.x, y: layer.y, scaleX: 1, scaleY: 1, rotation: layer.rotation ?? 0 }, size: { width: layer.w, height: layer.h }, opacity: layer.opacity ?? 1,
       ...(layer.locked !== undefined ? { locked: layer.locked } : {}), ...(layer.hidden !== undefined ? { hidden: layer.hidden } : {}),
       ...(layer.field ? { data: { carousely: { field: layer.field } } } : {}) }
@@ -272,6 +272,14 @@ export function migrateLayerDoc(legacy: LayerDoc, identity: { id: string; pageId
       return { ...base, type: 'shape', kind: 'path', cornerRadius: 0,
         fill: layer.fill ? fill : { type: 'none' }, stroke,
         path: { points: copyPathPoints(layer.points), closed: layer.closed } }
+    }
+    if (layer.kind === 'frame') {
+      const fill: Paint = layer.assetId ? { type: 'image', assetId: layer.assetId, fit: 'cover',
+        ...(layer.crop ? { crop: { x: layer.crop.x, y: layer.crop.y, width: layer.crop.w, height: layer.crop.h } } : {}) }
+        : { type: 'none' }
+      return { ...base, type: 'shape', kind: layer.shape, cornerRadius: layer.radius, fill,
+        stroke: { color: hexColor(layer.strokeColor), width: layer.strokeWidth },
+        data: { carousely: { ...base.data?.carousely, role: 'frame' } } }
     }
     if (layer.kind === 'image') return { ...base, type: 'image', fill: { type: 'image', assetId: layer.assetId, fit: 'stretch',
       ...(layer.crop ? { crop: { x: layer.crop.x, y: layer.crop.y, width: layer.crop.w, height: layer.crop.h } } : {}) },

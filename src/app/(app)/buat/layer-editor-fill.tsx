@@ -17,6 +17,8 @@ export interface Fill { color: string; gradient?: Gradient }
 /** The layer with a plain colour or a gradient fill (`color` follows the first stop, so older readers still see it). */
 export function withFill(layer: Layer, fill: Fill): Layer {
   if (layer.kind === 'image') return layer
+  // A bingkai's placeholder is always a plain colour.
+  if (layer.kind === 'frame') return { ...layer, color: fill.color }
   const next = { ...layer } as Fillable
   if (fill.gradient) return { ...next, color: fill.gradient.stops[0].color, gradient: fill.gradient } as Layer
   delete next.gradient

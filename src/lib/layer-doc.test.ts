@@ -3,6 +3,7 @@ import {
   clampBox, commit, createHistory, docAssetIds, fontShorthand, hitTest, isOutside, LAYER_LIMITS, lineBaseline, lineStart,
   newTextLayer, newShapeLayer, duplicateLayer, parseLayerDoc, redo, reorder, resizeBox, snapBox, TEXT_WEIGHTS, undo, wrapText, type LayerDoc,
   type TextLayer, newPathLayer, normalizePath, pathPointsAbsolute, type PathLayer, newOverlayLayer, parseImageCrop,
+  emptyFrame, fillFrame, FRAME_PLACEHOLDER, frameAt, frameCrop, newFrameLayer, type FrameLayer,
 } from './layer-doc'
 import { OVERLAY_PRESETS } from './gradients'
 import { LINE_KINDS, SHAPE_KINDS } from './shape-paths'
@@ -206,7 +207,7 @@ describe('editor elements', () => {
       }
     }
     const rect = newShapeLayer(sample, 'rect')
-    for (const bad of [{ ...rect, shape: 'blob' }, { ...rect, dash: 'dashdot' }, { ...rect, dash: null }, { ...rect, extra: 1 }]) {
+    for (const bad of [{ ...rect, shape: 'splat' }, { ...rect, dash: 'dashdot' }, { ...rect, dash: null }, { ...rect, extra: 1 }]) {
       expect(parseLayerDoc({ ...sample, layers: [bad] })).toEqual({ error: 'layer' })
     }
   })
@@ -335,5 +336,58 @@ describe('image crop and gradients', () => {
     expect(overlay.gradient).not.toBe(preset.gradient)
     expect(newOverlayLayer(sample, preset, 'Bayangan').name).toBe('Bayangan')
     expect(parseLayerDoc({ ...sample, layers: [...sample.layers, overlay] })).toHaveProperty('doc')
+  })
+})
+
+describe('frame layers', () => {
+  const frame: FrameLayer = { id: 'f1', kind: 'frame', shape: 'heart', x: 100, y: 100, w: 400, h: 200, color: '#D9DCE3',
+    radius: 0, strokeColor: '#171827', strokeWidth: 0 }
+
+  it('parses empty and filled frames, and refuses lines, gradients, a crop without a picture and unknown keys', () => {
+    const filled = { ...frame, assetId: ASSET, crop: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 } }
+    expect(parseLayerDoc({ ...sample, layers: [frame] })).toEqual({ doc: { ...sample, layers: [frame] } })
+    expect(parseLayerDoc({ ...sample, layers: [filled] })).toEqual({ doc: { ...sample, layers: [filled] } })
+    const gradient = { type: 'linear', angle: 0, stops: [{ offset: 0, color: '#000000' }, { offset: 1, color: '#FFFFFF' }] }
+    for (const bad of [{ ...frame, shape: 'line' }, { ...frame, gradient }, { ...frame, crop: filled.crop }, { ...frame, assetId: 'nope' }, { ...frame, extra: 1 }]) {
+      expect(parseLayerDoc({ ...sample, layers: [bad] })).toEqual({ error: 'layer' })
+    }
+  })
+
+  it('counts a filled frame among the doc assets', () => {
+    expect(docAssetIds({ ...sample, layers: [frame] })).toEqual([])
+    expect(docAssetIds({ ...sample, layers: [{ ...frame, assetId: ASSET }] })).toEqual([ASSET])
+  })
+
+  it('makes a centred frame at the preset aspect', () => {
+    const made = newFrameLayer(sample, 'arch', 3 / 4)
+    expect(made).toMatchObject({ kind: 'frame', shape: 'arch', color: FRAME_PLACEHOLDER, w: 365, h: 486 })
+    expect(Math.abs(made.x + made.w / 2 - 540)).toBeLessThanOrEqual(1)
+    expect(parseLayerDoc({ ...sample, layers: [made] })).toHaveProperty('doc')
+  })
+
+  it('covers the frame from the centre, and fits a stored crop to the frame aspect', () => {
+    // 2:1 frame on a square picture: the middle half, full width.
+    expect(frameCrop(frame, 1000, 1000)).toEqual({ x: 0, y: 0.25, w: 1, h: 0.5 })
+    // 2:1 frame on a 4:1 picture: the middle half, full height.
+    expect(frameCrop(frame, 4000, 1000)).toEqual({ x: 0.25, y: 0, w: 0.5, h: 1 })
+    const fitted = frameCrop({ ...frame, crop: { x: 0, y: 0, w: 0.5, h: 0.5 } }, 1000, 1000)
+    expect(fitted.w / fitted.h).toBeCloseTo(2)
+    expect(fitted.x).toBeGreaterThanOrEqual(0)
+    expect(fitted.y + fitted.h).toBeLessThanOrEqual(1)
+  })
+
+  it('fills and empties a frame', () => {
+    const filled = fillFrame({ ...frame, assetId: ASSET, crop: { x: 0, y: 0, w: 0.5, h: 0.5 } }, ASSET)
+    expect(filled).toEqual({ ...frame, assetId: ASSET })
+    expect(emptyFrame({ ...filled, crop: { x: 0, y: 0, w: 1, h: 1 } })).toEqual(frame)
+  })
+
+  it('finds the top visible unlocked frame under a point', () => {
+    const top = { ...frame, id: 'f2' }
+    const layers = [frame, top, text]
+    expect(frameAt(layers, 300, 200)?.id).toBe('f2')
+    expect(frameAt([frame, { ...top, hidden: true }], 300, 200)?.id).toBe('f1')
+    expect(frameAt([frame, { ...top, locked: true }], 300, 200)?.id).toBe('f1')
+    expect(frameAt(layers, 900, 900)).toBeNull()
   })
 })

@@ -188,3 +188,22 @@ describe('crop and gradient migration', () => {
     }
   })
 })
+
+describe('frame migration', () => {
+  const frame = { id: 'f1', kind: 'frame', shape: 'arch', x: 100, y: 200, w: 300, h: 400, color: '#D9DCE3', radius: 0,
+    strokeColor: '#171827', strokeWidth: 4 } as const
+  const one = { id: id(1), pageId: id(2), nodeIds: [id(3)] }
+  const migrate = (layer: LayerDoc['layers'][number]) =>
+    migrateLayerDoc({ v: 1, width: 1080, height: 1350, layers: [layer] }, one, id(6)).pages[0].children[0] as ShapeNode
+
+  it('leaves an empty frame unfilled, keeping only its stroke', () => {
+    expect(migrate(frame)).toMatchObject({ type: 'shape', kind: 'arch', name: 'frame', fill: { type: 'none' },
+      stroke: { color: hexColor('#171827'), width: 4 }, data: { carousely: { role: 'frame' } } })
+  })
+
+  it('fills a frame with its picture, covering it, with the stored crop', () => {
+    const node = migrate({ ...frame, assetId: id(9), crop: { x: 0.1, y: 0.2, w: 0.5, h: 0.6 } })
+    expect(node.fill).toEqual({ type: 'image', assetId: id(9), fit: 'cover', crop: { x: 0.1, y: 0.2, width: 0.5, height: 0.6 } })
+    expect(designAssetIds(migrateLayerDoc({ v: 1, width: 1080, height: 1350, layers: [{ ...frame, assetId: id(9) }] }, one, id(6)))).toContain(id(9))
+  })
+})

@@ -36,6 +36,8 @@ import { hasSlidesInProgress } from '@/lib/slides'
 import { FileTooLargeError, hasStorageRoom, StorageFullError } from '@/lib/storage-quota'
 import { fileTooLargeMessage, storageFullMessage } from '@/lib/storage-quota-options'
 import { db, unwrap } from '@/lib/supabase'
+import { MAX_STORED_BYTES } from '@/lib/storage-quota-options'
+import { fetchImage, RemoteFetchError } from '@/lib/web-fetch'
 
 /** A message for the owner, or null when it worked. */
 type ActionError = string | null
@@ -46,6 +48,8 @@ const EDITABLE_STATUSES = new Set(['draft', 'scheduled', 'failed', 'cancelled'])
 const isEditable = (post: Post) => EDITABLE_STATUSES.has(post.status) && !post.isLocked
 /** The logo layer's longest side; a logo never needs more on a 1080 px slide. */
 const LOGO_MAX_SIDE = 1080
+/** A picture pasted from the web: its longest side, like prepareLayerUpload's cap. */
+const PASTED_MAX_SIDE = 1600
 
 const MESSAGE_OF: Record<LayerErrorCode, Parameters<Translate>[0]> = {
   post_locked: 'locked',
@@ -483,5 +487,45 @@ export async function uploadLayerImageAction(
     if (error instanceof InvalidImageError) return { error: error.message }
     console.error('[lapisan] gambar lapisan gagal diunggah:', describeError(error))
     return { error: t('uploadFailed') }
+  }
+}
+
+/**
+ * A picture the owner copied out of a web page (Google Images and the like put only its address on the clipboard):
+ * fetched by the server (public addresses only, JPEG/PNG/WebP, ≤ 8 MB), sized to at most 1600 px and stored as a
+ * layer image like uploadLayerImageAction. PNG when the picture may be transparent, else JPEG.
+ */
+export async function uploadLayerImageFromUrlAction(
+  url: unknown,
+): Promise<{ assetId: string; width: number; height: number } | { error: string }> {
+  const t = await getTranslations('editor.layerActions')
+  const locale = await getLocale()
+  const { userId, accountId } = await requireAccount()
+  if (typeof url !== 'string' || url.length > 4096 || !/^https?:\/\//i.test(url)) return { error: t('pasteUrlInvalid') }
+  try {
+    const { bytes, type } = await fetchImage(url)
+    const source = sharp(bytes).rotate()
+    const meta = await source.metadata()
+    const alpha = type !== 'image/jpeg' && Boolean(meta.hasAlpha)
+    let side = PASTED_MAX_SIDE
+    for (let step = 0; step < 8; step++) {
+      const resized = source.clone().resize({ width: side, height: side, fit: 'inside', withoutEnlargement: true })
+      const { data, info } = await (alpha ? resized.png() : resized.flatten({ background: '#ffffff' }).jpeg({ quality: 88 }))
+        .toBuffer({ resolveWithObject: true })
+      if (data.length <= MAX_STORED_BYTES) {
+        const asset = await createAsset(userId, new Blob([new Uint8Array(data)]), info.width, info.height,
+          { accountId, origin: 'upload', layer: true, locale })
+        return { assetId: asset.id, width: asset.width, height: asset.height }
+      }
+      side = Math.floor(side * 0.8)
+    }
+    return { error: t('pasteUrlTooLarge') }
+  } catch (error) {
+    if (error instanceof StorageFullError) return { error: storageFullMessage(locale) }
+    if (error instanceof FileTooLargeError) return { error: fileTooLargeMessage(locale) }
+    if (error instanceof InvalidImageError) return { error: error.message }
+    if (error instanceof RemoteFetchError) return { error: t('pasteUrlFailed') }
+    console.error('[lapisan] gambar dari alamat web gagal diambil:', describeError(error))
+    return { error: t('pasteUrlFailed') }
   }
 }

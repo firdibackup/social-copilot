@@ -9,6 +9,7 @@ export const CLOSED_SHAPE_KINDS = [
   'rect', 'ellipse', 'triangle', 'rightTriangle', 'diamond', 'pentagon', 'hexagon', 'octagon',
   'star', 'star4', 'burst', 'heart', 'cross', 'ring', 'halfCircle', 'quarterCircle', 'parallelogram', 'trapezoid',
   'chevron', 'blockArrow', 'speechBubble', 'cloud', 'ribbon', 'shield', 'teardrop', 'moon', 'frame',
+  'arch', 'pill', 'squircle', 'blob', 'flower',
 ] as const
 /** Stroke-only shapes: never filled. */
 export const LINE_KINDS = ['line', 'arrow', 'doubleArrow', 'curve', 'zigzag', 'wave', 'elbow'] as const
@@ -132,6 +133,28 @@ const CURVES: Partial<Record<ShapeKind, { start: Pt; segments: number[][] }>> = 
   teardrop: { start: [0.5, 0], segments: [
     [0.65, 0.2, 1, 0.42, 1, 0.68], [1, 0.86, 0.78, 1, 0.5, 1], [0.22, 1, 0, 0.86, 0, 0.68], [0, 0.42, 0.35, 0.2, 0.5, 0],
   ] },
+  squircle: { start: [0.5, 0], segments: [
+    [0.9, 0, 1, 0.1, 1, 0.5], [1, 0.9, 0.9, 1, 0.5, 1], [0.1, 1, 0, 0.9, 0, 0.5], [0, 0.1, 0.1, 0, 0.5, 0],
+  ] },
+  blob: { start: [0.52, 0], segments: [
+    [0.8, 0, 1, 0.2, 0.98, 0.46], [0.96, 0.74, 0.76, 1, 0.48, 1], [0.2, 1, 0, 0.8, 0.02, 0.52], [0.04, 0.22, 0.24, 0, 0.52, 0],
+  ] },
+}
+
+/** A flower of `count` round petals: valleys at `inner` of the radius, petals reaching the box's edge. */
+function flower(ctx: PathContext, { x, y, w, h }: ShapeBox, count = 6, inner = 0.55) {
+  const step = (Math.PI * 2) / count
+  const spread = step * 0.35
+  // A cubic's midpoint is 1/8 of each end plus 3/8 of each control: solve for the control radius that peaks at 1.
+  const reach = (1 - 0.25 * inner * Math.cos(step / 2)) / (0.75 * Math.cos(spread))
+  const at = (angle: number, radius: number) => [x + w / 2 + Math.cos(angle) * radius * w / 2, y + h / 2 + Math.sin(angle) * radius * h / 2] as const
+  const start = -Math.PI / 2 - step / 2
+  ctx.moveTo(...at(start, inner))
+  for (let index = 0; index < count; index++) {
+    const axis = start + step / 2 + index * step
+    ctx.bezierCurveTo(...at(axis - spread, reach), ...at(axis + spread, reach), ...at(axis + step / 2, inner))
+  }
+  ctx.closePath()
 }
 
 function polyline(ctx: PathContext, points: readonly Pt[], { x, y, w, h }: ShapeBox, close: boolean) {
@@ -170,6 +193,17 @@ export function traceShape(ctx: PathContext, kind: ShapeKind, box: ShapeBox, rad
   }
   switch (kind) {
     case 'rect': ctx.roundRect(x, y, w, h, Math.min(radius, w / 2, h / 2)); return
+    case 'pill': ctx.roundRect(x, y, w, h, Math.min(w, h) / 2); return
+    case 'arch': {
+      const r = Math.min(h, w / 2)
+      ctx.moveTo(x, y + h)
+      ctx.lineTo(x, y + r)
+      ctx.ellipse(cx, y + r, w / 2, r, 0, Math.PI, Math.PI * 2)
+      ctx.lineTo(x + w, y + h)
+      ctx.closePath()
+      return
+    }
+    case 'flower': flower(ctx, box); return
     case 'ellipse': ctx.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2); return
     case 'ring': {
       // The hole runs the other way, so it stays open under either fill rule.

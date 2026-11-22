@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { drawDoc, drawImageLayer, drawPath, drawShape, layerUploadAttempts, layoutText, textCss, type DrawContext } from './layer-canvas'
+import { drawDoc, drawFrame, drawImageLayer, drawPath, drawShape, layerUploadAttempts, layoutText, textCss, type DrawContext } from './layer-canvas'
 import type { LayerDoc, PathLayer, TextLayer } from './layer-doc'
 import { isLineKind, SHAPE_KINDS } from './shape-paths'
 
@@ -356,5 +356,37 @@ describe('image crop and gradient fills', () => {
     drawShape(ctx, { id: 's', kind: 'shape', shape: 'rect', x: 0, y: 0, w: 10, h: 10, color: '#123456', radius: 0,
       strokeColor: '#000000', strokeWidth: 0, gradient })
     expect(ctx.fillStyle).toBe('#123456')
+  })
+})
+
+describe('drawFrame', () => {
+  const frame = { id: 'f1', kind: 'frame', shape: 'ellipse', x: 0, y: 0, w: 200, h: 100, color: '#D9DCE3', radius: 0,
+    strokeColor: '#000000', strokeWidth: 0 } as const
+
+  it('draws nothing for an empty frame without a stroke', () => {
+    const ctx = pathContext()
+    drawFrame(ctx, frame, undefined)
+    expect(ctx.calls.some((call) => call[0] === 'fill' || call[0] === 'drawImage' || call[0] === 'stroke')).toBe(false)
+  })
+
+  it('still strokes an empty frame', () => {
+    const ctx = pathContext()
+    drawFrame(ctx, { ...frame, strokeWidth: 2 }, undefined)
+    expect(ctx.calls.at(-1)).toEqual(['stroke'])
+    expect(ctx.calls.some((call) => call[0] === 'fill')).toBe(false)
+  })
+
+  it('clips the picture to the shape, covering the box from the centre, then strokes', () => {
+    const ctx = pathContext()
+    const clips: unknown[] = []
+    ctx.save = () => {}
+    ctx.restore = () => {}
+    ctx.clip = (rule?: CanvasFillRule) => { clips.push(rule) }
+    const image = { naturalWidth: 1000, naturalHeight: 1000 } as unknown as CanvasImageSource
+    drawFrame(ctx, { ...frame, assetId: '11111111-1111-4111-8111-111111111111', strokeWidth: 3 }, image)
+    expect(clips).toEqual(['nonzero'])
+    expect(ctx.calls).toContainEqual(['drawImage', image, 0, 250, 1000, 500, 0, 0, 200, 100])
+    expect(ctx.calls.at(-1)).toEqual(['stroke'])
+    expect(ctx.calls).not.toContainEqual(['fill', 'nonzero'])
   })
 })

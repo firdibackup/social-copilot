@@ -2,28 +2,28 @@
 
 import { useLocale, useTranslations } from 'next-intl'
 import {
-  ArrowDownToLine, Crop, Scissors, ArrowUpToLine, Bold, CaseUpper, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Flag, Image as ImageIcon, ImagePlus,
+  ArrowDownToLine, ClipboardPaste, Crop, Scissors, ArrowUpToLine, Bold, CaseUpper, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Flag, Image as ImageIcon, ImagePlus,
   Italic, LoaderCircle, Redo2, RotateCcw, Sparkles, Stamp, TextAlignCenter, TextAlignEnd, TextAlignStart, Trash2, TriangleAlert, Type,
-  Underline, Undo2, Upload, X, Shapes, Copy, LockKeyhole, EyeOff,
+  Underline, Undo2, Upload, X, Shapes, Copy, LockKeyhole, EyeOff, Frame as FrameIcon, ImageMinus, Move, Replace,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
 import { confirmDialog } from '@/components/confirm-dialog'
 import { FontPicker } from '@/components/font-picker'
 import { useStorageFull } from '@/components/storage-full'
 import type { Asset } from '@/lib/assets'
 import { DEFAULT_HEADING_FONT } from '@/lib/design-styles'
 import { FIELD_PROMPT_LIMIT, fieldMaxChars, fieldReady } from '@/lib/design-fields'
-import { flattenDoc, loadFonts, prepareLayerUpload } from '@/lib/layer-canvas'
+import { flattenDoc, loadFonts, loadImage, prepareLayerUpload } from '@/lib/layer-canvas'
 import type { GradientPreset } from '@/lib/gradients'
 import {
-  createHistory, duplicateLayer, emptyDoc, isFontName, isOutside, LAYER_LIMITS, layerDraftKey, layerImageUrl, newImageLayer, newOverlayLayer, newPathLayer, newTextLayer, newShapeLayer, normalizePath, pathPointsAbsolute, redo, reorder, TEXT_WEIGHTS, undo,
-  type History, type ImageLayer, type Layer, type LayerDoc, type Reorder, type StrokeDash, type TextAlign, type TextLayer, type TextWeight, type ShapeLayer, type PathLayer,
+  createHistory, duplicateLayer, emptyDoc, emptyFrame, fillFrame, isFontName, LAYER_LIMITS, layerDraftKey, layerImageUrl, newImageLayer, newOverlayLayer, newPathLayer, newTextLayer, newShapeLayer, normalizePath, pathPointsAbsolute, redo, reorder, TEXT_WEIGHTS, undo,
+  type FrameLayer, type History, type ImageLayer, type Layer, type LayerDoc, type Reorder, type StrokeDash, type TextAlign, type TextLayer, type TextWeight, type ShapeLayer, type PathLayer,
 } from '@/lib/layer-doc'
 import { isLineKind } from '@/lib/shape-paths'
 import type { PostMedia } from '@/lib/posts'
 import {
-  loadSlideLayersAction, logoLayerAssetAction, magicFeedbackAction, resetSlideLayersAction, saveSlideLayersAction, splitObjectAction, uploadLayerImageAction,
+  loadSlideLayersAction, logoLayerAssetAction, magicFeedbackAction, resetSlideLayersAction, saveSlideLayersAction, splitObjectAction, uploadLayerImageAction, uploadLayerImageFromUrlAction,
 } from './layer-actions'
 import { cancelGeneration } from './cancel-generation'
 import { withCropOf } from './layer-editor-crop'
@@ -33,6 +33,8 @@ import { placeBackgroundSplit, placeLayerSplit } from './layer-editor-split-plac
 import { familyOf, fitDoc, LayerCanvas, type BaseTone } from './layer-editor-canvas'
 import { addLayer, AMEND_MS, editStep, nudgeLayer, readDraft, removeLayer, replaceLayer, sameDoc, updateLayer } from './layer-editor-gesture'
 import type { PenResult } from './layer-editor-pen'
+import { clipImageOf, dragHasImage, frameAsImage, frameWithCrop, newFrameFromPreset, type ClipImage, type FramePreset } from './layer-editor-frame-math'
+import { FrameMenu } from './layer-editor-frames'
 import { DashIcon, ShapeMenu } from './layer-editor-shapes'
 import { copiedLayer, copyLayer, isTyping, pasteCopied, shortcutFor } from './layer-editor-shortcuts'
 import { Thumbnail } from './thumbnail'
@@ -123,6 +125,12 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
     cropRef.current = next
     setCropDraftState(next)
   }
+  /** A bingkai being repositioned: the picture's natural size, for Atur ulang. */
+  const cropSource = useRef<{ width: number; height: number; start: ImageLayer } | null>(null)
+  /** The bingkai the image picker (upload or Aset) fills, instead of adding a picture layer. */
+  const [frameTarget, setFrameTarget] = useState<string | null>(null)
+  /** ⌘V: the editor's own layer, unless the system clipboard has a picture (decided by the paste event). */
+  const pendingPaste = useRef<number | undefined>(undefined)
   const [splitOpen, setSplitOpen] = useState(false)
   const [splitOperation, setSplitOperation] = useState<string | null>(null)
   const [cancellingSplit, setCancellingSplit] = useState(false)
@@ -241,11 +249,41 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
   /** Potong: on a picture (double click, or the panel's button). */
   function startCrop(id: string) {
     const layer = doc?.layers.find((item) => item.id === id)
-    if (!layer || layer.kind !== 'image' || layer.locked || layer.hidden || readOnly || working) return
+    if (!layer || layer.locked || layer.hidden || readOnly || working) return
+    if (layer.kind === 'frame') return void startFrameCrop(layer)
+    if (layer.kind !== 'image') return
     setDrawing(false)
     setAdding(null)
     setSelectedId(id)
+    cropSource.current = null
     setCropDraft(layer)
+  }
+
+  /** Atur posisi on a bingkai: the picture pans and zooms inside the frame, which stays put. */
+  async function startFrameCrop(frame: FrameLayer) {
+    const assetId = frame.assetId
+    if (!assetId) return
+    setDrawing(false)
+    setAdding(null)
+    setSelectedId(frame.id)
+    try {
+      const image = await loadImage(layerImageUrl(assetId))
+      const start = frameAsImage({ ...frame, assetId }, image.naturalWidth, image.naturalHeight)
+      cropSource.current = { width: image.naturalWidth, height: image.naturalHeight, start }
+      setCropDraft(start)
+    } catch {
+      setError(t('failed'))
+    }
+  }
+
+  /** Atur ulang for a bingkai: the picture centred, covering the frame. */
+  function resetFrameCrop(draft: ImageLayer): ImageLayer {
+    const source = cropSource.current
+    const frame = doc?.layers.find((item) => item.id === draft.id)
+    if (!source || frame?.kind !== 'frame' || !frame.assetId) return draft
+    const centred: FrameLayer = { ...frame }
+    delete centred.crop
+    return frameAsImage({ ...centred, assetId: frame.assetId }, source.width, source.height)
   }
 
   /** Selesai: the crop session as one history step (none when nothing changed). */
@@ -254,8 +292,11 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
     setCropDraft(null)
     if (!draft || !doc) return
     const layer = doc.layers.find((item) => item.id === draft.id)
-    if (!layer || layer.kind !== 'image') return
-    const next = withCropOf(layer, draft)
+    if (!layer || (layer.kind !== 'image' && layer.kind !== 'frame')) return
+    // A bingkai opened and closed without moving its picture: no step.
+    const start = cropSource.current?.start
+    if (layer.kind === 'frame' && start?.id === draft.id && JSON.stringify(start.crop) === JSON.stringify(draft.crop)) return
+    const next = layer.kind === 'frame' ? frameWithCrop(layer, draft) : withCropOf(layer, draft)
     if (JSON.stringify(next) !== JSON.stringify(layer)) edit(replaceLayer(doc, next))
   }
 
@@ -284,6 +325,32 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
     const layer = newShapeLayer(doc, shape)
     edit(addLayer(doc, layer))
     setSelectedId(layer.id)
+    setSheetOpen(true)
+  }
+
+  /** Bingkai: an empty frame, selected, ready for a picture. */
+  function addFrame(preset: FramePreset) {
+    if (!doc || full) return
+    setDrawing(false)
+    const layer = newFrameFromPreset(doc, preset)
+    edit(addLayer(doc, layer))
+    setSelectedId(layer.id)
+    setSheetOpen(true)
+  }
+
+  /** The picture into the bingkai, shown from its centre. */
+  function fillFrameWith(id: string, assetId: string) {
+    if (!doc) return
+    edit(updateLayer(doc, id, (layer) => (layer.kind === 'frame' ? fillFrame(layer, assetId) : layer)))
+    setFrameTarget(null)
+    setSelectedId(id)
+  }
+
+  /** Gambar's picker: for a new picture layer, or (`frameId`) to fill / replace a bingkai's picture. */
+  function chooseImage(frameId: string | null) {
+    setDrawing(false)
+    setFrameTarget(frameId)
+    setAdding('image')
     setSheetOpen(true)
   }
 
@@ -388,23 +455,41 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
     addImage(result.assetId, 'logo', result.width, result.height)
   }
 
-  async function uploadImage(file: File) {
-    if (full) return
+  /**
+   * A picture from the device (the file picker, a drop or a paste): into the bingkai `frameId` when given, else a
+   * new picture layer.
+   */
+  async function uploadImage(image: File | ClipImage, frameId: string | null = null) {
+    if (!doc || readOnly || working) return
+    const frame = frameId ? doc.layers.find((layer) => layer.id === frameId && layer.kind === 'frame' && !layer.locked) : undefined
+    if (!frame && full) {
+      setError(t('full', { max: LAYER_LIMITS.layers }))
+      return
+    }
+    const source = image instanceof File ? { file: image } : image
     setError(null)
     setWorking(t('uploading'))
     try {
-      const prepared = await prepareLayerUpload(file)
-      const form = new FormData()
-      form.set('file', prepared.blob, prepared.blob.type === 'image/png' ? 'layer.png' : 'layer.jpg')
-      form.set('width', String(prepared.width))
-      form.set('height', String(prepared.height))
-      const result = await uploadLayerImageAction(form).catch(() => ({ error: t('failed') }))
+      let result: Awaited<ReturnType<typeof uploadLayerImageAction>>
+      if ('url' in source) {
+        // A picture copied out of a web page: the server fetches it, the browser can't (CORS).
+        result = await uploadLayerImageFromUrlAction(source.url).catch(() => ({ error: t('failed') }))
+      } else {
+        const prepared = await prepareLayerUpload(source.file)
+        const form = new FormData()
+        form.set('file', prepared.blob, prepared.blob.type === 'image/png' ? 'layer.png' : 'layer.jpg')
+        form.set('width', String(prepared.width))
+        form.set('height', String(prepared.height))
+        result = await uploadLayerImageAction(form).catch(() => ({ error: t('failed') }))
+      }
       if ('error' in result) {
         if (!storageFull(result.error)) setError(result.error)
         return
       }
       setAdding(null)
-      addImage(result.assetId, 'upload', result.width, result.height)
+      // The editor is busy while uploading, so `doc` is still the doc it started from.
+      if (frame) fillFrameWith(frame.id, result.assetId)
+      else addImage(result.assetId, 'upload', result.width, result.height)
     } catch (caught) {
       const code = caught instanceof Error ? caught.message : ''
       setError(UPLOAD_ERRORS.has(code) ? t(`uploadErrors.${code as 'image_too_large' | 'image_unreadable'}`) : t('failed'))
@@ -521,6 +606,8 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
   function copySelected(cut: boolean) {
     if (!doc || !selected) return
     copyLayer(selected)
+    // A copied layer replaces whatever picture the system clipboard held, so ⌘V pastes the layer, as in Canva.
+    void navigator.clipboard?.writeText(selected.kind === 'text' ? selected.text : '').catch(() => {})
     if (cut && !selected.locked && !readOnly) remove()
   }
 
@@ -536,6 +623,46 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
     edit(result.doc)
     setSelectedId(result.layer.id)
   }
+
+  /**
+   * ⌘V with a picture on the system clipboard (a screenshot, "Copy image" in a browser, an image copied out of a page
+   * such as Google, which brings only its HTML or address): into the selected empty or filled bingkai, else a new
+   * picture layer. Without a picture it's the editor's own copied layer (copying one clears the system clipboard).
+   */
+  const pasteFromClipboard = useEffectEvent((event: ClipboardEvent) => {
+    if (isTyping(event.target)) return
+    const target = event.target as Node | null
+    if (target && target !== document.body && !dialog.current?.contains(target)) return
+    window.clearTimeout(pendingPaste.current)
+    pendingPaste.current = undefined
+    if (!doc || readOnly || working || drawing || cropDraft) return
+    const image = clipImageOf(event.clipboardData)
+    // Copying a layer empties the system clipboard (copySelected), so a picture there was copied after it and wins,
+    // except a text layer's own words that happen to be an address.
+    const copied = copiedLayer()
+    const ownText = copied?.kind === 'text' && image && 'url' in image && copied.text.trim() === image.url
+    if (copied && (!image || ownText)) {
+      event.preventDefault()
+      paste()
+      return
+    }
+    if (!image) {
+      // Something was copied, but not a picture (e.g. only text): say so rather than doing nothing.
+      if (event.clipboardData?.types.length) setError(t('frames.pasteNone'))
+      return
+    }
+    event.preventDefault()
+    setAdding(null)
+    void uploadImage(image, selected?.kind === 'frame' && !selected.locked ? selected.id : null)
+  })
+  useEffect(() => {
+    const listen = (event: ClipboardEvent) => pasteFromClipboard(event)
+    document.addEventListener('paste', listen)
+    return () => {
+      document.removeEventListener('paste', listen)
+      window.clearTimeout(pendingPaste.current)
+    }
+  }, [])
 
   /**
    * Canva-style shortcuts (layer-editor-shortcuts.ts). Zoom and the shortcut list are the canvas's own, on the
@@ -562,7 +689,14 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
     switch (shortcut.kind) {
       case 'undo': return run(() => stepHistory('undo'))
       case 'redo': return run(() => stepHistory('redo'))
-      case 'paste': return copiedLayer() ? run(paste) : undefined
+      case 'paste': {
+        // Not prevented, so the browser's paste event still fires with the system clipboard; it decides (above).
+        // Where a browser sends no paste event, the editor's layer pastes anyway.
+        if (!copiedLayer()) return
+        window.clearTimeout(pendingPaste.current)
+        pendingPaste.current = window.setTimeout(paste, 80)
+        return
+      }
       case 'selectTop': {
         // One layer at a time: ⌘A picks the top visible one.
         const top = doc.layers.findLast((layer) => !layer.hidden)
@@ -597,8 +731,9 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
   const labelOf = (layer: Layer) =>
     layer.name || (layer.kind === 'text'
       ? t('textLabel', { text: layer.text.replace(/\s+/g, ' ').trim().slice(0, 40) || '…' })
-      : layer.kind === 'shape' ? t(`shapes.${layer.shape}`) : layer.kind === 'path' ? t('shapes.path') : t(`roles.${layer.role}`))
-  const outside = doc?.layers.some((layer) => !layer.hidden && isOutside(layer, doc)) ?? false
+      : layer.kind === 'shape' ? t(`shapes.${layer.shape}`) : layer.kind === 'path' ? t('shapes.path')
+        : layer.kind === 'frame' ? t('frames.label', { name: t(`shapes.${layer.shape}`) }) : t(`roles.${layer.role}`))
+  const croppingFrame = Boolean(cropDraft && doc?.layers.some((layer) => layer.id === cropDraft.id && layer.kind === 'frame'))
 
   return (
     <dialog
@@ -614,6 +749,9 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
         else void close()
       }}
       onKeyDown={onKeyDown}
+      // A file or web picture let go outside the canvas mustn't open in the tab (and lose the work); the canvas takes its own drops.
+      onDragOver={(event) => { if (dragHasImage(event.dataTransfer)) event.preventDefault() }}
+      onDrop={(event) => { if (dragHasImage(event.dataTransfer)) event.preventDefault() }}
       className="fixed inset-0 m-0 h-dvh max-h-none w-screen max-w-none overflow-clip bg-transparent p-0 backdrop:bg-[rgba(20,21,31,0.55)]"
     >
       <div className="flex h-dvh w-full flex-col overflow-clip bg-bg text-ink">
@@ -680,7 +818,7 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
           <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-clip md:flex-row">
             {/* Canvas: never squeezed to nothing by the sheet below it. */}
             <div className="relative flex min-h-[30dvh] min-w-0 flex-1 flex-col bg-[radial-gradient(circle_at_1px_1px,rgba(23,24,39,0.09)_1px,transparent_0)] [background-size:18px_18px]">
-              {(draft || outside || readOnly || error) && (
+              {(draft || readOnly || error) && (
                 <div className="shrink-0 space-y-2 px-3 pt-3 md:px-6">
                   {draft && (
                     <Banner tone="info">
@@ -696,12 +834,6 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                     </Banner>
                   )}
                   {readOnly && <Banner tone="info">{t('readOnly')}</Banner>}
-                  {outside && !readOnly && (
-                    <Banner tone="warning">
-                      <TriangleAlert size={15} className="shrink-0" aria-hidden="true" />
-                      {t('outside')}
-                    </Banner>
-                  )}
                   {error && <Banner tone="error">{error}</Banner>}
                 </div>
               )}
@@ -710,7 +842,8 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                 onPointerDown={(event) => { if (event.target === event.currentTarget && !drawing) setSelectedId(null) }}
               >
                 <LayerCanvas
-                  doc={cropDraft ? updateLayer(doc, cropDraft.id, (layer) => (layer.kind === 'image' ? withCropOf(layer, cropDraft) : layer)) : doc}
+                  doc={cropDraft ? updateLayer(doc, cropDraft.id, (layer) => (layer.kind === 'image' ? withCropOf(layer, cropDraft)
+                    : layer.kind === 'frame' ? frameWithCrop(layer, cropDraft) : layer)) : doc}
                   baseAssetId={background}
                   selectedId={selectedId}
                   readOnly={readOnly || working !== null}
@@ -732,6 +865,10 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                   onCropChange={setCropDraft}
                   onCropStart={startCrop}
                   onCropEnd={finishCrop}
+                  cropFixed={croppingFrame}
+                  onCropReset={croppingFrame ? resetFrameCrop : undefined}
+                  onFillFrame={(id) => chooseImage(id)}
+                  onDropImage={(image, frameId) => void uploadImage(image, frameId)}
                 />
               </div>
               {working && (
@@ -774,7 +911,7 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                     onChange={(event) => {
                       const file = event.target.files?.[0]
                       event.target.value = ''
-                      if (file) void uploadImage(file)
+                      if (file) void uploadImage(file, frameTarget)
                     }}
                   />
                   <div className={selected ? 'hidden md:block' : ''}>
@@ -782,7 +919,8 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                   </div>
                   {adding === 'image' ? (
                     <ImageSource
-                      onBack={() => setAdding(null)}
+                      title={frameTarget ? t('frames.fillTitle') : undefined}
+                      onBack={() => { setAdding(null); setFrameTarget(null) }}
                       onUpload={() => fileInput.current?.click()}
                       onLibrary={() => void openLibrary()}
                     />
@@ -793,7 +931,8 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                       onRetry={() => { setLibrary(null); void openLibrary() }}
                       onBack={() => setAdding('image')}
                       onPick={(asset) => {
-                        addImage(asset.id, 'upload', asset.width, asset.height)
+                        if (frameTarget) fillFrameWith(frameTarget, asset.id)
+                        else addImage(asset.id, 'upload', asset.width, asset.height)
                         setAdding(null)
                       }}
                     />
@@ -812,6 +951,8 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                       onCrop={() => (cropDraft ? finishCrop() : startCrop(selected.id))}
                       onSplit={billing ? () => setSplitOpen(true) : undefined}
                       splitDisabled={full}
+                      onFrameImage={() => chooseImage(selected.id)}
+                      onFrameEmpty={() => editSelected((layer) => (layer.kind === 'frame' ? emptyFrame(layer) : layer))}
                     />
                   ) : (
                     <div className="min-w-0 space-y-5">
@@ -835,10 +976,18 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                         <div className="grid min-w-0 grid-cols-3 gap-2">
                           <AddButton icon={<Type size={18} aria-hidden="true" />} label={t('addText')} onClick={addText} disabled={full} />
                           <AddButton icon={<Stamp size={18} aria-hidden="true" />} label={t('addLogo')} onClick={() => void addLogo()} disabled={full} />
-                          <AddButton icon={<ImagePlus size={18} aria-hidden="true" />} label={t('addImage')} onClick={() => setAdding('image')} disabled={full} />
+                          <AddButton icon={<ImagePlus size={18} aria-hidden="true" />} label={t('addImage')} onClick={() => chooseImage(null)} disabled={full} />
                         </div>
-                        {full && <p className="mt-2 text-xs text-ink-muted">{t('full', { max: LAYER_LIMITS.layers })}</p>}
+                        {full ? <p className="mt-2 text-xs text-ink-muted">{t('full', { max: LAYER_LIMITS.layers })}</p>
+                          : (
+                            <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-muted">
+                              <ClipboardPaste size={13} aria-hidden="true" className="mt-px shrink-0 text-ink-soft" />
+                              <span>{t('frames.pasteHint')}</span>
+                            </p>
+                          )}
                       </section>
+
+                      <FrameMenu disabled={full} onAdd={addFrame} />
 
                       <ShapeMenu disabled={full} drawing={drawing} onAdd={addShape} onDraw={() => (drawing ? setDrawing(false) : startDrawing())} />
 
@@ -858,12 +1007,11 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                                   className="flex min-h-11 w-full items-center gap-2.5 px-3 text-left text-sm transition-colors hover:bg-zinc-50 disabled:text-ink"
                                 >
                                   <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-md bg-zinc-100 text-ink-muted">
-                                    {layer.kind === 'text' ? <Type size={14} /> : layer.kind === 'shape' || layer.kind === 'path' ? <Shapes size={14} /> : layer.role === 'logo' ? <Stamp size={14} /> : <ImageIcon size={14} />}
+                                    {layer.kind === 'text' ? <Type size={14} /> : layer.kind === 'shape' || layer.kind === 'path' ? <Shapes size={14} /> : layer.kind === 'frame' ? <FrameIcon size={14} /> : layer.role === 'logo' ? <Stamp size={14} /> : <ImageIcon size={14} />}
                                   </span>
                                   <span className="min-w-0 flex-1 truncate">{labelOf(layer)}</span>
                                   {layer.locked && <LockKeyhole size={14} aria-label={t('lockedLayer')} />}
                                   {layer.hidden && <EyeOff size={14} aria-label={t('hiddenLayer')} />}
-                                  {isOutside(layer, doc) && <TriangleAlert size={14} className="shrink-0 text-amber-600" aria-label={t('outsideShort')} />}
                                 </button>
                               </li>
                             ))}
@@ -977,11 +1125,16 @@ interface LayerPanelProps {
   /** Pisahkan objek; unset hides it. */
   onSplit?: () => void
   splitDisabled: boolean
+  /** Bingkai: pick a picture for it (or another one). */
+  onFrameImage: () => void
+  /** Bingkai: take its picture out, back to the placeholder. */
+  onFrameEmpty: () => void
 }
 
 /** The selected layer's properties: text grouped as Huruf / Paragraf / Efek, images get their opacity. */
 function LayerPanel({
   layer, doc, label, textArea, onChange, onReorder, onRemove, onDuplicate, onBack, cropping, onCrop, onSplit, splitDisabled,
+  onFrameImage, onFrameEmpty,
 }: LayerPanelProps) {
   const t = useTranslations('editor.layerEditor')
   const index = doc.layers.findIndex((item) => item.id === layer.id)
@@ -1235,6 +1388,55 @@ function LayerPanel({
         </>
       )}
 
+      {layer.kind === 'frame' && (() => {
+        const setFrame = (change: Partial<FrameLayer>, key?: string) =>
+          onChange((current) => (current.kind === 'frame' ? { ...current, ...change } : current), key)
+        return <Group title={t('frames.title')}>
+          {layer.assetId ? (
+            <div className="grid min-w-0 grid-cols-2 gap-2">
+              {/* The picture in the frame, next to Atur posisi: what Ganti / Hapus act on. */}
+              <div className="col-span-2 flex min-w-0 items-center gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={layerImageUrl(layer.assetId)} alt="" draggable={false}
+                  className="size-10 shrink-0 rounded-md bg-zinc-100 object-cover ring-1 ring-hairline pointer-coarse:size-11" />
+                <button type="button" data-crop-ui="" onClick={onCrop} aria-pressed={cropping}
+                  className={`${CHIP} min-w-0 flex-1 pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${cropping ? 'border-accent bg-accent text-white hover:bg-accent-deep' : ''}`}>
+                  <Move size={15} aria-hidden="true" className="shrink-0" />
+                  <span className="truncate">{cropping ? t('cropping.done') : t('frames.reposition')}</span>
+                </button>
+              </div>
+              <button type="button" onClick={onFrameImage} disabled={cropping}
+                className={`${CHIP} min-w-0 pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent`}>
+                <Replace size={15} aria-hidden="true" className="shrink-0" />
+                <span className="truncate">{t('frames.replace')}</span>
+              </button>
+              <button type="button" onClick={onFrameEmpty} disabled={cropping}
+                className={`${CHIP} min-w-0 pointer-coarse:min-h-11 hover:text-red-700 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent disabled:hover:text-ink-soft`}>
+                <ImageMinus size={15} aria-hidden="true" className="shrink-0" />
+                <span className="truncate">{t('frames.removeImage')}</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2.5 rounded-xl border-[1.5px] border-dashed border-accent/35 bg-accent-soft/25 px-3 py-4 text-center">
+              <span aria-hidden="true" className="flex size-10 items-center justify-center rounded-full bg-white text-accent shadow-[0_1px_2px_rgba(23,24,39,0.1)] ring-1 ring-accent/15">
+                <ImagePlus size={18} />
+              </span>
+              <p className="text-xs leading-relaxed text-ink-muted">{t('frames.emptyHint')}</p>
+              <button type="button" onClick={onFrameImage}
+                className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-accent px-3 text-sm font-semibold text-white transition-colors hover:bg-accent-deep focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent motion-reduce:transition-none pointer-coarse:min-h-11">
+                {t('frames.fill')}
+              </button>
+            </div>
+          )}
+          <ColorField label={t('strokeColor')} value={layer.strokeColor} onChange={(strokeColor) => setFrame({ strokeColor }, 'strokeColor')} />
+          <Slider id="frame-stroke" label={t('strokeWidth')} min={0} max={100} step={1} value={layer.strokeWidth} display={`${layer.strokeWidth}px`}
+            onChange={(strokeWidth) => setFrame({ strokeWidth }, 'strokeWidth')} />
+          {layer.shape === 'rect' && <Slider id="frame-radius" label={t('radius')} min={0} max={Math.min(1000, layer.w / 2, layer.h / 2)} step={1}
+            value={layer.radius} display={`${layer.radius}px`} onChange={(radius) => setFrame({ radius }, 'radius')} />}
+          <OpacitySlider value={layer.opacity ?? 1} onChange={setOpacity} />
+        </Group>
+      })()}
+
       {layer.kind === 'image' && (
         <Group title={t('groups.image')}>
           <div className={`grid min-w-0 gap-2 ${onSplit ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -1254,13 +1456,6 @@ function LayerPanel({
           <p className="text-[11px] leading-relaxed text-ink-soft">{t('imageResizeHint')}</p>
           <OpacitySlider value={layer.opacity ?? 1} onChange={setOpacity} />
         </Group>
-      )}
-
-      {isOutside(layer, doc) && (
-        <p className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          <TriangleAlert size={14} className="mt-px shrink-0" aria-hidden="true" />
-          {t('outsideLayer')}
-        </p>
       )}
 
       <div>
@@ -1395,7 +1590,7 @@ function OpacitySlider({ value, onChange }: { value: number; onChange: (value: n
 }
 
 /** Gambar: the owner's own file, or one already in Aset. */
-function ImageSource({ onBack, onUpload, onLibrary }: { onBack: () => void; onUpload: () => void; onLibrary: () => void }) {
+function ImageSource({ title, onBack, onUpload, onLibrary }: { title?: string; onBack: () => void; onUpload: () => void; onLibrary: () => void }) {
   const t = useTranslations('editor.layerEditor')
   const option = 'flex min-h-16 w-full min-w-0 items-center gap-3 rounded-xl border border-hairline bg-white px-3 py-2.5 text-left transition-colors hover:border-accent/40 hover:bg-accent-soft/30 disabled:text-ink-soft'
   return (
@@ -1404,7 +1599,7 @@ function ImageSource({ onBack, onUpload, onLibrary }: { onBack: () => void; onUp
         <button type="button" onClick={onBack} aria-label={t('back')} className="-ml-2 inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-ink-muted hover:bg-zinc-100 hover:text-ink">
           <ChevronLeft size={18} aria-hidden="true" />
         </button>
-        <p className="text-sm font-semibold">{t('imageSource')}</p>
+        <p className="text-sm font-semibold">{title ?? t('imageSource')}</p>
       </div>
       <button type="button" onClick={onUpload} className={option}>
         <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent">

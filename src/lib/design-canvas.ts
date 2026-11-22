@@ -129,7 +129,7 @@ function shapePath(ctx: CanvasRenderingContext2D, node: ShapeNode) {
 }
 
 /** Whether a shape node is filled: lines never are, nor open-or-closed paths with no fill paint. */
-const shapeFilled = (node: ShapeNode) => (node.kind === 'path' ? node.fill.type !== 'none' : !isLineKind(node.kind))
+const shapeFilled = (node: ShapeNode) => node.fill.type !== 'none' && (node.kind === 'path' || !isLineKind(node.kind))
 
 function drawText(ctx: CanvasRenderingContext2D, node: TextNode, familyOf: (name: string) => string) {
   let lines = layoutDesignText(ctx, node, familyOf)

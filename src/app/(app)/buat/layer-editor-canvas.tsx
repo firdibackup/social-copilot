@@ -1,11 +1,11 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { Keyboard, Minus, Plus, Scan, X } from 'lucide-react'
+import { Frame as FrameGlyph, ImagePlus, Keyboard, Minus, Plus, Scan, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
   useEffect, useEffectEvent, useLayoutEffect, useRef, useState,
-  type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent,
+  type DragEvent as ReactDragEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { fontFamilyOf } from '@/components/font-previews'
 import type { FontName } from '@/lib/design-styles'
@@ -13,13 +13,17 @@ import { layoutText, loadFonts, loadImage, measureContext } from '@/lib/layer-ca
 import { migrateLayerDoc } from '@/lib/design-doc'
 import { drawDesignPage } from '@/lib/design-canvas'
 import { fieldReady } from '@/lib/design-fields'
+import { shapeFillRule, traceShape } from '@/lib/shape-paths'
 import {
-  isOutside, layerImageUrl, normalizePath, pathPointsAbsolute, SNAP_SCREEN_PX,
+  frameAt, layerAssetId, layerImageUrl, normalizePath, pathPointsAbsolute, SNAP_SCREEN_PX,
   type Handle, type ImageLayer, type Layer, type LayerDoc, type PathLayer, type PathPoint, type TextLayer,
 } from '@/lib/layer-doc'
 import { CropBar, CropOverlay } from './layer-editor-crop'
+import { clipImageOf, dragHasImage, dropLayerIntoFrame, type ClipImage } from './layer-editor-frame-math'
+import { EmptyFrameMark } from './layer-editor-frame-marks'
 import { fitTextHeights, handlesFor, moveLayer, NO_GUIDES, replaceLayer, resizeRotatedLayer, zoomCrop, type Guides } from './layer-editor-gesture'
 import { PenLayer, type PenResult } from './layer-editor-pen'
+import { SvgPathRecorder } from './layer-editor-shapes'
 import {
   clampZoom, comboTitle, comboTokens, isTyping, scrollToKeep, SHORTCUT_HELP, shortcutFor, slidePointAt, useIsMac,
   WORD_KEYS, wheelZoomFactor, ZOOM_MAX, ZOOM_MIN, ZOOM_PRESETS, zoomStep, type WordKey,
@@ -116,6 +120,16 @@ interface LayerCanvasProps {
   onCropStart?: (id: string) => void
   /** Selesai: Enter, Esc (the editor's), the bar's button or a press outside the picture. */
   onCropEnd?: () => void
+  /**
+   * Cropping a frame's picture: the frame's box is fixed (no crop handles) and Atur ulang centres the picture again
+   * instead of uncropping it.
+   */
+  cropFixed?: boolean
+  onCropReset?: (layer: ImageLayer) => ImageLayer
+  /** A double click on an empty frame: pick a picture for it. */
+  onFillFrame?: (id: string) => void
+  /** An image file dropped from the device: into the frame under it (`frameId`), else as a new layer. */
+  onDropImage?: (image: ClipImage, frameId: string | null) => void
 }
 
 /**
@@ -124,7 +138,7 @@ interface LayerCanvasProps {
  */
 export function LayerCanvas({
   doc, baseAssetId, selectedId, readOnly, labelOf, onSelect, onCommit, onEditText, onBaseTone, drawing = false, onDrawEnd,
-  cropping = null, onCropChange, onCropStart, onCropEnd,
+  cropping = null, onCropChange, onCropStart, onCropEnd, cropFixed = false, onCropReset, onFillFrame, onDropImage,
 }: LayerCanvasProps) {
   const t = useTranslations('editor.layerEditor')
   const areaRef = useRef<HTMLDivElement>(null)
@@ -154,6 +168,10 @@ export function LayerCanvas({
   }
   // Where the pen's bar goes: over the canvas area, outside the scroller.
   const [barHost, setBarHost] = useState<HTMLDivElement | null>(null)
+  /** The frame a dragged picture (a layer or a file from the device) would fill if let go now. */
+  const [dropFrame, setDropFrame] = useState<string | null>(null)
+  /** A file from the device is being dragged over the canvas. */
+  const [fileOver, setFileOver] = useState(false)
 
   /** Crop mode: the canvas point (px) under a client point. */
   const canvasPoint = (x: number, y: number) => {
@@ -482,6 +500,12 @@ export function LayerCanvas({
     const others = doc.layers.filter((layer) => layer.id !== current.id && !layer.hidden)
     const next = moveLayer(current.start, dx, dy, doc, others, SNAP_SCREEN_PX / scale)
     setLive({ doc: replaceLayer(doc, next.layer), guides: next.guides })
+    // A picture dragged over a frame: the frame lights up, and takes it when let go.
+    if (current.start.kind === 'image') {
+      const point = canvasPoint(event.clientX, event.clientY)
+      const target = point ? frameAt(others, point.x, point.y)?.id ?? null : null
+      setDropFrame((value) => (value === target ? value : target))
+    }
   }
 
   function end(event: ReactPointerEvent<HTMLElement>, keep: boolean) {
@@ -491,7 +515,45 @@ export function LayerCanvas({
     const result = liveRef.current
     setLive(null)
     setResizing(null)
-    if (keep && current.moved && result) onCommit(result.doc)
+    setDropFrame(null)
+    if (!keep || !current.moved || !result) return
+    const point = current.start.kind === 'image' && !current.handle ? canvasPoint(event.clientX, event.clientY) : undefined
+    const moved = point ? result.doc.layers.find((layer) => layer.id === current.id) : undefined
+    const dropped = point && moved ? dropLayerIntoFrame(result.doc, moved, point) : null
+    if (dropped) {
+      const frame = frameAt(doc.layers.filter((layer) => layer.id !== current.id), point!.x, point!.y)
+      onCommit(dropped)
+      if (frame) onSelect(frame.id)
+      return
+    }
+    onCommit(result.doc)
+  }
+
+  /** Files dragged from the device: accepted over the whole canvas area; a frame under the pointer lights up. */
+  function dragOver(event: ReactDragEvent<HTMLDivElement>) {
+    if (readOnly || drawing || cropping || !onDropImage || !dragHasImage(event.dataTransfer)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    if (!fileOver) setFileOver(true)
+    const point = canvasPoint(event.clientX, event.clientY)
+    const target = point ? frameAt(doc.layers, point.x, point.y)?.id ?? null : null
+    if (target !== dropFrame) setDropFrame(target)
+  }
+  function dragLeave(event: ReactDragEvent<HTMLDivElement>) {
+    // Only leaving the area itself, not moving between its children.
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+    setFileOver(false)
+    setDropFrame(null)
+  }
+  function drop(event: ReactDragEvent<HTMLDivElement>) {
+    if (!fileOver && !dragHasImage(event.dataTransfer)) return
+    event.preventDefault()
+    const target = dropFrame
+    setFileOver(false)
+    setDropFrame(null)
+    if (readOnly || drawing || cropping || !onDropImage) return
+    const image = clipImageOf(event.dataTransfer)
+    if (image) onDropImage(image, target)
   }
 
   function measureTone(image: HTMLImageElement) {
@@ -517,6 +579,10 @@ export function LayerCanvas({
     if (layer.locked) return
     if (layer.kind === 'text') onEditText(layer.id)
     else if (layer.kind === 'image' && !readOnly) onCropStart?.(layer.id)
+    else if (layer.kind === 'frame' && !readOnly) {
+      if (layer.assetId) onCropStart?.(layer.id)
+      else onFillFrame?.(layer.id)
+    }
   }
 
   const box = (layer: Layer) => ({ left: layer.x * scale, top: layer.y * scale, width: layer.w * scale, height: layer.h * scale,
@@ -554,6 +620,9 @@ export function LayerCanvas({
         onSelect(null)
       }}
       onKeyDown={tabLayers}
+      onDragOver={dragOver}
+      onDragLeave={dragLeave}
+      onDrop={drop}
     >
       <span id="layer-canvas-keys" className="sr-only">{t('shortcuts.canvasHint')}</span>
       {scale > 0 && (
@@ -611,6 +680,10 @@ export function LayerCanvas({
               />
             ))}
 
+            {!cropping && shown.layers.map((layer) => layer.kind === 'frame' && !layer.hidden && !layer.assetId && (
+              <EmptyFrameMark key={`mark-${layer.id}`} frame={layer} scale={scale} />
+            ))}
+
             {live?.guides.vertical.map((x) => (
               <span key={`v${x}`} aria-hidden="true" className="pointer-events-none absolute -top-3 -bottom-3 w-px bg-[#ff3d9a]" style={{ left: x * scale }} />
             ))}
@@ -618,11 +691,33 @@ export function LayerCanvas({
               <span key={`h${y}`} aria-hidden="true" className="pointer-events-none absolute -right-3 -left-3 h-px bg-[#ff3d9a]" style={{ top: y * scale }} />
             ))}
 
+            {dropFrame && (() => {
+              const frame = shown.layers.find((layer) => layer.id === dropFrame)
+              if (!frame) return null
+              // The frame's own outline (not its box), traced in screen px by the canvas geometry, so a circle or
+              // heart lights up as a circle or heart: the picture lands exactly there.
+              const w = frame.w * scale
+              const h = frame.h * scale
+              const recorder = new SvgPathRecorder()
+              const kind = frame.kind === 'frame' ? frame.shape : 'rect'
+              traceShape(recorder, kind, { x: 0, y: 0, w, h }, frame.kind === 'frame' ? frame.radius * scale : 0)
+              return (
+                <div aria-hidden="true" className="pointer-events-none absolute z-10" style={box(frame)}>
+                  <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="absolute inset-0 overflow-visible">
+                    <path d={recorder.d} fillRule={shapeFillRule(kind)} className="fill-accent/20" />
+                    {/* A white underlay keeps the dashes readable on dark and busy pictures alike. */}
+                    <path d={recorder.d} fill="none" stroke="white" strokeOpacity={0.9} strokeWidth={4} strokeLinejoin="round" />
+                    <path d={recorder.d} fill="none" strokeWidth={2} strokeDasharray="7 5" strokeLinecap="round" strokeLinejoin="round"
+                      className="stroke-accent motion-safe:animate-[frame-drop-march_0.8s_linear_infinite]" />
+                  </svg>
+                  <style>{'@keyframes frame-drop-march{to{stroke-dashoffset:-12}}'}</style>
+                </div>
+              )
+            })()}
+
             {selected && !selected.hidden && !cropping && (
               <div
-                className={`absolute touch-none ${readOnly ? 'pointer-events-none' : 'cursor-move'} ${
-                  isOutside(selected, doc) ? 'outline-[1.5px] outline-amber-500 outline-dashed' : 'outline-[1.5px] outline-accent outline-solid'
-                }`}
+                className={`absolute touch-none outline-[1.5px] outline-accent outline-solid ${readOnly ? 'pointer-events-none' : 'cursor-move'}`}
                 style={box(selected)}
                 onPointerDown={(event) => start(event, selected.id, null)}
                 onDoubleClick={() => openLayer(selected)}
@@ -663,15 +758,30 @@ export function LayerCanvas({
             )}
 
             {cropping && onCropChange && (
-              <CropOverlay layer={cropping} scale={scale} label={labelOf(cropping)} onChange={onCropChange} />
+              <CropOverlay layer={cropping} scale={scale} label={labelOf(cropping)} onChange={onCropChange} fixed={cropFixed} />
             )}
             {cropping && onCropChange && barHost && createPortal(
-              <CropBar layer={cropping} onChange={onCropChange} onDone={() => onCropEnd?.()} />, barHost,
+              <CropBar layer={cropping} onChange={onCropChange} onDone={() => onCropEnd?.()} onReset={onCropReset} fixed={cropFixed} />, barHost,
             )}
 
             {resizing && (
               <span role="status" className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[rgba(23,24,39,0.82)] px-3 py-1.5 text-[11px] font-medium whitespace-nowrap text-white shadow-[0_6px_18px_-8px_rgba(0,0,0,0.6)] backdrop-blur-sm">
                 {resizing.free ? t('resizeFree') : resizing.corner ? t('resizeHint') : t('resizeCropHint')}
+              </span>
+            )}
+
+            {fileOver && !dropFrame && (
+              <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10 flex items-end justify-center bg-accent/10 pb-4 outline-2 -outline-offset-2 outline-accent outline-dashed">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[rgba(23,24,39,0.82)] px-3 py-1.5 text-[11px] font-medium whitespace-nowrap text-white shadow-[0_6px_18px_-8px_rgba(0,0,0,0.6)] backdrop-blur-sm">
+                  <ImagePlus size={13} aria-hidden="true" className="shrink-0" />
+                  {t('frames.dropAsLayer')}
+                </span>
+              </div>
+            )}
+            {fileOver && dropFrame && (
+              <span aria-hidden="true" className="pointer-events-none absolute bottom-3 left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-[11px] font-semibold whitespace-nowrap text-white shadow-[0_6px_18px_-8px_rgba(0,0,0,0.6)]">
+                <FrameGlyph size={13} aria-hidden="true" className="shrink-0" />
+                {t('frames.dropInFrame')}
               </span>
             )}
 
@@ -849,7 +959,10 @@ function DocumentCanvas({ doc, baseAssetId }: { doc: LayerDoc; baseAssetId: stri
   const t = useTranslations('editor.layerEditor')
   useEffect(() => {
     let live = true
-    const ids = [...new Set([baseAssetId, ...doc.layers.flatMap(layer => layer.kind === 'image' && !layer.hidden ? [layer.assetId] : [])])]
+    const ids = [...new Set([baseAssetId, ...doc.layers.flatMap(layer => {
+      const id = layer.hidden ? null : layerAssetId(layer)
+      return id ? [id] : []
+    })])]
     const loaded = ids.map(id => {
       let promise = images.current.get(id)
       if (!promise) {
