@@ -68,6 +68,12 @@ export const magicLayerUnits = (splitObject: boolean) => (splitObject ? 5 : 3)
  */
 export const OBJECT_SPLIT_UNITS = 4
 
+/**
+ * Units of the magic_layers rate one Elemen AI costs in the editor: a single image request (the element on a green
+ * screen, keyed out in code). At the default rates that is the price of one slide image.
+ */
+export const AI_ELEMENT_UNITS = 2
+
 /** One-time free credits for a user who has never paid or whose period ended. They never reset. */
 export const TRIAL_CREDITS = 3
 
