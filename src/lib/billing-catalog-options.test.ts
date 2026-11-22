@@ -79,7 +79,7 @@ describe('plan cards', () => {
 
   it('lists the same features for a plan wherever its card is shown', () => {
     expect(planFeatures(plan({}))).toEqual(['chatbot', 'creation', 'calendar', 'accounts', 'analytics'])
-    // A waitlist plan adds DM as coming soon; Max stands on Pro's list and adds its own extras.
+    // A waitlist plan adds DM and Auto DM; Max stands on Pro's list and adds its own extras.
     expect(planFeatures(pro)).toEqual(['chatbot', 'creation', 'calendar', 'accounts', 'analytics', 'dmSoon'])
     expect(planFeatures(max)).toEqual(['allPro', 'dmSoon', 'support', 'earlyAccess'])
     expect(planFeatures({ ...max, active: true })).toEqual(['allPro', 'support', 'earlyAccess'])

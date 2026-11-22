@@ -42,7 +42,8 @@ export type PlanFeature = 'chatbot' | 'creation' | 'calendar' | 'accounts' | 'an
 
 /**
  * What a plan's card lists, the same on the homepage's "Pilih paket" and on /langganan: Max stands on Pro's list,
- * a waitlist plan adds DM and Auto DM as coming soon, then the plan's own extras.
+ * a waitlist plan adds DM and Auto DM (the Segera hadir badge and the waitlist button say it isn't open yet), then
+ * the plan's own extras.
  */
 export function planFeatures(plan: CatalogPlan): PlanFeature[] {
   return [
