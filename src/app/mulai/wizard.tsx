@@ -675,7 +675,7 @@ function Finishing({ answers, avatarUrl, onBack, onDone }: FinishingProps) {
   const [error, setError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [shown, setShown] = useState(1)
-  const lines = ['profile', answers.website ? 'website' : null, 'strategy', 'ready'].filter((line): line is string => line !== null)
+  const lines = (['profile', answers.website ? 'website' : null, 'strategy', 'ready'] as const).filter((line) => line !== null)
 
   useEffect(() => {
     let live = true

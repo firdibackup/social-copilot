@@ -61,6 +61,7 @@ beforeEach(() => {
     tokenExpiresAt: new Date('2026-12-01'),
     status: 'active',
     scopes: [],
+    provisional: false,
   })
 })
 

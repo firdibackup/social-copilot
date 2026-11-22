@@ -36,6 +36,7 @@ const CONNECTION: Connection = {
   tokenExpiresAt: new Date('2026-12-01T00:00:00Z'),
   status: 'active',
   scopes: ['instagram_business_basic', 'instagram_business_manage_insights'],
+  provisional: false,
 }
 const media = (id: string): OwnMedia => ({
   id,
