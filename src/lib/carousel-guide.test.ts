@@ -15,8 +15,21 @@ describe('carouselGuide', () => {
     expect(guide).toContain('bukan pilihan acak')
     expect(guide).toContain('Template hanya struktur, bukan gaya penulisan')
     expect(guide).toContain('contoh referensi bukan fakta brand')
-    expect(guide).toContain('Jika bukti tidak tersedia, pilih pertanyaan')
+    expect(guide).toContain('Jika bukti tidak tersedia, pakai benda, kalimat, perbandingan')
+    expect(guide).toContain('Mekanisme hook')
+    expect(guide).toContain('Hindari:')
+    expect(guide).toContain('Hook membuka celah, bukan menutupnya')
     expect(guide).not.toContain('Arah struktur yang diminta:')
+  })
+
+  it('gives inner slides a claim, proof and action instead of a label', () => {
+    const guide = carouselGuide('auto', 'seimbang', 5)
+
+    expect(guide).toContain('Knowledge slide isi')
+    expect(guide).toContain('Judul slide isi adalah klaim')
+    expect(guide).toContain('Mitos, fakta, uji')
+    expect(guide).toContain('Kuis atau tebakan yang jawabannya sudah kelihatan')
+    expect(guide).toContain('sapaan, satu kata atau ungkapan khas, dan sudut bicara')
   })
 
   it('requires every structural role to do a distinct job', () => {
@@ -33,7 +46,8 @@ describe('carouselGuide', () => {
 
   it('asks for a specific hook in a register that is neither stiff nor slangy', () => {
     const guide = carouselGuide()
-    expect(guide).toContain('Hindari pertanyaan ya/tidak yang umum')
+    expect(guide).toContain('Hindari pertanyaan ya/tidak')
+    expect(guide).toContain('masih cocok dipasang di brand lain')
     expect(VOICE_RULE).toContain('Hindari bahasa kaku khas dokumen')
     expect(VOICE_RULE).toContain('hindari bahasa terlalu santai')
     expect(IDEA_QUALITY_RULE).toContain('sudut pandang audiens')

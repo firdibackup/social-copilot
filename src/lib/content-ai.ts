@@ -407,7 +407,7 @@ export function buildIdeasMessages(brand: BrandContext, recent: string[], langua
     {
       role: 'user',
       content: withScriptReferences([
-        `${describeWritingBrand(brand)}Tugas: buat ${IDEAS_COUNT} ide post Instagram lengkap yang berbeda-beda untuk brand ini: ${mix}. Setiap ide memiliki title satu kalimat pendek maksimal 12 kata dan script carousel siap pakai.`,
+        `${describeWritingBrand(brand)}Tugas: buat ${IDEAS_COUNT} ide post Instagram lengkap yang berbeda-beda untuk brand ini: ${mix}. Setiap ide memiliki title satu kalimat pendek maksimal 12 kata dan script carousel siap pakai. Tiap ide memakai sudut dan fakta utama yang berbeda: jangan ada ide yang merangkum ide lain atau mengulang fakta yang sama sebagai hook.`,
         ...strategyGuide,
         `- Tentukan jumlah slide paling pas untuk tiap ide, ${MIN_SCRIPT_SLIDES}–${MAX_SLIDES}; 1 slide hanya untuk ide yang memang cukup satu gambar. Susunan wajib mengikuti jumlahnya:\n${Array.from({ length: MAX_SLIDES - MIN_SCRIPT_SLIDES + 1 }, (_, index) => { const count = index + MIN_SCRIPT_SLIDES; return `  - ${count} slide: ${carouselStructure(count)}` }).join('\n')}`,
         '- label: nama singkat peran atau isi slide untuk owner, 1–3 kata, misalnya "Hook", nama poinnya, atau "CTA" (boleh digabung seperti "AT + CTA").',

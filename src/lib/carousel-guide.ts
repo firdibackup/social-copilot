@@ -3,7 +3,7 @@
  * Kept short on purpose: it goes into every carousel request. The brand kit's voice wins over any wording here.
  */
 import { DEFAULT_DENSITY, type TextDensity } from './density-options'
-import { hookGuide, type HookTemplate } from './hook-guide'
+import { hookGuide, slideGuide, type HookTemplate } from './hook-guide'
 
 export const HOOK_ARCHETYPES = {
   authority: 'Otoritas: buka dari pengalaman atau hasil nyata yang tertulis di topik atau fakta brand.',
@@ -22,7 +22,7 @@ export const VOICE_RULE =
 
 /** Hooks came out as generic yes/no questions ("Mencari hunian di X?"); this asks for a concrete promise. */
 export const HOOK_QUALITY_RULE =
-  'Hook harus spesifik dan membuat orang berhenti menggulir: sebut objek, angka, kesalahan, kontras, atau hasil konkret yang benar-benar dibahas di isi. Hindari pertanyaan ya/tidak yang umum ("Mencari rumah?", "Ingin sukses?", "Butuh X?") dan hook yang hanya nama topik. Pikirkan 3 calon hook, lalu pakai yang paling spesifik dan paling membuat pembaca ingin menggeser.'
+  'Hook harus menampilkan satu hal nyata yang membuat orang berhenti menggulir: benda, kalimat persis, angka, adegan, atau kontras yang benar-benar dibahas di isi. Ujiannya: kalau hook itu masih cocok dipasang di brand lain, atau hanya menyebut kategori ("3 kesalahan…", "tips…", "cara memilih…"), tulis ulang. Hindari pertanyaan ya/tidak dan keluhan umum ("Mencari rumah?", "Bingung mulai dari mana?"). Pernyataan tegas, kutipan, atau perintah kecil lebih kuat daripada pertanyaan. Tulis 3 calon hook dengan mekanisme berbeda, lalu pakai yang paling tajam.'
 
 /**
  * Ideas came out as the brand's feature list (PARKSPRING test, 8 Nov): every pillar as a catalogue, the same
@@ -32,7 +32,7 @@ export const IDEA_QUALITY_RULE =
   'Kualitas ide: mulai dari sudut pandang audiens (masalah, kekhawatiran, pertanyaan, atau keinginan mereka), bukan daftar fitur brand. Prioritaskan fakta brand yang paling kuat dan paling membedakan (angka, hasil, harga, promo, keunggulan yang tidak dimiliki pesaing) sebagai hook. Variasikan format antar ide, mis. checklist, perbandingan, mitos vs fakta, simulasi biaya atau angka, tanya jawab, sebelum–sesudah, cerita keseharian; jangan dua ide dengan format yang sama dalam satu daftar. Kata atau frasa khas brand dipakai sesekali sebagai warna, bukan wajib di setiap hook atau CTA.'
 
 export const COVER_RULE =
-  'Hook slide 1: satu hook 5–10 kata yang langsung dipahami tanpa konteks lain: sebut subjeknya (produk, tempat, atau topik) bersama masalah, manfaat, kontras, atau pertanyaan spesifik yang memberi alasan untuk menggeser. Jangan pangkas hook sampai tinggal kata sifat atau daftar kata tanpa subjek (mis. "Aman, aktif, dan berkumpul"). Bukan sekadar judul topik. Tambahkan subheading satu kalimat pendek (maksimal 14 kata) yang memberi konteks atau membuka rasa penasaran ke slide 2; kosongkan hanya jika hook sudah lengkap konteksnya. Subheading tidak boleh mengulang hook, membocorkan seluruh jawaban, menjadi CTA generik, atau membuat klaim baru. Tanpa paragraf penjelasan, bullet, contoh, tips, atau CTA. Aturan ini berlaku pada semua pilihan kepadatan teks.'
+  'Hook slide 1: satu hook 5–12 kata yang langsung dipahami tanpa konteks lain: sebut subjeknya (produk, tempat, atau topik) bersama masalah, manfaat, kontras, atau pertanyaan spesifik yang memberi alasan untuk menggeser. Jangan pangkas hook sampai tinggal kata sifat atau daftar kata tanpa subjek (mis. "Aman, aktif, dan berkumpul"). Bukan sekadar judul topik. Tambahkan subheading satu kalimat pendek (maksimal 14 kata) yang memberi konteks atau membuka rasa penasaran ke slide 2; kosongkan hanya jika hook sudah lengkap konteksnya. Subheading tidak boleh mengulang hook, membocorkan seluruh jawaban, menjadi CTA generik, atau membuat klaim baru. Tanpa paragraf penjelasan, bullet, contoh, tips, atau CTA. Aturan ini berlaku pada semua pilihan kepadatan teks.'
 
 const INNER_SLIDE: Record<TextDensity, string> = {
   padat:
@@ -78,6 +78,7 @@ export function carouselGuide(hook: HookArchetype = 'auto', density: TextDensity
     'Panduan carousel (wajib):',
     `- ${COVER_RULE}`,
     hookGuide(hooks),
+    slideGuide(),
     `- ${HOOK_QUALITY_RULE}`,
     ...(hook === 'auto' ? [] : [`- Arah struktur yang diminta: ${HOOK_ARCHETYPES[hook]} Gunakan hanya jika sesuai konteks dan bukti; gaya bahasa tetap mengikuti brand.`]),
     ...(slides ? [`- Struktur ${slides} slide: ${carouselStructure(slides)}.`] : []),
@@ -87,6 +88,17 @@ export function carouselGuide(hook: HookArchetype = 'auto', density: TextDensity
     '- Hook menjanjikan manfaat editorial yang benar-benar diberikan isi (mis. cara memilih kegiatan atau hal yang dicek saat survei), bukan janji hasil produk. CTA harus menyebut tindakan dan objek konkret; "kenali fasilitas" saja belum cukup.',
     '- Jangan buat slide yang hanya menyebut daftar kriteria, pertanyaan, atau poin yang baru dijawab di slide berikutnya: gabungkan pertanyaan dan jawabannya di satu slide.',
     '- Jangan memaksakan peran yang tidak mendapat slide sendiri. Jika dua peran digabung, satu slide harus menjalankan keduanya secara ringkas. Jangan menambah klaim atau filler hanya untuk memenuhi struktur.',
+    '- Hook membahas masalah, situasi, atau keputusan pembaca, bukan memperkenalkan brand: "X, Y, Z: [brand] punya panduannya", "Kenali [layanan] kami", atau pengumuman produk bukan hook. Sebut nama brand atau produk di hook hanya kalau pembaca memang mencarinya.',
+    '- Sebelum menulis slide isi, daftarkan dulu informasi BARU yang akan dibawa tiap slide (satu klaim + satu alasan, contoh angka, atau langkah). Slide yang informasinya sudah ada di slide lain dibuang, bukan dipoles ulang. Tiap slide isi wajib memuat satu "karena", "artinya", "misalnya", atau langkah yang bisa dicoba, bukan hanya label atau definisi.',
+    '- Jumlah slide: 4–5 sebagai default. Pakai 6 atau lebih hanya kalau ada minimal 4 poin berbeda yang masing-masing punya fakta atau penjelasan sendiri. Slide tambahan yang mengulang poin sebelumnya, memuat promosi akun, atau menumpuk kredensial lebih buruk daripada carousel pendek.',
+    '- Jangan membuat generalisasi tanpa dasar ("paling sering", "kebanyakan orang", "banyak pemula", "terbukti"). Alasan dan penjelasan harus pengetahuan umum yang pasti benar, bukan klaim tentang audiens atau hasil yang tidak ada di fakta.',
+    '- Kalau suara brand memakai pengalaman pribadi atau cerita ("aku", "penulis"), pakai sudut itu di hook hanya dengan kejadian yang tertulis di fakta brand; kalau tidak ada, pakai sapaan ke pembaca. Jangan menyebut akun dari sudut orang ketiga.',
+    '- CTA harus menyambung ke janji post ini: kalau isinya soal outfit, CTA tidak boleh melompat ke topik lain. Jangan memakai "follow untuk tips lainnya" atau CTA brand yang tidak berkaitan dengan isi slide.',
+    '- Hook menyisakan satu hal untuk slide 2: jangan ucapkan seluruh kesimpulan atau seluruh perbedaan di hook. Slide 2 membuka bagian yang ditahan itu, lalu slide berikutnya menambah penjelasan, bukan mengulangnya.',
+    '- Isi slide menjawab "kenapa" atau "bagaimana", bukan hanya "apa": pakai alasan, mekanisme, contoh angka, atau langkah, termasuk pengetahuan umum yang pasti benar. Angka atau frasa kunci dari hook cukup muncul sekali lagi sebagai bukti, bukan di setiap slide. Poin yang hanya mengulang judulnya ("Slime — bermain dengan slime", "Elevasi 3 meter / Di atas permukaan tanah") dilarang.',
+    '- Kalau fakta brand tentang topik ini sedikit, buat carousel lebih pendek (3–4 slide) dan isi dengan penjelasan umum yang pasti benar atau contoh hitungan berlabel "misalnya". Jangan mengisi slide dengan pengulangan fakta yang sama.',
+    '- Tulis untuk pembaca, bukan untuk pengelola akun: jangan sebut "caption", "fakta brand", "riset", "referensi", atau "tercantum di promo" di teks slide.',
+    '- CTA mengikuti tujuan post dan wajib berbeda antar ide: jangan menutup banyak slide dengan "Simpan … untuk …". Pilih tindakan yang paling dekat dengan hasil bisnis (survei, tanya lewat DM dengan kata kunci, simpan checklist, coba langsung) dan tulis alasannya dalam satu kalimat.',
     '- Slide 2 mulai membayar janji hook tanpa basa-basi. Hook menyebut "5 cara" berarti Value harus memberikan 5 cara lengkap.',
     '- Janji hook wajib dibuktikan secara konkret: "bandingkan A dan B" berarti ada slide perbandingan berdampingan dengan kriteria yang sama (mis. waktu, biaya, risiko); "apa artinya" berarti ada jawaban nyata, bukan ajakan untuk memikirkannya.',
     '- Untuk topik fasilitas atau produk, jangan membagi isi menjadi satu slide per nama fasilitas lalu menjelaskan fungsi yang sudah jelas. Susun sebagai skenario penggunaan konkret: siapa melakukan apa, kapan, dan bagaimana memulainya. Contoh skenario adalah usulan ("coba", "misalnya"), bukan janji hasil atau testimoni. Jika audiens keluarga muda, hadirkan aktivitas bersama pasangan atau anak, tanpa mengasumsikan anak boleh memakai alat dewasa atau bisa ditinggal tanpa pendampingan. Detail yang belum diketahui dilewati saja, bukan diganti nasihat untuk bertanya atau mengecek.',
@@ -100,7 +112,7 @@ export function carouselGuide(hook: HookArchetype = 'auto', density: TextDensity
     '- Hindari isi generik: kalau slide tetap masuk akal untuk topik lain, tulis ulang lebih spesifik. Jangan pakai frasa kosong seperti "game changer", "next level", "ubah segalanya", "solusi yang berhasil". Jangan ulangi pola kalimat yang sama di slide berbeda.',
     '- Pakai satu gaya sapaan secara konsisten, mengikuti gaya bahasa brand kalau ada.',
     '- Caption mendukung slide, bukan menyalin semua isinya.',
-    '- Sebelum menjawab, periksa: cover memakai hook 5–10 kata yang spesifik, menyebut subjeknya, dan sesuai suara brand; subheading hanya ada bila membantu dan tetap pendek; isi membayar janji hook dan mengikuti kepadatan; tidak ada klaim tanpa bukti. Tulis ulang bagian yang belum memenuhi, lalu keluarkan hanya JSON akhir tanpa hasil pemeriksaan.',
+    '- Sebelum menjawab, periksa: cover memakai hook 5–12 kata yang menampilkan satu benda, kalimat, angka, atau adegan nyata, menyebut subjeknya, dan sesuai suara brand; subheading hanya ada bila membantu dan tetap pendek; isi membayar janji hook dan mengikuti kepadatan; tidak ada klaim tanpa bukti. Tulis ulang bagian yang belum memenuhi, lalu keluarkan hanya JSON akhir tanpa hasil pemeriksaan.',
   ].join('\n')
 }
 

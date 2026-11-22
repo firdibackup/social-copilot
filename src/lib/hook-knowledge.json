@@ -1,40 +1,324 @@
 {
-  "version": "2026-10-28",
+  "version": "2026-11-22",
   "scope": "Instagram carousel cover",
   "provenance": "Kurasi struktur dari carousely-hook-knowledge.json/.md milik owner (206 kandidat), diperkaya dari halaman sumber yang dibaca pada 28 Oktober 2026. Bukan salinan wording atau klaim performa.",
   "sources": [
-    { "id": "S01", "url": "https://blog.hootsuite.com/social-media-hooks/", "title": "The Science Behind Good Social Media Hooks + 18 Examples" },
-    { "id": "S02", "url": "https://buffer.com/resources/copywriting-formulas/", "title": "10 Copywriting Formulas to Convert Skimmers to Buyers" },
-    { "id": "S03", "url": "https://copyblogger.com/10-sure-fire-headline-formulas-that-work/", "title": "22 Sure-Fire Headline Formulas that Work" }
+    {
+      "id": "S01",
+      "url": "https://blog.hootsuite.com/social-media-hooks/",
+      "title": "The Science Behind Good Social Media Hooks + 18 Examples"
+    },
+    {
+      "id": "S02",
+      "url": "https://buffer.com/resources/copywriting-formulas/",
+      "title": "10 Copywriting Formulas to Convert Skimmers to Buyers"
+    },
+    {
+      "id": "S03",
+      "url": "https://copyblogger.com/10-sure-fire-headline-formulas-that-work/",
+      "title": "22 Sure-Fire Headline Formulas that Work"
+    }
   ],
   "rules": [
     "Template hanya struktur, bukan gaya penulisan. Ikuti gaya bahasa, sapaan, tingkat formalitas, kata khas, dan kata yang dihindari milik brand; arahan gaya owner untuk post ini didahulukan. Jangan meniru gaya keras, slang, huruf kapital, atau persona dari template.",
     "Pilih satu struktur berdasarkan tujuan, audiens, topik, isi yang akan disampaikan, dan bukti yang tersedia; bukan pilihan acak. Bila ada arahan hook dari owner, adaptasikan struktur yang cocok dengan arahan itu.",
-    "Susun dulu inti manfaat atau jawaban pada slide isi, lalu tulis hook yang menjanjikan manfaat itu. Hook harus menyebut objek, masalah, atau hasil spesifik, bukan hanya nama topik atau umpan samar seperti 'rahasia ini'.",
-    "Ubah kerangka menjadi satu hook natural 5–10 kata yang tetap menyebut subjeknya; tidak perlu menyalin seluruh kalimat template. Isi semua placeholder dengan konteks nyata, jangan tampilkan ID, label struktur, atau tanda kurung placeholder.",
+    "Susun dulu inti manfaat atau jawaban pada slide isi, lalu cari satu detail paling tajam di sana (contoh dua orang atau dua kondisi yang dibandingkan, angka konkret, kalimat persis, kesalahan spesifik) dan jadikan itu hook. Jangan menyimpan detail terkuat di slide 3 sambil membuka dengan klaim umum yang sudah dipakai banyak akun ('rajin tapi hasil segitu-gitu aja', 'bukan soal X, tapi Y').",
+    "Tulis 3 calon hook dengan mekanisme berbeda dari daftar di bawah (jangan semuanya pertanyaan), pilih yang paling tajam, lalu keluarkan hanya yang terpilih. Hook natural 5–12 kata, tetap memberi tahu subjeknya, dan boleh berupa pernyataan, kutipan, atau perintah, tidak harus pertanyaan. Isi semua placeholder dengan konteks nyata; jangan tampilkan ID atau label mekanisme.",
     "Angka jumlah tips harus sama dengan isi yang benar-benar diberikan. Angka hasil, durasi, pengalaman pribadi, kutipan, testimoni, klaim peringkat, dan kredensial hanya boleh dipakai jika tersedia di topik atau fakta brand; contoh referensi bukan fakta brand.",
-    "Jika bukti tidak tersedia, pilih pertanyaan, manfaat, langkah, atau perbandingan yang bisa dijawab isi. Jangan membuat cerita, kontroversi, ketakutan, urgensi, atau janji hasil pasti demi hook.",
-    "Bayar janji hook mulai slide 2. Pertanyaan dijawab, perbandingan diberi kriteria, dan daftar disampaikan lengkap. Jangan memindahkan seluruh jawaban ke cover."
+    "Jika bukti tidak tersedia, pakai benda, kalimat, perbandingan, atau langkah yang bisa dijawab isi. Ketegangan boleh dan perlu, selama bersumber dari isi: kontras nyata, kesalahan nyata, akibat nyata. Jangan membuat cerita, kontroversi, ketakutan, urgensi, atau janji hasil pasti yang tidak ada di fakta.",
+    "Bayar janji hook mulai slide 2. Pertanyaan dijawab, perbandingan diberi kriteria, dan daftar disampaikan lengkap. Jangan memindahkan seluruh jawaban ke cover.",
+    "Dalam satu daftar ide, tiap hook memakai mekanisme dan pola kalimat berbeda: maksimal satu berbentuk pertanyaan dan maksimal satu berbentuk 'N hal'. Jangan menaruh seluruh daftar pada satu cetakan.",
+    "Hook membuka celah, bukan menutupnya: tampilkan situasi, taruhan, atau kontras yang nyata, lalu tahan satu bagian jawabannya untuk slide 2. Hook yang sudah mengucapkan seluruh kesimpulan (\"X itu Y, bukan Z, karena W\") tidak memberi alasan menggeser.",
+    "Hook harus terdengar seperti pembicara brand ini kepada audiensnya, bukan brosur atau siaran pers: pakai sapaan, nada, dan (kalau brand memakainya) emoji brand. Brand produk atau properti: jadikan fitur sebagai situasi atau hitungan milik pembaca ('hujan deras, rumah Anda tetap 3 meter lebih tinggi'), bukan label fitur ('Tiga meter lebih tinggi untuk hunian bebas banjir'). Brand B2B atau teknis: buka dengan masalah operasional atau pertanyaan keputusan pembeli, bukan daftar kredensial atau spesifikasi.",
+    "Satu hook tidak boleh meluaskan fakta: 'satu penawaran' bukan 'semua tiket', 'hemat' bukan 'hemat >50%' tanpa pembanding. Kalau skala fakta ragu, sebut cakupannya di hook.",
+    "Post tentang produk, layanan, atau program brand hanya boleh menyebut isi, cakupan, dan hasilnya sebatas yang tertulis di fakta brand. Kalau fakta produk hanya satu baris ('ada e-book panduan'), jangan membuat post produk yang menjabarkan isinya: buat konten edukasi dari topik brand dan tutup dengan CTA ke produk.",
+    "Ambil dari 'Gaya bahasa' brand tiga hal sebelum menulis hook: sapaan, satu kata atau ungkapan khas, dan sudut bicara (aku, kamu, kita). Kalau brand punya sapaan atau ungkapan khas, hook memuatnya secara wajar; kalau tidak, jangan memaksa. Hook tidak boleh terdengar seperti artikel atau siaran pers."
   ],
   "templates": [
-    { "id": "H001", "structure": "Cara [HASIL] tanpa [HAMBATAN]", "useWhen": "Tutorial yang benar-benar mengatasi hambatan audiens.", "sources": ["S02", "S03"] },
-    { "id": "H007", "structure": "[ALAT/METODE] untuk [KEBUTUHAN_SPESIFIK]", "useWhen": "Isi menyediakan alat atau metode beserta cara memakainya.", "sources": ["S03"] },
-    { "id": "H008", "structure": "Sebelum [TINDAKAN], periksa [HAL]", "useWhen": "Checklist persiapan dengan tindakan yang jelas.", "sources": ["S01"] },
-    { "id": "H009", "structure": "[JUMLAH] cara [HASIL_SPESIFIK]", "useWhen": "Ada sejumlah cara berbeda yang muat dan dijelaskan di isi.", "sources": ["S03"] },
-    { "id": "H010", "structure": "[JUMLAH] langkah menuju [HASIL]", "useWhen": "Tutorial berurutan yang bisa diikuti pembaca.", "sources": ["S03"] },
-    { "id": "H012", "structure": "[JUMLAH] tanda [MASALAH_SPESIFIK]", "useWhen": "Isi menjelaskan indikator yang bisa diperiksa tanpa diagnosis berlebihan.", "sources": ["S03"] },
-    { "id": "H026", "structure": "Benarkah [KEYAKINAN_UMUM]?", "useWhen": "Mitos yang bisa dibahas dengan alasan atau bukti; jangan menciptakan konsensus palsu.", "sources": ["S02"] },
-    { "id": "H035", "structure": "Mengapa [MASALAH_SPESIFIK] terjadi?", "useWhen": "Isi mampu menjelaskan penyebab dan tindakan perbaikannya.", "sources": ["S01", "S02"] },
-    { "id": "H041", "structure": "[AUDIENS], masih [KESULITAN_SPESIFIK]?", "useWhen": "Masalah yang relevan dengan segmen brand; sapaan mengikuti brand.", "sources": ["S03"] },
-    { "id": "H049", "structure": "Temuan dari [PENGAMATAN_NYATA]", "useWhen": "Hanya jika riset atau pengalaman yang dimaksud tersedia dalam konteks.", "sources": ["S01"] },
-    { "id": "H050", "structure": "Bagaimana [SUBJEK] mencapai [HASIL]?", "useWhen": "Studi kasus nyata dengan hasil dan proses yang tersedia, bukan rekaan.", "sources": ["S02"] },
-    { "id": "H060", "structure": "Pelajaran dari [KESALAHAN_NYATA]", "useWhen": "Pengalaman personal atau brand memang diberikan; jangan mengaku pernah mengalaminya tanpa sumber.", "sources": ["S03"] },
-    { "id": "H069", "structure": "Bisakah membedakan [A] dan [B]?", "useWhen": "Kuis dengan jawaban dan penjelasan yang disediakan di isi.", "sources": ["S01"] },
-    { "id": "H070", "structure": "[A] atau [B] untuk [KEBUTUHAN]?", "useWhen": "Perbandingan dengan kriteria pemilihan, tanpa pemenang universal palsu.", "sources": ["S01"] },
-    { "id": "IG-20", "structure": "Template [KEGUNAAN] untuk [SITUASI]", "useWhen": "Isi benar-benar menyediakan template yang bisa digunakan.", "sources": ["S02"] },
-    { "id": "WEB-01", "structure": "Masih melakukan [KESALAHAN] saat [AKTIVITAS]?", "useWhen": "Adaptasi formula Do You Make These Mistakes; tunjukkan koreksi konkret pada isi.", "sources": ["S03"] },
-    { "id": "WEB-02", "structure": "[HASIL] tanpa harus [PRASYARAT_YANG_DIKIRA_WAJIB]", "useWhen": "Adaptasi You Don't Have to Be; isi membuktikan bahwa hambatan tersebut memang tidak wajib.", "sources": ["S03"] },
-    { "id": "WEB-03", "structure": "Dari [KONDISI_AWAL] menuju [KONDISI_TUJUAN]", "useWhen": "Adaptasi Before–After–Bridge; jelaskan jembatannya di isi. Aspirasi bukan klaim hasil pelanggan.", "sources": ["S02"] },
-    { "id": "WEB-04", "structure": "Sudah [UPAYA], mengapa masih [MASALAH]?", "useWhen": "Adaptasi Situation–Complication–Question–Answer; isi menjawab kesenjangan antara upaya dan hasil.", "sources": ["S02"] }
+    {
+      "id": "H001",
+      "structure": "Cara [HASIL] tanpa [HAMBATAN]",
+      "useWhen": "Tutorial yang benar-benar mengatasi hambatan audiens.",
+      "sources": [
+        "S02",
+        "S03"
+      ]
+    },
+    {
+      "id": "H007",
+      "structure": "[ALAT/METODE] untuk [KEBUTUHAN_SPESIFIK]",
+      "useWhen": "Isi menyediakan alat atau metode beserta cara memakainya.",
+      "sources": [
+        "S03"
+      ]
+    },
+    {
+      "id": "H008",
+      "structure": "Sebelum [TINDAKAN], periksa [HAL]",
+      "useWhen": "Checklist persiapan dengan tindakan yang jelas.",
+      "sources": [
+        "S01"
+      ]
+    },
+    {
+      "id": "H009",
+      "structure": "[JUMLAH] cara [HASIL_SPESIFIK]",
+      "useWhen": "Ada sejumlah cara berbeda yang muat dan dijelaskan di isi.",
+      "sources": [
+        "S03"
+      ]
+    },
+    {
+      "id": "H010",
+      "structure": "[JUMLAH] langkah menuju [HASIL]",
+      "useWhen": "Tutorial berurutan yang bisa diikuti pembaca.",
+      "sources": [
+        "S03"
+      ]
+    },
+    {
+      "id": "H012",
+      "structure": "[JUMLAH] tanda [MASALAH_SPESIFIK]",
+      "useWhen": "Isi menjelaskan indikator yang bisa diperiksa tanpa diagnosis berlebihan.",
+      "sources": [
+        "S03"
+      ]
+    },
+    {
+      "id": "H026",
+      "structure": "Benarkah [KEYAKINAN_UMUM]?",
+      "useWhen": "Mitos yang bisa dibahas dengan alasan atau bukti; jangan menciptakan konsensus palsu.",
+      "sources": [
+        "S02"
+      ]
+    },
+    {
+      "id": "H035",
+      "structure": "Mengapa [MASALAH_SPESIFIK] terjadi?",
+      "useWhen": "Isi mampu menjelaskan penyebab dan tindakan perbaikannya.",
+      "sources": [
+        "S01",
+        "S02"
+      ]
+    },
+    {
+      "id": "H041",
+      "structure": "[AUDIENS], masih [KESULITAN_SPESIFIK]?",
+      "useWhen": "Masalah yang relevan dengan segmen brand; sapaan mengikuti brand.",
+      "sources": [
+        "S03"
+      ]
+    },
+    {
+      "id": "H049",
+      "structure": "Temuan dari [PENGAMATAN_NYATA]",
+      "useWhen": "Hanya jika riset atau pengalaman yang dimaksud tersedia dalam konteks.",
+      "sources": [
+        "S01"
+      ]
+    },
+    {
+      "id": "H050",
+      "structure": "Bagaimana [SUBJEK] mencapai [HASIL]?",
+      "useWhen": "Studi kasus nyata dengan hasil dan proses yang tersedia, bukan rekaan.",
+      "sources": [
+        "S02"
+      ]
+    },
+    {
+      "id": "H060",
+      "structure": "Pelajaran dari [KESALAHAN_NYATA]",
+      "useWhen": "Pengalaman personal atau brand memang diberikan; jangan mengaku pernah mengalaminya tanpa sumber.",
+      "sources": [
+        "S03"
+      ]
+    },
+    {
+      "id": "H069",
+      "structure": "Bisakah membedakan [A] dan [B]?",
+      "useWhen": "Kuis dengan jawaban dan penjelasan yang disediakan di isi.",
+      "sources": [
+        "S01"
+      ]
+    },
+    {
+      "id": "H070",
+      "structure": "[A] atau [B] untuk [KEBUTUHAN]?",
+      "useWhen": "Perbandingan dengan kriteria pemilihan, tanpa pemenang universal palsu.",
+      "sources": [
+        "S01"
+      ]
+    },
+    {
+      "id": "IG-20",
+      "structure": "Template [KEGUNAAN] untuk [SITUASI]",
+      "useWhen": "Isi benar-benar menyediakan template yang bisa digunakan.",
+      "sources": [
+        "S02"
+      ]
+    },
+    {
+      "id": "WEB-01",
+      "structure": "Masih melakukan [KESALAHAN] saat [AKTIVITAS]?",
+      "useWhen": "Adaptasi formula Do You Make These Mistakes; tunjukkan koreksi konkret pada isi.",
+      "sources": [
+        "S03"
+      ]
+    },
+    {
+      "id": "WEB-02",
+      "structure": "[HASIL] tanpa harus [PRASYARAT_YANG_DIKIRA_WAJIB]",
+      "useWhen": "Adaptasi You Don't Have to Be; isi membuktikan bahwa hambatan tersebut memang tidak wajib.",
+      "sources": [
+        "S03"
+      ]
+    },
+    {
+      "id": "WEB-03",
+      "structure": "Dari [KONDISI_AWAL] menuju [KONDISI_TUJUAN]",
+      "useWhen": "Adaptasi Before–After–Bridge; jelaskan jembatannya di isi. Aspirasi bukan klaim hasil pelanggan.",
+      "sources": [
+        "S02"
+      ]
+    },
+    {
+      "id": "WEB-04",
+      "structure": "Sudah [UPAYA], mengapa masih [MASALAH]?",
+      "useWhen": "Adaptasi Situation–Complication–Question–Answer; isi menjawab kesenjangan antara upaya dan hasil.",
+      "sources": [
+        "S02"
+      ]
+    }
+  ],
+  "mechanisms": [
+    {
+      "id": "M1",
+      "name": "Spesimen",
+      "how": "Tampilkan persis satu benda, kalimat, atau angka nyata dari isi, bukan nama kategorinya. Pembaca berhenti karena ingin mengecek apakah dirinya melakukannya.",
+      "bad": "3 kesalahan umum saat belajar menyetir",
+      "good": "\"Rem dulu, baru kopling\" — urutan ini yang bikin mobil sering mati di tanjakan"
+    },
+    {
+      "id": "M2",
+      "name": "Kebalikan",
+      "how": "Dua hal yang dikira sama atau dikira berlawanan, dengan satu pembeda yang tajam. Sebut pembedanya, bukan sekadar 'bedanya apa'.",
+      "bad": "Kopi arabika vs robusta: mana yang lebih baik?",
+      "good": "Robusta punya kafein dua kali lipat, tapi bukan itu yang bikin pahit"
+    },
+    {
+      "id": "M3",
+      "name": "Adegan",
+      "how": "Satu momen spesifik milik audiens: waktu, tempat, atau kalimat yang benar-benar mereka ucapkan. Pembaca merasa 'ini aku banget'.",
+      "bad": "Capek urus laporan keuangan UMKM?",
+      "good": "Jam 11 malam, struk belanja masih menumpuk di laci kasir"
+    },
+    {
+      "id": "M4",
+      "name": "Angka menempel di benda",
+      "how": "Angka hanya kuat kalau menempel pada benda atau tindakan yang bisa dibayangkan, dan angka itu harus berasal dari fakta atau isi carousel.",
+      "bad": "5 tips hemat listrik",
+      "good": "AC 1 PK dinyalakan 8 jam: ini yang terjadi di tagihanmu"
+    },
+    {
+      "id": "M5",
+      "name": "Uji 10 detik",
+      "how": "Perintah kecil yang bisa langsung dilakukan pembaca, dan hasilnya langsung terbaca. Cocok untuk edukasi praktis.",
+      "bad": "Sebelum beli sepatu, periksa 4 hal ini",
+      "good": "Selipkan jari di tumit sepatu barumu. Kalau muat, sepatunya kebesaran"
+    },
+    {
+      "id": "M6",
+      "name": "Jawaban di depan",
+      "how": "Beri kesimpulan tegas lebih dulu, lalu isi menjelaskan alasannya. Cocok untuk mitos, keputusan, dan perbandingan dengan jawaban jelas.",
+      "bad": "Benarkah sunscreen harus dipakai di dalam ruangan?",
+      "good": "Di dalam ruangan pun, sunscreen tetap perlu. Ini jendelanya yang bermasalah"
+    },
+    {
+      "id": "M7",
+      "name": "Harga yang tidak terlihat",
+      "how": "Biaya, waktu, atau akibat nyata dari kebiasaan yang dianggap sepele. Hanya jika akibatnya ada di isi atau fakta; tanpa menakut-nakuti.",
+      "bad": "Jangan sepelekan perawatan AC",
+      "good": "Filter AC yang tidak dibersihkan tiga bulan: kerja kompresornya makin berat"
+    },
+    {
+      "id": "M8",
+      "name": "Hasil dulu, proses di dalam",
+      "how": "Sebut hasil konkret yang akan pembaca dapat dan satu syarat spesifik. Hasil harus benar-benar dibuktikan di isi.",
+      "bad": "Cara mengatur keuangan bulanan",
+      "good": "Gaji 6 juta, tiga amplop: dari sinilah tabungan bulan ini berasal"
+    },
+    {
+      "id": "M9",
+      "name": "Taruhan keputusan",
+      "how": "Pembaca sedang memilih atau menunda sesuatu; hook menunjukkan apa yang dipertaruhkan di antara dua pilihan itu, tanpa menyebut pemenangnya.",
+      "bad": "Pilih paket A atau B untuk kebutuhan Anda",
+      "good": "Paket A murah di bulan pertama, paket B murah di bulan ke-12. Kamu berhenti di bulan berapa?"
+    }
+  ],
+  "avoid": [
+    "Hook yang hanya menyebut kategori ('3 kesalahan umum', 'tips hemat', 'cara memilih X') tanpa satu benda, kalimat, atau angka nyata. Kalau hook masih masuk akal untuk brand lain, tulis ulang.",
+    "Cetakan yang sudah terlalu sering muncul: 'Benarkah …?', 'Sebelum …, cek/periksa N hal ini', 'X atau Y: mana yang cocok?', 'X dan Y sama-sama …, bedanya apa?', 'Bisakah kamu bedakan …?', 'Tahukah kamu', 'Ini N …'. Boleh dipakai paling banyak satu kali dalam satu daftar ide, dan hanya kalau tidak ada mekanisme lain yang lebih tajam.",
+    "Hook yang cuma pertanyaan ya/tidak atau keluhan umum ('Capek …?', 'Bingung mulai dari mana?', 'Kenapa … masih …?').",
+    "Hook yang mengumumkan jadwal, promo, atau urusan internal akun. Itu bukan alasan bagi orang asing untuk berhenti menggulir.",
+    "Hook berbentuk label fitur atau pernyataan datar ('[fitur] + [manfaat]'), judul brosur, dan daftar kredensial atau spesifikasi tanpa orang, situasi, atau masalah di dalamnya.",
+    "Kuis atau tebakan yang jawabannya sudah kelihatan dari hook, terlalu mudah bagi audiens brand, atau hanya pilihan ganda tanpa taruhan ('Tebak yang mana', 'Kamu tim A atau B?', 'Pilih satu: …')."
+  ],
+  "slideRules": [
+    "Judul slide isi adalah klaim yang bisa berdiri sendiri ('Tangan di bahu: jahitan harus jatuh di ujung bahu'), bukan label topik ('Ukuran baju', 'Fungsi mortar').",
+    "Tiap slide isi memuat tiga hal: satu klaim, satu bukti (alasan 'karena', angka, atau contoh kalimat/situasi nyata), dan satu tindakan atau tanda yang bisa dicek pembaca. Slide yang hanya memuat definisi atau daftar nama tidak lolos.",
+    "Pilih pola slide yang berbeda untuk slide yang berdekatan; jangan semua slide memakai bentuk 'judul + tiga poin'.",
+    "Urutkan slide dari hal yang paling ingin diketahui pembaca setelah membaca hook; kesalahan umum atau langkah pertama yang bisa dilakukan hari ini menjadi slide isi terakhir sebelum CTA.",
+    "Kata arahan kosong ('pertimbangkan', 'perhatikan', 'pastikan', 'jangan lupa') hanya boleh muncul bersama kriteria atau angkanya.",
+    "Contoh hitungan, kalimat, atau situasi yang dibuat untuk menjelaskan ditulis berlabel 'misalnya' dan tidak dianggap fakta brand."
+  ],
+  "slidePatterns": [
+    {
+      "id": "S1",
+      "name": "Klaim + alasan",
+      "use": "Aturan atau konsep yang perlu alasan agar dipercaya.",
+      "example": "Cuci muka 3 kali sehari cukup. Lebih dari itu mengangkat minyak pelindung kulit, dan kulit membalas dengan minyak berlebih."
+    },
+    {
+      "id": "S2",
+      "name": "Contoh hitungan",
+      "use": "Angka atau biaya yang sulit dibayangkan.",
+      "example": "Misalnya cicilan Rp3 juta per bulan dengan gaji Rp10 juta: 30% gaji sudah habis sebelum bayar listrik dan makan."
+    },
+    {
+      "id": "S3",
+      "name": "Salah vs benar",
+      "use": "Kebiasaan atau kalimat yang sering keliru.",
+      "example": "Salah: \"Saya sudah makan nasi kemarin malam.\" Benar: \"Saya makan nasi tadi malam.\" Kata 'sudah' memindahkan peristiwa ke masa lampau yang selesai."
+    },
+    {
+      "id": "S4",
+      "name": "Mitos, fakta, uji",
+      "use": "Anggapan umum yang bisa dicek sendiri.",
+      "example": "Mitos: kulit berminyak tidak perlu pelembap. Fakta: kulit kering air justru memproduksi minyak lebih banyak. Uji: tekan tisu ke wajah dua jam setelah cuci muka."
+    },
+    {
+      "id": "S5",
+      "name": "Kriteria sejajar",
+      "use": "Perbandingan dua atau tiga opsi.",
+      "example": "Kontrak 12 bulan: Rp80 ribu per bulan, bisa berhenti di bulan ke-6 dengan denda. Bulanan: Rp120 ribu, bebas berhenti kapan saja."
+    },
+    {
+      "id": "S6",
+      "name": "Langkah dengan parameter",
+      "use": "Prosedur yang bisa ditiru.",
+      "example": "Rendam biji kopi 18 gram dalam 280 ml air 93°C selama 4 menit. Tanda berhasil: crema tipis di permukaan."
+    },
+    {
+      "id": "S7",
+      "name": "Kesalahan, akibat, perbaikan",
+      "use": "Kebiasaan sepele yang punya akibat nyata.",
+      "example": "Cat dinding saat lembap, hasilnya menggelembung dalam sebulan. Cek dengan selotip bening: kalau ada embun di bawahnya, tunggu dua hari."
+    },
+    {
+      "id": "S8",
+      "name": "Mini-skenario",
+      "use": "Fitur atau layanan yang perlu dibayangkan penggunaannya.",
+      "example": "Misalnya Selasa pagi: anak diantar jam 06.40, Anda sampai kantor jam 07.30. Di kota ini, waktu itu biasanya sudah habis di jalan."
+    }
   ]
 }
