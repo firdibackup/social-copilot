@@ -144,7 +144,7 @@ export function MimoChat({ sessionId, messages, products, defaultDensity, refere
       const body = (await response.json().catch(() => null)) as { error?: string } | null
       if (here()) {
         setPending(null)
-        if (isTrialLimit(body?.error)) void showUpgradeDialog((href) => router.push(href))
+        if (isTrialLimit(body?.error)) void showUpgradeDialog((href) => router.push(href), 'chat')
         setError(body?.error ?? t('failed'))
         unlock()
         return false

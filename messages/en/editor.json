@@ -50,6 +50,7 @@
     "message12": "Send"
   },
   "contentActions": {
+    "trialSlides": "A free post has at most {count} slides. Use fewer slides, or subscribe for more.",
     "message1": "Invalid request. Reload the editor.",
     "message2": "Slide not found.",
     "message3": "This slide is generating or already finished. Reload the page.",
@@ -153,7 +154,7 @@
     "message67": "Saved",
     "square": "Square 1:1",
     "portrait": "Portrait 4:5",
-    "trialCost": "Free: {left} credits left · 1 post = 3 credits"
+    "trialCost": "Free: {left} posts left"
   },
   "contentList": {
     "message1": "{v0}-slide carousel",
@@ -639,7 +640,7 @@
       "aiCost": "{share} of quota",
       "aiWorking": "Drawing the element…",
       "aiShort": "Not enough AI quota. Renew on the Subscription page.",
-      "aiNotInTrial": "AI elements aren't covered by free credits.",
+      "aiNotInTrial": "AI elements aren't part of the free plan.",
       "aiFailed": "Couldn't make the element. Try again.",
       "aiGreenHint": "Bright green elements may be removed with the background."
     },
@@ -870,7 +871,7 @@
       "splitHint": "Beta: object edges may not be clean yet.",
       "costLabel": "Cost",
       "cost": "{share} of quota",
-      "notInTrial": "Magic layers isn't included in the free credits.",
+      "notInTrial": "Magic layers isn't part of the free plan.",
       "short": "Not enough AI quota. Renew it on the Subscription page.",
       "run": "Start",
       "retry": "Try again",
@@ -1027,7 +1028,7 @@
       "objectName": "Object",
       "costLabel": "Cost",
       "cost": "{share} of quota",
-      "notInTrial": "Split object is not included in the free credits.",
+      "notInTrial": "Split object isn't part of the free plan.",
       "short": "Not enough AI quota. Renew it on the Subscription page.",
       "retry": "Try again",
       "cancel": "Cancel",

@@ -74,17 +74,52 @@ export const OBJECT_SPLIT_UNITS = 4
  */
 export const AI_ELEMENT_UNITS = 2
 
-/** One-time free credits for a user who has never paid or whose period ended. They never reset. */
-export const TRIAL_CREDITS = 3
+/**
+ * The free trial of a user who has never paid or whose period ended. Nothing in it ever resets.
+ *
+ * Content: TRIAL_CONTENTS new AI carousels at once and one more after the Instagram login, of at most
+ * TRIAL_MAX_SLIDES slides. Each is TRIAL_TASKS.content trial credits; the database decides the allowance
+ * (trial_content_allowance, reserve_trial_credits), so every caller charges the same.
+ */
+export const TRIAL_CONTENTS = 2
+export const TRIAL_CONTENTS_CONNECTED = 3
+export const TRIAL_MAX_SLIDES = 5
 
 /** Mimo messages a user without a paid period may send, in total. */
-export const TRIAL_CHAT_MESSAGES = 3
+export const TRIAL_CHAT_MESSAGES = 10
 
 /**
- * What the trial covers, and at what price: one new AI carousel (its images ride on it, as for a paid post), and
- * Mimo's answers to the trial's messages. Every other task needs a subscription.
+ * What the trial covers at a fixed price: a new AI carousel (its images ride on it, as for a paid post), and
+ * Mimo's answers to the trial's messages. TRIAL_COUNTED covers more, by count. Every other task needs a subscription.
  */
 export const TRIAL_TASKS: Partial<Record<LoggedTask, number>> = { content: 3, content_slide: 0, chat: 0, chat_summary: 0 }
+
+/** The trial's counters (trial_usage) and how many uses each allows in total. */
+export const TRIAL_LIMITS = {
+  /** AI revisions of a slide or a caption through the composer. Editing by hand is free and uncounted. */
+  revision: 2,
+  /** Idea lists and scripts: text only, so the trial can go from an idea to a carousel. */
+  writing: 6,
+} as const
+export type TrialCounter = keyof typeof TRIAL_LIMITS
+
+/** The tasks the trial covers by count instead of by price. */
+export const TRIAL_COUNTED: Partial<Record<LoggedTask, TrialCounter>> = {
+  slide_edit: 'revision',
+  caption_edit: 'revision',
+  content_script: 'writing',
+  content_ideas: 'writing',
+}
+
+/** What is left of a user's trial, for the meter and the paywall. */
+export interface TrialStatus {
+  contentLimit: number
+  contentUsed: number
+  chatUsed: number
+  revisionUsed: number
+  /** Whether the Instagram login is done, which opens the last free carousel. */
+  connected: boolean
+}
 
 /** The answer to anything the trial doesn't cover or has used up; the client opens the upgrade dialog on it. */
 export const trialLimitMessage = (locale: Locale = 'id') => (locale === 'en' ? enCommon : idCommon).trial.limit

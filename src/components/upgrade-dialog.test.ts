@@ -3,6 +3,7 @@ import { isTrialLimit } from './upgrade-dialog'
 import { trialLimitMessage } from '@/lib/billing-options'
 
 vi.mock('./confirm-dialog', () => ({ confirmDialog: vi.fn() }))
+vi.mock('@/app/paywall/actions', () => ({ paywallAction: vi.fn(), paywallClickAction: vi.fn() }))
 
 describe('isTrialLimit', () => {
   it('recognizes the trial limit answer in both languages', () => {
@@ -11,9 +12,12 @@ describe('isTrialLimit', () => {
     expect(isTrialLimit(new Error(trialLimitMessage('id')))).toBe(true)
   })
 
-  it('says 0 credits are left and never promises speed', () => {
-    expect(trialLimitMessage('id')).toContain('Kredit gratis kamu habis')
-    expect(trialLimitMessage('id')).toContain('sisa 0')
+  it('still recognizes the answer of a worker deployed before the free-access change', () => {
+    expect(isTrialLimit('Kredit gratis kamu habis (sisa 0). Upgrade ke Pro atau Max untuk lanjut.')).toBe(true)
+  })
+
+  it('never promises speed', () => {
+    expect(trialLimitMessage('id')).toContain('Jatah gratis kamu sudah habis')
     expect(trialLimitMessage('id')).not.toMatch(/lebih cepat/i)
   })
 

@@ -261,7 +261,7 @@ describe('with a period', () => {
       it('refuses a task the trial does not cover, before reserving or asking', async () => {
         const ask = vi.fn(async () => 'ok')
 
-        for (const task of ['caption_edit', 'slide_edit', 'content_script', 'deep_search'] as const) {
+        for (const task of ['deep_search', 'threads_write', 'magic_layers', 'reply_draft'] as const) {
           const error = await failure(runLogged(USER, task, {}, ask))
           expect(error).toBeInstanceOf(TrialLimitError)
           expect(aiErrorMessage(error)).toBe(trialLimitMessage())
@@ -284,6 +284,32 @@ describe('with a period', () => {
 
         await expect(runLogged(USER, 'content', {}, ask, { units: 5 })).rejects.toBeInstanceOf(TrialLimitError)
         expect(ask).not.toHaveBeenCalled()
+      })
+
+      it('takes one use of the counter for an AI revision or a script, and gives it back when the request fails', async () => {
+        database.rpc.mockResolvedValueOnce({ data: true as unknown as string, error: null })
+        await expect(runLogged(USER, 'slide_edit', {}, async () => 'ok')).resolves.toBe('ok')
+        expect(database.rpc).toHaveBeenCalledWith('reserve_trial_use', { p_user_id: USER, p_task: 'revision', p_limit: 2 })
+        expect(rows()).toEqual([expect.objectContaining({ credits: 0, status: 'ok' })])
+
+        database.rpc.mockClear()
+        database.rpc.mockResolvedValueOnce({ data: true as unknown as string, error: null })
+        await failure(runLogged(USER, 'content_script', {}, async () => { throw new Error('gagal') }))
+        expect(database.rpc).toHaveBeenCalledWith('reserve_trial_use', { p_user_id: USER, p_task: 'writing', p_limit: 6 })
+        expect(database.rpc).toHaveBeenCalledWith('release_trial_use', { p_user_id: USER, p_task: 'writing' })
+      })
+
+      it('opens the paywall when the counter is used up', async () => {
+        database.rpc.mockResolvedValueOnce({ data: false as unknown as string, error: null })
+        const ask = vi.fn(async () => 'ok')
+
+        await expect(runLogged(USER, 'caption_edit', {}, ask)).rejects.toBeInstanceOf(TrialLimitError)
+        expect(ask).not.toHaveBeenCalled()
+      })
+
+      it('runs the new-account fill (cost 0) free, without a counter', async () => {
+        await expect(runLogged(USER, 'brand_profile', {}, async () => 'ok', { cost: 0 })).resolves.toBe('ok')
+        expect(database.rpc).not.toHaveBeenCalled()
       })
 
       it('runs the free parts of the trial (slide images, chat) without a reservation', async () => {

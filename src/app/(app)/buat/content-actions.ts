@@ -11,7 +11,7 @@ import { deleteAsset, loadAssetBytes } from '@/lib/assets'
 import { readAttachment, removeAttachment, saveAttachment } from '@/lib/attachments'
 import { requireAccount } from '@/lib/auth'
 import { lengthOf } from '@/lib/brand-options'
-import { TRIAL_TASKS, trialLimitMessage } from '@/lib/billing-options'
+import { TRIAL_MAX_SLIDES, trialLimitMessage } from '@/lib/billing-options'
 import { CAPTION_MAX_LENGTH } from '@/lib/caption'
 import { editCaption, loadScriptSources, reviseSlide, suggestIdeas } from '@/lib/content-ai'
 import { enqueueContentJob, getContentJob } from '@/lib/content-jobs'
@@ -98,7 +98,8 @@ export async function createContentAction(input: unknown): Promise<CreateResult>
     if (existing?.kind === 'content') return { postId: existing.post_id }
     // The worker charges the trial atomically; this only spares a draft that could never be made.
     const trial = await trialCredits(userId)
-    if (trial !== null && trial < TRIAL_TASKS.content!) return { error: trialLimitMessage(locale) }
+    if (trial !== null && trial < 1) return { error: trialLimitMessage(locale) }
+    if (trial !== null && request.slides > TRIAL_MAX_SLIDES) return { error: t('trialSlides', { count: TRIAL_MAX_SLIDES }) }
     const attachment = await readAttachment(isObject(input) ? input.attachment : null)
     if (attachment && 'error' in attachment) return attachment
     const attachmentPath = attachment ? await saveAttachment(userId, attachment) : null

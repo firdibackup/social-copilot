@@ -351,12 +351,31 @@
     }
   },
   "trial": {
-    "limit": "Kredit gratis kamu habis (sisa 0). Upgrade ke Pro atau Max untuk lanjut.",
-    "title": "Kredit gratis kamu habis",
-    "left": "Sisa kredit gratis: 0. Trial berisi 3 kredit (1 konten = 3 kredit) dan 3 pesan Mimo, sekali saja. Edit slide, caption, skrip, dan fitur AI lain butuh langganan. Hasil dan riwayatmu tetap bisa dibuka.",
-    "pro": "Untuk rutin membuat dan menjadwalkan konten",
-    "max": "Kredit lebih banyak · Prioritas proses",
-    "upgrade": "Lihat paket",
+    "limit": "Jatah gratis kamu sudah habis. Berlangganan untuk lanjut.",
+    "title": "Sebulan konten, siap tayang",
+    "plain": "Jatah gratis kamu sudah habis: konten, chat Mimo, dan revisi AI gratis hanya sekali. Hasil dan riwayatmu tetap bisa dibuka. Lihat paket untuk lanjut.",
+    "lead": "Kamu sudah mencoba Carousely. Lanjutkan dengan sekitar {posts} konten sebulan: tinggal tinjau dan jadwalkan.",
+    "usedLabel": "Jatah gratis yang sudah terpakai",
+    "usedContent": "Konten gratis {used}/{limit}",
+    "usedChat": "Chat Mimo {used}/{limit}",
+    "usedRevision": "Revisi AI {used}/{limit}",
+    "connectBonus": "Masih ada 1 konten gratis: <a>hubungkan Instagram</a> untuk membukanya.",
+    "duration": "Lama langganan",
+    "months": "{count} bln",
+    "perMonth": "/bulan",
+    "total": "{total} sekali bayar untuk {count} bulan",
+    "perkPosts": "Sekitar {posts} konten AI per bulan, lengkap dengan caption",
+    "perkChat": "Chat dengan Mimo setiap hari",
+    "perkSchedule": "Kalender, jadwal, dan terbit otomatis ke Instagram",
+    "after": {
+      "chat": "Setelah bayar, chat Mimo kamu langsung lanjut.",
+      "content": "Setelah bayar, konten berikutnya langsung bisa dibuat.",
+      "revision": "Setelah bayar, revisi AI langsung jalan lagi.",
+      "feature": "Setelah bayar, fitur ini langsung terbuka."
+    },
+    "waitlist": "{plans} belum dibuka: gabung daftar tunggunya di halaman paket.",
+    "secure": "Pembayaran aman lewat Mayar.",
+    "upgrade": "Buka semuanya",
     "later": "Nanti"
   },
   "site": {

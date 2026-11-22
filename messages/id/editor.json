@@ -50,6 +50,7 @@
     "message12": "Kirim"
   },
   "contentActions": {
+    "trialSlides": "Konten gratis paling banyak {count} slide. Kurangi jumlah slide, atau berlangganan untuk lebih.",
     "message1": "Permintaan tidak valid. Muat ulang editor.",
     "message2": "Slide tidak ditemukan.",
     "message3": "Slide sedang dibuat atau sudah selesai. Muat ulang halaman.",
@@ -153,7 +154,7 @@
     "message67": "Tersimpan",
     "square": "Persegi 1:1",
     "portrait": "Portrait 4:5",
-    "trialCost": "Gratis: sisa {left} kredit · 1 konten = 3 kredit"
+    "trialCost": "Gratis: sisa {left} konten"
   },
   "contentList": {
     "message1": "Carousel {v0} slide",
@@ -639,7 +640,7 @@
       "aiCost": "{share} kuota",
       "aiWorking": "Menggambar elemen…",
       "aiShort": "Kuota AI tidak cukup. Perpanjang di halaman Langganan.",
-      "aiNotInTrial": "Elemen AI tidak termasuk kredit gratis.",
+      "aiNotInTrial": "Elemen AI tidak termasuk paket gratis.",
       "aiFailed": "Elemen gagal dibuat. Coba lagi.",
       "aiGreenHint": "Elemen berwarna hijau terang bisa ikut terhapus."
     },
@@ -870,7 +871,7 @@
       "splitHint": "Beta: tepi objek mungkin belum rapi.",
       "costLabel": "Biaya",
       "cost": "{share} kuota",
-      "notInTrial": "Lapisan ajaib tidak termasuk kredit gratis.",
+      "notInTrial": "Lapisan ajaib tidak termasuk paket gratis.",
       "short": "Kuota AI tidak cukup. Perpanjang di halaman Langganan.",
       "run": "Mulai",
       "retry": "Coba lagi",
@@ -1027,7 +1028,7 @@
       "objectName": "Objek",
       "costLabel": "Biaya",
       "cost": "{share} kuota",
-      "notInTrial": "Pisahkan objek tidak termasuk kredit gratis.",
+      "notInTrial": "Pisahkan objek tidak termasuk paket gratis.",
       "short": "Kuota AI tidak cukup. Perpanjang di halaman Langganan.",
       "retry": "Coba lagi",
       "cancel": "Batalkan",

@@ -1,7 +1,7 @@
 import 'server-only'
 import { getPlan, textModel } from './app-settings'
 import { creditsUsed, getCurrentPeriod, type Period } from './billing'
-import { TRIAL_CREDITS, TRIAL_TASKS, trialLimitMessage } from './billing-options'
+import { TRIAL_COUNTED, TRIAL_LIMITS, TRIAL_TASKS, trialLimitMessage, type TrialStatus } from './billing-options'
 import { getBillingCatalog } from './billing-catalog'
 import { getAccountBrandContext, getBrandContext } from './brand'
 import { lengthOf, truncate, type BrandContext } from './brand-options'
@@ -144,12 +144,22 @@ export async function remainingCredits(userId: string): Promise<Credits> {
   return { remaining: Math.max(0, plan.credits - used), period }
 }
 
-/** Free credits left for a user without a paid period, or null for a paying user. */
-export async function trialCredits(userId: string): Promise<number | null> {
+/** What a user without a paid period has used of the trial, or null for a paying user. */
+export async function trialStatus(userId: string): Promise<TrialStatus | null> {
   if (await getCurrentPeriod(userId)) return null
-  const used: unknown = unwrap(await db().rpc('trial_credits_used', { p_user: userId }))
-  if (typeof used !== 'number') throw new Error('Supabase: kredit gratis tidak terbaca; sudah menjalankan migrasi free trial?')
-  return Math.max(0, TRIAL_CREDITS - used)
+  const status = unwrap(await db().rpc('trial_status', { p_user: userId })) as Record<string, unknown> | null
+  const count = (key: string) => (typeof status?.[key] === 'number' ? (status[key] as number) : null)
+  const [contentLimit, contentUsed, chatUsed, revisionUsed] = ['content_limit', 'content_used', 'chat_used', 'revision_used'].map(count)
+  if (contentLimit === null || contentUsed === null || chatUsed === null || revisionUsed === null) {
+    throw new Error('Supabase: jatah gratis tidak terbaca; sudah menjalankan migrasi free access?')
+  }
+  return { contentLimit, contentUsed, chatUsed, revisionUsed, connected: status?.connected === true }
+}
+
+/** Free carousels left for a user without a paid period, or null for a paying user. */
+export async function trialCredits(userId: string): Promise<number | null> {
+  const status = await trialStatus(userId)
+  return status && Math.max(0, status.contentLimit - status.contentUsed)
 }
 
 export const quotaSpentMessage = (period: Period) =>
@@ -197,13 +207,21 @@ export async function runLogged<T>(
   if (!Number.isSafeInteger(cost) || cost < 0) throw new Error('Biaya kredit tidak valid.')
   let reservation: string | null = null
   const period = options.unmetered ? null : await getCurrentPeriod(userId)
+  let trialUse: string | null = null
   if (!options.unmetered && !period) {
-    // The trial: a fixed price per covered task, from its own one-time allowance.
-    const price = TRIAL_TASKS[task]
+    // The trial. The new-account fill (`cost: 0`) is free for everyone; a counted task takes one of its uses; the
+    // rest has a fixed price from the content allowance, which the database decides.
+    const counter = options.cost === 0 ? undefined : TRIAL_COUNTED[task]
+    const price = options.cost === 0 || counter ? 0 : TRIAL_TASKS[task]
     if (price === undefined) throw new TrialLimitError()
     cost = price
+    if (counter) {
+      const reserved = unwrap(await db().rpc('reserve_trial_use', { p_user_id: userId, p_task: counter, p_limit: TRIAL_LIMITS[counter] }))
+      if (reserved !== true) throw new TrialLimitError()
+      trialUse = counter
+    }
     if (cost > 0) {
-      reservation = unwrap(await db().rpc('reserve_trial_credits', { p_user: userId, p_allowance: TRIAL_CREDITS, p_cost: cost })) as string | null
+      reservation = unwrap(await db().rpc('reserve_trial_credits', { p_user: userId, p_allowance: cost, p_cost: cost })) as string | null
       if (!reservation) throw new TrialLimitError()
     }
   } else if (period) {
@@ -226,6 +244,7 @@ export async function runLogged<T>(
     result = await ask()
   } catch (error) {
     if (reservation) unwrap(await db().rpc('settle_ai_credits', { p_id: reservation, p_user: userId, p_success: false }))
+    if (trialUse) unwrap(await db().rpc('release_trial_use', { p_user_id: userId, p_task: trialUse }))
     await log({ output: null, status: 'failed', error: describeError(error), credits: 0 })
     throw error
   }

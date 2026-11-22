@@ -351,12 +351,31 @@
     }
   },
   "trial": {
-    "limit": "Your free credits are used up (0 left). Upgrade to Pro or Max to continue.",
-    "title": "Your free credits are used up",
-    "left": "Free credits left: 0. The trial has 3 credits (1 post = 3 credits) and 3 Mimo messages, once. Editing slides, captions, scripts, and other AI features need a subscription. Your results and history stay available.",
-    "pro": "For creating and scheduling content regularly",
-    "max": "More credits · Priority processing",
-    "upgrade": "See plans",
+    "limit": "Your free allowance is used up. Subscribe to continue.",
+    "title": "A month of content, ready to post",
+    "plain": "Your free allowance is used up: the free posts, Mimo chat and AI revisions come once. Your results and history stay available. See the plans to continue.",
+    "lead": "You have tried Carousely. Keep going with about {posts} posts a month: just review and schedule.",
+    "usedLabel": "What you used of the free allowance",
+    "usedContent": "Free posts {used}/{limit}",
+    "usedChat": "Mimo chat {used}/{limit}",
+    "usedRevision": "AI revisions {used}/{limit}",
+    "connectBonus": "One free post is left: <a>connect Instagram</a> to open it.",
+    "duration": "Subscription length",
+    "months": "{count} mo",
+    "perMonth": "/month",
+    "total": "{total} paid once for {count} months",
+    "perkPosts": "About {posts} AI posts a month, captions included",
+    "perkChat": "Chat with Mimo every day",
+    "perkSchedule": "Calendar, scheduling and automatic posting to Instagram",
+    "after": {
+      "chat": "After you pay, your Mimo chat continues at once.",
+      "content": "After you pay, you can make the next post at once.",
+      "revision": "After you pay, AI revisions run again at once.",
+      "feature": "After you pay, this feature opens at once."
+    },
+    "waitlist": "{plans} are not open yet: join their waitlist on the plans page.",
+    "secure": "Secure payment through Mayar.",
+    "upgrade": "Unlock everything",
     "later": "Later"
   },
   "site": {
