@@ -309,7 +309,15 @@ function Coverage({ templates }: { templates: DesignTemplate[] }) {
 function TemplateCard({ template }: { template: DesignTemplate }) {
   const t = useTranslations('admin')
 
-  const [state, action, saving] = useActionState(templateAction, INITIAL)
+  // A request that fails on the way (a dropped connection, or a page left open across a deploy) rejects; caught here
+  // it becomes a message on the card, like a failed analysis, instead of taking the whole page down.
+  const [state, action, saving] = useActionState(
+    (previous: FormState, formData: FormData) =>
+      templateAction(previous, formData).catch(
+        (): FormState => ({ error: t('template_templates_panel.requestInterruptedTryAgain'), success: null }),
+      ),
+    INITIAL,
+  )
   const [analysis, setAnalysis] = useState<FormState>(INITIAL)
   const [analyzing, startAnalysis] = useTransition()
   const busy = saving || analyzing
