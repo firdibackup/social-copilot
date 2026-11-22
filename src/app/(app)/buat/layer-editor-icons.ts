@@ -1,0 +1,142 @@
+import {
+  Star, Heart, Check, X, Plus, Minus, Sparkles, Zap, Flame, Bell,
+  Bookmark, Flag, Tag, Lightbulb, Award, Crown, Gift, Clock, Calendar, Search,
+  Lock, Eye, ThumbsUp, Smile, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ArrowUpRight, ChevronRight,
+  ChevronsRight, MoveRight, CornerDownRight, RefreshCw, Undo2, TrendingUp, TrendingDown, Briefcase, ChartBar, ChartPie,
+  ChartLine, Target, Wallet, CreditCard, Banknote, Percent, ShoppingCart, ShoppingBag, Store, Package,
+  Truck, Receipt, Handshake, Rocket, Megaphone, MessageCircle, MessagesSquare, Mail, Phone, Send,
+  Share2, Users, User, UserPlus, AtSign, Hash, Link, Globe, Camera, Video,
+  Mic, Music, Play, Image as ImageIcon, Coffee, Utensils, Pizza, Cake, Dumbbell, Bike,
+  Plane, Car, Shirt, Leaf, Sun, Moon, Cloud, Droplet, Palette, Brush,
+  Book, GraduationCap, Laptop, Smartphone, Wifi, Home, Building2, MapPin, Map as MapIcon, Hospital,
+  School, Trees, Mountain,
+  type LucideIcon,
+} from 'lucide-react'
+
+/**
+ * Ikon elemen: a curated set of Lucide icons (ISC licence, already the app's own icon set) with Indonesian labels
+ * and Indonesian plus English keywords for the search.
+ */
+export const ICON_CATEGORIES = ['general', 'arrows', 'business', 'social', 'lifestyle', 'places'] as const
+export type IconCategory = (typeof ICON_CATEGORIES)[number]
+
+export interface ElementIcon {
+  /** Lucide's component name: stable, unique, and the English name for the search. */
+  id: string
+  Icon: LucideIcon
+  /** Indonesian, for the tile's label. */
+  label: string
+  keywords: string
+  category: IconCategory
+}
+
+const icon = (Icon: LucideIcon, id: string, label: string, keywords: string, category: IconCategory): ElementIcon => ({ id, Icon, label, keywords, category })
+
+export const ELEMENT_ICONS: ElementIcon[] = [
+  icon(Star, 'Star', 'Bintang', 'bintang star favorit rating unggulan', 'general'),
+  icon(Heart, 'Heart', 'Hati', 'hati heart love suka cinta', 'general'),
+  icon(Check, 'Check', 'Centang', 'centang check benar ceklis selesai', 'general'),
+  icon(X, 'X', 'Silang', 'silang x salah tutup batal', 'general'),
+  icon(Plus, 'Plus', 'Tambah', 'tambah plus', 'general'),
+  icon(Minus, 'Minus', 'Kurang', 'kurang minus', 'general'),
+  icon(Sparkles, 'Sparkles', 'Kilau', 'kilau sparkles baru ajaib ai', 'general'),
+  icon(Zap, 'Zap', 'Petir', 'petir zap cepat kilat energi', 'general'),
+  icon(Flame, 'Flame', 'Api', 'api flame hot populer trending', 'general'),
+  icon(Bell, 'Bell', 'Lonceng', 'lonceng bell notifikasi pengingat', 'general'),
+  icon(Bookmark, 'Bookmark', 'Simpan', 'simpan bookmark save tandai', 'general'),
+  icon(Flag, 'Flag', 'Bendera', 'bendera flag tanda', 'general'),
+  icon(Tag, 'Tag', 'Label harga', 'label tag harga diskon promo', 'general'),
+  icon(Lightbulb, 'Lightbulb', 'Lampu ide', 'lampu ide lightbulb tips gagasan', 'general'),
+  icon(Award, 'Award', 'Penghargaan', 'penghargaan award medali juara', 'general'),
+  icon(Crown, 'Crown', 'Mahkota', 'mahkota crown premium raja', 'general'),
+  icon(Gift, 'Gift', 'Hadiah', 'hadiah gift kado bonus', 'general'),
+  icon(Clock, 'Clock', 'Jam', 'jam clock waktu', 'general'),
+  icon(Calendar, 'Calendar', 'Kalender', 'kalender calendar tanggal jadwal', 'general'),
+  icon(Search, 'Search', 'Cari', 'cari search kaca pembesar', 'general'),
+  icon(Lock, 'Lock', 'Gembok', 'gembok lock aman kunci', 'general'),
+  icon(Eye, 'Eye', 'Mata', 'mata eye lihat', 'general'),
+  icon(ThumbsUp, 'ThumbsUp', 'Jempol', 'jempol thumbs up suka setuju', 'general'),
+  icon(Smile, 'Smile', 'Senyum', 'senyum smile senang emoji', 'general'),
+  icon(ArrowRight, 'ArrowRight', 'Panah kanan', 'panah kanan arrow right geser swipe', 'arrows'),
+  icon(ArrowLeft, 'ArrowLeft', 'Panah kiri', 'panah kiri arrow left', 'arrows'),
+  icon(ArrowUp, 'ArrowUp', 'Panah atas', 'panah atas arrow up naik', 'arrows'),
+  icon(ArrowDown, 'ArrowDown', 'Panah bawah', 'panah bawah arrow down turun', 'arrows'),
+  icon(ArrowUpRight, 'ArrowUpRight', 'Panah serong', 'panah serong arrow up right buka tautan', 'arrows'),
+  icon(ChevronRight, 'ChevronRight', 'Siku kanan', 'siku kanan chevron right lanjut', 'arrows'),
+  icon(ChevronsRight, 'ChevronsRight', 'Siku ganda', 'siku ganda chevrons right geser swipe', 'arrows'),
+  icon(MoveRight, 'MoveRight', 'Panah panjang', 'panah panjang move right geser', 'arrows'),
+  icon(CornerDownRight, 'CornerDownRight', 'Panah belok', 'panah belok corner balasan', 'arrows'),
+  icon(RefreshCw, 'RefreshCw', 'Putar ulang', 'putar ulang refresh sinkron', 'arrows'),
+  icon(Undo2, 'Undo2', 'Kembali', 'kembali undo balik', 'arrows'),
+  icon(TrendingUp, 'TrendingUp', 'Tren naik', 'tren naik trending up grafik tumbuh', 'arrows'),
+  icon(TrendingDown, 'TrendingDown', 'Tren turun', 'tren turun trending down grafik', 'arrows'),
+  icon(Briefcase, 'Briefcase', 'Tas kerja', 'tas kerja briefcase bisnis pekerjaan', 'business'),
+  icon(ChartBar, 'ChartBar', 'Grafik batang', 'grafik batang chart bar data statistik', 'business'),
+  icon(ChartPie, 'ChartPie', 'Grafik lingkaran', 'grafik lingkaran chart pie data', 'business'),
+  icon(ChartLine, 'ChartLine', 'Grafik garis', 'grafik garis chart line data', 'business'),
+  icon(Target, 'Target', 'Target', 'target sasaran tujuan', 'business'),
+  icon(Wallet, 'Wallet', 'Dompet', 'dompet wallet uang', 'business'),
+  icon(CreditCard, 'CreditCard', 'Kartu kredit', 'kartu kredit credit card bayar', 'business'),
+  icon(Banknote, 'Banknote', 'Uang', 'uang banknote tunai rupiah cicilan', 'business'),
+  icon(Percent, 'Percent', 'Persen', 'persen percent diskon bunga', 'business'),
+  icon(ShoppingCart, 'ShoppingCart', 'Keranjang', 'keranjang shopping cart belanja', 'business'),
+  icon(ShoppingBag, 'ShoppingBag', 'Tas belanja', 'tas belanja shopping bag', 'business'),
+  icon(Store, 'Store', 'Toko', 'toko store warung', 'business'),
+  icon(Package, 'Package', 'Paket', 'paket package kotak produk', 'business'),
+  icon(Truck, 'Truck', 'Truk', 'truk truck kirim pengiriman', 'business'),
+  icon(Receipt, 'Receipt', 'Struk', 'struk receipt nota tagihan', 'business'),
+  icon(Handshake, 'Handshake', 'Jabat tangan', 'jabat tangan handshake kerja sama deal', 'business'),
+  icon(Rocket, 'Rocket', 'Roket', 'roket rocket luncur cepat', 'business'),
+  icon(Megaphone, 'Megaphone', 'Megafon', 'megafon megaphone promosi pengumuman', 'business'),
+  icon(MessageCircle, 'MessageCircle', 'Balon pesan', 'balon pesan message komentar chat', 'social'),
+  icon(MessagesSquare, 'MessagesSquare', 'Percakapan', 'percakapan messages chat diskusi', 'social'),
+  icon(Mail, 'Mail', 'Surat', 'surat mail email', 'social'),
+  icon(Phone, 'Phone', 'Telepon', 'telepon phone hubungi', 'social'),
+  icon(Send, 'Send', 'Kirim', 'kirim send dm', 'social'),
+  icon(Share2, 'Share2', 'Bagikan', 'bagikan share', 'social'),
+  icon(Users, 'Users', 'Orang banyak', 'orang users tim komunitas', 'social'),
+  icon(User, 'User', 'Orang', 'orang user profil', 'social'),
+  icon(UserPlus, 'UserPlus', 'Tambah teman', 'tambah teman user plus follow ikuti', 'social'),
+  icon(AtSign, 'AtSign', 'At', 'at sign akun mention', 'social'),
+  icon(Hash, 'Hash', 'Tagar', 'tagar hash hashtag', 'social'),
+  icon(Link, 'Link', 'Tautan', 'tautan link', 'social'),
+  icon(Globe, 'Globe', 'Bola dunia', 'bola dunia globe website internet', 'social'),
+  icon(Camera, 'Camera', 'Kamera', 'kamera camera foto', 'social'),
+  icon(Video, 'Video', 'Video', 'video rekam', 'social'),
+  icon(Mic, 'Mic', 'Mikrofon', 'mikrofon mic suara podcast', 'social'),
+  icon(Music, 'Music', 'Musik', 'musik music lagu', 'social'),
+  icon(Play, 'Play', 'Putar', 'putar play video', 'social'),
+  icon(ImageIcon, 'Image', 'Gambar', 'gambar image foto', 'social'),
+  icon(Coffee, 'Coffee', 'Kopi', 'kopi coffee cangkir', 'lifestyle'),
+  icon(Utensils, 'Utensils', 'Alat makan', 'alat makan utensils makanan restoran', 'lifestyle'),
+  icon(Pizza, 'Pizza', 'Pizza', 'pizza makanan', 'lifestyle'),
+  icon(Cake, 'Cake', 'Kue', 'kue cake ulang tahun', 'lifestyle'),
+  icon(Dumbbell, 'Dumbbell', 'Barbel', 'barbel dumbbell gym fitness olahraga', 'lifestyle'),
+  icon(Bike, 'Bike', 'Sepeda', 'sepeda bike', 'lifestyle'),
+  icon(Plane, 'Plane', 'Pesawat', 'pesawat plane liburan travel', 'lifestyle'),
+  icon(Car, 'Car', 'Mobil', 'mobil car kendaraan', 'lifestyle'),
+  icon(Shirt, 'Shirt', 'Baju', 'baju shirt pakaian fashion', 'lifestyle'),
+  icon(Leaf, 'Leaf', 'Daun', 'daun leaf alami organik', 'lifestyle'),
+  icon(Sun, 'Sun', 'Matahari', 'matahari sun cerah', 'lifestyle'),
+  icon(Moon, 'Moon', 'Bulan', 'bulan moon malam', 'lifestyle'),
+  icon(Cloud, 'Cloud', 'Awan', 'awan cloud', 'lifestyle'),
+  icon(Droplet, 'Droplet', 'Tetes air', 'tetes air droplet', 'lifestyle'),
+  icon(Palette, 'Palette', 'Palet', 'palet palette warna desain', 'lifestyle'),
+  icon(Brush, 'Brush', 'Kuas', 'kuas brush seni', 'lifestyle'),
+  icon(Book, 'Book', 'Buku', 'buku book baca', 'lifestyle'),
+  icon(GraduationCap, 'GraduationCap', 'Toga', 'toga graduation belajar sekolah edukasi', 'lifestyle'),
+  icon(Laptop, 'Laptop', 'Laptop', 'laptop komputer kerja', 'lifestyle'),
+  icon(Smartphone, 'Smartphone', 'Ponsel', 'ponsel smartphone hp', 'lifestyle'),
+  icon(Wifi, 'Wifi', 'Wifi', 'wifi internet sinyal', 'lifestyle'),
+  icon(Home, 'Home', 'Rumah', 'rumah home hunian properti', 'places'),
+  icon(Building2, 'Building2', 'Gedung', 'gedung building kantor apartemen', 'places'),
+  icon(MapPin, 'MapPin', 'Pin lokasi', 'pin lokasi map pin alamat', 'places'),
+  icon(MapIcon, 'Map', 'Peta', 'peta map', 'places'),
+  icon(Hospital, 'Hospital', 'Rumah sakit', 'rumah sakit hospital klinik', 'places'),
+  icon(School, 'School', 'Sekolah', 'sekolah school', 'places'),
+  icon(Trees, 'Trees', 'Pepohonan', 'pepohonan trees taman', 'places'),
+  icon(Mountain, 'Mountain', 'Gunung', 'gunung mountain alam', 'places'),
+]
+
+/** What the search reads of an icon: its label, keywords and English name. */
+export const iconText = (item: ElementIcon) => `${item.label} ${item.keywords} ${item.id}`

@@ -4,7 +4,7 @@ import { useLocale, useTranslations } from 'next-intl'
 import {
   ArrowDownToLine, ClipboardPaste, Crop, Scissors, ArrowUpToLine, Bold, CaseUpper, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Flag, Image as ImageIcon, ImagePlus,
   Italic, LoaderCircle, Redo2, RotateCcw, Sparkles, Stamp, TextAlignCenter, TextAlignEnd, TextAlignStart, Trash2, TriangleAlert, Type,
-  Underline, Undo2, Upload, X, Shapes, Copy, LockKeyhole, EyeOff, Frame as FrameIcon, ImageMinus, Move, Replace,
+  Underline, Undo2, Upload, X, Shapes, Copy, LockKeyhole, EyeOff, Frame as FrameIcon, ImageMinus, Layers, Move, Replace,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
@@ -12,7 +12,7 @@ import { confirmDialog } from '@/components/confirm-dialog'
 import { FontPicker } from '@/components/font-picker'
 import { useStorageFull } from '@/components/storage-full'
 import type { Asset } from '@/lib/assets'
-import { DEFAULT_HEADING_FONT } from '@/lib/design-styles'
+import { DEFAULT_BODY_FONT, DEFAULT_HEADING_FONT } from '@/lib/design-styles'
 import { FIELD_PROMPT_LIMIT, fieldMaxChars, fieldReady } from '@/lib/design-fields'
 import { flattenDoc, loadFonts, loadImage, prepareLayerUpload } from '@/lib/layer-canvas'
 import type { GradientPreset } from '@/lib/gradients'
@@ -22,11 +22,15 @@ import {
 } from '@/lib/layer-doc'
 import { isLineKind } from '@/lib/shape-paths'
 import type { PostMedia } from '@/lib/posts'
+import { presetTextLayer, type TextPresetId } from '@/lib/text-presets'
 import {
-  loadSlideLayersAction, logoLayerAssetAction, magicFeedbackAction, resetSlideLayersAction, saveSlideLayersAction, splitObjectAction, uploadLayerImageAction, uploadLayerImageFromUrlAction,
+  aiElementAction, loadSlideLayersAction, logoLayerAssetAction, magicFeedbackAction, resetSlideLayersAction, saveSlideLayersAction, splitObjectAction, uploadLayerImageAction, uploadLayerImageFromUrlAction,
+  type EditorBrand,
 } from './layer-actions'
 import { cancelGeneration } from './cancel-generation'
 import { withCropOf } from './layer-editor-crop'
+import { AiElementCard, ElementResults, ElementSearch, IconMenu, iconPng, TextStyleMenu } from './layer-editor-elements'
+import type { ElementIcon } from './layer-editor-icons'
 import { FillControl, OverlayMenu, withFill } from './layer-editor-fill'
 import { SplitObjectDialog, type SplitRun, type SplitSource } from './layer-editor-split'
 import { placeBackgroundSplit, placeLayerSplit } from './layer-editor-split-place'
@@ -50,7 +54,17 @@ interface Loaded {
   readOnly: boolean
   /** The doc as stored, text boxes fitted to their lines: what "no changes" means. */
   initial: LayerDoc
+  /** The brand kit's fonts and colours, for Gaya teks and a new icon's colour. */
+  brand: EditorBrand
 }
+
+/** The idle panel's sections; a selected layer or the image picker replaces them. */
+const PANEL_TABS = ['text', 'elements', 'images', 'layers'] as const
+type PanelTab = (typeof PANEL_TABS)[number]
+/** An icon's and an AI element's first width on the slide, as fractions of the canvas width. */
+const ICON_SHARE = 0.16
+const ELEMENT_SHARE = 0.45
+const INK = { light: '#171827', dark: '#FFFFFF' } as const
 
 interface LayerEditorProps {
   postId: string
@@ -135,6 +149,10 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
   const [splitOperation, setSplitOperation] = useState<string | null>(null)
   const [cancellingSplit, setCancellingSplit] = useState(false)
   const [swap, setSwap] = useState<BackgroundSwap | null>(null)
+  const [panelTab, setPanelTab] = useState<PanelTab>('text')
+  const [elementQuery, setElementQuery] = useState('')
+  /** The colour picked for new icons; null follows the slide's ink colour. */
+  const [iconColor, setIconColor] = useState<string | null>(null)
 
   useEffect(() => {
     const node = dialog.current
@@ -168,6 +186,7 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
           layered: stored !== null,
           readOnly: result.readOnly,
           initial,
+          brand: result.brand,
         })
         setHistory(createHistory(initial))
         if (!result.readOnly) {
@@ -427,20 +446,65 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
   function addText() {
     if (!doc || full) return
     setDrawing(false)
-    const font = doc.layers.find((layer): layer is TextLayer => layer.kind === 'text')?.font ?? DEFAULT_HEADING_FONT
-    const layer = newTextLayer(doc, t('newText'), font, baseTone === 'light' ? '#171827' : '#FFFFFF')
+    const font = doc.layers.find((layer): layer is TextLayer => layer.kind === 'text')?.font ?? loaded?.brand.headingFont ?? DEFAULT_HEADING_FONT
+    const layer = newTextLayer(doc, t('newText'), font, INK[baseTone])
     edit(addLayer(doc, layer))
     setSelectedId(layer.id)
     setSheetOpen(true)
     window.setTimeout(() => textArea.current?.select(), 0)
   }
 
-  function addImage(assetId: string, role: ImageLayer['role'], width: number, height: number) {
+  /** Gaya teks: an editorial style in the brand's fonts; the accent styles take the brand's first colour. */
+  function addTextPreset(preset: TextPresetId, text: string) {
     if (!doc || full) return
     setDrawing(false)
-    const layer = newImageLayer(doc, assetId, role, width, height)
+    const brand = loaded?.brand
+    const ink = INK[baseTone]
+    const layer = presetTextLayer(doc, preset, text,
+      { heading: brand?.headingFont ?? DEFAULT_HEADING_FONT, body: brand?.bodyFont ?? DEFAULT_BODY_FONT },
+      { ink, accent: brand?.colors.find((color) => color !== ink) ?? ink })
     edit(addLayer(doc, layer))
     setSelectedId(layer.id)
+    setSheetOpen(true)
+    window.setTimeout(() => textArea.current?.select(), 0)
+  }
+
+  /** `share` sets the new layer's width as a fraction of the canvas width (an icon starts small), keeping its shape. */
+  function addImage(assetId: string, role: ImageLayer['role'], width: number, height: number, share?: number) {
+    if (!doc || full) return
+    setDrawing(false)
+    const fitted = newImageLayer(doc, assetId, role, width, height)
+    const w = share ? Math.round(doc.width * share) : fitted.w
+    const h = share ? Math.round((w * height) / Math.max(1, width)) : fitted.h
+    const layer = { ...fitted, w, h, x: Math.round((doc.width - w) / 2), y: Math.round((doc.height - h) / 2) }
+    edit(addLayer(doc, layer))
+    setSelectedId(layer.id)
+  }
+
+  /** Ikon: drawn to a PNG in the chosen colour by the browser, then stored and placed like any uploaded picture. */
+  async function addIcon(_item: ElementIcon, svg: SVGSVGElement) {
+    if (!doc || readOnly || working || full) return
+    try {
+      await uploadImage(await iconPng(svg, iconColor ?? INK[baseTone]), null, ICON_SHARE)
+      setSheetOpen(true)
+    } catch {
+      setError(t('elements.iconFailed'))
+    }
+  }
+
+  /** Elemen AI: resolves to a message when nothing was placed. */
+  async function runAiElement(prompt: string): Promise<string | null> {
+    if (!doc || readOnly) return t('failed')
+    if (full) return t('full', { max: LAYER_LIMITS.layers })
+    const result = await aiElementAction({ prompt }).catch(() => ({ error: t('elements.aiFailed') }))
+    if ('error' in result) {
+      // A full storage also opens its own dialog; the card keeps the description either way.
+      storageFull(result.error)
+      return result.error
+    }
+    addImage(result.assetId, 'object', result.width, result.height, ELEMENT_SHARE)
+    setSheetOpen(true)
+    return null
   }
 
   async function addLogo() {
@@ -459,7 +523,7 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
    * A picture from the device (the file picker, a drop or a paste): into the bingkai `frameId` when given, else a
    * new picture layer.
    */
-  async function uploadImage(image: File | ClipImage, frameId: string | null = null) {
+  async function uploadImage(image: File | ClipImage, frameId: string | null = null, share?: number) {
     if (!doc || readOnly || working) return
     const frame = frameId ? doc.layers.find((layer) => layer.id === frameId && layer.kind === 'frame' && !layer.locked) : undefined
     if (!frame && full) {
@@ -489,7 +553,7 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
       setAdding(null)
       // The editor is busy while uploading, so `doc` is still the doc it started from.
       if (frame) fillFrameWith(frame.id, result.assetId)
-      else addImage(result.assetId, 'upload', result.width, result.height)
+      else addImage(result.assetId, 'upload', result.width, result.height, share)
     } catch (caught) {
       const code = caught instanceof Error ? caught.message : ''
       setError(UPLOAD_ERRORS.has(code) ? t(`uploadErrors.${code as 'image_too_large' | 'image_unreadable'}`) : t('failed'))
@@ -971,53 +1035,108 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                         </section>
                       )}
 
-                      <section>
-                        <h3 className="mb-2 text-xs font-semibold tracking-wide text-ink-soft uppercase">{t('add')}</h3>
-                        <div className="grid min-w-0 grid-cols-3 gap-2">
-                          <AddButton icon={<Type size={18} aria-hidden="true" />} label={t('addText')} onClick={addText} disabled={full} />
-                          <AddButton icon={<Stamp size={18} aria-hidden="true" />} label={t('addLogo')} onClick={() => void addLogo()} disabled={full} />
-                          <AddButton icon={<ImagePlus size={18} aria-hidden="true" />} label={t('addImage')} onClick={() => chooseImage(null)} disabled={full} />
-                        </div>
-                        {full ? <p className="mt-2 text-xs text-ink-muted">{t('full', { max: LAYER_LIMITS.layers })}</p>
-                          : (
-                            <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-muted">
-                              <ClipboardPaste size={13} aria-hidden="true" className="mt-px shrink-0 text-ink-soft" />
-                              <span>{t('frames.pasteHint')}</span>
-                            </p>
-                          )}
-                      </section>
+                      <div role="tablist" aria-label={t('panelTabs.label')} className="grid grid-cols-4 gap-0.5 rounded-xl border border-hairline bg-zinc-50 p-0.5">
+                        {PANEL_TABS.map((tab) => (
+                          <button
+                            key={tab}
+                            type="button"
+                            role="tab"
+                            id={`layer-tab-${tab}`}
+                            aria-selected={panelTab === tab}
+                            aria-controls="layer-tabpanel"
+                            onClick={() => setPanelTab(tab)}
+                            className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-1 text-xs font-semibold transition-colors pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:outline-accent ${
+                              panelTab === tab ? 'bg-white text-ink shadow-[0_1px_2px_rgba(23,24,39,0.12)]' : 'text-ink-muted hover:text-ink'}`}
+                          >
+                            {tab === 'text' ? <Type size={14} aria-hidden="true" /> : tab === 'elements' ? <Shapes size={14} aria-hidden="true" />
+                              : tab === 'images' ? <ImageIcon size={14} aria-hidden="true" /> : <Layers size={14} aria-hidden="true" />}
+                            {t(`panelTabs.${tab}`)}
+                          </button>
+                        ))}
+                      </div>
 
-                      <FrameMenu disabled={full} onAdd={addFrame} />
+                      <div role="tabpanel" id="layer-tabpanel" aria-labelledby={`layer-tab-${panelTab}`} className="min-w-0 space-y-5">
+                        {full && panelTab !== 'layers' && <p className="text-xs text-ink-muted">{t('full', { max: LAYER_LIMITS.layers })}</p>}
 
-                      <ShapeMenu disabled={full} drawing={drawing} onAdd={addShape} onDraw={() => (drawing ? setDrawing(false) : startDrawing())} />
-
-                      <OverlayMenu backgroundUrl={layerImageUrl(background)} disabled={full} onAdd={addOverlay} />
-
-                      <section>
-                        <h3 className="mb-2 text-xs font-semibold tracking-wide text-ink-soft uppercase">{t('layers')}</h3>
-                        {doc.layers.length === 0 ? (
-                          <p className="rounded-lg border border-dashed border-hairline px-3 py-4 text-center text-xs leading-relaxed text-ink-muted">{t('noLayers')}</p>
-                        ) : (
-                          <ul className="min-w-0 divide-y divide-hairline overflow-hidden rounded-xl border border-hairline">
-                            {[...doc.layers].reverse().map((layer) => (
-                              <li key={layer.id}>
-                                <button
-                                  type="button"
-                                  onClick={() => { setDrawing(false); setSelectedId(layer.id) }}
-                                  className="flex min-h-11 w-full items-center gap-2.5 px-3 text-left text-sm transition-colors hover:bg-zinc-50 disabled:text-ink"
-                                >
-                                  <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-md bg-zinc-100 text-ink-muted">
-                                    {layer.kind === 'text' ? <Type size={14} /> : layer.kind === 'shape' || layer.kind === 'path' ? <Shapes size={14} /> : layer.kind === 'frame' ? <FrameIcon size={14} /> : layer.role === 'logo' ? <Stamp size={14} /> : <ImageIcon size={14} />}
-                                  </span>
-                                  <span className="min-w-0 flex-1 truncate">{labelOf(layer)}</span>
-                                  {layer.locked && <LockKeyhole size={14} aria-label={t('lockedLayer')} />}
-                                  {layer.hidden && <EyeOff size={14} aria-label={t('hiddenLayer')} />}
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
+                        {panelTab === 'text' && (
+                          <>
+                            <div className="grid min-w-0">
+                              <AddButton icon={<Type size={18} aria-hidden="true" />} label={t('addText')} onClick={addText} disabled={full} />
+                            </div>
+                            <TextStyleMenu disabled={full} onAdd={addTextPreset} />
+                          </>
                         )}
-                      </section>
+
+                        {panelTab === 'elements' && (
+                          <>
+                            <ElementSearch value={elementQuery} onChange={setElementQuery} />
+                            {elementQuery.trim() ? (
+                              <ElementResults query={elementQuery} disabled={full} onShape={addShape} onIcon={(item, svg) => void addIcon(item, svg)} />
+                            ) : (
+                              <>
+                                <ShapeMenu disabled={full} drawing={drawing} onAdd={addShape} onDraw={() => (drawing ? setDrawing(false) : startDrawing())} />
+                                <IconMenu
+                                  disabled={full}
+                                  color={iconColor ?? INK[baseTone]}
+                                  swatches={[...new Set([INK.light, INK.dark, ...loaded.brand.colors])].slice(0, 5)}
+                                  onColor={setIconColor}
+                                  onAdd={(item, svg) => void addIcon(item, svg)}
+                                />
+                                <FrameMenu disabled={full} onAdd={addFrame} />
+                              </>
+                            )}
+                            {billing && (
+                              <AiElementCard disabled={full} rate={billing.rate} planCredits={billing.planCredits} credits={billing.credits} trial={billing.trial} onRun={runAiElement} />
+                            )}
+                          </>
+                        )}
+
+                        {panelTab === 'images' && (
+                          <>
+                            <section>
+                              <div className="grid min-w-0 grid-cols-2 gap-2">
+                                <AddButton icon={<ImagePlus size={18} aria-hidden="true" />} label={t('addImage')} onClick={() => chooseImage(null)} disabled={full} />
+                                <AddButton icon={<Stamp size={18} aria-hidden="true" />} label={t('addLogo')} onClick={() => void addLogo()} disabled={full} />
+                              </div>
+                              {!full && (
+                                <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-muted">
+                                  <ClipboardPaste size={13} aria-hidden="true" className="mt-px shrink-0 text-ink-soft" />
+                                  <span>{t('frames.pasteHint')}</span>
+                                </p>
+                              )}
+                            </section>
+                            <OverlayMenu backgroundUrl={layerImageUrl(background)} disabled={full} onAdd={addOverlay} />
+                          </>
+                        )}
+
+                        {panelTab === 'layers' && (
+                          <section>
+                            <h3 className="mb-2 text-xs font-semibold tracking-wide text-ink-soft uppercase">{t('layers')}</h3>
+                            {doc.layers.length === 0 ? (
+                              <p className="rounded-lg border border-dashed border-hairline px-3 py-4 text-center text-xs leading-relaxed text-ink-muted">{t('noLayers')}</p>
+                            ) : (
+                              <ul className="min-w-0 divide-y divide-hairline overflow-hidden rounded-xl border border-hairline">
+                                {[...doc.layers].reverse().map((layer) => (
+                                  <li key={layer.id}>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setDrawing(false); setSelectedId(layer.id) }}
+                                      className="flex min-h-11 w-full items-center gap-2.5 px-3 text-left text-sm transition-colors hover:bg-zinc-50 disabled:text-ink"
+                                    >
+                                      <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-md bg-zinc-100 text-ink-muted">
+                                        {layer.kind === 'text' ? <Type size={14} /> : layer.kind === 'shape' || layer.kind === 'path' ? <Shapes size={14} /> : layer.kind === 'frame' ? <FrameIcon size={14} /> : layer.role === 'logo' ? <Stamp size={14} /> : <ImageIcon size={14} />}
+                                      </span>
+                                      <span className="min-w-0 flex-1 truncate">{labelOf(layer)}</span>
+                                      {layer.locked && <LockKeyhole size={14} aria-label={t('lockedLayer')} />}
+                                      {layer.hidden && <EyeOff size={14} aria-label={t('hiddenLayer')} />}
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </section>
+                        )}
+                      </div>
 
                       {(loaded.hasOriginal || loaded.fromMagic) && (
                         <section className="space-y-1 border-t border-hairline pt-4">
