@@ -7,7 +7,7 @@ import {
   Underline, Undo2, Upload, X, Shapes, Copy, LockKeyhole, EyeOff, Frame as FrameIcon, ImageMinus, Layers, Move, Replace,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { confirmDialog } from '@/components/confirm-dialog'
 import { FontPicker } from '@/components/font-picker'
 import { useStorageFull } from '@/components/storage-full'
@@ -37,7 +37,7 @@ import { placeBackgroundSplit, placeLayerSplit } from './layer-editor-split-plac
 import { familyOf, fitDoc, LayerCanvas, type BaseTone } from './layer-editor-canvas'
 import { addLayer, AMEND_MS, editStep, nudgeLayer, readDraft, removeLayer, replaceLayer, sameDoc, updateLayer } from './layer-editor-gesture'
 import type { PenResult } from './layer-editor-pen'
-import { clipImageOf, dragHasImage, frameAsImage, frameWithCrop, newFrameFromPreset, type ClipImage, type FramePreset } from './layer-editor-frame-math'
+import { clipImageOf, clipIsPictureOnly, dragHasImage, frameAsImage, frameWithCrop, newFrameFromPreset, type ClipImage, type FramePreset } from './layer-editor-frame-math'
 import { FrameMenu } from './layer-editor-frames'
 import { DashIcon, ShapeMenu } from './layer-editor-shapes'
 import { copiedLayer, copyLayer, isTyping, pasteCopied, shortcutFor } from './layer-editor-shortcuts'
@@ -82,6 +82,15 @@ interface LayerEditorProps {
   /** What Pisahkan objek costs and what's left; unset hides it. */
   billing?: { rate: number; planCredits: number; credits: number | null; trial: number | null }
 }
+
+const WIDE_QUERY = '(min-width: 1024px)'
+const watchWide = (notify: () => void) => {
+  const media = window.matchMedia(WIDE_QUERY)
+  media.addEventListener('change', notify)
+  return () => media.removeEventListener('change', notify)
+}
+/** Room for the tool rail and drawer left of the canvas (lg and up); narrower screens keep the tools in the sheet. */
+const useWideScreen = () => useSyncExternalStore(watchWide, () => window.matchMedia(WIDE_QUERY).matches, () => false)
 
 /** A background swapped by Pisahkan objek: `doc` is the step that did it, so undoing it brings the old one back. */
 interface BackgroundSwap { doc: LayerDoc; assetId: string }
@@ -150,6 +159,9 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
   const [cancellingSplit, setCancellingSplit] = useState(false)
   const [swap, setSwap] = useState<BackgroundSwap | null>(null)
   const [panelTab, setPanelTab] = useState<PanelTab>('text')
+  /** Wide screens: the tool drawer beside the rail; the open tool's own button closes it. */
+  const [drawerOpen, setDrawerOpen] = useState(true)
+  const wide = useWideScreen()
   const [elementQuery, setElementQuery] = useState('')
   /** The colour picked for new icons; null follows the slide's ink colour. */
   const [iconColor, setIconColor] = useState<string | null>(null)
@@ -189,6 +201,8 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
           brand: result.brand,
         })
         setHistory(createHistory(initial))
+        // A slide that already has layers opens on them; a flat one on the text styles.
+        setPanelTab(initial.layers.length > 0 ? 'layers' : 'text')
         if (!result.readOnly) {
           let raw: string | null = null
           try { raw = window.localStorage.getItem(draftKey) } catch { /* private mode */ }
@@ -694,7 +708,8 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
    * picture layer. Without a picture it's the editor's own copied layer (copying one clears the system clipboard).
    */
   const pasteFromClipboard = useEffectEvent((event: ClipboardEvent) => {
-    if (isTyping(event.target)) return
+    // While typing, text belongs to the field; a picture with no text would vanish there, so the slide takes it.
+    if (isTyping(event.target) && !clipIsPictureOnly(event.clipboardData)) return
     const target = event.target as Node | null
     if (target && target !== document.body && !dialog.current?.contains(target)) return
     window.clearTimeout(pendingPaste.current)
@@ -799,6 +814,145 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
         : layer.kind === 'frame' ? t('frames.label', { name: t(`shapes.${layer.shape}`) }) : t(`roles.${layer.role}`))
   const croppingFrame = Boolean(cropDraft && doc?.layers.some((layer) => layer.id === cropDraft.id && layer.kind === 'frame'))
 
+  // The tools: a rail and a drawer left of the canvas on wide screens, tabs inside the sheet otherwise.
+  const drawerShown = drawerOpen || adding !== null
+  const toolTabs = (
+    <div role="tablist" aria-label={t('panelTabs.label')} aria-orientation={wide ? 'vertical' : 'horizontal'}
+      className={wide ? 'flex flex-col gap-1' : 'grid grid-cols-4 gap-0.5 rounded-xl border border-hairline bg-zinc-50 p-0.5'}>
+      {PANEL_TABS.map((tab) => (
+        <button
+          key={tab}
+          type="button"
+          role="tab"
+          id={`layer-tab-${tab}`}
+          aria-selected={panelTab === tab && (!wide || drawerShown)}
+          aria-controls="layer-tabpanel"
+          onClick={() => {
+            // On the rail, the open tool's own button closes the drawer, as in Canva.
+            if (wide && panelTab === tab && drawerShown && !adding) return setDrawerOpen(false)
+            setAdding(null)
+            setFrameTarget(null)
+            setPanelTab(tab)
+            setDrawerOpen(true)
+          }}
+          className={wide
+            ? `flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
+              panelTab === tab && drawerShown ? 'bg-accent-soft text-accent' : 'text-ink-muted hover:bg-zinc-100 hover:text-ink'}`
+            : `inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-1 text-xs font-semibold transition-colors pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:outline-accent ${
+              panelTab === tab ? 'bg-white text-ink shadow-[0_1px_2px_rgba(23,24,39,0.12)]' : 'text-ink-muted hover:text-ink'}`}
+        >
+          {tab === 'text' ? <Type size={wide ? 18 : 14} aria-hidden="true" /> : tab === 'elements' ? <Shapes size={wide ? 18 : 14} aria-hidden="true" />
+            : tab === 'images' ? <ImageIcon size={wide ? 18 : 14} aria-hidden="true" /> : <Layers size={wide ? 18 : 14} aria-hidden="true" />}
+          {t(`panelTabs.${tab}`)}
+        </button>
+      ))}
+    </div>
+  )
+  const toolPanel = !doc || !loaded ? null : (
+    <div role="tabpanel" id="layer-tabpanel" aria-labelledby={`layer-tab-${panelTab}`} className="min-w-0 space-y-5">
+      {full && panelTab !== 'layers' && <p className="text-xs text-ink-muted">{t('full', { max: LAYER_LIMITS.layers })}</p>}
+
+      {panelTab === 'text' && (
+        <>
+          <div className="grid min-w-0">
+            <AddButton icon={<Type size={18} aria-hidden="true" />} label={t('addText')} onClick={addText} disabled={full} />
+          </div>
+          <TextStyleMenu disabled={full} onAdd={addTextPreset} />
+        </>
+      )}
+
+      {panelTab === 'elements' && (
+        <>
+          <ElementSearch value={elementQuery} onChange={setElementQuery} />
+          {elementQuery.trim() ? (
+            <ElementResults query={elementQuery} disabled={full} onShape={addShape} onIcon={(item, svg) => void addIcon(item, svg)} />
+          ) : (
+            <>
+              <ShapeMenu disabled={full} drawing={drawing} onAdd={addShape} onDraw={() => (drawing ? setDrawing(false) : startDrawing())} />
+              <IconMenu
+                disabled={full}
+                color={iconColor ?? INK[baseTone]}
+                swatches={[...new Set([INK.light, INK.dark, ...loaded.brand.colors])].slice(0, 5)}
+                onColor={setIconColor}
+                onAdd={(item, svg) => void addIcon(item, svg)}
+              />
+              <FrameMenu disabled={full} onAdd={addFrame} />
+            </>
+          )}
+        </>
+      )}
+
+      {panelTab === 'images' && (
+        <>
+          <section>
+            <div className="grid min-w-0 grid-cols-2 gap-2">
+              <AddButton icon={<ImagePlus size={18} aria-hidden="true" />} label={t('addImage')} onClick={() => chooseImage(null)} disabled={full} />
+              <AddButton icon={<Stamp size={18} aria-hidden="true" />} label={t('addLogo')} onClick={() => void addLogo()} disabled={full} />
+            </div>
+            {!full && (
+              <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-muted">
+                <ClipboardPaste size={13} aria-hidden="true" className="mt-px shrink-0 text-ink-soft" />
+                <span>{t('frames.pasteHint')}</span>
+              </p>
+            )}
+          </section>
+          <OverlayMenu backgroundUrl={layerImageUrl(background)} disabled={full} onAdd={addOverlay} />
+        </>
+      )}
+
+      {panelTab === 'layers' && (
+        <section>
+          <h3 className="mb-2 text-xs font-semibold tracking-wide text-ink-soft uppercase">{t('layers')}</h3>
+          {doc.layers.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-hairline px-3 py-4 text-center text-xs leading-relaxed text-ink-muted">{t('noLayers')}</p>
+          ) : (
+            <ul className="min-w-0 divide-y divide-hairline overflow-hidden rounded-xl border border-hairline">
+              {[...doc.layers].reverse().map((layer) => (
+                <li key={layer.id}>
+                  <button
+                    type="button"
+                    onClick={() => { setDrawing(false); setSelectedId(layer.id) }}
+                    className="flex min-h-11 w-full items-center gap-2.5 px-3 text-left text-sm transition-colors hover:bg-zinc-50 disabled:text-ink"
+                  >
+                    <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-md bg-zinc-100 text-ink-muted">
+                      {layer.kind === 'text' ? <Type size={14} /> : layer.kind === 'shape' || layer.kind === 'path' ? <Shapes size={14} /> : layer.kind === 'frame' ? <FrameIcon size={14} /> : layer.role === 'logo' ? <Stamp size={14} /> : <ImageIcon size={14} />}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{labelOf(layer)}</span>
+                    {layer.locked && <LockKeyhole size={14} aria-label={t('lockedLayer')} />}
+                    {layer.hidden && <EyeOff size={14} aria-label={t('hiddenLayer')} />}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+    </div>
+  )
+  const picker = adding === 'image' ? (
+    <ImageSource
+      title={frameTarget ? t('frames.fillTitle') : undefined}
+      onBack={() => { setAdding(null); setFrameTarget(null) }}
+      onUpload={() => fileInput.current?.click()}
+      onLibrary={() => void openLibrary()}
+    />
+  ) : adding === 'library' ? (
+    <LibraryPicker
+      library={library}
+      error={libraryError}
+      onRetry={() => { setLibrary(null); void openLibrary() }}
+      onBack={() => setAdding('image')}
+      onPick={(asset) => {
+        if (frameTarget) fillFrameWith(frameTarget, asset.id)
+        else addImage(asset.id, 'upload', asset.width, asset.height)
+        setAdding(null)
+      }}
+    />
+  ) : null
+  const aiCard = billing ? (
+      <AiElementCard disabled={full} rate={billing.rate} planCredits={billing.planCredits} credits={billing.credits} trial={billing.trial} onRun={runAiElement} />
+    ) : null
+
   return (
     <dialog
       ref={dialog}
@@ -880,6 +1034,20 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
           </div>
         ) : (
           <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-clip md:flex-row">
+            {wide && (
+              <>
+                <nav aria-label={t('panelTabs.label')} className="w-[76px] shrink-0 overflow-y-auto border-r border-hairline bg-white p-2 [scrollbar-width:none]">
+                  {toolTabs}
+                </nav>
+                {drawerShown && (
+                  <aside aria-label={t(`panelTabs.${panelTab}`)} className="w-64 shrink-0 overflow-x-hidden overflow-y-auto overscroll-contain border-r border-hairline bg-white xl:w-72">
+                    <fieldset disabled={readOnly || working !== null} className="m-0 w-full min-w-0 border-0 p-4">
+                      {picker ?? toolPanel}
+                    </fieldset>
+                  </aside>
+                )}
+              </>
+            )}
             {/* Canvas: never squeezed to nothing by the sheet below it. */}
             <div className="relative flex min-h-[30dvh] min-w-0 flex-1 flex-col bg-[radial-gradient(circle_at_1px_1px,rgba(23,24,39,0.09)_1px,transparent_0)] [background-size:18px_18px]">
               {(draft || readOnly || error) && (
@@ -948,7 +1116,7 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
             {/* Panel: a side panel on desktop, a bottom sheet on phones. */}
             <aside
               aria-label={t('panel')}
-              className="relative flex max-h-[45dvh] w-full min-w-0 shrink-0 flex-col overflow-clip rounded-t-2xl border-t border-hairline bg-white shadow-[0_-12px_30px_-18px_rgba(23,24,39,0.3)] md:max-h-none md:w-80 md:rounded-none md:border-t-0 md:border-l md:shadow-none lg:w-[340px]"
+              className="relative flex max-h-[45dvh] w-full min-w-0 shrink-0 flex-col overflow-clip rounded-t-2xl border-t border-hairline bg-white shadow-[0_-12px_30px_-18px_rgba(23,24,39,0.3)] md:max-h-none md:w-80 md:rounded-none md:border-t-0 md:border-l md:shadow-none xl:w-[340px]"
             >
               <button
                 type="button"
@@ -981,26 +1149,7 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                   <div className={selected ? 'hidden md:block' : ''}>
                     <AiFieldSummary doc={doc} labelOf={labelOf} onSelect={id => { setDrawing(false); setSelectedId(id); setAdding(null) }} />
                   </div>
-                  {adding === 'image' ? (
-                    <ImageSource
-                      title={frameTarget ? t('frames.fillTitle') : undefined}
-                      onBack={() => { setAdding(null); setFrameTarget(null) }}
-                      onUpload={() => fileInput.current?.click()}
-                      onLibrary={() => void openLibrary()}
-                    />
-                  ) : adding === 'library' ? (
-                    <LibraryPicker
-                      library={library}
-                      error={libraryError}
-                      onRetry={() => { setLibrary(null); void openLibrary() }}
-                      onBack={() => setAdding('image')}
-                      onPick={(asset) => {
-                        if (frameTarget) fillFrameWith(frameTarget, asset.id)
-                        else addImage(asset.id, 'upload', asset.width, asset.height)
-                        setAdding(null)
-                      }}
-                    />
-                  ) : selected ? (
+                  {!wide && picker ? picker : selected ? (
                     <LayerPanel
                       layer={selected}
                       doc={doc}
@@ -1035,108 +1184,10 @@ export function LayerEditor({ postId, media, slide, slides, onSlideChange, onFlu
                         </section>
                       )}
 
-                      <div role="tablist" aria-label={t('panelTabs.label')} className="grid grid-cols-4 gap-0.5 rounded-xl border border-hairline bg-zinc-50 p-0.5">
-                        {PANEL_TABS.map((tab) => (
-                          <button
-                            key={tab}
-                            type="button"
-                            role="tab"
-                            id={`layer-tab-${tab}`}
-                            aria-selected={panelTab === tab}
-                            aria-controls="layer-tabpanel"
-                            onClick={() => setPanelTab(tab)}
-                            className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-1 text-xs font-semibold transition-colors pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:outline-accent ${
-                              panelTab === tab ? 'bg-white text-ink shadow-[0_1px_2px_rgba(23,24,39,0.12)]' : 'text-ink-muted hover:text-ink'}`}
-                          >
-                            {tab === 'text' ? <Type size={14} aria-hidden="true" /> : tab === 'elements' ? <Shapes size={14} aria-hidden="true" />
-                              : tab === 'images' ? <ImageIcon size={14} aria-hidden="true" /> : <Layers size={14} aria-hidden="true" />}
-                            {t(`panelTabs.${tab}`)}
-                          </button>
-                        ))}
-                      </div>
+                      {aiCard}
 
-                      <div role="tabpanel" id="layer-tabpanel" aria-labelledby={`layer-tab-${panelTab}`} className="min-w-0 space-y-5">
-                        {full && panelTab !== 'layers' && <p className="text-xs text-ink-muted">{t('full', { max: LAYER_LIMITS.layers })}</p>}
-
-                        {panelTab === 'text' && (
-                          <>
-                            <div className="grid min-w-0">
-                              <AddButton icon={<Type size={18} aria-hidden="true" />} label={t('addText')} onClick={addText} disabled={full} />
-                            </div>
-                            <TextStyleMenu disabled={full} onAdd={addTextPreset} />
-                          </>
-                        )}
-
-                        {panelTab === 'elements' && (
-                          <>
-                            <ElementSearch value={elementQuery} onChange={setElementQuery} />
-                            {elementQuery.trim() ? (
-                              <ElementResults query={elementQuery} disabled={full} onShape={addShape} onIcon={(item, svg) => void addIcon(item, svg)} />
-                            ) : (
-                              <>
-                                <ShapeMenu disabled={full} drawing={drawing} onAdd={addShape} onDraw={() => (drawing ? setDrawing(false) : startDrawing())} />
-                                <IconMenu
-                                  disabled={full}
-                                  color={iconColor ?? INK[baseTone]}
-                                  swatches={[...new Set([INK.light, INK.dark, ...loaded.brand.colors])].slice(0, 5)}
-                                  onColor={setIconColor}
-                                  onAdd={(item, svg) => void addIcon(item, svg)}
-                                />
-                                <FrameMenu disabled={full} onAdd={addFrame} />
-                              </>
-                            )}
-                            {billing && (
-                              <AiElementCard disabled={full} rate={billing.rate} planCredits={billing.planCredits} credits={billing.credits} trial={billing.trial} onRun={runAiElement} />
-                            )}
-                          </>
-                        )}
-
-                        {panelTab === 'images' && (
-                          <>
-                            <section>
-                              <div className="grid min-w-0 grid-cols-2 gap-2">
-                                <AddButton icon={<ImagePlus size={18} aria-hidden="true" />} label={t('addImage')} onClick={() => chooseImage(null)} disabled={full} />
-                                <AddButton icon={<Stamp size={18} aria-hidden="true" />} label={t('addLogo')} onClick={() => void addLogo()} disabled={full} />
-                              </div>
-                              {!full && (
-                                <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-muted">
-                                  <ClipboardPaste size={13} aria-hidden="true" className="mt-px shrink-0 text-ink-soft" />
-                                  <span>{t('frames.pasteHint')}</span>
-                                </p>
-                              )}
-                            </section>
-                            <OverlayMenu backgroundUrl={layerImageUrl(background)} disabled={full} onAdd={addOverlay} />
-                          </>
-                        )}
-
-                        {panelTab === 'layers' && (
-                          <section>
-                            <h3 className="mb-2 text-xs font-semibold tracking-wide text-ink-soft uppercase">{t('layers')}</h3>
-                            {doc.layers.length === 0 ? (
-                              <p className="rounded-lg border border-dashed border-hairline px-3 py-4 text-center text-xs leading-relaxed text-ink-muted">{t('noLayers')}</p>
-                            ) : (
-                              <ul className="min-w-0 divide-y divide-hairline overflow-hidden rounded-xl border border-hairline">
-                                {[...doc.layers].reverse().map((layer) => (
-                                  <li key={layer.id}>
-                                    <button
-                                      type="button"
-                                      onClick={() => { setDrawing(false); setSelectedId(layer.id) }}
-                                      className="flex min-h-11 w-full items-center gap-2.5 px-3 text-left text-sm transition-colors hover:bg-zinc-50 disabled:text-ink"
-                                    >
-                                      <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-md bg-zinc-100 text-ink-muted">
-                                        {layer.kind === 'text' ? <Type size={14} /> : layer.kind === 'shape' || layer.kind === 'path' ? <Shapes size={14} /> : layer.kind === 'frame' ? <FrameIcon size={14} /> : layer.role === 'logo' ? <Stamp size={14} /> : <ImageIcon size={14} />}
-                                      </span>
-                                      <span className="min-w-0 flex-1 truncate">{labelOf(layer)}</span>
-                                      {layer.locked && <LockKeyhole size={14} aria-label={t('lockedLayer')} />}
-                                      {layer.hidden && <EyeOff size={14} aria-label={t('hiddenLayer')} />}
-                                    </button>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </section>
-                        )}
-                      </div>
+                      {!wide && toolTabs}
+                      {!wide && toolPanel}
 
                       {(loaded.hasOriginal || loaded.fromMagic) && (
                         <section className="space-y-1 border-t border-hairline pt-4">
