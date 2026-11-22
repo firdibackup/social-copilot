@@ -70,7 +70,7 @@ describe('proxy', () => {
 
   it('answers the admin pages with the not-found route for anyone but an admin', async () => {
     session.userId = 'user-1'
-    for (const path of ['/admin', '/admin/pengguna?id=x', '/admin/pengaturan']) {
+    for (const path of ['/admin', '/admin/pengguna?id=x', '/admin/pengaturan', '/admin/pengetahuan?tab=kasus&id=baru']) {
       expect((await visit(path)).headers.get('x-middleware-rewrite'), path).toBe(`${ORIGIN}/_tidak-ditemukan`)
     }
     expect((await visit('/administrasi')).headers.get('x-middleware-rewrite')).toBeNull()
