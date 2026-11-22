@@ -397,6 +397,12 @@ export type AdminAction =
   | 'update_coupon'
   | 'toggle_coupon'
   | 'delete_coupon'
+  | 'create_hook'
+  | 'update_hook'
+  | 'delete_hook'
+  | 'create_case'
+  | 'update_case'
+  | 'delete_case'
 
 /** Records what an admin did. A log that can't be written doesn't undo the action. */
 export async function logAdminAction(
