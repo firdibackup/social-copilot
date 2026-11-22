@@ -534,6 +534,8 @@
     "single": "Umum"
   },
   "layerActions": {
+    "elementPrompt": "Tulis deskripsi elemen, 3–200 karakter.",
+    "elementEmpty": "Elemen tidak tergambar dengan rapi. Kuota dikembalikan; coba deskripsi lain.",
     "conflict": "Desain berubah di sesi lain. Tutup lalu buka kembali editor; draf lokalmu tetap tersedia.",
     "corruptDoc": "Dokumen desain tidak dapat dibaca. Gambar dan lapisan tersimpan tetap aman; coba muat ulang editor.",
     "invalid": "Permintaan tidak valid. Muat ulang editor.",
@@ -582,6 +584,62 @@
     "page": "Slide {page} dari {total}", "download": "Unduh slide PNG"
   },
   "layerEditor": {
+    "panelTabs": {
+      "label": "Bagian panel",
+      "text": "Teks",
+      "elements": "Elemen",
+      "images": "Gambar",
+      "layers": "Lapisan"
+    },
+    "textStyles": {
+      "title": "Gaya teks",
+      "hint": "Memakai font dan warna brand. Klik untuk menambahkan, lalu ubah isinya.",
+      "headline": "Judul",
+      "subheading": "Subjudul",
+      "body": "Isi",
+      "kicker": "Kicker",
+      "quote": "Kutipan",
+      "number": "Nomor besar",
+      "sampleHeadline": "Judul utama",
+      "sampleSubheading": "Subjudul penjelas",
+      "sampleBody": "Tulis isi di sini. Satu gagasan per slide.",
+      "sampleKicker": "Tips hari ini",
+      "sampleQuote": "“Tulis kutipan di sini”",
+      "sampleNumber": "01"
+    },
+    "elements": {
+      "search": "Cari elemen",
+      "searchPlaceholder": "Cari bentuk atau ikon…",
+      "clearSearch": "Hapus pencarian",
+      "noResults": "Tidak ada elemen yang cocok. Coba kata lain, atau buat dengan AI di bawah.",
+      "shapesFound": "Bentuk",
+      "iconsFound": "Ikon",
+      "icons": "Ikon",
+      "iconColor": "Warna ikon",
+      "showAllIcons": "Lihat semua ({count})",
+      "showFewerIcons": "Lebih sedikit",
+      "iconFailed": "Ikon gagal disiapkan. Coba lagi.",
+      "iconCategories": {
+        "all": "Semua",
+        "general": "Umum",
+        "arrows": "Panah",
+        "business": "Bisnis",
+        "social": "Sosial",
+        "lifestyle": "Gaya hidup",
+        "places": "Tempat"
+      },
+      "aiTitle": "Elemen AI",
+      "aiDescription": "Tulis elemen yang kamu mau, AI menggambarnya dengan latar transparan.",
+      "aiPlaceholder": "Misalnya: stiker cangkir kopi 3D",
+      "aiPrompt": "Deskripsi elemen",
+      "aiButton": "Buat elemen",
+      "aiCost": "{share} kuota",
+      "aiWorking": "Menggambar elemen…",
+      "aiShort": "Kuota AI tidak cukup. Perpanjang di halaman Langganan.",
+      "aiNotInTrial": "Elemen AI tidak termasuk kredit gratis.",
+      "aiFailed": "Elemen gagal dibuat. Coba lagi.",
+      "aiGreenHint": "Elemen berwarna hijau terang bisa ikut terhapus."
+    },
     "addShape": "Bentuk",
     "aiField": "Yang diisi AI",
     "saveSlideTemplate": "Simpan sebagai template",

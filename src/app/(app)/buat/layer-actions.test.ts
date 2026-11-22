@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { refresh } from 'next/cache'
 import { runLogged } from '@/lib/ai'
+import { AI_ELEMENT_UNITS } from '@/lib/billing-options'
+import { getBrandVisual } from '@/lib/brand'
+import { drawElement, NoElementError } from '@/lib/element-ai'
 import { createAsset, deleteAsset, InvalidImageError, loadAssetBytes } from '@/lib/assets'
 import { buildDoc, NoTextError, splitSlide, splitSubject } from '@/lib/magic-layers'
 import { getPost } from '@/lib/posts'
@@ -15,12 +18,12 @@ import {
   saveSlideLayers,
 } from '@/lib/slide-layers'
 import { hasSlidesInProgress } from '@/lib/slides'
-import { FileTooLargeError, StorageFullError } from '@/lib/storage-quota'
+import { FileTooLargeError, hasStorageRoom, StorageFullError } from '@/lib/storage-quota'
 import { fileTooLargeMessage, storageFullMessage } from '@/lib/storage-quota-options'
 import { db } from '@/lib/supabase'
 import { queryMock } from '@/test/query-mock'
 import {
-  loadSlideLayersAction, magicLayersAction, resetSlideLayersAction, saveSlideLayersAction, splitObjectAction, uploadLayerImageAction,
+  aiElementAction, loadSlideLayersAction, magicLayersAction, resetSlideLayersAction, saveSlideLayersAction, splitObjectAction, uploadLayerImageAction,
 } from './layer-actions'
 
 vi.mock('next-intl/server', async () => {
@@ -68,6 +71,10 @@ vi.mock('@/lib/slide-layers', async (importOriginal) => ({
   ownsAssets: vi.fn(),
   resetSlideLayers: vi.fn(),
   saveSlideLayers: vi.fn(),
+}))
+vi.mock('@/lib/element-ai', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/element-ai')>()),
+  drawElement: vi.fn(),
 }))
 vi.mock('@/lib/supabase', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/supabase')>()),
@@ -486,5 +493,53 @@ describe('uploadLayerImageAction', () => {
     vi.mocked(createAsset).mockRejectedValueOnce(new Error('Supabase Storage: secret detail'))
     expect(await uploadLayerImageAction(upload())).toEqual({ error: 'Gambar gagal diunggah. Coba lagi.' })
     errors.mockRestore()
+  })
+})
+
+describe('aiElementAction', () => {
+  const element = { png: new Uint8Array([1, 2, 3]), width: 300, height: 240, log: { prompt: 'p', bytes: 3, width: 300, height: 240 } }
+
+  it('draws the element, stores it as an AI layer image and charges the element units', async () => {
+    vi.mocked(drawElement).mockResolvedValue(element)
+    vi.mocked(createAsset).mockResolvedValue({ id: NEW, width: 300, height: 240 } as never)
+
+    expect(await aiElementAction({ prompt: '  stiker   kopi 3D ' })).toEqual({ assetId: NEW, width: 300, height: 240 })
+    expect(drawElement).toHaveBeenCalledWith('stiker kopi 3D')
+    expect(createAsset).toHaveBeenCalledWith(USER, expect.any(Blob), 300, 240,
+      { accountId: 'ig-1', origin: 'ai', layer: true, enforceQuota: false, locale: 'id' })
+    expect(runLogged).toHaveBeenCalledWith(USER, 'magic_layers', { kind: 'element', prompt: 'stiker kopi 3D' }, expect.any(Function),
+      expect.objectContaining({ model: 'image-model', units: AI_ELEMENT_UNITS }))
+  })
+
+  it('refuses a description that is too short before charging', async () => {
+    expect(await aiElementAction({ prompt: 'a' })).toEqual({ error: 'Tulis deskripsi elemen, 3–200 karakter.' })
+    expect(runLogged).not.toHaveBeenCalled()
+  })
+
+  it('explains an element that did not come out, and a full storage', async () => {
+    vi.mocked(drawElement).mockRejectedValueOnce(new NoElementError('kosong'))
+    expect(await aiElementAction({ prompt: 'stiker kopi' })).toEqual({ error: expect.stringContaining('Kuota dikembalikan') })
+    expect(createAsset).not.toHaveBeenCalled()
+
+    vi.mocked(hasStorageRoom).mockResolvedValueOnce(false)
+    expect(await aiElementAction({ prompt: 'stiker kopi' })).toEqual({ error: storageFullMessage('id') })
+  })
+})
+
+describe('loadSlideLayersAction brand', () => {
+  it('hands the editor the brand fonts and colours, with defaults for an empty kit', async () => {
+    vi.mocked(getSlideLayers).mockResolvedValue(null)
+    vi.mocked(assetSizes).mockResolvedValue({ [OLD]: { width: 1080, height: 1350 } })
+    expect(await loadSlideLayersAction({ postId: POST, assetId: OLD })).toMatchObject({
+      brand: { headingFont: 'Plus Jakarta Sans', bodyFont: 'Inter', colors: [] },
+    })
+
+    vi.mocked(getBrandVisual).mockResolvedValueOnce({
+      name: 'Kopi', category: '', visualStyle: '', headingFont: 'Playfair Display', bodyFont: 'Tidak Ada', designStyle: '',
+      colors: [{ hex: '#f05a28', role: 'utama' }, { hex: '#F05A28', role: 'aksen' }, { hex: 'merah', role: 'teks' }],
+    } as never)
+    expect(await loadSlideLayersAction({ postId: POST, assetId: OLD })).toMatchObject({
+      brand: { headingFont: 'Playfair Display', bodyFont: 'Inter', colors: ['#F05A28'] },
+    })
   })
 })

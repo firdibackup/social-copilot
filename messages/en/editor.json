@@ -534,6 +534,8 @@
     "single": "General"
   },
   "layerActions": {
+    "elementPrompt": "Describe the element in 3–200 characters.",
+    "elementEmpty": "The element didn't come out cleanly. Your quota was returned; try another description.",
     "conflict": "This design changed in another session. Close and reopen the editor; your local draft is still available.",
     "corruptDoc": "This design document could not be read. Your saved image and layers are safe; try reloading the editor.",
     "invalid": "Invalid request. Reload the editor.",
@@ -582,6 +584,62 @@
     "page": "Slide {page} of {total}", "download": "Download slide PNG"
   },
   "layerEditor": {
+    "panelTabs": {
+      "label": "Panel sections",
+      "text": "Text",
+      "elements": "Elements",
+      "images": "Images",
+      "layers": "Layers"
+    },
+    "textStyles": {
+      "title": "Text styles",
+      "hint": "Uses the brand's fonts and colours. Click to add, then change the words.",
+      "headline": "Headline",
+      "subheading": "Subheading",
+      "body": "Body",
+      "kicker": "Kicker",
+      "quote": "Quote",
+      "number": "Big number",
+      "sampleHeadline": "Main headline",
+      "sampleSubheading": "Supporting subheading",
+      "sampleBody": "Write the body here. One idea per slide.",
+      "sampleKicker": "Today's tip",
+      "sampleQuote": "“Write a quote here”",
+      "sampleNumber": "01"
+    },
+    "elements": {
+      "search": "Search elements",
+      "searchPlaceholder": "Search shapes or icons…",
+      "clearSearch": "Clear search",
+      "noResults": "No matching element. Try another word, or make one with AI below.",
+      "shapesFound": "Shapes",
+      "iconsFound": "Icons",
+      "icons": "Icons",
+      "iconColor": "Icon colour",
+      "showAllIcons": "Show all ({count})",
+      "showFewerIcons": "Show fewer",
+      "iconFailed": "Couldn't prepare the icon. Try again.",
+      "iconCategories": {
+        "all": "All",
+        "general": "General",
+        "arrows": "Arrows",
+        "business": "Business",
+        "social": "Social",
+        "lifestyle": "Lifestyle",
+        "places": "Places"
+      },
+      "aiTitle": "AI element",
+      "aiDescription": "Describe the element you want; AI draws it on a transparent background.",
+      "aiPlaceholder": "For example: a 3D coffee cup sticker",
+      "aiPrompt": "Element description",
+      "aiButton": "Make element",
+      "aiCost": "{share} of quota",
+      "aiWorking": "Drawing the element…",
+      "aiShort": "Not enough AI quota. Renew on the Subscription page.",
+      "aiNotInTrial": "AI elements aren't covered by free credits.",
+      "aiFailed": "Couldn't make the element. Try again.",
+      "aiGreenHint": "Bright green elements may be removed with the background."
+    },
     "addShape": "Shapes",
     "aiField": "What the AI fills",
     "saveSlideTemplate": "Save as template",

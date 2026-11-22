@@ -6,11 +6,13 @@ import { refresh } from 'next/cache'
 import sharp from 'sharp'
 import { runLogged } from '@/lib/ai'
 import { imageModel } from '@/lib/app-settings'
-import { magicLayerUnits, OBJECT_SPLIT_UNITS } from '@/lib/billing-options'
+import { AI_ELEMENT_UNITS, magicLayerUnits, OBJECT_SPLIT_UNITS } from '@/lib/billing-options'
 import { createAsset, deleteAsset, InvalidImageError, loadAssetBytes } from '@/lib/assets'
 import { requireAccount } from '@/lib/auth'
 import { getBrandVisual, loadLogoBytes } from '@/lib/brand'
 import { DEFAULT_BODY_FONT, DEFAULT_HEADING_FONT } from '@/lib/design-styles'
+import { drawElement, NoElementError } from '@/lib/element-ai'
+import { cleanElementPrompt } from '@/lib/element-options'
 import { describeError } from '@/lib/errors'
 import { editAttemptActive, GenerationCancelled, watchGeneration } from '@/lib/generation-cancellation'
 import { imageErrorMessage } from '@/lib/image-ai'
@@ -83,8 +85,27 @@ export type LoadLayersResult =
     sizes: Record<string, { width: number; height: number }>
     /** The post can't be changed: the editor opens read-only. */
     readOnly: boolean
+    /** The brand kit's fonts and colours, for Gaya teks and the colour of a new element. */
+    brand: EditorBrand
   }
   | { error: string }
+
+export interface EditorBrand { headingFont: string; bodyFont: string; colors: string[] }
+
+const HEX = /^#[0-9a-fA-F]{6}$/
+
+/** Defaults when the kit is empty, a font is no longer offered, or the kit can't be read: the editor still opens. */
+async function editorBrand(userId: string, accountId: string): Promise<EditorBrand> {
+  const kit = await getBrandVisual(userId, accountId).catch((error) => {
+    console.error('[lapisan] brand kit gagal dimuat, lanjut dengan bawaan:', describeError(error))
+    return null
+  })
+  return {
+    headingFont: isFontName(kit?.headingFont) ? kit.headingFont : DEFAULT_HEADING_FONT,
+    bodyFont: isFontName(kit?.bodyFont) ? kit.bodyFont : DEFAULT_BODY_FONT,
+    colors: [...new Set((kit?.colors ?? []).map((color) => color.hex.toUpperCase()).filter((hex) => HEX.test(hex)))].slice(0, 8),
+  }
+}
 
 export async function loadSlideLayersAction(input: { postId: string; assetId: string }): Promise<LoadLayersResult> {
   const t = await getTranslations('editor.layerActions')
@@ -95,10 +116,10 @@ export async function loadSlideLayersAction(input: { postId: string; assetId: st
     const post = await getPost(userId, postId, accountId)
     if (!post?.media.some((item) => item.assetId === assetId)) return { error: t('notFound') }
     const readOnly = !isEditable(post) || (await hasSlidesInProgress(userId, postId))
-    const layers = await getSlideLayers(userId, assetId)
+    const [layers, brand] = await Promise.all([getSlideLayers(userId, assetId), editorBrand(userId, accountId)])
     const sizes = await assetSizes(userId, accountId,
       [assetId, ...(layers ? [layers.baseAssetId, ...(layers.doc ? docAssetIds(layers.doc) : [])] : [])])
-    if (!layers) return { layers: null, sizes, readOnly }
+    if (!layers) return { layers: null, sizes, readOnly, brand }
     if (!layers.doc) return { error: t('corruptDoc') }
     const base = sizes[layers.baseAssetId]
     if (!base) return { error: t('notFound') }
@@ -112,6 +133,7 @@ export async function loadSlideLayersAction(input: { postId: string; assetId: st
       },
       sizes,
       readOnly,
+      brand,
     }
   } catch (error) {
     console.error('[lapisan] lapisan gagal dimuat:', describeError(error))
@@ -399,6 +421,43 @@ export async function splitObjectAction(input: {
     watch?.stop()
     if (started) await db().from('slide_edit_jobs').update({ status: 'failed' }).eq('id', operationId)
       .eq('user_id', userId).eq('status', 'running')
+  }
+}
+
+/**
+ * Elemen AI: the owner's description drawn as one cut-out object (AI_ELEMENT_UNITS of the magic_layers rate) and
+ * stored as a layer image of the account, for the editor to place. Refunded when nothing usable was drawn and on
+ * failure. Not tied to a post: the layer only exists once the owner saves the slide.
+ */
+export async function aiElementAction(input: { prompt: string }): Promise<{ assetId: string; width: number; height: number } | { error: string }> {
+  const t = await getTranslations('editor.layerActions')
+  const locale = await getLocale()
+  const { userId, accountId } = await requireAccount()
+  const prompt = cleanElementPrompt(input?.prompt)
+  if (!prompt) return { error: t('elementPrompt') }
+  if (!(await hasStorageRoom(userId))) return { error: storageFullMessage(locale) }
+  try {
+    const result = await runLogged(
+      userId,
+      'magic_layers',
+      { kind: 'element', prompt },
+      async () => {
+        const element = await drawElement(prompt)
+        // Already paid for, so past the quota too (like Pisahkan objek).
+        const asset = await createAsset(userId, new Blob([element.png.slice().buffer]), element.width, element.height,
+          { accountId, origin: 'ai', layer: true, enforceQuota: false, locale })
+        return { value: { assetId: asset.id, width: asset.width, height: asset.height }, log: element.log }
+      },
+      { model: await imageModel(), units: AI_ELEMENT_UNITS, logOutput: (done) => done.log },
+    )
+    return result.value
+  } catch (error) {
+    // runLogged has refunded: the error came from inside it.
+    if (error instanceof NoElementError) return { error: t('elementEmpty') }
+    if (error instanceof StorageFullError) return { error: storageFullMessage(locale) }
+    if (error instanceof FileTooLargeError) return { error: fileTooLargeMessage(locale) }
+    console.error('[lapisan] elemen AI gagal:', describeError(error))
+    return { error: imageErrorMessage(error) }
   }
 }
 
