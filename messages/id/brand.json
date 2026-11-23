@@ -42,7 +42,8 @@
     "profileInvalid": "Tempel link profil Instagram atau tulis @username.",
     "profileQuotaFull": "Kuota ambil desain dari akun lain minggu ini sudah habis. Fitur ini sengaja dibatasi supaya tetap cepat — kuota terisi lagi hari Senin. Sementara itu, kamu tetap bisa membuka lagi akun yang sudah diambil minggu ini.",
     "profileEmpty": "Tidak ada post foto atau carousel dari @{username}. Pastikan akunnya publik dan username-nya benar.",
-    "profileFailed": "Post akun itu belum bisa diambil. Coba lagi sebentar lagi."
+    "profileFailed": "Post akun itu belum bisa diambil. Coba lagi sebentar lagi.",
+    "logoPlacementFailed": "Letak logo gagal disimpan. Coba lagi."
   },
   "brandForm": {
     "designRulesPlaceholder": "mis. Kurangi foto keluarga di dalam interior; utamakan interior kosong yang rapi. Jangan pakai ilustrasi 3D.",
@@ -359,5 +360,26 @@
     "message31": "Langganan tidak aktif. Aktifkan di halaman Langganan untuk memakai AI.",
     "fileTooLarge": "File terlalu besar. Coba gambar lain.",
     "quotaSpent": "Kuota AI periode ini tidak cukup. Kuota baru mulai {date}, atau perpanjang di halaman Langganan."
+  },
+  "logoPlacement": {
+    "hint": "Logo ditempel di tempat yang sama pada setiap slide yang memakai logo, tidak digambar ulang oleh AI. Logo transparan otomatis jadi putih di area gelap. Berlaku untuk slide yang dibuat setelah ini.",
+    "size": "Ukuran",
+    "sizes": {
+      "small": "Kecil",
+      "medium": "Sedang",
+      "large": "Besar"
+    },
+    "position": "Posisi",
+    "positions": {
+      "top-left": "Kiri atas",
+      "top-center": "Tengah atas",
+      "top-right": "Kanan atas",
+      "bottom-left": "Kiri bawah",
+      "bottom-center": "Tengah bawah",
+      "bottom-right": "Kanan bawah"
+    },
+    "preview": "Pratinjau",
+    "previewLabel": "Pratinjau slide dengan logo di {position}",
+    "sample": "Judul slide"
   }
 }

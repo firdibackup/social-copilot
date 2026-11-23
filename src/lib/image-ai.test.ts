@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AiLimitError } from './ai'
 import { loadProductImages } from './assets'
 import { loadAttachment } from './attachments'
-import { getBrandVisual, loadLogoImage, loadReferenceImage, VISUAL_BODY_BUDGET, type BrandVisual } from './brand'
+import { getBrandVisual, loadReferenceImage, VISUAL_BODY_BUDGET, type BrandVisual } from './brand'
 import { buildImagePrompt, drawImage, imageErrorMessage, imageLog } from './image-ai'
 import type { ImageInput } from './image-options'
 import { generateImage, RouterApiError } from './nine-router'
@@ -17,7 +17,6 @@ vi.mock('./brand', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./brand')>()),
   getBrandVisual: vi.fn(),
   loadReferenceImage: vi.fn(),
-  loadLogoImage: vi.fn(),
 }))
 
 vi.mock('./nine-router', async (importOriginal) => ({
@@ -138,11 +137,20 @@ describe('buildImagePrompt', () => {
     expect(prompt).toContain('first line in Plus Jakarta Sans bold and the other lines in Inter regular')
   })
 
-  it('forbids any text without a headline, except a logo that was sent', () => {
+  it('forbids any text and any logo without a headline', () => {
     expect(buildImagePrompt({ ...INPUT, headline: '' }, null, [])).toContain(
       'Text: none. No words, letters, numbers, captions or watermarks, and no logos.',
     )
-    expect(buildImagePrompt({ ...INPUT, headline: '' }, null, [{ kind: 'logo' }])).toContain('watermarks other than the logo.')
+  })
+
+  it('never asks for a drawn logo: a slide that carries the logo only keeps its place free', () => {
+    const brand = { ...BRAND, logoPlacement: { position: 'top-left', size: 'medium' } } as BrandVisual
+    const prompt = buildImagePrompt({ ...INPUT, includeLogo: true }, brand, [])
+    expect(prompt).toContain('Logo: do not draw any logo, brand mark or watermark. Keep the top left corner calm')
+    expect(prompt).toContain('the brand logo is added there afterwards')
+    // Without the logo on this slide, or without a logo in the kit, the corner is the model's.
+    expect(buildImagePrompt({ ...INPUT, includeLogo: false }, brand, [])).not.toContain('Logo: do not draw')
+    expect(buildImagePrompt({ ...INPUT, includeLogo: true }, BRAND, [])).not.toContain('Logo: do not draw')
   })
 
   it('names the input images in the order they are sent', () => {
@@ -150,7 +158,6 @@ describe('buildImagePrompt', () => {
       { kind: 'current' },
       { kind: 'sibling' },
       { kind: 'reference', note: 'ambil layout-nya saja' },
-      { kind: 'logo' },
     ])
 
     expect(prompt).toContain('slide 2 of 5 of one carousel')
@@ -158,7 +165,6 @@ describe('buildImagePrompt', () => {
     expect(prompt).toContain('image2 is another inner content slide of this carousel')
     expect(prompt).toContain('image3 is a general style reference')
     expect(prompt).toContain('"ambil layout-nya saja"')
-    expect(prompt).toContain('image4 is the brand logo')
   })
 
   it('stacks text and imagery in bands and keeps everything inside the frame, with or without text', () => {
@@ -295,7 +301,6 @@ describe('drawImage', () => {
     vi.mocked(getBrandVisual).mockReset().mockResolvedValue(BRAND)
     vi.mocked(loadProductImages).mockReset().mockResolvedValue([])
     vi.mocked(loadReferenceImage).mockReset().mockResolvedValue({ dataUrl: dataUrl('R', 400_000), note: 'layout', label: 'single' })
-    vi.mocked(loadLogoImage).mockReset().mockResolvedValue(dataUrl('L', 600_000))
     vi.mocked(loadAttachment).mockReset()
     vi.mocked(loadTemplateImage)
       .mockReset()
@@ -336,16 +341,16 @@ describe('drawImage', () => {
     expect(drawn.prompt).toContain('preserve its shape, colour, materials, packaging, label and visible branding exactly')
   })
 
-  it('sends the current slide and the reference, and skips a logo that no longer fits 1 MB', async () => {
+  it('sends the current slide and the reference, and never the logo: it is stamped afterwards', async () => {
     const currentImage = dataUrl('C', 100_000)
 
     const drawn = await drawImage(USER, ACCOUNT, { ...INPUT, currentImage, referenceImageId: REFERENCE_IMAGE_ID, includeLogo: true })
 
     expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([currentImage, dataUrl('R', 400_000)])
     expect(drawn.sent).toEqual(['current', 'reference'])
-    expect(drawn.skipped).toEqual(['logo (terlalu besar untuk batas 1 MB 9Router)'])
+    expect(drawn.skipped).toEqual([])
     expect(drawn.prompt).toContain('image2 is a design reference')
-    expect(drawn.prompt).not.toContain('brand logo')
+    expect(drawn.prompt).not.toContain('brand logo:')
   })
 
   it('lets an inner slide follow its reference, not the first inner slide made', async () => {
@@ -422,35 +427,32 @@ describe('drawImage', () => {
 
   it('fills the budget exactly, and numbers the next images from image1 after one too big to send', async () => {
     const tooBig = 'x'.repeat(VISUAL_BODY_BUDGET + 1)
-    const logo = 'y'.repeat(VISUAL_BODY_BUDGET)
-    vi.mocked(loadLogoImage).mockResolvedValue(logo)
+    const sibling = 'y'.repeat(VISUAL_BODY_BUDGET)
 
-    const drawn = await drawImage(USER, ACCOUNT, { ...INPUT, currentImage: tooBig, includeLogo: true })
+    const drawn = await drawImage(USER, ACCOUNT, { ...INPUT, currentImage: tooBig, siblingImage: sibling })
 
-    expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([logo])
+    expect(vi.mocked(generateImage).mock.calls[0][0].images).toEqual([sibling])
     expect(drawn.skipped).toEqual(['gambar slide ini (terlalu besar untuk batas 1 MB 9Router)'])
-    expect(drawn.prompt).toContain('image1 is the brand logo')
+    expect(drawn.prompt).toContain('image1 is another inner content slide')
   })
 
-  it('reports a reference and a logo that are gone', async () => {
+  it('reports a reference that is gone', async () => {
     vi.mocked(loadReferenceImage).mockResolvedValue(null)
-    vi.mocked(loadLogoImage).mockResolvedValue(null)
 
     const drawn = await drawImage(USER, ACCOUNT, { ...INPUT, referenceImageId: REFERENCE_IMAGE_ID, includeLogo: true })
 
     expect(loadReferenceImage).toHaveBeenCalledWith(USER, REFERENCE_IMAGE_ID)
-    expect(drawn.skipped).toEqual(['referensi (tidak ditemukan)', 'logo (tidak ditemukan)'])
+    expect(drawn.skipped).toEqual(['referensi (tidak ditemukan)'])
     expect(drawn.sent).toEqual([])
   })
 
-  it("uses the given account's brand, products and logo, not the connected one", async () => {
+  it("uses the given account's brand and products, not the connected one", async () => {
     const productGroupId = '00000000-0000-4000-8000-000000000099'
 
     await drawImage(USER, 'ig-queued', { ...INPUT, productGroupId, includeLogo: true })
 
     expect(getBrandVisual).toHaveBeenCalledWith(USER, 'ig-queued')
     expect(loadProductImages).toHaveBeenCalledWith(USER, 'ig-queued', productGroupId)
-    expect(loadLogoImage).toHaveBeenCalledWith(USER, 'ig-queued')
   })
 
   it('draws an old post without an account without any brand', async () => {
@@ -458,7 +460,6 @@ describe('drawImage', () => {
 
     expect(getBrandVisual).not.toHaveBeenCalled()
     expect(loadProductImages).not.toHaveBeenCalled()
-    expect(loadLogoImage).not.toHaveBeenCalled()
     expect(drawn.sent).toEqual([])
   })
 
@@ -466,7 +467,6 @@ describe('drawImage', () => {
     await drawImage(USER, ACCOUNT, INPUT)
 
     expect(loadReferenceImage).not.toHaveBeenCalled()
-    expect(loadLogoImage).not.toHaveBeenCalled()
   })
 
   it('still draws without the brand when the kit cannot be read', async () => {

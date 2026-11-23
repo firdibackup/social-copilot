@@ -10,6 +10,7 @@ import { ExternalImage, MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
 import { useStorageFull } from '@/components/storage-full'
 import { MAX_IMAGE_BYTES } from '@/lib/image'
+import { LOGO_POSITIONS, LOGO_SIZES, logoBox, type LogoPlacement } from '@/lib/logo-options'
 import {
   BRAND_TEXT_LIMITS,
   COLOR_ROLES,
@@ -35,6 +36,7 @@ import {
   logoFromUrlAction,
   removeLogoAction,
   saveBrandAction,
+  saveLogoPlacementAction,
   uploadLogoAction,
   type ProfileResult,
   type VisualResult,
@@ -174,7 +176,7 @@ export function BrandForm({ kit, references, instagramUsername, visualLimit }: B
             palette={primaryPalette(fields.colors)}
           />
         </div>
-        <LogoField logoUrl={kit.logoUrl} />
+        <LogoField logoUrl={kit.logoUrl} placement={kit.logoPlacement} brandName={fields.name} background={primaryPalette(fields.colors)?.accent ?? null} />
         <PaletteField
           colors={fields.colors}
           onChange={(colors) => update('colors', colors)}
@@ -404,11 +406,31 @@ function ImageChoices({ title, urls, busy, label, onPick }: ImageChoicesProps) {
   )
 }
 
-function LogoField({ logoUrl }: { logoUrl: string | null }) {
+interface LogoFieldProps {
+  logoUrl: string | null
+  placement: LogoPlacement
+  /** For the preview: the brand's name as a slide's headline, on its first colour. */
+  brandName: string
+  background: string | null
+}
+
+function LogoField({ logoUrl, placement: saved, brandName, background }: LogoFieldProps) {
   const t = useTranslations('brand')
   const inputRef = useRef<HTMLInputElement>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Shown at once; a save that fails puts the saved choice back.
+  const [placement, setPlacement] = useState(saved)
+
+  async function place(next: LogoPlacement) {
+    setPlacement(next)
+    setError(null)
+    const failure = await saveLogoPlacementAction(next.position, next.size).catch(() => t('shared.failed'))
+    if (failure) {
+      setPlacement(saved)
+      setError(failure)
+    }
+  }
 
   const storageFull = useStorageFull()
 
@@ -475,8 +497,106 @@ function LogoField({ logoUrl }: { logoUrl: string | null }) {
         )}
       </div>
       <p className="text-xs text-zinc-500">{t('brandForm.text40')}</p>
+      {logoUrl && (
+        <div className="flex flex-wrap gap-4 rounded-xl border border-zinc-200 bg-zinc-50/60 p-3">
+          <LogoPreview logoUrl={logoUrl} placement={placement} brandName={brandName} background={background} />
+          <div className="min-w-0 flex-1 space-y-3">
+            <p className="text-xs text-zinc-600">{t('logoPlacement.hint')}</p>
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-zinc-900">{t('logoPlacement.size')}</p>
+              <div role="group" aria-label={t('logoPlacement.size')} className="inline-flex rounded-lg border border-zinc-200 bg-white p-0.5">
+                {LOGO_SIZES.map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    aria-pressed={placement.size === size}
+                    onClick={() => void place({ ...placement, size })}
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${placement.size === size ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:text-zinc-900'}`}
+                  >
+                    {t(`logoPlacement.sizes.${size}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-zinc-900">{t('logoPlacement.position')}</p>
+              <div role="group" aria-label={t('logoPlacement.position')} className="grid w-fit grid-cols-3 gap-1.5">
+                {LOGO_POSITIONS.map((position) => {
+                  const [vertical, horizontal] = position.split('-')
+                  const active = placement.position === position
+                  return (
+                    <button
+                      key={position}
+                      type="button"
+                      aria-pressed={active}
+                      aria-label={t(`logoPlacement.positions.${position}`)}
+                      title={t(`logoPlacement.positions.${position}`)}
+                      onClick={() => void place({ ...placement, position })}
+                      className={`relative size-11 rounded-lg border bg-white transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${active ? 'border-zinc-900 ring-1 ring-zinc-900' : 'border-zinc-200 hover:border-zinc-400'}`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`absolute size-2.5 rounded-sm ${active ? 'bg-zinc-900' : 'bg-zinc-300'} ${vertical === 'top' ? 'top-1.5' : 'bottom-1.5'} ${horizontal === 'left' ? 'left-1.5' : horizontal === 'right' ? 'right-1.5' : 'left-1/2 -translate-x-1/2'}`}
+                      />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {error && <Notice tone="error">{error}</Notice>}
     </div>
+  )
+}
+
+const PREVIEW = { width: 132, height: 165 }
+
+/** Whether white text reads on this colour. */
+function isDark(hex: string): boolean {
+  const value = /^#?([0-9a-f]{6})$/i.exec(hex)?.[1]
+  if (!value) return true
+  const [red, green, blue] = [0, 2, 4].map((at) => parseInt(value.slice(at, at + 2), 16))
+  return (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255 < 0.6
+}
+
+/** A small 4:5 slide with the logo where the stamp will put it: the same geometry as the server (logoBox). */
+function LogoPreview({ logoUrl, placement, brandName, background }: Omit<LogoFieldProps, 'logoUrl'> & { logoUrl: string }) {
+  const t = useTranslations('brand')
+  const [natural, setNatural] = useState<{ width: number; height: number } | null>(null)
+  const color = background ?? '#14151f'
+  const box = natural ? logoBox(PREVIEW, natural, placement) : null
+  /** Also from the ref: a picture that finished loading before hydration never fires onLoad. */
+  function measure(image: HTMLImageElement | null) {
+    if (!image?.complete || image.naturalWidth === 0) return
+    const { naturalWidth: width, naturalHeight: height } = image
+    setNatural((current) => (current?.width === width && current.height === height ? current : { width, height }))
+  }
+  return (
+    <figure className="flex shrink-0 flex-col items-center gap-1.5">
+      <div
+        role="img"
+        aria-label={t('logoPlacement.previewLabel', { position: t(`logoPlacement.positions.${placement.position}`) })}
+        className={`relative overflow-hidden rounded-xl ${isDark(color) ? 'text-white' : 'text-zinc-900'}`}
+        style={{ ...PREVIEW, backgroundColor: color }}
+      >
+        <span className={`absolute inset-x-3 line-clamp-3 text-[15px] leading-tight font-bold ${placement.position.startsWith('top') ? 'top-9' : 'top-3.5'}`}>
+          {brandName || t('logoPlacement.sample')}
+        </span>
+        {/* A signed link to our own storage; its natural size sets the box. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={logoUrl}
+          alt=""
+          ref={measure}
+          onLoad={(event) => measure(event.currentTarget)}
+          className="absolute object-contain"
+          style={box ? { left: box.left, top: box.top, width: box.width, height: box.height } : { visibility: 'hidden', width: 1, height: 1 }}
+        />
+      </div>
+      <figcaption className="text-xs text-zinc-500">{t('logoPlacement.preview')}</figcaption>
+    </figure>
   )
 }
 

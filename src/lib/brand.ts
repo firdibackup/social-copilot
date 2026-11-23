@@ -29,6 +29,7 @@ import type { ImageType } from './image'
 import { toReferenceDataUrl } from './slide-image'
 import { assertStorageAvailable } from './storage-quota'
 import { MAX_STORED_BYTES } from './storage-quota-options'
+import { DEFAULT_LOGO_PLACEMENT, readLogoPlacement, type LogoPlacement } from './logo-options'
 import { db, unwrap } from './supabase'
 
 const BUCKET = 'brand'
@@ -71,6 +72,8 @@ interface KitRow {
   account_kind: string
   design_style: string
   logo_path: string | null
+  logo_position: string
+  logo_size: string
   sync_status: SyncStatus
   strategy: unknown
   updated_at: string
@@ -95,7 +98,7 @@ interface ReferenceRow {
 }
 
 const KIT_COLUMNS =
-  'name, category, description, website_url, audience, voice, words_use, words_avoid, facts, colors, heading_font, body_font, visual_style, design_rules, account_kind, design_style, logo_path, sync_status, strategy, updated_at'
+  'name, category, description, website_url, audience, voice, words_use, words_avoid, facts, colors, heading_font, body_font, visual_style, design_rules, account_kind, design_style, logo_path, logo_position, logo_size, sync_status, strategy, updated_at'
 const REFERENCE_COLUMNS = 'id, source, source_label, permalink, palette, description, note'
 
 const bucket = () => db().storage.from(BUCKET)
@@ -152,9 +155,15 @@ async function loadConnectedKit(userId: string): Promise<KitRow | null> {
 
 export async function getBrandKit(userId: string, accountId: string): Promise<BrandKit> {
   const row = await loadKit(userId, accountId)
-  if (!row) return { ...EMPTY_BRAND, logoUrl: null, syncStatus: null, strategy: null }
+  if (!row) return { ...EMPTY_BRAND, logoUrl: null, logoPlacement: DEFAULT_LOGO_PLACEMENT, syncStatus: null, strategy: null }
   const [logoUrl] = row.logo_path ? await signUrls([row.logo_path]) : [null]
-  return { ...toFields(row), logoUrl: logoUrl || null, syncStatus: syncStatusOf(row), strategy: readStoredStrategy(row.strategy) }
+  return {
+    ...toFields(row),
+    logoUrl: logoUrl || null,
+    logoPlacement: readLogoPlacement(row.logo_position, row.logo_size),
+    syncStatus: syncStatusOf(row),
+    strategy: readStoredStrategy(row.strategy),
+  }
 }
 
 /** Each fill step bumps updated_at; one that stopped moving was cut off (a restart, a deploy) and won't finish. */
@@ -602,6 +611,8 @@ export interface BrandVisual {
   designStyle: string
   /** What the brand does; with the category it guesses a design style when none was chosen. */
   description?: string
+  /** Where the logo is stamped on a slide that carries it; absent while the kit has no logo. */
+  logoPlacement?: LogoPlacement
 }
 
 /** Null when none of it is filled in. */
@@ -609,8 +620,9 @@ export async function getBrandVisual(userId: string, accountId: string): Promise
   const row = await loadKit(userId, accountId)
   if (!row) return null
   const { name, category, description, visualStyle, designRules, colors, headingFont, bodyFont, designStyle } = toFields(row)
-  const visual = { name, category, description, visualStyle, designRules, colors, headingFont, bodyFont, designStyle }
-  const filled = colors.length > 0 || [name, category, visualStyle, designRules, headingFont, bodyFont, designStyle].some(Boolean)
+  const visual: BrandVisual = { name, category, description, visualStyle, designRules, colors, headingFont, bodyFont, designStyle }
+  if (row.logo_path) visual.logoPlacement = readLogoPlacement(row.logo_position, row.logo_size)
+  const filled = colors.length > 0 || [name, category, visualStyle, designRules, headingFont, bodyFont, designStyle, row.logo_path].some(Boolean)
   return filled ? visual : null
 }
 
@@ -659,6 +671,25 @@ const TYPE_BY_EXTENSION = Object.fromEntries(Object.entries(EXTENSIONS).map(([ty
   string,
   ImageType
 >
+
+/** The logo and where it goes, for stamping a slide; null while the kit has no logo. */
+export async function loadLogoStamp(userId: string, accountId: string): Promise<{ bytes: Uint8Array; placement: LogoPlacement } | null> {
+  const row = await loadKit(userId, accountId)
+  const bytes = row?.logo_path ? await loadLogoBytes(userId, accountId) : null
+  return row && bytes ? { bytes, placement: readLogoPlacement(row.logo_position, row.logo_size) } : null
+}
+
+/** Brand › Logo: where and how large the logo is stamped on the slides made from now on. */
+export async function saveLogoPlacement(userId: string, accountId: string, placement: LogoPlacement): Promise<void> {
+  unwrap(
+    await db()
+      .from('brand_kit')
+      .upsert(
+        { user_id: userId, account_id: accountId, logo_position: placement.position, logo_size: placement.size, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id,account_id' },
+      ),
+  )
+}
 
 export async function loadLogoBytes(userId: string, accountId: string): Promise<Uint8Array | null> {
   const path = (await loadKit(userId, accountId))?.logo_path

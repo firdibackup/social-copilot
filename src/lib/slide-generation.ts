@@ -2,11 +2,13 @@ import 'server-only'
 import { runLogged } from './ai'
 import { imageModel } from './app-settings'
 import { createAsset, deleteAsset, loadAssetBytes } from './assets'
+import { loadLogoStamp } from './brand'
 import type { SlideRole } from './brand-options'
 import { describeError } from './errors'
 import { GenerationCancelled, slideAttemptActive, watchGeneration } from './generation-cancellation'
 import { drawImage, imageErrorMessage, imageLog, type DrawnImage } from './image-ai'
 import type { ImageFormat } from './image-options'
+import { stampLogo } from './logo-stamp'
 import { RouterApiError } from './nine-router'
 import { getPost, type Post } from './posts'
 import { toReferenceDataUrl, toSlideJpeg } from './slide-image'
@@ -25,14 +27,28 @@ export const MAX_SLIDE_ATTEMPTS = 3
 /** Waits before the 2nd and 3rd try. */
 const RETRY_DELAYS_MS = [30_000, 120_000]
 
-/** The provider's image as an Instagram-ready JPEG in Aset. */
+/**
+ * The provider's image as an Instagram-ready JPEG in Aset. With `withLogo`, the brand logo is stamped on it first,
+ * at the place and size of Brand › Logo: the same on every slide, where the image model would draw it differently
+ * each time. A logo that cannot be stamped leaves the slide without one instead of failing it.
+ */
 export async function storeSlideImage(
   userId: string,
   accountId: string | null,
   drawn: DrawnImage,
   format: ImageFormat,
+  withLogo = false,
 ): Promise<string> {
-  const image = await toSlideJpeg(drawn.bytes, format)
+  let bytes = drawn.bytes
+  if (withLogo && accountId) {
+    try {
+      const logo = await loadLogoStamp(userId, accountId)
+      if (logo) bytes = await stampLogo(bytes, format, logo.bytes, logo.placement)
+    } catch (error) {
+      console.error('[slide] logo gagal ditempel:', describeError(error))
+    }
+  }
+  const image = await toSlideJpeg(bytes, format)
   const asset = await createAsset(userId, new Blob([image.bytes.slice().buffer]), image.width, image.height, {
     accountId: accountId ?? undefined,
     origin: 'ai',
@@ -97,7 +113,7 @@ export async function processSlide({ userId, accountId, attemptCount, slide, lea
           slide: count > 1 ? { index: Math.min(slide.position + 1, count), count, role: slide.role } : null,
         }, watch!.signal)
         await watch!.check()
-        assetId = await storeSlideImage(userId, accountId, drawn, slide.format)
+        assetId = await storeSlideImage(userId, accountId, drawn, slide.format, slide.includeLogo)
         await attachSlide(slide.id, assetId, lease)
         assetId = null
         return drawn

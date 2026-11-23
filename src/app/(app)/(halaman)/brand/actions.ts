@@ -7,6 +7,7 @@ import { localizeLibraryMessage } from './localized-errors'
 import { refresh } from 'next/cache'
 import { aiErrorMessage } from '@/lib/ai'
 import { listActiveWebsiteAssets } from '@/lib/assets'
+import { isLogoPosition, isLogoSize } from '@/lib/logo-options'
 import { requireAccount, type AccountScope } from '@/lib/auth'
 import {
   addReference,
@@ -14,6 +15,7 @@ import {
   deleteReference,
   loadLogoBytes,
   loadLogoImage,
+  saveLogoPlacement,
   loadVisualReferences,
   ReferenceLimitError,
   getAccountBrandContext,
@@ -639,6 +641,21 @@ export async function logoFromUrlAction(url: unknown): Promise<ActionError> {
     console.error('[brand] logo dari website gagal:', describeError(error))
     return t('actions.text38')
   }
+}
+
+/** Brand › Logo: the size and place of the logo on the slides made from now on. */
+export async function saveLogoPlacementAction(position: unknown, size: unknown): Promise<ActionError> {
+  const t = await getTranslations('brand')
+  const { userId, accountId } = await requireAccount()
+  if (!isLogoPosition(position) || !isLogoSize(size)) return t('actions.logoPlacementFailed')
+  try {
+    await saveLogoPlacement(userId, accountId, { position, size })
+  } catch (error) {
+    console.error('[brand] letak logo gagal disimpan:', describeError(error))
+    return t('actions.logoPlacementFailed')
+  }
+  refresh()
+  return null
 }
 
 export async function removeLogoAction(): Promise<ActionError> {

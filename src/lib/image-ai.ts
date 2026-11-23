@@ -2,16 +2,17 @@ import 'server-only'
 import { aiErrorMessage, snippetOf } from './ai'
 import { loadProductImages } from './assets'
 import { loadAttachment } from './attachments'
-import { getBrandVisual, loadLogoImage, loadReferenceImage, VISUAL_BODY_BUDGET, type BrandVisual } from './brand'
+import { getBrandVisual, loadReferenceImage, VISUAL_BODY_BUDGET, type BrandVisual } from './brand'
 import type { ColorRole, ReferenceLabel, SlideRole } from './brand-options'
 import { DEFAULT_BODY_FONT, DEFAULT_HEADING_FONT, styleForBrand, type LayoutRole } from './design-styles'
 import { describeError } from './errors'
 import { HEADLINE_MAX_LENGTH, IMAGE_FORMATS, type ImageInput } from './image-options'
 import { generateImage, RouterApiError } from './nine-router'
 import { SlideImageError } from './slide-image'
+import { logoClearanceRule } from './logo-options'
 import { loadTemplateImage } from './templates'
 
-export type InputImageKind = 'current' | 'attachment' | 'product' | 'reference' | 'example' | 'sibling' | 'logo'
+export type InputImageKind = 'current' | 'attachment' | 'product' | 'reference' | 'example' | 'sibling'
 
 /** An input image as the prompt describes it; the n-th one is named `image<n>` by 9Router. */
 export interface PromptImage {
@@ -91,8 +92,6 @@ function describeInputImage(image: PromptImage, index: number, context: ImageCon
       }
       return `${name} is a general style reference: take only its mood and graphic feel, and use this slide’s own layout for its role. Its colours and fonts don't apply: use the brand's. Do not copy its words, people or products.${note}`
     }
-    case 'logo':
-      return `${name} is the brand logo: place it small and unaltered in one corner.`
   }
 }
 
@@ -175,7 +174,7 @@ const PLAIN_LAYOUTS: Record<LayoutRole, string> = {
  * recipe for the role. The cover is never sent to the other slides, so they don't copy it.
  */
 export function buildImagePrompt(
-  input: Pick<ImageInput, 'scene' | 'headline' | 'format' | 'slide'>,
+  input: Pick<ImageInput, 'scene' | 'headline' | 'format' | 'slide'> & Partial<Pick<ImageInput, 'includeLogo'>>,
   brand: BrandVisual | null,
   images: PromptImage[],
 ): string {
@@ -235,9 +234,10 @@ export function buildImagePrompt(
       lines.push(TYPOGRAPHY_RULES)
     }
   } else {
-    const logo = images.some((image) => image.kind === 'logo')
-    lines.push(`Text: none. No words, letters, numbers, captions or watermarks${logo ? ' other than the logo' : ', and no logos'}.`)
+    lines.push('Text: none. No words, letters, numbers, captions or watermarks, and no logos.')
   }
+  // The logo is stamped afterwards (storeSlideImage), the same on every slide: the model only leaves its place free.
+  if (input.includeLogo && brand?.logoPlacement) lines.push(logoClearanceRule(brand.logoPlacement))
   lines.push(MODERN_LOOK)
   // A reference lends its layout only: the palette and fonts the owner set up always apply.
   if (brand) lines.push(...describeBrandVisual(brand, style !== null || reference))
@@ -253,7 +253,6 @@ const SKIPPED_LABELS: Record<InputImageKind, string> = {
   reference: 'referensi',
   example: 'template desain',
   sibling: 'slide isi lain',
-  logo: 'logo',
 }
 
 interface PackedImages {
@@ -265,7 +264,8 @@ interface PackedImages {
 
 /**
  * Input images in priority order: current slide, the owner's attachment, product identity, design reference or style
- * example, sibling inner slide, logo. They are packed only while they fit the 1 MB request limit in front of 9Router.
+ * example, sibling inner slide. They are packed only while they fit the 1 MB request limit in front of 9Router. The
+ * logo is not among them: it is stamped in code after the image is made (logo-stamp.ts).
  */
 async function packImages(userId: string, accountId: string | null, input: ImageInput): Promise<PackedImages> {
   const packed: PackedImages = { images: [], described: [], skipped: [] }
@@ -302,15 +302,6 @@ async function packImages(userId: string, accountId: string | null, input: Image
     })
   }
   if (siblingImage) candidates.push({ kind: 'sibling', load: async () => ({ dataUrl: siblingImage }) })
-  if (input.includeLogo) {
-    candidates.push({
-      kind: 'logo',
-      load: async () => {
-        const dataUrl = accountId ? await loadLogoImage(userId, accountId) : null
-        return dataUrl ? { dataUrl } : null
-      },
-    })
-  }
 
   let used = 0
   const followsDesign = () => packed.described.some((image) => image.kind === 'reference' || image.kind === 'example')

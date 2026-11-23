@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { runLogged } from './ai'
 import { RouterApiError } from './nine-router'
-import { isTransientSlideError, MAX_SLIDE_ATTEMPTS, processSlide } from './slide-generation'
+import { isTransientSlideError, MAX_SLIDE_ATTEMPTS, processSlide, storeSlideImage } from './slide-generation'
 import { failSlide, requeueSlide, SlideError, type ClaimedSlide } from './slides'
 import { GenerationCancelled, slideAttemptActive } from './generation-cancellation'
 import { drawImage } from './image-ai'
 import { createAsset } from './assets'
+import { loadLogoStamp } from './brand'
+import { stampLogo } from './logo-stamp'
+import { toSlideJpeg } from './slide-image'
 import { getPost } from './posts'
 import { attachSlide, listUnfinishedSlides } from './slides'
 
@@ -18,6 +21,8 @@ vi.mock('./image-ai', () => ({
   imageErrorMessage: (error: unknown) => (error instanceof Error ? error.message : 'gagal'),
 }))
 vi.mock('./posts', () => ({ getPost: vi.fn() }))
+vi.mock('./brand', () => ({ loadLogoStamp: vi.fn() }))
+vi.mock('./logo-stamp', () => ({ stampLogo: vi.fn() }))
 vi.mock('./generation-cancellation', async (original) => ({ ...(await original<typeof import('./generation-cancellation')>()), slideAttemptActive: vi.fn() }))
 vi.mock('./slide-image', () => ({ toReferenceDataUrl: vi.fn(), toSlideJpeg: vi.fn() }))
 vi.mock('./slides', async (importOriginal) => ({
@@ -59,6 +64,47 @@ beforeEach(() => {
   vi.mocked(failSlide).mockReset()
   vi.mocked(requeueSlide).mockReset()
   vi.spyOn(console, 'error').mockImplementation(() => {})
+})
+
+describe('storeSlideImage', () => {
+  const drawn = { bytes: new Uint8Array([1]) } as never
+  const logo = { bytes: new Uint8Array([9]), placement: { position: 'top-left', size: 'small' } as const }
+  const stamped = new Uint8Array([1, 9])
+
+  beforeEach(() => {
+    vi.mocked(loadLogoStamp).mockReset().mockResolvedValue(logo)
+    vi.mocked(stampLogo).mockReset().mockResolvedValue(stamped)
+    vi.mocked(toSlideJpeg).mockReset().mockResolvedValue({ bytes: new Uint8Array([2]), width: 1080, height: 1350 })
+    vi.mocked(createAsset).mockReset().mockResolvedValue({ id: 'asset-1' } as never)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  it('stamps the brand logo at its place before the slide is stored', async () => {
+    await expect(storeSlideImage('user-1', 'ig-1', drawn, '4:5', true)).resolves.toBe('asset-1')
+
+    expect(loadLogoStamp).toHaveBeenCalledWith('user-1', 'ig-1')
+    expect(stampLogo).toHaveBeenCalledWith(new Uint8Array([1]), '4:5', logo.bytes, logo.placement)
+    expect(toSlideJpeg).toHaveBeenCalledWith(stamped, '4:5')
+  })
+
+  it('stores the slide as drawn without the logo: not asked for, no logo in the kit, or no account', async () => {
+    await storeSlideImage('user-1', 'ig-1', drawn, '4:5')
+    expect(loadLogoStamp).not.toHaveBeenCalled()
+
+    vi.mocked(loadLogoStamp).mockResolvedValue(null)
+    await storeSlideImage('user-1', 'ig-1', drawn, '4:5', true)
+    await storeSlideImage('user-1', null, drawn, '4:5', true)
+
+    expect(stampLogo).not.toHaveBeenCalled()
+    expect(toSlideJpeg).toHaveBeenLastCalledWith(new Uint8Array([1]), '4:5')
+  })
+
+  it('keeps the slide when the logo cannot be stamped', async () => {
+    vi.mocked(stampLogo).mockRejectedValue(new Error('logo rusak'))
+
+    await expect(storeSlideImage('user-1', 'ig-1', drawn, '4:5', true)).resolves.toBe('asset-1')
+    expect(toSlideJpeg).toHaveBeenCalledWith(new Uint8Array([1]), '4:5')
+  })
 })
 
 describe('isTransientSlideError', () => {

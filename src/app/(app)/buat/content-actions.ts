@@ -225,7 +225,7 @@ export async function editSlideAction(input: unknown): Promise<ActionError> {
           slide: post.media.length > 1 ? { index: index + 1, count: post.media.length, role } : null,
         }, watch!.signal)
         await watch!.check()
-        newAssetId = await storeSlideImage(userId, accountId, drawn, format)
+        newAssetId = await storeSlideImage(userId, accountId, drawn, format, includeLogo)
         unwrap(await db().rpc('finish_slide_edit', { p_user_id: userId, p_id: operationId, p_replacement: {
           postId,
           oldAssetId: assetId,

@@ -42,7 +42,8 @@
     "profileInvalid": "Paste an Instagram profile link or type an @username.",
     "profileQuotaFull": "You've used this week's allowance for pulling designs from other accounts. We keep this feature limited so it stays fast — it refills on Monday. Meanwhile, you can still reopen accounts you've already pulled this week.",
     "profileEmpty": "No photo or carousel posts found for @{username}. Make sure the account is public and the username is correct.",
-    "profileFailed": "Couldn't fetch that account's posts. Try again in a moment."
+    "profileFailed": "Couldn't fetch that account's posts. Try again in a moment.",
+    "logoPlacementFailed": "The logo's placement could not be saved. Try again."
   },
   "brandForm": {
     "designRulesPlaceholder": "e.g. Fewer family photos in interiors; prefer tidy empty rooms. No 3D illustrations.",
@@ -359,5 +360,26 @@
     "message31": "Your subscription is inactive. Activate it on the Subscription page to use AI.",
     "fileTooLarge": "File is too large. Try another image.",
     "quotaSpent": "Not enough AI credits for this period. Your quota renews on {date}, or you can renew on the Subscription page."
+  },
+  "logoPlacement": {
+    "hint": "The logo is stamped at the same place on every slide that carries it; the AI does not redraw it. A transparent logo turns white on dark areas by itself. Applies to slides made from now on.",
+    "size": "Size",
+    "sizes": {
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large"
+    },
+    "position": "Position",
+    "positions": {
+      "top-left": "Top left",
+      "top-center": "Top centre",
+      "top-right": "Top right",
+      "bottom-left": "Bottom left",
+      "bottom-center": "Bottom centre",
+      "bottom-right": "Bottom right"
+    },
+    "preview": "Preview",
+    "previewLabel": "Preview of a slide with the logo at {position}",
+    "sample": "Slide headline"
   }
 }
