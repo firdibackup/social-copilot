@@ -5,6 +5,7 @@ import { getLocale } from 'next-intl/server'
 import { getTranslations } from 'next-intl/server'
 
 import { AiOutputError, aiErrorMessage } from '@/lib/ai'
+import { getContentLanguage } from '@/lib/brand'
 import { requireAccount } from '@/lib/auth'
 import { parseInstruction } from '@/lib/content-options'
 import { describeError } from '@/lib/errors'
@@ -33,7 +34,7 @@ export async function threadsAiAction(input: unknown): Promise<ThreadsAiResult> 
   const t = await getTranslations('editor.threadsActions')
   const locale = await getLocale()
 
-  const { userId } = await requireAccount()
+  const { userId, accountId } = await requireAccount()
   const fields = fieldsOf(input)
   if (!Array.isArray(fields.texts) || fields.texts.length > MAX_THREAD_ITEMS
     || !fields.texts.every((text) => typeof text === 'string')) {
@@ -48,10 +49,11 @@ export async function threadsAiAction(input: unknown): Promise<ThreadsAiResult> 
   }
 
   try {
+    const language = await getContentLanguage(userId, accountId, locale)
     const blank = texts.every((text) => !text.trim())
-    if (blank) return { texts: fitThreadAnswer(await writeThread(userId, instruction, locale)) }
-    if (target === null) return { texts: fitThreadAnswer(await editThread(userId, texts, instruction, null, locale)) }
-    const answer = fitThreadAnswer(await editThread(userId, texts, instruction, target, locale))
+    if (blank) return { texts: fitThreadAnswer(await writeThread(userId, instruction, language)) }
+    if (target === null) return { texts: fitThreadAnswer(await editThread(userId, texts, instruction, null, language)) }
+    const answer = fitThreadAnswer(await editThread(userId, texts, instruction, target, language))
     const revised = [...texts.slice(0, target), ...answer, ...texts.slice(target + 1)]
     if (revised.length > MAX_THREAD_ITEMS
       || revised.some((text) => !text.trim() || threadsLength(text) > THREADS_TEXT_LIMIT)) {

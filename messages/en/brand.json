@@ -43,7 +43,8 @@
     "profileQuotaFull": "You've used this week's allowance for pulling designs from other accounts. We keep this feature limited so it stays fast — it refills on Monday. Meanwhile, you can still reopen accounts you've already pulled this week.",
     "profileEmpty": "No photo or carousel posts found for @{username}. Make sure the account is public and the username is correct.",
     "profileFailed": "Couldn't fetch that account's posts. Try again in a moment.",
-    "logoPlacementFailed": "The logo's placement could not be saved. Try again."
+    "logoPlacementFailed": "The logo's placement could not be saved. Try again.",
+    "contentLanguageFailed": "The content language could not be saved. Try again."
   },
   "brandForm": {
     "designRulesPlaceholder": "e.g. Fewer family photos in interiors; prefer tidy empty rooms. No 3D illustrations.",
@@ -381,5 +382,24 @@
     "preview": "Preview",
     "previewLabel": "Preview of a slide with the logo at {position}",
     "sample": "Slide headline"
+  },
+  "contentLanguage": {
+    "title": "Content language",
+    "hint": "Used for ideas, scripts, the text on slides, captions and Threads. The language of the app does not change. Applies to content made from now on.",
+    "following": "Not chosen yet: content follows the language of the app for now.",
+    "options": {
+      "id": {
+        "label": "Indonesian",
+        "description": "All text in Indonesian."
+      },
+      "en": {
+        "label": "English",
+        "description": "All text in natural English."
+      },
+      "mixed": {
+        "label": "Mixed",
+        "description": "Casual Indonesian with everyday English words."
+      }
+    }
   }
 }

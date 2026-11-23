@@ -1,5 +1,6 @@
 import 'server-only'
-import type { Locale } from './ai-language'
+import type { ContentLanguage, Locale } from './ai-language'
+import { getContentLanguage } from './brand'
 import type { ContentRequest } from './content-options'
 import type { TextDensity } from './density-options'
 import type { ScriptSlide } from './script-options'
@@ -17,15 +18,15 @@ export interface ContentJob {
   lease: string | null
   payload: {
     /** Captured at enqueue time; workers never access request cookies. */
-    language?: Locale
+    language?: ContentLanguage
     density?: TextDensity
-    request?: ContentRequest & { language?: Locale }
+    request?: ContentRequest & { language?: ContentLanguage }
     script?: ScriptSlide[] | null
     attachmentPath?: string | null
     /** A script's direction from Mimo's approved bulk plan. */
     brief?: string
     /** A script that goes straight on to its caption and images once written (finish_script_job), with this request. */
-    auto?: { request: ContentRequest & { language?: Locale } }
+    auto?: { request: ContentRequest & { language?: ContentLanguage } }
   }
 }
 
@@ -42,7 +43,9 @@ export async function getContentJobByKey(userId: string, accountId: string, requ
 }
 
 export async function enqueueContentJob(userId: string, accountId: string, requestKey: string, ideaId: string | null,
-  kind: ContentJob['kind'], payload: ContentJob['payload'], language: Locale = payload.language ?? 'id'): Promise<string> {
+  kind: ContentJob['kind'], payload: ContentJob['payload'], display: Locale = 'id'): Promise<string> {
+  // The brand's content language (Brand › Bahasa konten), or the language the owner reads the app in (`display`).
+  const language = payload.language ?? (await getContentLanguage(userId, accountId, display))
   // finish_script_job rebuilds payload from auto.request. Keep language there too so the atomic
   // script -> content transition preserves it without a schema or stored-procedure migration.
   payload = {

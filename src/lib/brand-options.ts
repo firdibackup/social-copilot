@@ -1,3 +1,4 @@
+import type { ContentLanguage } from './ai-language'
 import type { LogoPlacement } from './logo-options'
 import { createTranslator } from 'use-intl/core'
 import type { Locale } from '@/i18n/locale-config'
@@ -77,6 +78,8 @@ export interface BrandKit extends BrandFields {
   logoUrl: string | null
   /** Where and how large the logo is stamped on every slide that carries it. */
   logoPlacement: LogoPlacement
+  /** The language the content is written in; null while the brand follows the language of the app. */
+  contentLanguage: ContentLanguage | null
   syncStatus: SyncStatus
   /** Saved on its own card, apart from the form's fields. */
   strategy: ContentStrategy | null

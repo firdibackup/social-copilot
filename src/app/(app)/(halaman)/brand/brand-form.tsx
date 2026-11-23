@@ -1,6 +1,6 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 
 import { ImagePlus, Plus, Sparkles, X } from 'lucide-react'
 import { useRef, useState, type FormEvent, type ReactNode } from 'react'
@@ -9,6 +9,7 @@ import { DesignStylePicker, FontPreview, FontSelect } from '@/components/design-
 import { ExternalImage, MediaImage } from '@/components/media-image'
 import { Notice } from '@/components/notice'
 import { useStorageFull } from '@/components/storage-full'
+import { CONTENT_LANGUAGES, type ContentLanguage } from '@/lib/ai-language'
 import { MAX_IMAGE_BYTES } from '@/lib/image'
 import { LOGO_POSITIONS, LOGO_SIZES, logoBox, type LogoPlacement } from '@/lib/logo-options'
 import {
@@ -36,6 +37,7 @@ import {
   logoFromUrlAction,
   removeLogoAction,
   saveBrandAction,
+  saveContentLanguageAction,
   saveLogoPlacementAction,
   uploadLogoAction,
   type ProfileResult,
@@ -154,6 +156,7 @@ export function BrandForm({ kit, references, instagramUsername, visualLimit }: B
           rows: 3,
           placeholder: t('brandForm.text8'),
         })}
+        <ContentLanguageField chosen={kit.contentLanguage} />
         <div className="grid gap-4 sm:grid-cols-2">
           {text('wordsUse', { rows: 2, placeholder: t('brandForm.text9') })}
           {text('wordsAvoid', { rows: 2, placeholder: t('brandForm.text10') })}
@@ -402,6 +405,54 @@ function ImageChoices({ title, urls, busy, label, onPick }: ImageChoicesProps) {
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+/**
+ * Brand › Bahasa konten: the language of everything written for the brand's audience (ideas, scripts, slide text,
+ * captions, Threads), apart from the language the owner reads the app in. Saved at once, like the logo's placement.
+ */
+function ContentLanguageField({ chosen }: { chosen: ContentLanguage | null }) {
+  const t = useTranslations('brand')
+  // A brand that has not chosen follows the language of the app.
+  const display: ContentLanguage = useLocale() === 'en' ? 'en' : 'id'
+  const [picked, setPicked] = useState(chosen)
+  const [error, setError] = useState<string | null>(null)
+  const active = picked ?? display
+
+  async function pick(language: ContentLanguage) {
+    setPicked(language)
+    setError(null)
+    const failure = await saveContentLanguageAction(language).catch(() => t('shared.failed'))
+    if (failure) {
+      setPicked(chosen)
+      setError(failure)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <div>
+        <p className="text-sm font-medium text-zinc-900">{t('contentLanguage.title')}</p>
+        <p className="text-xs text-zinc-500">{t('contentLanguage.hint')}</p>
+      </div>
+      <div role="group" aria-label={t('contentLanguage.title')} className="grid gap-2 sm:grid-cols-3">
+        {CONTENT_LANGUAGES.map((language) => (
+          <button
+            key={language}
+            type="button"
+            aria-pressed={active === language}
+            onClick={() => void pick(language)}
+            className={`rounded-lg border bg-white px-3 py-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${active === language ? 'border-zinc-900 ring-1 ring-zinc-900' : 'border-zinc-200 hover:border-zinc-400'}`}
+          >
+            <span className="block text-sm font-medium text-zinc-900">{t(`contentLanguage.options.${language}.label`)}</span>
+            <span className="block text-xs text-zinc-500">{t(`contentLanguage.options.${language}.description`)}</span>
+          </button>
+        ))}
+      </div>
+      {picked === null && <p className="text-xs text-zinc-500">{t('contentLanguage.following')}</p>}
+      {error && <Notice tone="error">{error}</Notice>}
     </div>
   )
 }

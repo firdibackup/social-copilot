@@ -72,3 +72,43 @@ describe('original Indonesian AI prompts', () => {
     expect(buildSystemPrompt(null, false, 'Kopi pagi', new Date('2026-10-31T00:00:00Z'))).toMatchSnapshot()
   })
 })
+
+describe('mixed Indonesian and English content', () => {
+  it('keeps the Indonesian prompt and only adds the mixed-language rule', () => {
+    const prompt = 'Tulis caption dalam bahasa Indonesia.'
+    const mixed = languagePrompt(prompt, 'mixed')
+    expect(mixed.startsWith(prompt)).toBe(true)
+    expect(mixed).toContain('campuran Indonesia dan Inggris')
+    expect(mixed).toContain('Jangan menulis satu paragraf penuh dalam bahasa Inggris')
+    expect(mixed).not.toContain('Write all output in English')
+    expect(outputLanguageInstruction('mixed')).toBe(mixed.slice(prompt.length + 2))
+  })
+
+  it('reaches every content writer, without changing structured output contracts', () => {
+    const prompts = [
+      buildContentMessages('Kopi', 3, null, 'auto', [], null, null, null, 'seimbang', 'mixed'),
+      buildIdeasMessages(brand, [], 'mixed'),
+      buildCaptionEditMessages('Halo', 'pendekkan', null, 'mixed'),
+      buildThreadWriteMessages('Kopi', null, 'mixed'),
+      buildThreadEditMessages(['Halo'], 'pendekkan', null, null, 'mixed'),
+    ]
+    for (const messages of prompts) {
+      const system = String(messages[0].content)
+      expect(system).toContain('campuran Indonesia dan Inggris')
+      expect(system).toContain('Kunci JSON, nilai enum, ID, URL')
+    }
+  })
+
+  it('tells Mimo the brand\'s content language only when it differs from the language it answers in', () => {
+    const now = new Date('2026-11-23T00:00:00Z')
+    const same = buildSystemPrompt(null, false, '', now, 'id', [], 'id')
+    expect(same).toBe(buildSystemPrompt(null, false, '', now, 'id'))
+    expect(same).not.toContain('Bahasa konten brand ini')
+
+    expect(buildSystemPrompt(null, false, '', now, 'id', [], 'mixed')).toContain('Bahasa konten brand ini: campuran Indonesia dan Inggris')
+    // An owner who reads the app in English and publishes in Indonesian: Mimo answers in English, writes in Indonesian.
+    const english = buildSystemPrompt(null, false, '', now, 'en', [], 'id')
+    expect(english).toContain('Bahasa konten brand ini')
+    expect(english).toContain('Write all output in English')
+  })
+})

@@ -6,6 +6,7 @@ import { getTranslations } from 'next-intl/server'
 
 import { refresh } from 'next/cache'
 import { aiErrorMessage, loadBrandContext, runLogged, trialCredits } from '@/lib/ai'
+import { getContentLanguage } from '@/lib/brand'
 import { imageModel } from '@/lib/app-settings'
 import { deleteAsset, loadAssetBytes } from '@/lib/assets'
 import { readAttachment, removeAttachment, saveAttachment } from '@/lib/attachments'
@@ -207,7 +208,7 @@ export async function editSlideAction(input: unknown): Promise<ActionError> {
       async () => {
         const [revised, bytes] = await Promise.all([
           reviseSlide({ headline: source?.headline ?? '', scene: source?.scene ?? '' }, instruction, attachment?.dataUrl ?? null,
-            watch!.signal, post.media.length === 1, locale),
+            watch!.signal, post.media.length === 1, await getContentLanguage(userId, accountId, locale)),
           loadAssetBytes(userId, assetId),
         ])
         if (!bytes) throw new SlideError(t('message10'))
@@ -262,14 +263,14 @@ export async function editCaptionAction(input: unknown): Promise<CaptionResult> 
   const t = await getTranslations('editor.contentActions')
   const locale = await getLocale()
 
-  const { userId } = await requireAccount()
+  const { userId, accountId } = await requireAccount()
   const caption = captionOf(isObject(input) ? input.caption : null)
   if (lengthOf(caption) > CAPTION_MAX_LENGTH) return { error: t('message12') }
   const instruction = parseInstruction(isObject(input) ? input.instruction : null, locale)
   if (typeof instruction !== 'string') return instruction
 
   try {
-    return { caption: await editCaption(userId, caption, instruction, locale) }
+    return { caption: await editCaption(userId, caption, instruction, await getContentLanguage(userId, accountId, locale)) }
   } catch (error) {
     console.error('[buat] edit caption gagal:', describeError(error))
     return { error: aiErrorMessage(error) }
@@ -285,7 +286,7 @@ export async function generateIdeasAction(): Promise<ActionError> {
   try {
     const brand = await loadBrandContext(userId)
     if (!brand) return t('message13')
-    await suggestIdeas(userId, brand, await recentTitles(userId, accountId), (ideas) => addIdeas(userId, accountId, ideas), locale, await loadScriptSources(userId, accountId))
+    await suggestIdeas(userId, brand, await recentTitles(userId, accountId), (ideas) => addIdeas(userId, accountId, ideas), await getContentLanguage(userId, accountId, locale), await loadScriptSources(userId, accountId))
   } catch (error) {
     console.error('[buat] ide gagal dibuat:', describeError(error))
     return aiErrorMessage(error)
@@ -306,7 +307,7 @@ export async function generateScriptAction(ideaId: unknown, density: unknown = n
     if (!isTextDensity(density)) return { error: t('message15') }
     const postId = await enqueueContentJob(userId, accountId, ideaId, ideaId, 'script', { density }, locale)
     if (rewrite) {
-      unwrap(await db().from('content_jobs').update({ status: 'pending', payload: { density, language: locale }, attempts: 0, error: null })
+      unwrap(await db().from('content_jobs').update({ status: 'pending', payload: { density, language: await getContentLanguage(userId, accountId, locale) }, attempts: 0, error: null })
         .eq('post_id', postId).eq('user_id', userId).eq('account_id', accountId).eq('kind', 'script').in('status', ['ready', 'failed', 'cancelled']))
     }
     return { postId }

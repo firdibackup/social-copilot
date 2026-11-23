@@ -1,5 +1,5 @@
 import 'server-only'
-import { languagePrompt, type Locale } from './ai-language'
+import { languagePrompt, type ContentLanguage, type Locale } from './ai-language'
 import { aiErrorMessage, cleanList, describeBrand, loadAccountBrandContext, quote, runLogged } from './ai'
 import {
   ApifyError,
@@ -358,8 +358,23 @@ const DEEP_SEARCH_ON =
 const DEEP_SEARCH_OFF =
   '- Intel Kompetitor (riset akun Instagram lain) sedang mati. Kalau owner minta riset akun kompetitor, minta dia menyalakan tombol Intel Kompetitor di kotak pesan.'
 
+/** Said to Mimo only when the brand's content language differs from the language it answers the owner in. */
+const CONTENT_LANGUAGE_NOTES: Record<ContentLanguage, string> = {
+  id: 'Bahasa konten brand ini: bahasa Indonesia. Apa pun yang kamu tulis untuk audiens brand (ide, skrip, teks slide, caption, Threads) ditulis dalam bahasa Indonesia, walaupun kamu menjawab owner dalam bahasa lain.',
+  en: 'Bahasa konten brand ini: bahasa Inggris. Apa pun yang kamu tulis untuk audiens brand (ide, skrip, teks slide, caption, Threads) ditulis dalam bahasa Inggris yang natural, walaupun kamu menjawab owner dalam bahasa lain.',
+  mixed: 'Bahasa konten brand ini: campuran Indonesia dan Inggris. Apa pun yang kamu tulis untuk audiens brand (ide, skrip, teks slide, caption, Threads) memakai kalimat bahasa Indonesia santai dengan selipan kata atau frasa bahasa Inggris yang lazim dipakai sehari-hari.',
+}
+
 /** Mimo's system prompt: the rules, the brand, today, and what came before the verbatim messages. */
-export function buildSystemPrompt(brand: BrandContext | null, deepSearch: boolean, summary: string, now: Date, language: Locale = 'id', hooks: HookTemplate[] = []): string {
+export function buildSystemPrompt(
+  brand: BrandContext | null,
+  deepSearch: boolean,
+  summary: string,
+  now: Date,
+  language: Locale = 'id',
+  hooks: HookTemplate[] = [],
+  contentLanguage: ContentLanguage = language,
+): string {
   const today = wibDateKey(now)
   return languagePrompt([
     ...SYSTEM_RULES,
@@ -371,6 +386,8 @@ export function buildSystemPrompt(brand: BrandContext | null, deepSearch: boolea
     '',
     brand ? describeBrand(brand).trimEnd() : 'Brand belum diisi. Sarankan owner melengkapi menu Brand supaya jawaban lebih sesuai bisnisnya.',
     ...(summary ? ['', `Ringkasan percakapan sebelumnya:\n${quote(summary)}`] : []),
+    // Mimo answers the owner in the app's language; what it writes for the brand's audience follows the brand.
+    ...(contentLanguage === language ? [] : ['', CONTENT_LANGUAGE_NOTES[contentLanguage]]),
   ].join('\n'), language)
 }
 
@@ -467,6 +484,8 @@ function userContent(turn: UserTurn): string | ContentPart[] {
 interface ToolContext {
   ownerRequest: string
   language: Locale
+  /** The brand's content language: what the scripts Mimo writes are in. */
+  contentLanguage: ContentLanguage
   userId: string
   accountId: string
   brand: BrandContext | null
@@ -674,7 +693,7 @@ async function draftScript(context: ToolContext, request: ScriptRequest): Promis
       context.brand,
       context.signal,
       context.density,
-      context.language,
+      context.contentLanguage,
       sources,
       context.ownerRequest,
     )
@@ -694,7 +713,7 @@ async function draftScript(context: ToolContext, request: ScriptRequest): Promis
       context.brand,
       context.signal,
       context.density,
-      context.language,
+      context.contentLanguage,
       sources,
       context.ownerRequest,
     )
@@ -974,6 +993,8 @@ export interface ChatReply {
 
 export interface ChatRequest {
   language?: Locale
+  /** Brand › Bahasa konten; the app's language when the brand has not chosen. */
+  contentLanguage?: ContentLanguage
   userId: string
   accountId: string
   session: ChatSession
@@ -993,6 +1014,7 @@ export interface ChatRequest {
  */
 export async function answerChat(request: ChatRequest): Promise<ChatReply> {
   const { userId, accountId, session, history, turn, deepSearch, onTool, language = 'id' } = request
+  const contentLanguage = request.contentLanguage ?? language
   const parts: ChatPart[] = []
   const toolNames: string[] = []
   try {
@@ -1007,12 +1029,12 @@ export async function answerChat(request: ChatRequest): Promise<ChatReply> {
           loadAccountBrandContext(userId, accountId),
           getDensityDefault(userId, accountId).catch(() => DEFAULT_DENSITY),
         ])
-        const context: ToolContext = { userId, accountId, brand, density, deepSearch, signal, language, ownerRequest: turn.text }
+        const context: ToolContext = { userId, accountId, brand, density, deepSearch, signal, language, contentLanguage, ownerRequest: turn.text }
         const hooks = await retrieveHooks(turn.text)
         Object.assign(input, { hookIds: hooks.templates.map((h) => h.id), hookSource: hooks.source })
         const tools = chatTools(deepSearch)
         const messages: ConversationMessage[] = [
-          { role: 'system', content: buildSystemPrompt(brand, deepSearch, session.summary, new Date(), language, hooks.templates) },
+          { role: 'system', content: buildSystemPrompt(brand, deepSearch, session.summary, new Date(), language, hooks.templates, contentLanguage) },
           ...history.map(
             (message): ConversationMessage =>
               message.role === 'user'

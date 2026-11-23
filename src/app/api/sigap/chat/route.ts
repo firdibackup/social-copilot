@@ -16,6 +16,7 @@ import {
   type ChatEvent,
   type ChatPart,
 } from '@/lib/chat-options'
+import { getContentLanguage } from '@/lib/brand'
 import { getConnectedAccountId } from '@/lib/connection'
 import { describeError } from '@/lib/errors'
 import { isUuid } from '@/lib/params'
@@ -150,6 +151,7 @@ export async function POST(request: Request): Promise<Response> {
           turn: upload.turn,
           deepSearch,
           language: locale,
+          contentLanguage: await getContentLanguage(userId, accountId, locale),
           onTool: (name) => send({ type: 'tool', name }),
         })
         const assistant = await addMessage(userId, chat.id, { role: 'assistant', content: reply.content, parts: persistableParts(reply.parts) })

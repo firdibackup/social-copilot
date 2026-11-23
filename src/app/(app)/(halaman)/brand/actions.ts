@@ -7,6 +7,7 @@ import { localizeLibraryMessage } from './localized-errors'
 import { refresh } from 'next/cache'
 import { aiErrorMessage } from '@/lib/ai'
 import { listActiveWebsiteAssets } from '@/lib/assets'
+import { isContentLanguage } from '@/lib/ai-language'
 import { isLogoPosition, isLogoSize } from '@/lib/logo-options'
 import { requireAccount, type AccountScope } from '@/lib/auth'
 import {
@@ -15,6 +16,7 @@ import {
   deleteReference,
   loadLogoBytes,
   loadLogoImage,
+  saveContentLanguage,
   saveLogoPlacement,
   loadVisualReferences,
   ReferenceLimitError,
@@ -641,6 +643,21 @@ export async function logoFromUrlAction(url: unknown): Promise<ActionError> {
     console.error('[brand] logo dari website gagal:', describeError(error))
     return t('actions.text38')
   }
+}
+
+/** Brand › Bahasa konten: the language the brand's content is written in from now on. */
+export async function saveContentLanguageAction(language: unknown): Promise<ActionError> {
+  const t = await getTranslations('brand')
+  const { userId, accountId } = await requireAccount()
+  if (!isContentLanguage(language)) return t('actions.contentLanguageFailed')
+  try {
+    await saveContentLanguage(userId, accountId, language)
+  } catch (error) {
+    console.error('[brand] bahasa konten gagal disimpan:', describeError(error))
+    return t('actions.contentLanguageFailed')
+  }
+  refresh()
+  return null
 }
 
 /** Brand › Logo: the size and place of the logo on the slides made from now on. */

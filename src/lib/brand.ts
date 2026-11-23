@@ -29,6 +29,7 @@ import type { ImageType } from './image'
 import { toReferenceDataUrl } from './slide-image'
 import { assertStorageAvailable } from './storage-quota'
 import { MAX_STORED_BYTES } from './storage-quota-options'
+import { isContentLanguage, type ContentLanguage, type Locale } from './ai-language'
 import { DEFAULT_LOGO_PLACEMENT, readLogoPlacement, type LogoPlacement } from './logo-options'
 import { db, unwrap } from './supabase'
 
@@ -74,6 +75,7 @@ interface KitRow {
   logo_path: string | null
   logo_position: string
   logo_size: string
+  content_language: string
   sync_status: SyncStatus
   strategy: unknown
   updated_at: string
@@ -98,7 +100,7 @@ interface ReferenceRow {
 }
 
 const KIT_COLUMNS =
-  'name, category, description, website_url, audience, voice, words_use, words_avoid, facts, colors, heading_font, body_font, visual_style, design_rules, account_kind, design_style, logo_path, logo_position, logo_size, sync_status, strategy, updated_at'
+  'name, category, description, website_url, audience, voice, words_use, words_avoid, facts, colors, heading_font, body_font, visual_style, design_rules, account_kind, design_style, logo_path, logo_position, logo_size, content_language, sync_status, strategy, updated_at'
 const REFERENCE_COLUMNS = 'id, source, source_label, permalink, palette, description, note'
 
 const bucket = () => db().storage.from(BUCKET)
@@ -155,12 +157,13 @@ async function loadConnectedKit(userId: string): Promise<KitRow | null> {
 
 export async function getBrandKit(userId: string, accountId: string): Promise<BrandKit> {
   const row = await loadKit(userId, accountId)
-  if (!row) return { ...EMPTY_BRAND, logoUrl: null, logoPlacement: DEFAULT_LOGO_PLACEMENT, syncStatus: null, strategy: null }
+  if (!row) return { ...EMPTY_BRAND, logoUrl: null, logoPlacement: DEFAULT_LOGO_PLACEMENT, contentLanguage: null, syncStatus: null, strategy: null }
   const [logoUrl] = row.logo_path ? await signUrls([row.logo_path]) : [null]
   return {
     ...toFields(row),
     logoUrl: logoUrl || null,
     logoPlacement: readLogoPlacement(row.logo_position, row.logo_size),
+    contentLanguage: isContentLanguage(row.content_language) ? row.content_language : null,
     syncStatus: syncStatusOf(row),
     strategy: readStoredStrategy(row.strategy),
   }
@@ -671,6 +674,33 @@ const TYPE_BY_EXTENSION = Object.fromEntries(Object.entries(EXTENSIONS).map(([ty
   string,
   ImageType
 >
+
+/**
+ * The language the account's content is written in: what Brand › Bahasa konten says, or, for a brand that has not
+ * chosen, the language its owner reads the app in (`display`). A kit that cannot be read falls back to that too:
+ * the content is still made.
+ */
+export async function getContentLanguage(userId: string, accountId: string, display: Locale = 'id'): Promise<ContentLanguage> {
+  try {
+    const chosen = (await loadKit(userId, accountId))?.content_language
+    return isContentLanguage(chosen) ? chosen : display
+  } catch (error) {
+    console.error('[brand] bahasa konten tidak terbaca, memakai bahasa tampilan:', describeError(error))
+    return display
+  }
+}
+
+/** Brand › Bahasa konten. */
+export async function saveContentLanguage(userId: string, accountId: string, language: ContentLanguage): Promise<void> {
+  unwrap(
+    await db()
+      .from('brand_kit')
+      .upsert(
+        { user_id: userId, account_id: accountId, content_language: language, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id,account_id' },
+      ),
+  )
+}
 
 /** The logo and where it goes, for stamping a slide; null while the kit has no logo. */
 export async function loadLogoStamp(userId: string, accountId: string): Promise<{ bytes: Uint8Array; placement: LogoPlacement } | null> {

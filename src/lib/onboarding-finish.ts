@@ -1,19 +1,11 @@
 import 'server-only'
 import type { Locale } from './ai-language'
-import { getBrandFields, startBrandSync, updateBrandKit } from './brand'
+import { saveContentLanguage, startBrandSync } from './brand'
 import { syncProvisionalAccount } from './brand-sync'
 import { ensureProvisionalConnection, getConnectedAccountId } from './connection'
-import { describeError } from './errors'
 import { getStoredLookup } from './instagram-lookup'
 import { applyPostsPerWeek, getOnboardingExtras, kitColumnsOf, saveOnboarding } from './onboarding'
-import type { CaptionLanguage, OnboardingAnswers } from './onboarding-options'
-
-/** What the brand voice says about the caption language the user picked; Indonesian is the default and says nothing. */
-const LANGUAGE_NOTES: Record<CaptionLanguage, string> = {
-  id: '',
-  en: 'Caption dan teks slide ditulis dalam bahasa Inggris.',
-  mixed: 'Caption dan teks slide memakai campuran bahasa Indonesia dan Inggris.',
-}
+import type { OnboardingAnswers } from './onboarding-options'
 
 export interface Finished {
   /** The brand fill to run after the response; null when the user's account already has its kit. */
@@ -29,7 +21,11 @@ export interface Finished {
 export async function finishOnboarding(userId: string, answers: OnboardingAnswers, language: Locale): Promise<Finished> {
   const connected = await getConnectedAccountId(userId)
   await saveOnboarding(userId, answers, true)
-  if (connected) return { fill: null }
+  if (connected) {
+    // "Caption post-mu pakai bahasa apa?" is the brand's content language (Brand › Bahasa konten).
+    if (answers.captionLanguage) await saveContentLanguage(userId, connected, answers.captionLanguage)
+    return { fill: null }
+  }
 
   const { avatarPath } = await getOnboardingExtras(userId)
   const lookup = answers.igUsername ? await getStoredLookup(answers.igUsername) : null
@@ -38,15 +34,15 @@ export async function finishOnboarding(userId: string, answers: OnboardingAnswer
     ...kitColumnsOf(answers),
     ...(answers.name || lookup?.profile.name ? { name: answers.name || lookup!.profile.name } : {}),
     ...(answers.website || lookup?.profile.website ? { website_url: answers.website || lookup!.profile.website } : {}),
+    ...(answers.captionLanguage ? { content_language: answers.captionLanguage } : {}),
   }
   // False when a second tab finished first: that one runs the fill.
   if (!(await startBrandSync(userId, accountId, seed))) return { fill: null }
   if (answers.postsPerWeek) await applyPostsPerWeek(userId, accountId, answers.postsPerWeek)
 
-  const note = answers.captionLanguage ? LANGUAGE_NOTES[answers.captionLanguage] : ''
   return {
-    fill: async () => {
-      await syncProvisionalAccount(
+    fill: () =>
+      syncProvisionalAccount(
         userId,
         accountId,
         {
@@ -65,14 +61,6 @@ export async function finishOnboarding(userId: string, answers: OnboardingAnswer
         },
         answers.postsPerWeek || undefined,
         language,
-      )
-      if (!note) return
-      try {
-        const voice = (await getBrandFields(userId, accountId))?.voice ?? ''
-        if (!voice.includes(note)) await updateBrandKit(userId, accountId, { voice: [voice, note].filter(Boolean).join(' ') })
-      } catch (error) {
-        console.error('[mulai] catatan bahasa caption gagal disimpan:', describeError(error))
-      }
-    },
+      ),
   }
 }

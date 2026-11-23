@@ -43,7 +43,8 @@
     "profileQuotaFull": "Kuota ambil desain dari akun lain minggu ini sudah habis. Fitur ini sengaja dibatasi supaya tetap cepat — kuota terisi lagi hari Senin. Sementara itu, kamu tetap bisa membuka lagi akun yang sudah diambil minggu ini.",
     "profileEmpty": "Tidak ada post foto atau carousel dari @{username}. Pastikan akunnya publik dan username-nya benar.",
     "profileFailed": "Post akun itu belum bisa diambil. Coba lagi sebentar lagi.",
-    "logoPlacementFailed": "Letak logo gagal disimpan. Coba lagi."
+    "logoPlacementFailed": "Letak logo gagal disimpan. Coba lagi.",
+    "contentLanguageFailed": "Bahasa konten gagal disimpan. Coba lagi."
   },
   "brandForm": {
     "designRulesPlaceholder": "mis. Kurangi foto keluarga di dalam interior; utamakan interior kosong yang rapi. Jangan pakai ilustrasi 3D.",
@@ -381,5 +382,24 @@
     "preview": "Pratinjau",
     "previewLabel": "Pratinjau slide dengan logo di {position}",
     "sample": "Judul slide"
+  },
+  "contentLanguage": {
+    "title": "Bahasa konten",
+    "hint": "Dipakai untuk ide, skrip, teks di dalam slide, caption, dan Threads. Bahasa tampilan aplikasi tidak ikut berubah. Berlaku untuk konten yang dibuat setelah ini.",
+    "following": "Belum dipilih: saat ini konten mengikuti bahasa tampilan aplikasi.",
+    "options": {
+      "id": {
+        "label": "Indonesia",
+        "description": "Semua teks dalam bahasa Indonesia."
+      },
+      "en": {
+        "label": "English",
+        "description": "Semua teks dalam bahasa Inggris yang natural."
+      },
+      "mixed": {
+        "label": "Campuran",
+        "description": "Bahasa Indonesia santai dengan selipan kata bahasa Inggris."
+      }
+    }
   }
 }

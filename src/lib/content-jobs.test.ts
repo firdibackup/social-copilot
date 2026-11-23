@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { enqueueContentJob } from './content-jobs'
 import type { ContentRequest } from './content-options'
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn() }))
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), chosen: null as string | null }))
+// A brand without a choice follows the language of the app, as getContentLanguage does.
+vi.mock('./brand', () => ({ getContentLanguage: async (_user: string, _account: string, display: string) => mocks.chosen ?? display }))
 vi.mock('./supabase', () => ({ db: () => ({ rpc: mocks.rpc }), unwrap: (result: { data: unknown }) => result.data }))
 vi.mock('./storage-quota', () => ({ hasStorageRoom: async () => true, StorageFullError: class extends Error {} }))
 
@@ -11,7 +13,24 @@ const request: ContentRequest = {
   pillarId: null, includeLogo: false, density: 'seimbang', ideaId: null,
 }
 
-beforeEach(() => { mocks.rpc.mockReset().mockResolvedValue({ data: 'post-id' }) })
+beforeEach(() => {
+  mocks.rpc.mockReset().mockResolvedValue({ data: 'post-id' })
+  mocks.chosen = null
+})
+
+describe('the brand\'s content language', () => {
+  it('wins over the language the owner reads the app in, for the job and the request it keeps', async () => {
+    mocks.chosen = 'mixed'
+    await enqueueContentJob('owner', 'account', 'key', null, 'content', { request }, 'en')
+    expect(mocks.rpc.mock.calls[0][1].p_payload).toMatchObject({ language: 'mixed', request: { language: 'mixed' } })
+  })
+
+  it('never replaces a language the job already carries', async () => {
+    mocks.chosen = 'mixed'
+    await enqueueContentJob('owner', 'account', 'key', null, 'content', { request, language: 'en' }, 'id')
+    expect(mocks.rpc.mock.calls[0][1].p_payload.language).toBe('en')
+  })
+})
 
 describe('durable generation language', () => {
   it('persists English at enqueue time and inside the auto request retained by finish_script_job', async () => {

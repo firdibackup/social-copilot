@@ -1,5 +1,5 @@
 import 'server-only'
-import { languagePrompt, type Locale } from './ai-language'
+import { languagePrompt, type ContentLanguage } from './ai-language'
 import { AiOutputError, describeBrand, loadBrandContext, quote, readJson, runLogged, snippetOf } from './ai'
 import type { BrandContext } from './brand-options'
 import { chatCompletion, type ChatMessage } from './nine-router'
@@ -20,7 +20,7 @@ const THREAD_SYSTEM = [
 
 const chainText = (texts: readonly string[]) => texts.map((item, index) => `Post #${index + 1}:\n${quote(item)}`).join('\n\n')
 
-export function buildThreadWriteMessages(topic: string, brand: BrandContext | null, language: Locale = 'id'): ChatMessage[] {
+export function buildThreadWriteMessages(topic: string, brand: BrandContext | null, language: ContentLanguage = 'id'): ChatMessage[] {
   return [
     { role: 'system', content: languagePrompt(THREAD_SYSTEM, language) },
     {
@@ -43,7 +43,7 @@ export function buildThreadEditMessages(
   instruction: string,
   target: number | null,
   brand: BrandContext | null,
-  language: Locale = 'id',
+  language: ContentLanguage = 'id',
 ): ChatMessage[] {
   const task = target === null
     ? `Tugas: ubah seluruh rantai Threads sesuai permintaan owner. Boleh menambah atau mengurangi post, tetapi hasil harus 1–${MAX_THREAD_ITEMS} post dan tetap menjadi satu alur yang utuh.`
@@ -78,7 +78,7 @@ export function parseThreadAnswer(content: string): string[] {
 }
 
 /** A new Threads chain from one topic; it only fills the editor. */
-export function writeThread(userId: string, topic: string, language: Locale = 'id'): Promise<string[]> {
+export function writeThread(userId: string, topic: string, language: ContentLanguage = 'id'): Promise<string[]> {
   return runLogged(userId, 'threads_write', { topic }, async () => {
     const brand = await loadBrandContext(userId)
     return parseThreadAnswer(await chatCompletion(buildThreadWriteMessages(topic, brand, language)))
@@ -91,7 +91,7 @@ export function editThread(
   texts: string[],
   instruction: string,
   target: number | null,
-  language: Locale = 'id',
+  language: ContentLanguage = 'id',
 ): Promise<string[]> {
   const input = { posts: texts.length, instruction, target }
   return runLogged(userId, 'threads_edit', input, async () => {
