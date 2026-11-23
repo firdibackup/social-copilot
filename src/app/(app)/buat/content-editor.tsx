@@ -228,7 +228,8 @@ export function ContentEditor({
   const [format, setFormat] = useState<ImageFormat>('4:5')
   const [referenceId, setReferenceId] = useState(AUTO_REFERENCE)
   const [density, setDensity] = useState<TextDensity>(defaultDensity)
-  const [includeLogo, setIncludeLogo] = useState(false)
+  // On when the brand has a logo: it is stamped at the place and size of Brand › Logo, the same on every slide.
+  const [includeLogo, setIncludeLogo] = useState(hasLogo)
   const pickerRef = useRef<HTMLDialogElement>(null)
   const short = (cost: number) => credits !== null && cost > credits
   // The trial covers only a new carousel: scripts, edits and captions open the upgrade dialog from the server's answer.
