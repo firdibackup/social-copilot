@@ -3,12 +3,13 @@ import settingsMessages from '@/../messages/id/settings.json'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { currentPeriod, currentUser } from '@/lib/auth'
 import { after } from 'next/server'
-import { hasBrandKit, hasOtherBrandKit, startBrandSync } from '@/lib/brand'
-import { getCompletedAnswers } from '@/lib/onboarding'
+import { hasBrandKit, hasOtherBrandKit, startBrandSync, updateBrandKit } from '@/lib/brand'
+import { getCompletedAnswers, isOnboarded, markInstagramVerified } from '@/lib/onboarding'
 import { EMPTY_ANSWERS } from '@/lib/onboarding-options'
 import { syncNewAccount } from '@/lib/brand-sync'
 import {
   AccountTakenError,
+  adoptProvisionalAccount,
   claimOrphanRows,
   consumeOAuthState,
   draftScheduledPosts,
@@ -31,15 +32,19 @@ vi.mock('@/lib/connection', async (importOriginal) => ({
   getConnectedAccountId: vi.fn(),
   draftScheduledPosts: vi.fn(),
   claimOrphanRows: vi.fn(),
+  adoptProvisionalAccount: vi.fn(),
 }))
+vi.mock('@/lib/funnel', () => ({ logFunnel: vi.fn() }))
 vi.mock('next/server', () => ({ after: vi.fn() }))
 vi.mock('@/lib/threads-connection', () => ({ deleteOtherThreadsConnection: vi.fn() }))
-vi.mock('@/lib/brand', () => ({ hasBrandKit: vi.fn(), hasOtherBrandKit: vi.fn(), startBrandSync: vi.fn() }))
+vi.mock('@/lib/brand', () => ({ hasBrandKit: vi.fn(), hasOtherBrandKit: vi.fn(), startBrandSync: vi.fn(), updateBrandKit: vi.fn() }))
 vi.mock('@/lib/brand-sync', () => ({ syncNewAccount: vi.fn() }))
 vi.mock('@/lib/inbox-sync', () => ({ ensureWebhookSubscription: vi.fn() }))
 vi.mock('@/lib/onboarding', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/onboarding')>()),
   getCompletedAnswers: vi.fn(),
+  isOnboarded: vi.fn(),
+  markInstagramVerified: vi.fn(),
 }))
 vi.mock('@/lib/instagram', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/instagram')>()),
@@ -83,10 +88,39 @@ describe('GET /api/auth/instagram/callback', () => {
     vi.mocked(hasBrandKit).mockResolvedValue(true)
     vi.mocked(hasOtherBrandKit).mockResolvedValue(false)
     vi.mocked(startBrandSync).mockResolvedValue(true)
+    vi.mocked(isOnboarded).mockResolvedValue(true)
   })
 
   describe('switching and new accounts', () => {
     const connect = () => callback('code=abc&state=s1')
+
+    it('moves what a user made before the Instagram login to the account they log in with', async () => {
+      vi.mocked(getConnectedAccountId).mockResolvedValue(`pra-${USER}`)
+
+      const response = await connect()
+
+      expect(redirectTarget(response).params).toEqual({ ig: 'connected' })
+      expect(adoptProvisionalAccount).toHaveBeenCalledWith(USER, `pra-${USER}`, PROFILE.userId)
+      // The placeholder account is not another Instagram account: nothing of it becomes a draft.
+      expect(draftScheduledPosts).not.toHaveBeenCalled()
+      expect(markInstagramVerified).toHaveBeenCalledWith(USER, PROFILE.username)
+      // The kit from the username lookup stays; the login adds what only Instagram gives, and keeps the picked logo.
+      expect(startBrandSync).not.toHaveBeenCalled()
+      expect(updateBrandKit).toHaveBeenCalledWith(USER, PROFILE.userId, { syncStatus: 'running' })
+      runAfterTasks()
+      expect(syncNewAccount).toHaveBeenCalledWith(USER, PROFILE.userId, undefined, 'id', { keepLogo: true })
+    })
+
+    it('returns to the onboarding when the login was started from its first step', async () => {
+      vi.mocked(isOnboarded).mockResolvedValue(false)
+
+      expect(redirectTarget(await connect()).path).toMatch(/\/mulai$/)
+
+      vi.mocked(saveConnection).mockRejectedValue(new AccountTakenError('dipakai'))
+      const failed = redirectTarget(await connect())
+      expect(failed.path).toMatch(/\/mulai$/)
+      expect(failed.params).toEqual({ ig_error: 'akun_dipakai' })
+    })
 
     it('fills the brand of an account connected for the first time, after the redirect', async () => {
       vi.mocked(hasBrandKit).mockResolvedValue(false)
