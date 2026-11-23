@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useActionState, type ReactNode } from 'react'
 import { CarouselyLogo } from '@/components/brand-mark'
 import { Notice } from '@/components/notice'
-import { TRIAL_CHAT_MESSAGES, TRIAL_CONTENTS } from '@/lib/billing-options'
 import { signIn, signInWithGoogle, signUp } from './actions'
 
 const LABEL = 'block space-y-1 text-sm font-medium text-zinc-900'
@@ -57,16 +56,6 @@ export function AuthForm({ mode, next, oauthError, notice }: {
   return (
     <div className="space-y-4">
       {notice && <Notice tone="success">{notice}</Notice>}
-      {isSignUp && (
-        <ol className="space-y-1.5 rounded-xl bg-accent/5 p-3 text-sm text-zinc-700" aria-label={t('guideLabel')}>
-          {(['guideGoogle', 'guideInstagram', 'guideFree'] as const).map((key, index) => (
-            <li key={key} className="flex gap-2">
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-semibold text-white" aria-hidden="true">{index + 1}</span>
-              {t(key, { contents: TRIAL_CONTENTS, chats: TRIAL_CHAT_MESSAGES })}
-            </li>
-          ))}
-        </ol>
-      )}
       <form action={googleAction} className="space-y-3">
         {next && <input type="hidden" name="next" value={next} />}
         {(googleState.error || oauthError) && <Notice tone="error">{googleState.error || oauthError}</Notice>}
