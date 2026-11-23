@@ -50,13 +50,16 @@ export async function finishOnboarding(userId: string, answers: OnboardingAnswer
         userId,
         accountId,
         {
-          instagram: lookup && {
-            username: lookup.profile.username,
-            name: lookup.profile.name,
-            biography: lookup.profile.bio,
-            // A private account's captions were never read.
-            captions: lookup.profile.captions ?? [],
-          },
+          instagram: lookup
+            ? {
+                username: lookup.profile.username,
+                name: lookup.profile.name,
+                biography: lookup.profile.bio,
+                // A private account's captions were never read.
+                captions: lookup.profile.captions ?? [],
+              }
+            // Without a profile to read, the brand is drafted from what the user wrote about it.
+            : { username: answers.igUsername, name: answers.name, biography: answers.description, captions: [] },
           websiteUrl: answers.website || lookup?.profile.website || '',
           logoPath: answers.logoChoice === 'none' ? null : avatarPath,
         },

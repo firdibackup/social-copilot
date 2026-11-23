@@ -76,7 +76,7 @@ export async function syncNewAccount(
 
 /** What the onboarding knows of a user who has not logged in with Instagram: the lookup, a website, a picked logo. */
 export interface ProvisionalSource {
-  /** The confirmed profile; null for a user without Instagram, whose kit starts from their own answers. */
+  /** The confirmed profile, or for a user without one what they wrote about the brand as its name and biography. */
   instagram: { username: string; name: string; biography: string; captions: string[] } | null
   websiteUrl: string
   /** Our stored copy of the picture the user picked as the logo. */
@@ -141,7 +141,7 @@ async function fillBrandKit(
 
     const hasText = Boolean(source.website || profile.biography || profile.name || captions.length > 0)
     const profileText = !hasText ? null : await step('profil', async () => {
-      const instagram = profile.username ? { ...profile, captions } : null
+      const instagram = profile.username || profile.name || profile.biography ? { ...profile, captions } : null
       const draft = await analyzeProfile(userId, { website: source.website, instagram }, { cost: 0, ...(language === 'en' ? { language } : {}) })
       const fields = PROFILE_FIELDS.filter((field) => draft[field] && isEmpty(field))
       if (fields.length > 0) {
