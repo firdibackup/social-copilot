@@ -125,7 +125,7 @@
   "referencesPanel": {
     "text1": "Referensi desain",
     "text2": "Contoh desain yang ingin ditiru gayanya: unggahan, potongan grid, post akunmu, atau post akun lain. Palet dihitung dari piksel gambar. Tulis catatan apa yang mau diambil dari tiap referensi, lalu jalankan analisis visual di bagian Visual.",
-    "text3": "Label menentukan slide mana yang meniru gambar itu: Cover, Isi, atau CTA meniru layout-nya untuk slide berperan sama; Umum dipinjam gayanya oleh slide yang belum punya referensi sesuai perannya.",
+    "text3": "Label menentukan slide mana yang meniru gambar itu: Cover, Isi, atau CTA ditiru desainnya (tata letak, latar, warna, dan gaya huruf) oleh slide berperan sama; Umum dipinjam tampilannya oleh slide yang belum punya referensi sesuai perannya. Referensi yang dipilih sebagai acuan saat membuat konten menentukan tampilannya, mengalahkan warna dan font brand.",
     "text4": "Potong screenshot profil atau moodboard jadi beberapa referensi",
     "text5": "Dari grid",
     "text6": "Dari @",

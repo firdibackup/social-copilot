@@ -58,6 +58,16 @@ const givesLayout = (image: PromptImage, role: SlideRole | null) =>
   image.kind === 'reference' &&
   ((image.label !== undefined && image.label !== 'single') || role === null || role === 'cover')
 
+/** What a reference the owner chose gives a slide besides its layout. */
+const REFERENCE_LOOK = 'background treatment, colour palette, typography style with its weight and letter case, and graphic motifs'
+
+/**
+ * Said once when an owner's reference is among the images. The scene is written before the image is made and may
+ * name a layout or colours of its own; the brand's colours and fonts are left out below for the same reason.
+ */
+const REFERENCE_RULES =
+  'The owner\'s reference decides the design of this slide. Where the scene\'s wording about layout, colours, fonts or style differs from the reference, the reference wins: take from the scene only what to show.'
+
 const ROLE_NAMES: Record<ColorRole, string> = {
   utama: 'primary',
   sekunder: 'secondary',
@@ -84,20 +94,26 @@ function describeInputImage(image: PromptImage, index: number, context: ImageCon
       return `${name} is another inner content slide of this carousel: keep its layout, text placement, colours, typography and lighting, with this slide's own scene and text.`
     case 'reference': {
       const note = image.note ? ` The owner's note about it: "${image.note}".` : ''
+      // The owner chose this design for the post: it decides the look, not only the layout.
       if (image.label && image.label !== 'single') {
-        return `${name} is ${REFERENCE_SLIDES[image.label]} of the owner's reference carousel: copy its layout for this slide: where the text and photo sit, text size and hierarchy, graphic elements, framing and composition. Take the colours and fonts from the brand below, never from it. Do not copy its words, people or products.${note}`
+        return `${name} is ${REFERENCE_SLIDES[image.label]} of the owner's reference carousel, the design the owner chose for this post: match it. Copy its layout for this slide (where the text and photo sit, text size and hierarchy, graphic elements, framing and composition) and its look (${REFERENCE_LOOK}). Do not copy its words, people, products or logo.${note}`
       }
       if (givesLayout(image, context.role)) {
-        return `${name} is a design reference: follow its layout, composition and mood, not its content, colours or fonts.${note}`
+        return `${name} is a design reference: follow its style, composition and mood, and take its look (${REFERENCE_LOOK}); not its words, people, products or logo.${note}`
       }
-      return `${name} is a general style reference: take only its mood and graphic feel, and use this slide’s own layout for its role. Its colours and fonts don't apply: use the brand's. Do not copy its words, people or products.${note}`
+      return `${name} is a general style reference: take its look (${REFERENCE_LOOK}) and its mood, and use this slide’s own layout for its role. Do not copy its words, people, products or logo.${note}`
     }
   }
 }
 
-function describeBrandVisual(brand: BrandVisual, styled: boolean): string[] {
+/**
+ * `ruled`: a reference the owner chose decides the look, so the kit's visual style, colours and fonts are left
+ * out: named here, they would override it, and every post would come out in the kit's look whatever was chosen.
+ */
+function describeBrandVisual(brand: BrandVisual, styled: boolean, ruled: boolean): string[] {
   const lines: string[] = []
   if (brand.name) lines.push(`Brand: ${brand.name}${brand.category ? ` (${brand.category})` : ''}.`)
+  if (ruled) return lines
   if (brand.visualStyle) {
     lines.push(
       styled
@@ -191,6 +207,9 @@ export function buildImagePrompt(
   lines.push(`Scene: ${input.scene}`)
   const context: ImageContext = { role, colors: (brand?.colors.length ?? 0) > 0 }
   lines.push(...images.map((image, index) => describeInputImage(image, index, context)))
+  // A reference the owner chose for this post: it decides the look of the slide, whichever part it lends the layout to.
+  const ruled = images.some((image) => image.kind === 'reference')
+  if (ruled) lines.push(REFERENCE_RULES)
 
   const reference = images.some((image) => givesLayout(image, role))
   // An owner reference is the complete design authority. Admin styles and generic brand visual settings are fallbacks,
@@ -211,13 +230,17 @@ export function buildImagePrompt(
   }
   if (!textDesign && !reference) lines.push(LAYOUT_RULES)
 
-  // The owner's fonts on every slide, reference or not, so a carousel never switches typefaces.
+  // The owner's fonts on every slide, so a carousel never switches typefaces; a chosen reference brings its own.
   const headingFont = brand?.headingFont || style?.headingFont || DEFAULT_HEADING_FONT
   const bodyFont = brand?.bodyFont || style?.bodyFont || DEFAULT_BODY_FONT
   if (input.headline) {
     const multiline = input.headline.includes('\n')
     const breaks = multiline ? ' Keep its line breaks; the first line is the headline.' : ''
-    const fonts = multiline
+    const fonts = ruled
+      ? multiline
+        ? ' Set the first line the way the reference sets its headline and the other lines the way it sets its body text: the same typeface style, weight and letter case.'
+        : ' Set it the way the reference sets its headline: the same typeface style, weight and letter case.'
+      : multiline
         ? ` Set the first line in ${headingFont} bold and the other lines in ${bodyFont} regular, clearly smaller (or close matches).`
         : ` Set it in ${headingFont} bold, or a close match.`
     if (textDesign) {
@@ -239,8 +262,8 @@ export function buildImagePrompt(
   // The logo is stamped afterwards (storeSlideImage), the same on every slide: the model only leaves its place free.
   if (input.includeLogo && brand?.logoPlacement) lines.push(logoClearanceRule(brand.logoPlacement))
   lines.push(MODERN_LOOK)
-  // A reference lends its layout only: the palette and fonts the owner set up always apply.
-  if (brand) lines.push(...describeBrandVisual(brand, style !== null || reference))
+  // A chosen reference decides the look; otherwise the palette and fonts the owner set up apply.
+  if (brand) lines.push(...describeBrandVisual(brand, style !== null || reference, ruled))
   // Last and outside the reference check: the owner's limits beat a reference, a style and the scene.
   if (brand?.designRules) lines.push(`Owner's design rules (always follow, they override the scene and any reference): ${brand.designRules}`)
   return lines.join('\n')

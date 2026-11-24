@@ -125,7 +125,7 @@
   "referencesPanel": {
     "text1": "Design references",
     "text2": "Design examples to draw inspiration from: uploads, grid crops, your posts, or another account's posts. Palettes are calculated from image pixels. Note what you'd like to borrow from each reference, then run visual analysis in the Visuals section.",
-    "text3": "Labels decide which slides follow each image: Cover, Content, or CTA layouts guide slides with the same role; General styles guide slides that don't have a reference for their role yet.",
+    "text3": "Labels decide which slides follow each image: slides with the same role copy the design of a Cover, Content, or CTA image (layout, background, colours and lettering); General lends its look to slides that don't have a reference for their role yet. A reference chosen for a post decides its look, above the brand's colours and fonts.",
     "text4": "Split a profile screenshot or moodboard into references",
     "text5": "From grid",
     "text6": "From @",
