@@ -13,7 +13,7 @@ const answer: Extract<ChatEvent, { type: 'done' }> = {
 
 describe('Mimo browser cache', () => {
   it('reuses prefetched conversations on A → B → A without reloading support or history', async () => {
-    const fetcher = vi.fn(async () => Response.json({ session: { id: 'a' }, messages: [] }))
+    const fetcher = vi.fn(async () => Response.json({ session: { id: 'a' }, messages: [], activeJob: null }))
     vi.stubGlobal('fetch', fetcher)
     const client = new QueryClient()
     try {
@@ -33,7 +33,7 @@ describe('Mimo browser cache', () => {
   })
 
   it('deduplicates reads and isolates accounts', async () => {
-    const fetcher = vi.fn(async () => Response.json({ session: { id: 'a' }, messages: [] }))
+    const fetcher = vi.fn(async () => Response.json({ session: { id: 'a' }, messages: [], activeJob: null }))
     vi.stubGlobal('fetch', fetcher)
     const client = new QueryClient()
     try {
@@ -47,8 +47,8 @@ describe('Mimo browser cache', () => {
   it('updates the original conversation even after navigation, without duplicating messages', async () => {
     const client = new QueryClient()
     try {
-      client.setQueryData(mimoKeys.conversation('u:ig', 'a'), { session: { id: 'a' }, messages: [] })
-      client.setQueryData(mimoKeys.conversation('u:ig', 'b'), { session: { id: 'b' }, messages: [] })
+      client.setQueryData(mimoKeys.conversation('u:ig', 'a'), { session: { id: 'a' }, messages: [], activeJob: null })
+      client.setQueryData(mimoKeys.conversation('u:ig', 'b'), { session: { id: 'b' }, messages: [], activeJob: null })
       await receiveAnswer(client, 'u:ig', answer, () => true)
       await receiveAnswer(client, 'u:ig', answer, () => true)
       expect(client.getQueryData<Conversation>(mimoKeys.conversation('u:ig', 'a'))?.messages).toEqual([answer.user, answer.assistant])
@@ -66,7 +66,7 @@ describe('Mimo browser cache', () => {
 
       const snapshot = await forgetConversation(client, 'u:ig', 'a')
       expect(client.getQueryData(mimoKeys.sessions('u:ig'))).toEqual([sessions[1]])
-      expect(client.getQueryData(mimoKeys.conversation('u:ig', 'a'))).toEqual({ session: null, messages: [] })
+      expect(client.getQueryData(mimoKeys.conversation('u:ig', 'a'))).toEqual({ session: null, messages: [], activeJob: null })
 
       restoreConversation(client, 'u:ig', 'a', snapshot)
       expect(client.getQueryData(mimoKeys.sessions('u:ig'))).toEqual(sessions)
@@ -78,8 +78,8 @@ describe('Mimo browser cache', () => {
     const client = new QueryClient()
     try {
       client.setQueryData(mimoKeys.sessions('u:ig'), [{ id: 'a' }, { id: 'b' }])
-      client.setQueryData(mimoKeys.conversation('u:ig', 'a'), { session: { id: 'a' }, messages: [] })
-      client.setQueryData(mimoKeys.conversation('u:ig', 'b'), { session: { id: 'b' }, messages: [] })
+      client.setQueryData(mimoKeys.conversation('u:ig', 'a'), { session: { id: 'a' }, messages: [], activeJob: null })
+      client.setQueryData(mimoKeys.conversation('u:ig', 'b'), { session: { id: 'b' }, messages: [], activeJob: null })
       const failedA = await forgetConversation(client, 'u:ig', 'a')
       await forgetConversation(client, 'u:ig', 'b')
 
@@ -92,10 +92,10 @@ describe('Mimo browser cache', () => {
     const client = new QueryClient()
     try {
       client.setQueryData(mimoKeys.sessions('u:ig'), [{ id: 'a' }, { id: 'b' }])
-      client.setQueryData(mimoKeys.conversation('u:ig', 'a'), { session: { id: 'a' }, messages: [] })
+      client.setQueryData(mimoKeys.conversation('u:ig', 'a'), { session: { id: 'a' }, messages: [], activeJob: null })
       await forgetConversation(client, 'u:ig', 'a')
       await receiveAnswer(client, 'u:ig', answer, () => true)
-      expect(client.getQueryData(mimoKeys.conversation('u:ig', 'a'))).toEqual({ session: null, messages: [] })
+      expect(client.getQueryData(mimoKeys.conversation('u:ig', 'a'))).toEqual({ session: null, messages: [], activeJob: null })
       expect(client.getQueryData(mimoKeys.sessions('u:ig'))).toEqual([{ id: 'b' }])
       client.clear()
       await receiveAnswer(client, 'u:ig', { ...answer, created: true }, () => false)
@@ -108,11 +108,11 @@ describe('Mimo browser cache', () => {
     let complete!: (response: Response) => void
     vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => { complete = resolve })))
     try {
-      client.setQueryData(mimoKeys.conversation('u:ig', 'a'), { session: { id: 'a' }, messages: [] })
+      client.setQueryData(mimoKeys.conversation('u:ig', 'a'), { session: { id: 'a' }, messages: [], activeJob: null })
       await client.invalidateQueries({ queryKey: mimoKeys.conversation('u:ig', 'a') })
       const loading = client.prefetchQuery(conversationQuery('u:ig', 'a'))
       await receiveAnswer(client, 'u:ig', answer, () => true)
-      complete(Response.json({ session: { id: 'a' }, messages: [] }))
+      complete(Response.json({ session: { id: 'a' }, messages: [], activeJob: null }))
       await loading
       expect(client.getQueryData<Conversation>(mimoKeys.conversation('u:ig', 'a'))?.messages).toHaveLength(2)
     } finally { client.clear() }

@@ -1,10 +1,10 @@
 import { getTranslations } from 'next-intl/server'
 import { getUserLocale, type Locale } from '@/i18n/locale'
-import { after } from 'next/server'
 import { aiErrorMessage, AiLimitError } from '@/lib/ai'
 import { currentUser } from '@/lib/auth'
-import { addMessage, createSession, getSession, loadHistory, reserveDailyUsage, type ChatSession } from '@/lib/chat'
-import { answerChat, persistableParts, summarizeChat, type UserTurn } from '@/lib/chat-ai'
+import { addMessage, createSession, getSession, reserveDailyUsage, type ChatSession } from '@/lib/chat'
+import type { UserTurn } from '@/lib/chat-ai'
+import { enqueueChatJob, followChatJob, getActiveChatJob } from '@/lib/chat-jobs'
 import {
   attachmentsProblem,
   checkAttachment,
@@ -23,7 +23,7 @@ import { isUuid } from '@/lib/params'
 import { PdfError, readPdfText } from '@/lib/pdf-text'
 import { SlideImageError, toReferenceDataUrl } from '@/lib/slide-image'
 
-/** The shared answer deadline leaves room inside this ceiling for persistence and an optional bounded summary. */
+/** The worker makes the answer; a response here only follows the job, and stops before this ceiling (the chat follows again). */
 export const maxDuration = 300
 
 const NO_STORE = { 'cache-control': 'no-store' }
@@ -64,8 +64,9 @@ async function readUploads(files: File[], text: string, locale: Locale): Promise
 }
 
 /**
- * One message to Mimo. A route rather than a server action: the answer streams a line per tool as it starts
- * (NDJSON ChatEvents), and actions run one at a time per page, so the session list would wait behind it.
+ * One message to Mimo. The message is stored and queued; the worker answers it (chat-jobs.ts). A route rather than a
+ * server action: the response follows the job with a line per tool as it starts (NDJSON ChatEvents), and actions
+ * run one at a time per page, so the session list would wait behind it.
  */
 export async function POST(request: Request): Promise<Response> {
   const t = await getTranslations('mimo.api')
@@ -94,6 +95,8 @@ export async function POST(request: Request): Promise<Response> {
       if (!isUuid(sessionId)) throw new InputError(t('conversationMissing'))
       session = await getSession(userId, accountId, sessionId)
       if (!session) return refuse(404, t('deletedConversation'))
+      // One answer at a time per conversation, so the answers keep their order.
+      if (await getActiveChatJob(userId, session.id)) return refuse(409, t('stillAnswering'))
     }
     // Reserve after cheap form validation but before expensive PDF/image processing or any persistence.
     await reserveDailyUsage(userId, 'chat')
@@ -109,7 +112,6 @@ export async function POST(request: Request): Promise<Response> {
   const pdfName = upload.turn.pdf?.name
   const content = [upload.turn.text, pdfName ? pdfPlaceholder(pdfName) : ''].filter(Boolean).join('\n')
   let created = false
-  let history
   let userMessage
   try {
     if (!session) {
@@ -117,21 +119,32 @@ export async function POST(request: Request): Promise<Response> {
       session = await createSession(userId, accountId, sessionTitle(upload.turn.text, firstName?.type === 'attachment' ? firstName.name : '', locale))
       created = true
     }
-    history = await loadHistory(session)
     userMessage = await addMessage(userId, session.id, { role: 'user', content, parts: upload.parts })
   } catch (error) {
     console.error('[mimo] pesan gagal disimpan:', describeError(error))
     return refuse(500, t('saveError'))
   }
 
-  const chat = session
-  const firstUser = userMessage
-  const past = history
-  // Runs once the stream has closed, so the new answer is counted.
-  after(() =>
-    summarizeChat(userId, chat, locale).catch((error: unknown) => console.error('[mimo] ringkasan gagal:', describeError(error))),
-  )
+  // The worker answers: the message is queued, and this response only follows the job. Closing the tab loses
+  // nothing; the chat picks the job up again when it is opened.
+  let jobId: string
+  try {
+    jobId = await enqueueChatJob(userId, accountId, session.id, userMessage.id, {
+      turn: upload.turn,
+      deepSearch,
+      language: locale,
+      contentLanguage: await getContentLanguage(userId, accountId, locale),
+      created,
+    })
+  } catch (error) {
+    console.error('[mimo] pesan gagal diantrekan:', describeError(error))
+    return refuse(500, t('saveError'))
+  }
+  return follow(userId, jobId, t('replySaveError'), request.signal, { type: 'job', id: jobId, sessionId: session.id })
+}
 
+/** The NDJSON stream of a job's events, optionally after a first event. */
+function follow(userId: string, jobId: string, failed: string, signal: AbortSignal, first?: ChatEvent): Response {
   const encoder = new TextEncoder()
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -139,27 +152,15 @@ export async function POST(request: Request): Promise<Response> {
         try {
           controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`))
         } catch {
-          // The owner left the page; the answer is still stored below.
+          // The owner left the page; the worker still stores the answer.
         }
       }
       try {
-        const reply = await answerChat({
-          userId,
-          accountId,
-          session: chat,
-          history: past,
-          turn: upload.turn,
-          deepSearch,
-          language: locale,
-          contentLanguage: await getContentLanguage(userId, accountId, locale),
-          onTool: (name) => send({ type: 'tool', name }),
-        })
-        const assistant = await addMessage(userId, chat.id, { role: 'assistant', content: reply.content, parts: persistableParts(reply.parts) })
-        // The live response may show signed avatars; the stored message deliberately does not.
-        send({ type: 'done', sessionId: chat.id, created, user: firstUser, assistant: { ...assistant, parts: reply.parts } })
+        if (first) send(first)
+        await followChatJob(userId, jobId, send, failed, signal)
       } catch (error) {
-        console.error('[mimo] jawaban gagal disimpan:', describeError(error))
-        send({ type: 'error', sessionId: chat.id, message: t('replySaveError') })
+        // Following failed, not the job: the stream ends without a last event and the chat follows again.
+        console.error('[mimo] pekerjaan gagal diikuti:', describeError(error))
       } finally {
         try {
           controller.close()
@@ -170,4 +171,14 @@ export async function POST(request: Request): Promise<Response> {
     },
   })
   return new Response(stream, { headers: { ...NO_STORE, 'content-type': 'application/x-ndjson; charset=utf-8' } })
+}
+
+/** Follows a job again: after a reload, another tab, or a connection that was cut (`?job=<id>`). */
+export async function GET(request: Request): Promise<Response> {
+  const t = await getTranslations('mimo.api')
+  const user = await currentUser()
+  if (!user) return refuse(401, t('sessionExpired'))
+  const jobId = new URL(request.url).searchParams.get('job')
+  if (!isUuid(jobId)) return refuse(400, t('conversationMissing'))
+  return follow(user.id, jobId, t('replySaveError'), request.signal)
 }

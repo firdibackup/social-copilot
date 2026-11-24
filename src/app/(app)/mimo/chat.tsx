@@ -28,6 +28,8 @@ import { receiveAnswer, mimoKeys } from './mimo-query'
 interface MimoChatProps {
   sessionId: string | null
   messages: ChatMessageView[]
+  /** The answer the worker is still making for this conversation, e.g. after a reload: the chat follows it. */
+  activeJob: { id: string; tool: string | null } | null
   products: CardContext['products']
   defaultDensity: CardContext['defaultDensity']
   references: CardContext['references']
@@ -41,6 +43,10 @@ interface Pending {
   parts: ChatPart[]
   tool: string | null
 }
+
+/** How many more times the chat follows a job whose stream ended early (a cut connection, or the route's time). */
+const MAX_FOLLOWS = 8
+const FOLLOW_AGAIN_MS = 1_000
 
 /** Reads the route's NDJSON lines as they arrive. */
 async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<ChatEvent> {
@@ -62,7 +68,7 @@ async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<Cha
  * The open conversation with Mimo. Sent messages show from the stream's `done` event until the page's own data has
  * them; opening another conversation starts over, but keeps the Deep Search toggle.
  */
-export function MimoChat({ sessionId, messages, products, defaultDensity, references, researchDaily }: MimoChatProps) {
+export function MimoChat({ sessionId, messages, activeJob, products, defaultDensity, references, researchDaily }: MimoChatProps) {
   const t = useTranslations('mimo.chat')
   const locale = useLocale()
   const router = useRouter()
@@ -71,12 +77,16 @@ export function MimoChat({ sessionId, messages, products, defaultDensity, refere
   const [received, setReceived] = useState<ChatMessageView[]>([])
   const [pending, setPending] = useState<Pending | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** The job picked up after a reload: the tool Mimo is on, and whether its answer has arrived. */
+  const [followed, setFollowed] = useState<{ id: string; tool: string | null; over: boolean } | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [deepSearch, setDeepSearch] = useState(false)
   const [openId, setOpenId] = useState(sessionId)
   const scroller = useRef<HTMLDivElement>(null)
   /** Synchronous per-conversation guard for two clicks before React commits the pending state. */
   const sending = useRef(new Set<string | null>())
+  /** The jobs this tab already follows, so a refetched conversation doesn't start a second follower. */
+  const jobs = useRef(new Set<string>())
   /** The conversation on screen, for a stream that ends after the owner opened another one. */
   const live = useRef<string | null | undefined>(sessionId)
 
@@ -95,20 +105,100 @@ export function MimoChat({ sessionId, messages, products, defaultDensity, refere
 
   const known = new Set(messages.map((message) => message.id))
   const shown = [...messages, ...received.filter((message) => !known.has(message.id))]
-  const context = pending ? null : suggestionContext(shown)
+  // Mimo is still answering a message sent before this page was opened: no pending bubble, the message is stored.
+  const resumed = activeJob && !pending && !(followed?.id === activeJob.id && followed.over)
+    ? { tool: followed?.id === activeJob.id ? followed.tool : activeJob.tool }
+    : null
+  const context = pending || resumed ? null : suggestionContext(shown)
   const count = shown.length
-  const waiting = pending !== null
-  const tool = pending?.tool
+  const waiting = pending !== null || resumed !== null
+  const tool = pending?.tool ?? resumed?.tool
 
   useEffect(() => {
     const element = scroller.current
     if (element) element.scrollTop = element.scrollHeight
   }, [count, waiting, tool])
 
+  /**
+   * Reads a job's events: what Mimo is doing, then its answer or failure. `finished` once that last event came;
+   * `jobId` is the job a new message was given. `resumedId` is the job being picked up after a reload.
+   */
+  async function consume(
+    body: ReadableStream<Uint8Array>,
+    startedIn: string | null,
+    here: () => boolean,
+    resumedId?: string,
+  ): Promise<{ finished: boolean; jobId: string | null }> {
+    let finished = false
+    let jobId: string | null = null
+    try {
+      for await (const event of readEvents(body)) {
+        if (event.type === 'job') {
+          jobId = event.id
+          jobs.current.add(event.id)
+          continue
+        }
+        // Keep consuming the body after navigation, so the conversation's data is right when the owner comes back.
+        if (event.type !== 'tool') {
+          finished = true
+          if (event.type === 'done') await receiveAnswer(client, scope, event, isCurrent)
+          else if (isCurrent()) {
+            await Promise.all([
+              ...(event.sessionId ? [client.invalidateQueries({ queryKey: mimoKeys.conversation(scope, event.sessionId) })] : []),
+              client.invalidateQueries({ queryKey: mimoKeys.sessions(scope) }),
+            ])
+          }
+        }
+        if (!here()) continue
+        if (event.type === 'tool') {
+          setPending((current) => current && { ...current, tool: event.name })
+          if (resumedId) setFollowed({ id: resumedId, tool: event.name, over: false })
+        } else if (event.type === 'done') {
+          setReceived((current) => [...current, event.user, event.assistant])
+          setPending(null)
+          if (event.created) window.history.replaceState(null, '', `/mimo?sesi=${event.sessionId}`)
+          router.refresh()
+        } else {
+          setPending(null)
+          setError(event.message)
+          if (!sessionId && event.sessionId) window.history.replaceState(null, '', `/mimo?sesi=${event.sessionId}`)
+          router.refresh()
+        }
+      }
+    } catch {
+      // A cut connection: the worker still stores the answer.
+    }
+    return { finished, jobId }
+  }
+
+  /** Picks up the answer the worker is still making for the open conversation, e.g. after a reload. */
+  async function follow(jobId: string, startedIn: string) {
+    const here = () => isCurrent() && live.current === startedIn
+    let finished = false
+    for (let round = 0; !finished && round <= MAX_FOLLOWS; round += 1) {
+      if (round > 0) await new Promise((resolve) => window.setTimeout(resolve, FOLLOW_AGAIN_MS))
+      const response = await fetch(`/api/sigap/chat?job=${jobId}`).catch(() => null)
+      if (response?.ok && response.body) finished = (await consume(response.body, startedIn, here, jobId)).finished
+    }
+    if (!here()) return
+    setFollowed({ id: jobId, tool: null, over: true })
+    // Also when it never finished here: the stored conversation says whether the job is still running.
+    void client.invalidateQueries({ queryKey: mimoKeys.conversation(scope, startedIn) })
+  }
+
+  const activeJobId = activeJob?.id ?? null
+  useEffect(() => {
+    if (!activeJobId || !sessionId || jobs.current.has(activeJobId)) return
+    jobs.current.add(activeJobId)
+    void follow(activeJobId, sessionId)
+    // Once per job: `follow` reads the newest state through refs and setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeJobId, sessionId])
+
   /** Sends one message; true once the route took it (the composer then clears). */
   async function send(text: string, files: File[]): Promise<boolean> {
     const startedIn = sessionId
-    if (sending.current.has(startedIn) || pending) return false
+    if (sending.current.has(startedIn) || pending || resumed) return false
     sending.current.add(startedIn)
     const unlock = () => sending.current.delete(startedIn)
     /** Still on the conversation the message went to. */
@@ -153,39 +243,14 @@ export function MimoChat({ sessionId, messages, products, defaultDensity, refere
       return true
     }
 
-    let finished = false
-    try {
-      for await (const event of readEvents(response.body)) {
-        // Keep consuming the body after navigation: aborting it can cancel the route before the answer is stored.
-        if (event.type !== 'tool') {
-          finished = true
-          if (event.type === 'done') await receiveAnswer(client, scope, event, isCurrent)
-          else if (isCurrent()) {
-            await Promise.all([
-              client.invalidateQueries({ queryKey: mimoKeys.conversation(scope, event.sessionId) }),
-              client.invalidateQueries({ queryKey: mimoKeys.sessions(scope) }),
-            ])
-          }
-        }
-        if (!here()) continue
-        if (event.type === 'tool') {
-          setPending((current) => current && { ...current, tool: event.name })
-        } else if (event.type === 'done') {
-          finished = true
-          setReceived((current) => [...current, event.user, event.assistant])
-          setPending(null)
-          if (event.created) window.history.replaceState(null, '', `/mimo?sesi=${event.sessionId}`)
-          router.refresh()
-        } else {
-          finished = true
-          setPending(null)
-          setError(event.message)
-          if (!sessionId) window.history.replaceState(null, '', `/mimo?sesi=${event.sessionId}`)
-          router.refresh()
-        }
-      }
-    } catch {
-      // A cut connection: the server still stores the answer.
+    const first = await consume(response.body, startedIn, here)
+    const { jobId } = first
+    let { finished } = first
+    // A cut connection or the route's time limit: the worker still answers, so the job is followed again.
+    for (let round = 0; !finished && jobId && round < MAX_FOLLOWS; round += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, FOLLOW_AGAIN_MS))
+      const again = await fetch(`/api/sigap/chat?job=${jobId}`).catch(() => null)
+      if (again?.ok && again.body) finished = (await consume(again.body, startedIn, here)).finished
     }
     if (!finished && here()) {
       setPending(null)
@@ -198,7 +263,7 @@ export function MimoChat({ sessionId, messages, products, defaultDensity, refere
   }
 
   const ask = (text: string) => void send(text, [])
-  const cardContext = (message: ChatMessageView): CardContext => ({ sessionId, messageId: message.id, ask: pending ? null : ask, products, defaultDensity, references })
+  const cardContext = (message: ChatMessageView): CardContext => ({ sessionId, messageId: message.id, ask: pending || resumed ? null : ask, products, defaultDensity, references })
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -216,7 +281,7 @@ export function MimoChat({ sessionId, messages, products, defaultDensity, refere
 
       <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6">
-          {shown.length === 0 && !pending && <EmptyState />}
+          {shown.length === 0 && !pending && !resumed && <EmptyState />}
           {shown.map((message) =>
             message.role === 'user' ? (
               <UserMessage key={message.id} content={message.content} parts={message.parts} />
@@ -230,6 +295,7 @@ export function MimoChat({ sessionId, messages, products, defaultDensity, refere
               <ToolCallIndicator tool={pending.tool} />
             </>
           )}
+          {resumed && <ToolCallIndicator tool={resumed.tool} />}
         </div>
       </div>
 
@@ -243,7 +309,7 @@ export function MimoChat({ sessionId, messages, products, defaultDensity, refere
           )}
           {error && <Notice tone="error">{error}</Notice>}
           <ChatComposer
-            busy={pending !== null}
+            busy={pending !== null || resumed !== null}
             deepSearch={deepSearch && researchDaily > 0}
             researchDaily={researchDaily}
             onToggleDeepSearch={() => setDeepSearch(researchDaily > 0 && !deepSearch)}

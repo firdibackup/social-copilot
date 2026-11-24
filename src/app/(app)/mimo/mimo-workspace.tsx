@@ -38,7 +38,7 @@ export function MimoWorkspace() {
         {detailError && <div className="p-4"><Notice tone="warning">{t('conversationError')} <button className="underline" onClick={retry}>{t('retry')}</button></Notice></div>}
         {missing ? <div className="p-6"><Notice tone="error">{t('missing')} <Link href="/mimo" className="underline">{t('new')}</Link></Notice></div>
           : !support.data || (valid && !conversation.data) ? (!detailError && <LoadingState variant="list" className="p-6" label={t('loadingConversation')} />)
-            : <MimoChat sessionId={valid ? id : null} messages={valid ? conversation.data!.messages : []} {...support.data} />}
+            : <MimoChat sessionId={valid ? id : null} messages={valid ? conversation.data!.messages : []} activeJob={valid ? conversation.data!.activeJob : null} {...support.data} />}
       </section>
     </div>
   )

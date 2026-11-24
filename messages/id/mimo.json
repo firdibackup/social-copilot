@@ -306,7 +306,8 @@
     "imageError": "Gambar tidak bisa dibaca. Coba gambar lain.",
     "saveError": "Pesan gagal disimpan. Periksa Supabase dan migrasi terbaru.",
     "replySaveError": "Jawaban gagal disimpan. Muat ulang halaman lalu coba lagi.",
-    "messageLength": "Pesan maksimal {count} karakter."
+    "messageLength": "Pesan maksimal {count} karakter.",
+    "stillAnswering": "Mimo masih menjawab pesan sebelumnya. Tunggu sebentar, lalu kirim lagi."
   },
   "page": {
     "title": "Mimo Chat",

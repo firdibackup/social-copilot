@@ -10,6 +10,7 @@ vi.mock('next-intl/server', async () => {
 })
 vi.mock('@/lib/auth', () => ({ requireAccount: vi.fn() }))
 vi.mock('@/lib/chat', () => ({ getSession: vi.fn(), listMessages: vi.fn(), listSessions: vi.fn() }))
+vi.mock('@/lib/chat-jobs', () => ({ getActiveChatJob: vi.fn(async () => null) }))
 vi.mock('@/lib/assets', () => ({ listProductGroups: vi.fn() }))
 vi.mock('@/lib/density', () => ({ getDensityDefault: vi.fn() }))
 
@@ -39,14 +40,14 @@ describe('Mimo workspace reads', () => {
     const response = await GET(request(`scope=u:ig&part=conversation&id=${id}`))
     expect(getSession).toHaveBeenCalledWith('u', 'ig', id)
     expect(listMessages).not.toHaveBeenCalled()
-    expect(await response.json()).toEqual({ session: null, messages: [] })
+    expect(await response.json()).toEqual({ session: null, messages: [], activeJob: null })
   })
 
   it('reads only the requested owned conversation, not the entire workspace', async () => {
     vi.mocked(getSession).mockResolvedValue({ id, title: 'Chat', summary: '', summarizedCount: 0 })
     vi.mocked(listMessages).mockResolvedValue([])
     const response = await GET(request(`scope=u:ig&part=conversation&id=${id}`))
-    expect(await response.json()).toEqual({ session: { id }, messages: [] })
+    expect(await response.json()).toEqual({ session: { id }, messages: [], activeJob: null })
     expect(listMessages).toHaveBeenCalledWith('u', id)
     expect(listSessions).not.toHaveBeenCalled()
   })

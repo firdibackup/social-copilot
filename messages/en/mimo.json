@@ -306,7 +306,8 @@
     "imageError": "Couldn't read the image. Try another one.",
     "saveError": "Couldn't save the message. Check Supabase and the latest migrations.",
     "replySaveError": "Couldn't save the reply. Reload the page and try again.",
-    "messageLength": "Messages can be up to {count} characters."
+    "messageLength": "Messages can be up to {count} characters.",
+    "stillAnswering": "Mimo is still answering the previous message. Wait a moment, then send again."
   },
   "page": {
     "title": "Mimo Chat",

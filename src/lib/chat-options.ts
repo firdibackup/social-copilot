@@ -360,6 +360,8 @@ export interface ChatSessionView {
 
 /** What the route streams back, one JSON object per line. */
 export type ChatEvent =
+  /** First: the job that answers the message, so the chat can follow it again after a cut connection. */
+  | { type: 'job'; id: string; sessionId: string }
   | { type: 'tool'; name: string }
   | { type: 'done'; sessionId: string; created: boolean; user: ChatMessageView; assistant: ChatMessageView }
   /** The answer could not be stored; the owner's message was. */

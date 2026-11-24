@@ -60,6 +60,8 @@ export async function receiveAnswer(client: QueryClient, scope: string, event: E
     return {
       session: { id: event.sessionId },
       messages: [...(previous?.messages ?? []).filter((message) => !added.has(message.id)), ...added.values()].slice(-300),
+      // The answer is here: nothing is left to follow.
+      activeJob: null,
     }
   })
   await client.invalidateQueries({ queryKey: mimoKeys.sessions(scope) })
@@ -78,7 +80,7 @@ export async function forgetConversation(client: QueryClient, scope: string, id:
     session: sessions?.find((item) => item.id === id),
   }
   // A tombstone also prevents a late answer from recreating deleted messages.
-  client.setQueryData<Conversation>(mimoKeys.conversation(scope, id), { session: null, messages: [] })
+  client.setQueryData<Conversation>(mimoKeys.conversation(scope, id), { session: null, messages: [], activeJob: null })
   client.setQueryData<ChatSessionView[]>(mimoKeys.sessions(scope), (previous) => previous?.filter((session) => session.id !== id))
   return snapshot
 }

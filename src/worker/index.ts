@@ -3,6 +3,7 @@
 // browser tab, and refreshing Threads tokens once a day.
 import { describeError } from '@/lib/errors'
 import { reconcilePayments } from '@/lib/billing'
+import { claimChatJob, processChatJob } from '@/lib/chat-jobs'
 import { claimContentJob } from '@/lib/content-jobs'
 import { processContentJob } from '@/lib/content-generation'
 import { claimDueStory } from '@/lib/post-stories'
@@ -21,6 +22,9 @@ const SLIDE_IDLE_MS = 3_000
 const TOKEN_REFRESH_MS = 24 * 60 * 60 * 1000
 /** Slides made at once, across posts; within a post they still go one at a time. */
 const SLIDE_SLOTS = 2
+/** Mimo's answers are looked for every second, so a message starts almost at once; 3 are answered at a time. */
+const CHAT_IDLE_MS = 1_000
+const CHAT_SLOTS = 3
 
 let stopping = false
 const wakers = new Set<() => void>()
@@ -135,9 +139,29 @@ async function contentLoop(): Promise<void> {
   }
 }
 
+/** Mimo's answers: several at once, since an answer mostly waits on the AI. */
+async function chatLoop(): Promise<void> {
+  while (!stopping) {
+    try {
+      const job = await claimChatJob()
+      if (job) {
+        await processChatJob(job)
+        continue
+      }
+    } catch (error) {
+      console.error('[worker] siklus chat Mimo gagal:', describeError(error))
+    }
+    await sleep(CHAT_IDLE_MS)
+  }
+}
+
 async function main(): Promise<void> {
-  console.log(`[worker] berjalan: draft/skrip dicek setiap 3 detik, publish Instagram, Story, dan Threads setiap 5 detik, slide AI ${SLIDE_SLOTS} sekaligus`)
-  await Promise.all([billingLoop(), contentLoop(), publishLoop(), storyLoop(), threadsLoop(), tokenLoop(), ...Array.from({ length: SLIDE_SLOTS }, slideLoop)])
+  console.log(`[worker] berjalan: draft/skrip dicek setiap 3 detik, publish Instagram, Story, dan Threads setiap 5 detik, slide AI ${SLIDE_SLOTS} sekaligus, chat Mimo ${CHAT_SLOTS} sekaligus`)
+  await Promise.all([
+    billingLoop(), contentLoop(), publishLoop(), storyLoop(), threadsLoop(), tokenLoop(),
+    ...Array.from({ length: SLIDE_SLOTS }, slideLoop),
+    ...Array.from({ length: CHAT_SLOTS }, chatLoop),
+  ])
   console.log('[worker] berhenti')
 }
 
