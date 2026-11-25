@@ -43,6 +43,28 @@ export const COVERAGE_RULE =
 export const CTA_BRIDGE_RULE =
   'Slide CTA tidak boleh melompat dari pelajaran ke promosi. Judulnya ajakan itu; body-nya satu kalimat yang menyambung ke isi post (apa yang sekarang bisa dicoba atau dicek pembaca) dan menyebut dengan jelas apa yang didapat dari ajakan tersebut. Kata kunci DM, nama program, atau slogan brand hanya dipakai kalau kalimatnya menjelaskan apa isinya dan hubungannya dengan topik ini; kalau fakta brand tidak menjelaskannya, pilih ajakan lain yang cocok (simpan untuk dicoba, kirim ke teman, komentar) daripada menyuruh DM tanpa alasan.'
 
+/**
+ * Giggle Hoppers, 25 Nov: five ideas scored 5–7 of 10 from a strict outside editor. All five introduced the
+ * brand (a promo, a feature, the location, the activities, an event), none gave a parent something to keep, one
+ * derived a sum the facts contradict, and one promoted an event three months past.
+ */
+export const IDEA_VALUE_RULE =
+  'Nilai simpan: minimal 3 dari 5 ide harus berangkat dari satu masalah nyata audiens, dengan kata-kata yang mereka ucapkan sendiri (mis. "baru sebentar main, sudah harus pulang", "anak nggak mau diajak pulang", "weekend hujan, mau ke mana?", "bajunya kena cat, gimana?"), di wilayah kategori dan aktivitas brand. Hook adalah masalah itu; isi adalah jawaban yang sungguh menyelesaikannya dari pengetahuan umum yang pasti benar, dan tetap berguna walau pembaca belum pernah datang atau membeli. Uji sepele: kalau isinya hanya mengemas hal yang semua orang sudah lakukan tanpa diberi tahu (minum, istirahat, foto, mengobrol) atau tips umum yang bisa dipasang di akun mana pun, buang ide itu dan cari masalah yang jawabannya belum jelas bagi pembaca. Jangan menjanjikan hasil pada orang ("anak jadi tenang", "pasti betah") dan jangan mengotakkan orang; pakai "coba", "bisa", "biasanya membantu". Ide yang isinya memperkenalkan fasilitas, lokasi, layanan, atau aktivitas satu per satu bukan ide yang layak. Paling banyak 1 dari 5 ide yang intinya harga atau promo. Ide promo pun berangkat dari situasi pembaca (mis. biaya main tiap weekend, mau main rame-rame): hook menyebut situasi itu dan boleh memuat angka akhirnya, slide isi menyebut untuk siapa paket itu paling pas dengan satu contoh pemakaian berlabel "misalnya", dan nama brand beserta syarat persis seperti di fakta ada di slide CTA; tiap fakta muncul satu kali. Tanpa kalimat mendesak ("amankan sekarang", "sebelum habis"): batas yang tertulis di fakta cukup disebut sekali sebagai syarat.'
+
+/** Shared by the idea list and a single script: where the brand goes, and whether the slides answer the hook. */
+export const BRAND_PLACEMENT_RULE =
+  'Letak brand di konten tips atau edukasi: brand tidak dihitung sebagai salah satu tips atau cara, dan info tiket, harga, alamat, atau slogan tidak disisipkan di slide tips. Brand muncul satu kali di slide CTA: satu kalimat yang menghubungkan masalah di hook dengan satu fakta brand yang memang menjawab masalah itu, lalu satu ajakan. Kalau hook menyebut jumlah ("4 cara"), keempatnya adalah cara yang berdiri sendiri.'
+
+export const HOOK_PAYOFF_RULE =
+  'Uji janji hook: baca hook, lalu judul tiap slide isi. Tiap judul harus menjadi jawaban langsung atas pertanyaan atau janji hook itu. Hook bertanya "ke mana?" berarti isi menjawab ke mana; hook menjanjikan "cara main bareng" berarti tiap slide adalah satu cara bermain bersama, bukan topik sebelahnya (komunikasi, foto, persiapan). Kalau isi yang bagus ternyata menjawab pertanyaan lain, ganti hook-nya supaya cocok dengan isi.'
+
+/** The idea writer grades itself the way the outside editor did, before it answers. */
+export const IDEA_EDITOR_PASS =
+  'Sebelum menjawab, nilai tiap ide 1–10 sebagai editor konten yang ketat: hook adalah masalah nyata pembaca dengan kata-kata mereka; isi sungguh menyelesaikan masalah itu; tiap slide membawa hal baru yang belum jelas bagi pembaca; tidak terasa katalog, iklan, atau tips sepele; kalimatnya seperti orang mengobrol, tanpa pola yang berulang; CTA lanjutan alami dari isi. Tulis ulang ide yang nilainya di bawah 8, lalu keluarkan hanya JSON akhir tanpa nilai.'
+
+export const FACT_USE_RULE =
+  'Pemakaian fakta: pakai angka persis seperti tertulis. Kalau angka di fakta tidak cocok satu sama lain saat dihitung (mis. harga satuan dikali jumlah tidak sama dengan total yang tertulis), jangan menurunkan hitungan baru dari angka itu dan jangan menampilkan keduanya sebagai satu perhitungan: sebut angka yang paling jelas saja. Jangan menyimpulkan apa yang termasuk dalam harga atau tiket, apa yang bisa dibawa pulang, atau apa yang gratis kecuali fakta menyebutnya. Acara, lomba, atau promo yang tanggalnya sudah lewat dari tanggal hari ini tidak boleh dijadikan ide ajakan ikut; lewati saja.'
+
 export const COVER_RULE =
   'Hook slide 1: satu hook 5–12 kata yang langsung dipahami tanpa konteks lain: sebut subjeknya (produk, tempat, atau topik) bersama masalah, manfaat, kontras, atau pertanyaan spesifik yang memberi alasan untuk menggeser. Jangan pangkas hook sampai tinggal kata sifat atau daftar kata tanpa subjek (mis. "Aman, aktif, dan berkumpul"). Bukan sekadar judul topik. Tambahkan subheading satu kalimat pendek (maksimal 14 kata) yang memberi konteks atau membuka rasa penasaran ke slide 2; kosongkan hanya jika hook sudah lengkap konteksnya. Subheading tidak boleh mengulang hook, membocorkan seluruh jawaban, menjadi CTA generik, atau membuat klaim baru. Tanpa paragraf penjelasan, bullet, contoh, tips, atau CTA. Aturan ini berlaku pada semua pilihan kepadatan teks.'
 
@@ -104,6 +126,8 @@ export function carouselGuide(hook: HookArchetype = 'auto', density: TextDensity
     '- Sebelum menulis slide isi, daftarkan dulu informasi BARU yang akan dibawa tiap slide (satu klaim + satu alasan, contoh angka, atau langkah). Slide yang informasinya sudah ada di slide lain dibuang, bukan dipoles ulang. Tiap slide isi wajib memuat satu "karena", "artinya", "misalnya", atau langkah yang bisa dicoba, bukan hanya label atau definisi.',
     '- Jumlah slide: 4–5 sebagai default. Pakai 6 atau lebih hanya kalau ada minimal 4 poin berbeda yang masing-masing punya fakta atau penjelasan sendiri. Slide tambahan yang mengulang poin sebelumnya, memuat promosi akun, atau menumpuk kredensial lebih buruk daripada carousel pendek.',
     `- ${COVERAGE_RULE}`,
+    `- ${HOOK_PAYOFF_RULE}`,
+    `- ${BRAND_PLACEMENT_RULE}`,
     '- Jangan membuat generalisasi tanpa dasar ("paling sering", "kebanyakan orang", "banyak pemula", "terbukti"). Alasan dan penjelasan harus pengetahuan umum yang pasti benar, bukan klaim tentang audiens atau hasil yang tidak ada di fakta.',
     '- Kalau suara brand memakai pengalaman pribadi atau cerita ("aku", "penulis"), pakai sudut itu di hook hanya dengan kejadian yang tertulis di fakta brand; kalau tidak ada, pakai sapaan ke pembaca. Jangan menyebut akun dari sudut orang ketiga.',
     '- CTA harus menyambung ke janji post ini: kalau isinya soal outfit, CTA tidak boleh melompat ke topik lain. Jangan memakai "follow untuk tips lainnya" atau CTA brand yang tidak berkaitan dengan isi slide.',
