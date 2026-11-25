@@ -91,13 +91,16 @@ describe('readScriptText', () => {
   })
 })
 
-describe('Visual and Layout notes', () => {
-  it('round-trips through the composer text and never reaches the image text', () => {
-    const slide = { ...SLIDE, visual: 'Foto Outdoor Gym dari Aset', layout: 'Judul di atas, foto penuh di bawah' }
-    const read = readScriptText(scriptToText([slide]))
-    expect(read).toEqual({ intro: '', script: [slide] })
-    expect(scriptHeadline(slide)).toBe(scriptHeadline(SLIDE))
-    expect(cleanScriptSlide({ ...SLIDE, visual: ' Foto\nGym ', layout: '' })).toEqual({ ...SLIDE, visual: 'Foto Gym' })
+describe('Visual and Layout lines of earlier scripts', () => {
+  it('are left out: a script holds the slides\' text only, and such a line never reaches the image', () => {
+    const read = readScriptText(`${scriptToText([SLIDE])}\nVisual: Foto Outdoor Gym dari Aset\nLayout: Judul di atas, foto penuh di bawah`)
+    expect(read).toEqual({ intro: '', script: [SLIDE] })
+
+    // A stored script from before still has the fields: reading it drops them, and its text no longer shows them.
+    const stored = { ...SLIDE, visual: 'Foto Outdoor Gym dari Aset', layout: 'Judul di atas, foto penuh di bawah' }
+    expect(cleanScriptSlide(stored)).toEqual(SLIDE)
+    expect(scriptToText([stored])).toBe(scriptToText([SLIDE]))
+    expect(scriptToText([stored])).not.toMatch(/Visual|Layout/)
   })
 })
 

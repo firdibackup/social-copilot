@@ -369,8 +369,6 @@ function SlideRow({ slide, number }: { slide: ScriptSlide; number: number }) {
         {slide.label && <p className={`text-[11px] font-medium uppercase ${problem ? 'text-red-700' : 'text-ink-muted'}`}>{slide.label}</p>}
         {slide.title && <p className="text-sm font-semibold text-ink">{slide.title}</p>}
         {slide.body && <SlideBody body={slide.body} />}
-        {slide.visual && <p className="mt-1 text-xs text-ink-muted"><span className="font-medium text-ink">{t('slideVisual')}</span> {slide.visual}</p>}
-        {slide.layout && <p className="mt-0.5 text-xs text-ink-muted"><span className="font-medium text-ink">{t('slideLayout')}</span> {slide.layout}</p>}
         {problem && <p className="mt-0.5 text-xs text-red-700">{t('fixProblem', { problem })}</p>}
       </div>
     </li>

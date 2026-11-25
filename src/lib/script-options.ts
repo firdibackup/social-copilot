@@ -21,23 +21,12 @@ export interface ScriptSlide {
   title: string
   /** The rest of the slide's text: sentences or points, one per line. */
   body: string
-  /** For the owner and the image, never written on it: which photo or asset the slide shows, and how it is laid out. */
-  visual?: string
-  layout?: string
 }
 
 type Json = Record<string, unknown>
 
 const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null
 const text = (value: unknown) => (typeof value === 'string' ? value.replace(/\r\n/g, '\n').trim() : '')
-
-/** Non-rendered notes have no image-text limit; preserve complete geometry and asset instructions. */
-function notesOf(value: Json): Pick<ScriptSlide, 'visual' | 'layout'> {
-  const note = (item: unknown) => text(item).replace(/\s*\n\s*/g, ' ')
-  const visual = note(value.visual)
-  const layout = note(value.layout)
-  return { ...(visual ? { visual } : {}), ...(layout ? { layout } : {}) }
-}
 
 /** Everything the slide's image shows: the heading, then the body. */
 export const scriptHeadline = (slide: ScriptSlide) => [slide.title, slide.body].filter(Boolean).join('\n')
@@ -62,7 +51,7 @@ export function cleanScriptSlide(value: unknown): ScriptSlide | null {
   const title = truncate(text(value.title), SCRIPT_TITLE_MAX_LENGTH)
   const room = HEADLINE_MAX_LENGTH - (title ? lengthOf(title) + 1 : 0)
   const body = clip(text(value.body), room)
-  return title || body ? { label, title, body, ...notesOf(value) } : null
+  return title || body ? { label, title, body } : null
 }
 
 /** Why the slide can't be made as written, or null. A single post's one slide gets the single post's text limit. */
@@ -90,7 +79,7 @@ export function parseScript(value: unknown, locale: Locale = 'id'): { script: Sc
   const script: ScriptSlide[] = []
   for (const [index, raw] of value.entries()) {
     if (!isObject(raw)) return { error: t('message8') }
-    const slide = { label: text(raw.label), title: text(raw.title), body: text(raw.body), ...notesOf(raw) }
+    const slide = { label: text(raw.label), title: text(raw.title), body: text(raw.body) }
     const problem = slideProblem(slide, index + 1, value.length === 1, locale)
     if (problem) return { error: problem }
     script.push(slide)
@@ -98,7 +87,8 @@ export function parseScript(value: unknown, locale: Locale = 'id'): { script: Sc
   return { script }
 }
 
-// "Visual: …" or "Layout: …" in a slide: a note for the owner and the image, not text on it.
+// "Visual: …" or "Layout: …" in a slide: a note line of scripts written before 2026-11-25. Scripts no longer carry
+// them; such a line is left out, so it never becomes text on the image.
 const NOTE_LINE = /^\s*(visual|layout)\s*:/i
 
 // "Slide 2 — Isi", also with "-", "–" or ":" or without a label; "Slide 2 hari lagi" is text.
@@ -112,8 +102,6 @@ export const scriptToText = (script: ScriptSlide[]): string =>
         `Slide ${index + 1}${slide.label ? ` — ${slide.label}` : ''}`,
         slide.title,
         slide.body,
-        slide.visual && `Visual: ${slide.visual}`,
-        slide.layout && `Layout: ${slide.layout}`,
       ].filter(Boolean).join('\n'),
     )
     .join('\n\n')
@@ -155,18 +143,11 @@ export function splitScriptText(value: string): { intro: string; slides: ScriptS
       .filter((_, at) => lines[at].slide === slide && lines[at].kind === kind)
       .join('\n')
       .trim()
-  const note = (slide: number, kind: 'visual' | 'layout') => join(slide, kind).replace(NOTE_LINE, '').trim()
-  const slides = Array.from({ length: count }, (_, slide) => {
-    const visual = note(slide, 'visual')
-    const layout = note(slide, 'layout')
-    return {
-      label: join(slide, 'slide').match(SLIDE_LINE)?.[1] ?? '',
-      title: join(slide, 'title'),
-      body: join(slide, 'body'),
-      ...(visual ? { visual } : {}),
-      ...(layout ? { layout } : {}),
-    }
-  })
+  const slides = Array.from({ length: count }, (_, slide) => ({
+    label: join(slide, 'slide').match(SLIDE_LINE)?.[1] ?? '',
+    title: join(slide, 'title'),
+    body: join(slide, 'body'),
+  }))
   return { intro: join(-1, 'intro'), slides }
 }
 

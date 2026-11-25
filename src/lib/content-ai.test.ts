@@ -808,18 +808,19 @@ describe('requests', () => {
   })
 
   describe('suggestIdeas', () => {
-    it('includes asset context and reference images in ideas, and preserves visual metadata', () => {
-      const sources = { assets: [{ id: 'gym', title: 'Outdoor Gym', description: 'Pergola' }], references: [{ label: 'cover' as const, dataUrl: 'data:image/png;base64,test' }] }
+    it('gives the idea writer the brand\'s photo groups as facts, and asks for the slides\' text only', () => {
+      const sources = { assets: [{ id: 'gym', title: 'Outdoor Gym', description: 'Pergola' }] }
       const messages = buildIdeasMessages(BRAND, [], 'id', sources)
       const prompt = JSON.stringify(messages)
       expect(prompt).toContain('Outdoor Gym')
       expect(prompt).toContain('Pergola')
-      expect(prompt).toContain('data:image/png;base64,test')
-      expect(prompt).toContain('layout')
       expect(prompt).toContain('Contoh editorial')
+      // What a slide shows and how it is laid out is decided when the images are made, not in the script.
+      expect(prompt).not.toMatch(/"visual"|"layout"|- visual:|- layout:/)
+      expect(messages.every((message) => typeof message.content === 'string')).toBe(true)
       const script = [{ label: 'Hook', title: 'Gerak bersama', body: '', visual: 'Foto Outdoor Gym', layout: 'Foto penuh; judul di atas' }]
       const ideas = parseIdeas(JSON.stringify({ ideas: Array.from({ length: 5 }, (_, i) => ({ title: `Ide ${i}`, script })) }))
-      expect(ideas.every((idea) => idea.script?.every((slide) => slide.visual === script[0].visual && slide.layout === script[0].layout))).toBe(true)
+      expect(ideas[0].script).toEqual([{ label: 'Hook', title: 'Gerak bersama', body: '' }])
     })
 
     it('saves complete ideas with scripts inside one charged request', async () => {

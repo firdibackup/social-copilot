@@ -6,16 +6,15 @@ import { createHash } from 'node:crypto'
 import { languagePrompt, type ContentLanguage } from './ai-language'
 import { AiOutputError, describeBrand, loadBrandContext, quote, readJson, runLogged, snippetOf } from './ai'
 import { listProductGroups } from './assets'
-import { listReferencePool, loadReferenceImage } from './brand'
 import { describeError } from './errors'
-import { pickFirst, planReferenceImages, REFERENCE_LABELS, truncate, type BrandContext, type ReferenceLabel } from './brand-options'
+import { truncate, type BrandContext } from './brand-options'
 import { CAPTION_MAX_LENGTH } from './caption'
 import { carouselGuide, carouselStructure, COVER_RULE, densityRule, HOOK_QUALITY_RULE, IDEA_QUALITY_RULE, SCRIPT_EXAMPLES, singleDensityRule, VOICE_RULE, type HookArchetype } from './carousel-guide'
 import type { ContentRequest } from './content-options'
 import { DEFAULT_DENSITY, type TextDensity } from './density-options'
 import { isUuid } from './params'
 import { HEADLINE_MAX_LENGTH, headlineLimit, MAX_SLIDES, sceneLimit, type Slide } from './image-options'
-import { chatCompletion, type ChatMessage, type ContentPart } from './nine-router'
+import { chatCompletion, type ChatMessage } from './nine-router'
 import { clip, cleanScriptSlide, scriptHeadline, type ScriptSlide } from './script-options'
 import { pillarOf, pillarQuota } from './strategy-options'
 
@@ -154,11 +153,7 @@ const describeProducts = (products: ProductCandidate[]) =>
 /** The owner's script as prompt text: each slide's label, then the exact text of its image. */
 const describeScript = (script: ScriptSlide[]) =>
   script
-    .map((slide, index) => [
-      `Slide ${index + 1}${slide.label ? ` (${slide.label})` : ''}:\n${quote(scriptHeadline(slide))}`,
-      ...(slide.visual ? [`Visual yang disetujui: ${slide.visual}`] : []),
-      ...(slide.layout ? [`Layout yang disetujui: ${slide.layout}`] : []),
-    ].join('\n'))
+    .map((slide, index) => `Slide ${index + 1}${slide.label ? ` (${slide.label})` : ''}:\n${quote(scriptHeadline(slide))}`)
     .join('\n')
 
 export function buildContentMessages(
@@ -230,7 +225,7 @@ function buildScriptedContentMessages(
           pillarInstruction(brand, pillarId),
           '- title: judul singkat post untuk daftar konten, maksimal 8 kata.',
           `- caption: 2–4 paragraf pendek, sekitar 300–700 karakter sebelum hashtag, yang mendukung isi skrip tanpa menyalin semuanya: kalimat pembuka yang menarik, isi, lalu ajakan bertindak yang sama dengan slide terakhir skrip. Tutup dengan 3–8 hashtag relevan di baris terakhir.${carousel ? ' Ajak pembaca menggeser carousel kalau sesuai.' : ''}`,
-          `- slides: tepat ${slides} slide, sama urutannya dengan skrip. headline: salin teks slide itu dari skrip persis, tanpa diubah. scene: visual yang paling membantu teks slide itu terbaca dan dipahami; slide 1 harus membuat orang berhenti menggulir. Kalau skrip punya Visual dan Layout yang disetujui, scene wajib mengikutinya: pakai foto asli yang disebut Visual (isi productGroupId-nya) dan tulis susunan dari Layout.`,
+          `- slides: tepat ${slides} slide, sama urutannya dengan skrip. headline: salin teks slide itu dari skrip persis, tanpa diubah. scene: visual yang paling membantu teks slide itu terbaca dan dipahami; slide 1 harus membuat orang berhenti menggulir.`,
           `Format JSON: {"title": "…", "caption": "…", "slides": [{"headline": "…", "scene": "…", "productGroupId": ${products.length > 0 ? '"uuid atau null"' : 'null'}${attached}}]}`,
           ...(products.length > 0 ? ['', describeProducts(products)] : []),
           ...(attachment ? ['', ATTACHMENT_GUIDE] : []),
@@ -365,29 +360,12 @@ export function planContent<T>(
   )
 }
 
-function withScriptReferences(prompt: string, references: ScriptReference[]): ChatMessage['content'] {
-  return references.length === 0 ? prompt : [
-    { type: 'text', text: prompt },
-    ...references.flatMap((reference): ContentPart[] => [
-      { type: 'text', text: `Referensi desain: slide ${REFERENCE_LABELS[reference.label]}` },
-      { type: 'image_url', image_url: { url: reference.dataUrl } },
-    ]),
-  ]
-}
-
-function scriptVisualRules(references: ScriptReference[]): string {
-  return [
-        '- visual: 1 kalimat untuk owner, tidak ditulis di gambar: foto atau aset apa yang tampil. Pilih tepat SATU kelompok aset per slide, jangan kolase atau menggabungkan dua fasilitas. Tentukan subjek teks dari fakta terlebih dahulu, lalu pilih fotonya. Nama berbeda berarti identitas berbeda kecuali fakta brand menyatakan keduanya sama; jangan memindahkan deskripsi atau foto fasilitas A menjadi fasilitas B hanya karena suasananya mirip. Jika tidak ada foto subjek yang tepat, jelaskan ilustrasi yang akan dibuat, bukan memakai nama fasilitas lain. Kalau subjek slide cocok dengan salah satu foto asli di bawah, sebut namanya persis (mis. "Foto Outdoor Gym dari Aset"); kalau tidak ada yang cocok, jelaskan gambar yang akan dibuat. Slide CTA juga memakai foto yang nyambung dengan topik post (mis. fasilitas yang dibahas), bukan foto umum yang tidak berhubungan.',
-        `- layout: 1 kalimat, tidak ditulis di gambar: hanya geometri slide (posisi judul, poin, bidang visual, dan elemen grafis), tanpa nama warna atau font; palet dan font diterapkan dari brand saat gambar dibuat. Isi bidang visual memakai subjek dari Visual slide ini, bukan subjek contoh referensi; ilustrasi tetap ilustrasi.${references.length > 0 ? ' Salin geometri dari gambar referensi desain di bawah: cover mengikuti referensi cover, slide isi referensi isi, CTA referensi CTA. Sebut konkret: bidang visual full-bleed atau di dalam bingkai dan seberapa besar, latar polos atau di atas visual, pembagian band atau kolom, posisi dan perataan judul serta teks isi.' : ' Pilih susunan yang paling jelas untuk isi slide itu.'}`,
-  ].join('\n')
-}
-
 /** Strategy angles can contain unverified claims; writers use brand facts, not pillar drafts. */
 function describeWritingBrand(brand: BrandContext): string {
   return describeBrand({ ...brand, strategy: brand.strategy ? { ...brand.strategy, pillars: brand.strategy.pillars.map((pillar) => ({ ...pillar, detail: '' })) } : null })
 }
 
-export function buildIdeasMessages(brand: BrandContext, recent: string[], language: ContentLanguage = 'id', sources: { assets: ProductCandidate[]; references: ScriptReference[]; accountId?: string } = { assets: [], references: [] }, hooks: HookTemplate[] = []): ChatMessage[] {
+export function buildIdeasMessages(brand: BrandContext, recent: string[], language: ContentLanguage = 'id', sources: ScriptSources = { assets: [] }, hooks: HookTemplate[] = []): ChatMessage[] {
   const avoid = recent.length > 0 ? ['', `Jangan ulangi ide atau post yang sudah ada:\n${quote(recent.join('\n'))}`] : []
   const pillars = brand.strategy?.pillars ?? []
   const quota = pillarQuota(pillars, IDEAS_COUNT)
@@ -406,7 +384,7 @@ export function buildIdeasMessages(brand: BrandContext, recent: string[], langua
     { role: 'system', content: languagePrompt(IDEAS_SYSTEM, language) },
     {
       role: 'user',
-      content: withScriptReferences([
+      content: [
         `${describeWritingBrand(brand)}Tugas: buat ${IDEAS_COUNT} ide post Instagram lengkap yang berbeda-beda untuk brand ini: ${mix}. Setiap ide memiliki title satu kalimat pendek maksimal 12 kata dan script carousel siap pakai. Tiap ide memakai sudut dan fakta utama yang berbeda: jangan ada ide yang merangkum ide lain atau mengulang fakta yang sama sebagai hook.`,
         ...strategyGuide,
         `- Tentukan jumlah slide paling pas untuk tiap ide, ${MIN_SCRIPT_SLIDES}–${MAX_SLIDES}; 1 slide hanya untuk ide yang memang cukup satu gambar. Susunan wajib mengikuti jumlahnya:\n${Array.from({ length: MAX_SLIDES - MIN_SCRIPT_SLIDES + 1 }, (_, index) => { const count = index + MIN_SCRIPT_SLIDES; return `  - ${count} slide: ${carouselStructure(count)}` }).join('\n')}`,
@@ -419,13 +397,12 @@ export function buildIdeasMessages(brand: BrandContext, recent: string[], langua
         '',
         carouselGuide('auto', DEFAULT_DENSITY, undefined, hooks),
         SCRIPT_EXAMPLES,
-        scriptVisualRules(sources.references),
         `Foto asli milik brand (deskripsi adalah pengamatan visual, bukan bukti jarak, keamanan, layanan, atau manfaat kesehatan):\n${sources.assets.map((asset) => `- ${asset.title} — ${asset.description ?? ''}`).join('\n')}`,
         '',
         '- CTA meminta tepat satu tindakan. Jangan mengarang bukti, angka, pengalaman, harga, promo, atau klaim yang tidak tersedia.',
-        `Format JSON: {"ideas": [{"title": "…", "pillarId": ${pillars.length > 0 ? '"…"' : 'null'}, "script": [{"label": "Hook", "title": "…", "body": "…", "visual": "…", "layout": "…"}]}]}`,
+        `Format JSON: {"ideas": [{"title": "…", "pillarId": ${pillars.length > 0 ? '"…"' : 'null'}, "script": [{"label": "Hook", "title": "…", "body": "…"}]}]}`,
         ...avoid,
-      ].join('\n'), sources.references),
+      ].join('\n'),
     },
   ]
 }
@@ -467,7 +444,7 @@ export function suggestIdeas(
   recent: string[],
   save: (ideas: SuggestedIdea[]) => Promise<void>,
   language: ContentLanguage = 'id',
-  sources: { assets: ProductCandidate[]; references: ScriptReference[]; accountId?: string } = { assets: [], references: [] },
+  sources: ScriptSources = { assets: [] },
 ): Promise<SuggestedIdea[]> {
   const input = { recent: recent.length }
   return runLogged(userId, 'content_ideas', input, async () => {
@@ -508,10 +485,8 @@ export function buildScriptMessages(
   brief = '',
   density: TextDensity = DEFAULT_DENSITY,
   language: ContentLanguage = 'id',
-  /** The owner's real photo groups the Visual line may name. */
+  /** The owner's real photo groups: what the brand has, as facts for the text. */
   assets: ProductCandidate[] = [],
-  /** Reference slides (data URLs with their role) the Layout line is read from. */
-  references: ScriptReference[] = [],
   ownerRequest = '',
   hooks: HookTemplate[] = [],
 ): ChatMessage[] {
@@ -531,9 +506,8 @@ export function buildScriptMessages(
         '',
         SCRIPT_EXAMPLES,
         '',
-        scriptVisualRules(references),
         '- Periksa sebelum menjawab: (1) hapus slide isi yang bisa dibuang tanpa kehilangan info baru; (2) kalau frasa atau poin yang sama muncul di dua slide, tulis ulang salah satunya; (3) kalau arahan menyebut audiens, hook dan minimal satu slide isi menggambarkan momen nyata mereka (siapa, kapan, sedang apa), bukan kata umum seperti "rutinitas aktif" atau "pilihan aktivitas".',
-        'Format JSON: {"slides": [{"label": "…", "title": "…", "body": "…", "visual": "…", "layout": "…"}]}',
+        'Format JSON: {"slides": [{"label": "…", "title": "…", "body": "…"}]}',
         ...(assets.length > 0 ? ['', `Foto asli milik brand (deskripsinya fakta yang boleh dipakai di teks, mis. bentuk atau suasana tempatnya; pakai juga fasilitas lain di sini yang relevan dengan audiens):\n${assets.map((asset) => `- ${asset.title}${asset.description ? ` — ${asset.description}` : ''}`).join('\n')}`] : []),
         '',
         `Ide:\n${quote(idea)}`,
@@ -547,13 +521,17 @@ export function buildScriptMessages(
         '',
         `Hanya pakai fakta dari ${brand?.facts ? 'ide dan fakta brand di atas' : 'ide di atas'}${assets.length > 0 ? ', deskripsi foto asli brand' : ''}, ditambah pengetahuan umum yang pasti benar untuk konten edukasi. ${NO_INVENTED_CLAIMS}`,
       ].join('\n')
-  const content = withScriptReferences(prompt, references)
-  return [{ role: 'system', content: languagePrompt(SCRIPT_SYSTEM, language) }, { role: 'user', content }]
+  return [{ role: 'system', content: languagePrompt(SCRIPT_SYSTEM, language) }, { role: 'user', content: prompt }]
 }
 
-export interface ScriptReference {
-  dataUrl: string
-  label: ReferenceLabel
+/**
+ * What a script is written from besides the brand: the owner's photo groups, as facts. A script holds the slides'
+ * text only: what each slide shows and how it is laid out is decided when the post is planned and its images made
+ * (the owner's decision of 2026-11-25: the Visual and Layout lines confused more than they helped).
+ */
+export interface ScriptSources {
+  assets: ProductCandidate[]
+  accountId?: string
 }
 
 /** AI scripts start with a hook and may add one short open loop below it. */
@@ -572,24 +550,14 @@ export function parseScriptAnswer(content: string): ScriptSlide[] {
   return script
 }
 
-/**
- * The owner's photo groups and one reference slide per role (cover, isi, CTA), for the script's Visual and Layout
- * lines. Best effort: without them the script is still written.
- * ponytail: one random reference group; the post may later pin another, whose layout then wins in the image.
- */
-export async function loadScriptSources(userId: string, accountId: string): Promise<{ assets: ProductCandidate[]; references: ScriptReference[]; accountId?: string }> {
+/** The owner's photo groups for the script writers. Best effort: without them the script is still written. */
+export async function loadScriptSources(userId: string, accountId: string): Promise<ScriptSources> {
   try {
-    const [groups, pool] = await Promise.all([listProductGroups(userId, accountId), listReferencePool(userId, accountId, null)])
-    const ids = [...new Set(planReferenceImages(pool, ['cover', 'isi', 'cta'], pickFirst).filter((id): id is string => id !== null))]
-    const loaded = await Promise.all(ids.map((id) => loadReferenceImage(userId, id)))
-    return {
-      accountId,
-      assets: groups.map(({ id, title, description }) => ({ id, title, description })),
-      references: loaded.flatMap((image) => (image ? [{ dataUrl: image.dataUrl, label: image.label }] : [])),
-    }
+    const groups = await listProductGroups(userId, accountId)
+    return { accountId, assets: groups.map(({ id, title, description }) => ({ id, title, description })) }
   } catch (error) {
-    console.error('[konten] aset/referensi untuk skrip gagal dimuat, lanjut tanpa:', describeError(error))
-    return { assets: [], references: [], accountId }
+    console.error('[konten] aset untuk skrip gagal dimuat, lanjut tanpa:', describeError(error))
+    return { assets: [], accountId }
   }
 }
 
@@ -604,8 +572,7 @@ export function writeScript(
   signal?: AbortSignal,
   density: TextDensity = DEFAULT_DENSITY,
   language: ContentLanguage = 'id',
-  /** What the Visual and Layout lines are written from; the log keeps only their counts. */
-  sources: { assets: ProductCandidate[]; references: ScriptReference[]; accountId?: string } = { assets: [], references: [] },
+  sources: ScriptSources = { assets: [] },
   ownerRequest = '',
 ): Promise<ScriptSlide[]> {
   const input = { ideaId: idea.id, idea: idea.title, density, ...(brief ? { brief } : {}), ...(ownerRequest ? { ownerRequest } : {}) }
@@ -615,10 +582,10 @@ export function writeScript(
     Object.assign(input, { hookIds: hooks.templates.map((h) => h.id), hookSource: hooks.source })
     const cases = await retrieveCases(userId, sources.accountId, [idea.title, ownerRequest].join('\n'))
     Object.assign(input, { caseIds: cases.map((c) => c.id) })
-    const messages = buildScriptMessages(idea.title, brand, 'auto', brief, density, language, sources.assets, sources.references, ownerRequest, hooks.templates)
+    const messages = buildScriptMessages(idea.title, brand, 'auto', brief, density, language, sources.assets, ownerRequest, hooks.templates)
     if (cases.length) messages.push({ role: 'user', content: caseGuide(cases) })
     const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
-    // Hashes only: reference bytes and private prompts never enter diagnostic logs.
+    // Hashes only: private prompts never enter diagnostic logs.
     Object.assign(input, { sourceHash: hash({ idea: idea.title, brand, brief, language, sources, ownerRequest }), messagesHash: hash(messages) })
     const script = parseScriptAnswer(await chatCompletion(messages, undefined, signal, (response) => Object.assign(input, { response })))
     await save(script)
