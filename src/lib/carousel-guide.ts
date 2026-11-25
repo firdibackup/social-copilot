@@ -31,6 +31,18 @@ export const HOOK_QUALITY_RULE =
 export const IDEA_QUALITY_RULE =
   'Kualitas ide: mulai dari sudut pandang audiens (masalah, kekhawatiran, pertanyaan, atau keinginan mereka), bukan daftar fitur brand. Prioritaskan fakta brand yang paling kuat dan paling membedakan (angka, hasil, harga, promo, keunggulan yang tidak dimiliki pesaing) sebagai hook. Variasikan format antar ide, mis. checklist, perbandingan, mitos vs fakta, simulasi biaya atau angka, tanya jawab, sebelum–sesudah, cerita keseharian; jangan dua ide dengan format yang sama dalam satu daftar. Kata atau frasa khas brand dipakai sesekali sebagai warna, bukan wajib di setiap hook atau CTA.'
 
+/**
+ * A blind comparison with a plain listicle (ChatGPT, owner's account, 25 Nov) preferred our script but named two
+ * weaknesses twice: it answered "why does X fail" with three causes and left out one every reader expects
+ * (protein), and its CTA slide jumped from the lesson to a brand slogan ("DM 'Best Bro'") without saying what the
+ * reader gets.
+ */
+export const COVERAGE_RULE =
+  'Cakupan janji hook: kalau hook atau ide menjanjikan penyebab, kesalahan, alasan, atau cara ("kenapa X gagal", "yang bikin…", "cara…"), sebelum memilih jumlah slide daftarkan dulu faktor utama yang pasti dicari pembaca untuk topik itu menurut pengetahuan umum yang pasti benar. Faktor yang paling diharapkan pembaca wajib dibahas, satu slide per faktor, walau jumlah slide jadi 6 atau 7; jangan berhenti di tiga poin hanya supaya pendek. Pembaca tidak boleh selesai membaca sambil bertanya "lho, yang itu kok tidak dibahas?". Faktor tambahan yang kecil atau butuh klaim tanpa dasar tetap dibuang. Menambah faktor tidak boleh membuat slide lebih padat atau menghilangkan contoh: tiap slide faktor tetap satu masalah, satu alasan singkat, dan satu contoh angka ("misalnya …") atau satu tindakan yang bisa langsung dicoba.'
+
+export const CTA_BRIDGE_RULE =
+  'Slide CTA tidak boleh melompat dari pelajaran ke promosi. Judulnya ajakan itu; body-nya satu kalimat yang menyambung ke isi post (apa yang sekarang bisa dicoba atau dicek pembaca) dan menyebut dengan jelas apa yang didapat dari ajakan tersebut. Kata kunci DM, nama program, atau slogan brand hanya dipakai kalau kalimatnya menjelaskan apa isinya dan hubungannya dengan topik ini; kalau fakta brand tidak menjelaskannya, pilih ajakan lain yang cocok (simpan untuk dicoba, kirim ke teman, komentar) daripada menyuruh DM tanpa alasan.'
+
 export const COVER_RULE =
   'Hook slide 1: satu hook 5–12 kata yang langsung dipahami tanpa konteks lain: sebut subjeknya (produk, tempat, atau topik) bersama masalah, manfaat, kontras, atau pertanyaan spesifik yang memberi alasan untuk menggeser. Jangan pangkas hook sampai tinggal kata sifat atau daftar kata tanpa subjek (mis. "Aman, aktif, dan berkumpul"). Bukan sekadar judul topik. Tambahkan subheading satu kalimat pendek (maksimal 14 kata) yang memberi konteks atau membuka rasa penasaran ke slide 2; kosongkan hanya jika hook sudah lengkap konteksnya. Subheading tidak boleh mengulang hook, membocorkan seluruh jawaban, menjadi CTA generik, atau membuat klaim baru. Tanpa paragraf penjelasan, bullet, contoh, tips, atau CTA. Aturan ini berlaku pada semua pilihan kepadatan teks.'
 
@@ -91,6 +103,7 @@ export function carouselGuide(hook: HookArchetype = 'auto', density: TextDensity
     '- Hook membahas masalah, situasi, atau keputusan pembaca, bukan memperkenalkan brand: "X, Y, Z: [brand] punya panduannya", "Kenali [layanan] kami", atau pengumuman produk bukan hook. Sebut nama brand atau produk di hook hanya kalau pembaca memang mencarinya.',
     '- Sebelum menulis slide isi, daftarkan dulu informasi BARU yang akan dibawa tiap slide (satu klaim + satu alasan, contoh angka, atau langkah). Slide yang informasinya sudah ada di slide lain dibuang, bukan dipoles ulang. Tiap slide isi wajib memuat satu "karena", "artinya", "misalnya", atau langkah yang bisa dicoba, bukan hanya label atau definisi.',
     '- Jumlah slide: 4–5 sebagai default. Pakai 6 atau lebih hanya kalau ada minimal 4 poin berbeda yang masing-masing punya fakta atau penjelasan sendiri. Slide tambahan yang mengulang poin sebelumnya, memuat promosi akun, atau menumpuk kredensial lebih buruk daripada carousel pendek.',
+    `- ${COVERAGE_RULE}`,
     '- Jangan membuat generalisasi tanpa dasar ("paling sering", "kebanyakan orang", "banyak pemula", "terbukti"). Alasan dan penjelasan harus pengetahuan umum yang pasti benar, bukan klaim tentang audiens atau hasil yang tidak ada di fakta.',
     '- Kalau suara brand memakai pengalaman pribadi atau cerita ("aku", "penulis"), pakai sudut itu di hook hanya dengan kejadian yang tertulis di fakta brand; kalau tidak ada, pakai sapaan ke pembaca. Jangan menyebut akun dari sudut orang ketiga.',
     '- CTA harus menyambung ke janji post ini: kalau isinya soal outfit, CTA tidak boleh melompat ke topik lain. Jangan memakai "follow untuk tips lainnya" atau CTA brand yang tidak berkaitan dengan isi slide.',
@@ -108,7 +121,7 @@ export function carouselGuide(hook: HookArchetype = 'auto', density: TextDensity
     `- Tiap slide isi berisi satu hal yang bisa langsung dipakai pembaca (langkah konkret, contoh kalimat, checklist, angka dari topik), bukan sekadar nama konsep. ${INNER_SLIDE[density]}`,
     slides === 2
       ? '- Carousel 2 slide: slide 2 adalah Value + CTA; jawaban atau isi wajib membayar hook, lalu boleh ditutup satu ajakan singkat.'
-      : '- Slide CTA: tepat satu ajakan singkat yang paling cocok dengan topik (follow, simpan, bagikan, komentar, atau link di bio), bukan gabungan. Tidak perlu paragraf, daftar contoh, atau tips untuk memenuhi kepadatan.',
+      : `- Slide CTA: tepat satu ajakan singkat yang paling cocok dengan topik (follow, simpan, bagikan, komentar, atau link di bio), bukan gabungan. Tidak perlu paragraf, daftar contoh, atau tips untuk memenuhi kepadatan. ${CTA_BRIDGE_RULE}`,
     '- Hindari isi generik: kalau slide tetap masuk akal untuk topik lain, tulis ulang lebih spesifik. Jangan pakai frasa kosong seperti "game changer", "next level", "ubah segalanya", "solusi yang berhasil". Jangan ulangi pola kalimat yang sama di slide berbeda.',
     '- Pakai satu gaya sapaan secara konsisten, mengikuti gaya bahasa brand kalau ada.',
     '- Caption mendukung slide, bukan menyalin semua isinya.',
