@@ -59,12 +59,10 @@ const givesLayout = (image: PromptImage, role: SlideRole | null) =>
   ((image.label !== undefined && image.label !== 'single') || role === null || role === 'cover')
 
 /** What a reference the owner chose gives a slide besides its layout. */
-const REFERENCE_LOOK = 'background treatment, colour palette, typography style with its weight and letter case, and graphic motifs'
+const referenceLook = (hasBrandColors: boolean) =>
+  `background treatment, ${hasBrandColors ? '' : 'colour palette, '}typography style with its weight and letter case, and graphic motifs`
 
-/**
- * Said once when an owner's reference is among the images. The scene is written before the image is made and may
- * name a layout or colours of its own; the brand's colours and fonts are left out below for the same reason.
- */
+/** A chosen reference controls composition and typography; the brand palette controls design colours. */
 const REFERENCE_RULES =
   'The owner\'s reference decides the design of this slide. Where the scene\'s wording about layout, colours, fonts or style differs from the reference, the reference wins: take from the scene only what to show.'
 
@@ -96,25 +94,21 @@ function describeInputImage(image: PromptImage, index: number, context: ImageCon
       const note = image.note ? ` The owner's note about it: "${image.note}".` : ''
       // The owner chose this design for the post: it decides the look, not only the layout.
       if (image.label && image.label !== 'single') {
-        return `${name} is ${REFERENCE_SLIDES[image.label]} of the owner's reference carousel, the design the owner chose for this post: match it. Copy its layout for this slide (where the text and photo sit, text size and hierarchy, graphic elements, framing and composition) and its look (${REFERENCE_LOOK}). Do not copy its words, people, products or logo.${note}`
+        return `${name} is ${REFERENCE_SLIDES[image.label]} of the owner's reference carousel, the design the owner chose for this post: match it. Copy its layout for this slide (where the text and photo sit, text size and hierarchy, graphic elements, framing and composition) and its look (${referenceLook(context.colors)}). Do not copy its words, people, products or logo.${note}`
       }
       if (givesLayout(image, context.role)) {
-        return `${name} is a design reference: follow its style, composition and mood, and take its look (${REFERENCE_LOOK}); not its words, people, products or logo.${note}`
+        return `${name} is a design reference: follow its style, composition and mood, and take its look (${referenceLook(context.colors)}); not its words, people, products or logo.${note}`
       }
-      return `${name} is a general style reference: take its look (${REFERENCE_LOOK}) and its mood, and use this slide’s own layout for its role. Do not copy its words, people, products or logo.${note}`
+      return `${name} is a general style reference: take its look (${referenceLook(context.colors)}) and its mood, and use this slide’s own layout for its role. Do not copy its words, people, products or logo.${note}`
     }
   }
 }
 
-/**
- * `ruled`: a reference the owner chose decides the look, so the kit's visual style, colours and fonts are left
- * out: named here, they would override it, and every post would come out in the kit's look whatever was chosen.
- */
+/** A chosen reference replaces the kit's style and fonts, but never its colour palette. */
 function describeBrandVisual(brand: BrandVisual, styled: boolean, ruled: boolean): string[] {
   const lines: string[] = []
   if (brand.name) lines.push(`Brand: ${brand.name}${brand.category ? ` (${brand.category})` : ''}.`)
-  if (ruled) return lines
-  if (brand.visualStyle) {
+  if (!ruled && brand.visualStyle) {
     lines.push(
       styled
         ? `Visual style of the owner's past posts (take only its mood and imagery; colours and fonts follow the brand settings): ${brand.visualStyle}`
@@ -125,6 +119,7 @@ function describeBrandVisual(brand: BrandVisual, styled: boolean, ruled: boolean
     const colors = brand.colors.map((color) => `${ROLE_NAMES[color.role]} ${color.hex}`).join(', ')
     lines.push(`Brand colours: ${colors}. Use them for backgrounds, graphic elements and text, even where an input image uses other colours.`)
   }
+  if (ruled) return lines
   const fonts = [brand.headingFont && `headings ${brand.headingFont}`, brand.bodyFont && `body ${brand.bodyFont}`].filter(Boolean)
   if (fonts.length > 0) lines.push(`Brand fonts: ${fonts.join(', ')}.`)
   return lines
@@ -209,7 +204,10 @@ export function buildImagePrompt(
   lines.push(...images.map((image, index) => describeInputImage(image, index, context)))
   // A reference the owner chose for this post: it decides the look of the slide, whichever part it lends the layout to.
   const ruled = images.some((image) => image.kind === 'reference')
-  if (ruled) lines.push(REFERENCE_RULES)
+  if (ruled) {
+    lines.push(REFERENCE_RULES)
+    if (context.colors) lines.push('Colour exception: use the brand colours below instead of the reference palette for backgrounds, graphic elements and text. Preserve the reference layout and typography, and do not recolour real products, people or logos.')
+  }
 
   const reference = images.some((image) => givesLayout(image, role))
   // An owner reference is the complete design authority. Admin styles and generic brand visual settings are fallbacks,
@@ -262,7 +260,7 @@ export function buildImagePrompt(
   // The logo is stamped afterwards (storeSlideImage), the same on every slide: the model only leaves its place free.
   if (input.includeLogo && brand?.logoPlacement) lines.push(logoClearanceRule(brand.logoPlacement))
   lines.push(MODERN_LOOK)
-  // A chosen reference decides the look; otherwise the palette and fonts the owner set up apply.
+  // Brand colours always apply; a chosen reference still supplies the typography.
   if (brand) lines.push(...describeBrandVisual(brand, style !== null || reference, ruled))
   // Last and outside the reference check: the owner's limits beat a reference, a style and the scene.
   if (brand?.designRules) lines.push(`Owner's design rules (always follow, they override the scene and any reference): ${brand.designRules}`)
