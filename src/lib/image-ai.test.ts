@@ -234,8 +234,7 @@ describe('design styles in the prompt', () => {
     expect(prompt).toContain('Copy its layout for this slide')
     expect(prompt).not.toContain('Design style: Minimalis Modern.')
     expect(prompt).not.toContain('Inner slide layout: a small slide number top-left')
-    // The chosen reference brings its own palette: the kit's would override it.
-    expect(prompt).not.toContain('Brand colours:')
+    expect(prompt).toContain('Brand colours:')
   })
 
   it('leaves how a photo meets the text to the reference or example, with no fade of its own', () => {
@@ -267,7 +266,7 @@ describe('design styles in the prompt', () => {
   it('takes only the style of an Umum reference on an inner slide, which keeps its own layout', () => {
     const prompt = carousel('isi', [{ kind: 'reference', label: 'single' }])
 
-    expect(prompt).toContain('image1 is a general style reference: take its look (background treatment, colour palette')
+    expect(prompt).toContain('image1 is a general style reference: take its look (background treatment, typography style')
     expect(prompt).toContain('Inner slide layout: a small slide number top-left')
     expect(prompt).not.toContain('The reference decides the layout')
   })
@@ -281,16 +280,18 @@ describe('design styles in the prompt', () => {
     expect(prompt).not.toContain('Cover layout:')
   })
 
-  it('lets a reference the owner chose decide the look: the kit\'s colours, fonts and past style stay out', () => {
+  it('keeps the reference layout and fonts while applying the brand palette', () => {
     const kit = { ...BRAND, headingFont: 'Montserrat', bodyFont: 'Inter', colors: [{ hex: '#68462a', role: 'latar' as const }], visualStyle: 'Foto realistis' }
     const scene = { ...INPUT, headline: 'Judul\nIsi', slide: { index: 1, count: 3, role: 'cover' as const } }
     const chosen = buildImagePrompt(scene, kit, [{ kind: 'reference', label: 'cover' }])
 
-    expect(chosen).toContain('background treatment, colour palette, typography style with its weight and letter case, and graphic motifs')
+    expect(chosen).toContain('background treatment, typography style with its weight and letter case, and graphic motifs')
+    expect(chosen).toContain('Brand colours: background #68462a.')
+    expect(chosen).toContain('use the brand colours below instead of the reference palette')
     expect(chosen).toContain("The owner's reference decides the design of this slide.")
     expect(chosen).toContain('Set the first line the way the reference sets its headline')
     // Named in the prompt, these would override the reference and every post would look the same.
-    for (const overridden of ['Brand colours:', '#68462a', 'Brand fonts:', 'Montserrat', 'Visual style', 'even where an input image uses other colours']) {
+    for (const overridden of ['Brand fonts:', 'Montserrat', 'Visual style', 'background treatment, colour palette']) {
       expect(chosen).not.toContain(overridden)
     }
     expect(chosen).toContain('Brand: ')
@@ -301,6 +302,26 @@ describe('design styles in the prompt', () => {
       expect(plain).toContain('Brand colours: background #68462a.')
       expect(plain).toContain('Set the first line in Montserrat bold')
       expect(plain).not.toContain("The owner's reference decides the design")
+    }
+  })
+
+  it.each(['cover', 'isi', 'cta'] as const)('uses brand colours with a %s reference and preserves product identity', (role) => {
+    const prompt = buildImagePrompt({ ...INPUT, slide: { index: 2, count: 3, role } }, BRAND, [
+      { kind: 'reference', label: role }, { kind: 'product' },
+    ])
+    expect(prompt).toContain('Brand colours: primary #181818, accent #e8b04b.')
+    expect(prompt).toContain('use the brand colours below instead of the reference palette')
+    expect(prompt).not.toContain('background treatment, colour palette')
+    expect(prompt).toContain('preserve its shape, colour, materials, packaging, label and visible branding exactly')
+    expect(prompt).toContain('Copy its layout for this slide')
+  })
+
+  it('falls back to reference colours when the brand has no palette', () => {
+    for (const brand of [null, { ...BRAND, colors: [] }]) {
+      const prompt = buildImagePrompt(INPUT, brand, [{ kind: 'reference', label: 'single' }])
+      expect(prompt).toContain('background treatment, colour palette, typography style')
+      expect(prompt).not.toContain('Brand colours:')
+      expect(prompt).not.toContain('instead of the reference palette')
     }
   })
 
